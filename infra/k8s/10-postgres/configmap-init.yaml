@@ -39,9 +39,14 @@ data:
       REVOKE ALL ON SCHEMA motif_core   FROM notif_app;
       REVOKE ALL ON SCHEMA motif_notif  FROM core_app;
 
-      -- 각 계정의 기본 search_path를 자기 스키마로 고정
-      ALTER ROLE core_app  SET search_path TO motif_core;
-      ALTER ROLE notif_app SET search_path TO motif_notif;
+      -- pg_trgm이 public에 설치되므로 함수 호출을 위한 최소 권한만 부여한다.
+      -- USAGE만 주면 similarity() 등은 쓰되 테이블 생성은 여전히 막힌다.
+      GRANT USAGE ON SCHEMA public TO core_app, notif_app;
+
+      -- 자기 스키마가 앞. public은 pg_trgm 함수(similarity, gin_trgm_ops)
+      -- 조회용으로만 뒤에 둔다. 순서가 바뀌면 테이블이 public에 생긴다.
+      ALTER ROLE core_app  SET search_path TO motif_core, public;
+      ALTER ROLE notif_app SET search_path TO motif_notif, public;
 
       GRANT CONNECT ON DATABASE motif TO core_app, notif_app;
     SQL
