@@ -1,0 +1,79 @@
+# 외부 진입점.
+#
+# 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> Service
+# 추후 Core API가 배포되면 backend를 SCG로 바꾸고 path를 /api, /admin으로 나눈다.
+# 현재는 Walking Skeleton 검증용 whoami가 / 를 받고 있다.
+#
+# 인증서는 cert-manager가 letsencrypt-prod로 발급해 motif-tls Secret에 저장하며,
+# 만료 30일 전 자동 갱신한다.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      containers:
+        - name: hello
+          image: traefik/whoami:v1.10
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+spec:
+  selector:
+    app: hello
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - j15d104.p.ssafy.io
+      secretName: motif-tls
+  rules:
+    - host: j15d104.p.ssafy.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello
+                port:
+                  number: 80
