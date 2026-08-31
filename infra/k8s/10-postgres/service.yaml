@@ -15,3 +15,7 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
+  # 테일넷 IP에만 바인딩한다. 공인 IP(3.36.61.156)로는 열리지 않으므로
+  # 인터넷에서 DB가 보이지 않는다. 팀원은 Tailscale 조인 후 접속한다.
+  externalIPs:
+    - 100.106.64.43
