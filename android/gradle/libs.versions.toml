@@ -70,6 +70,7 @@ androidxArchCore = "2.2.0"
 robolectric = "4.16.1"
 mockito = "5.11.0"
 mockito-kotlin = "6.1.0"
+androidxTracing = "2.0.1"
 
 # Firebase
 firebaseBom = "34.17.0"
@@ -203,6 +204,7 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version.ref =
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-arch-core-testing = { module = "androidx.arch.core:core-testing", version.ref = "androidxArchCore" }
+androidx-tracing-ktx = { group = "androidx.tracing", name = "tracing-ktx", version.ref = "androidxTracing" }
 
 # Coil
 coil-kt = { group = "io.coil-kt", name = "coil", version.ref = "coil" }
