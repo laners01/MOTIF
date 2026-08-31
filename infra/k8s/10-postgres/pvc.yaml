@@ -1,0 +1,18 @@
+# 데이터 영속화용 볼륨.
+#
+# k3s 기본 프로비저너(local-path)가 노드의 /var/lib/rancher/k3s/storage/ 아래에
+# 실제 디렉터리를 만든다. 파드가 죽어도 데이터는 남는다.
+#
+# 주의: local-path는 노드 로컬 디스크다. 노드가 사라지면 데이터도 사라지므로
+#       pg_dump -> S3 백업 크론이 별도로 필요하다(RDS 미사용 결정에 따른 후속 작업).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

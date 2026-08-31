@@ -1,0 +1,11 @@
+
+# secrets
+*.pem
+*.key
+secret.yaml
+secret-*.yaml
+!secret.example.yaml
+.env
+
+# macOS
+.DS_Store

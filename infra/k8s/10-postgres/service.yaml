@@ -1,0 +1,21 @@
+# 클러스터 내부 접근용 Service.
+#
+# 애플리케이션은 jdbc:postgresql://postgres.default.svc.cluster.local:5432/motif 로 붙는다.
+#
+# NodePort를 쓰지 않는 이유: k3s가 NodePort를 열면 ufw를 우회해 공인 IP에
+# 노출될 수 있다. DB를 인터넷에 여는 것은 RDS를 뺀 이유와 정면으로 모순된다.
+# 팀원이 DBeaver 등으로 붙을 때는 테일넷 경유로 별도 노출한다(README 참조).
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  # 테일넷 IP에만 바인딩한다. 공인 IP(3.36.61.156)로는 열리지 않으므로
+  # 인터넷에서 DB가 보이지 않는다. 팀원은 Tailscale 조인 후 접속한다.
+  externalIPs:
+    - 100.106.64.43

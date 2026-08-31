@@ -1,0 +1,52 @@
+# PostgreSQL 최초 기동 시 1회 실행되는 초기화 스크립트.
+#
+# 컨테이너는 /docker-entrypoint-initdb.d/ 안의 스크립트를 데이터 디렉터리가
+# 비어 있을 때만 실행한다. 즉 PVC에 데이터가 이미 있으면 다시 돌지 않는다.
+#
+# 설계 근거(DB 명세서 v0.3 / ERD 설계근거 v0.3):
+#   - 스키마 2개(motif_core, motif_notif)로 소유권 경계를 나눈다.
+#   - 계정도 2개(core_app, notif_app)로 분리하고 교차 접근을 차단한다.
+#     멀티모듈 구조가 컴파일 타임 방어라면, 이 GRANT는 런타임 2차 방어다.
+#   - 마이그레이션(Liquibase)은 각 스키마 소유 계정으로 실행하므로
+#     스키마 OWNER를 해당 계정으로 지정한다.
+#   - pg_trgm은 Liquibase changelog 밖에서 1회만 생성한다(아티스트/그룹/곡 검색용).
+#
+# 비밀번호는 이 파일에 없다. Secret(postgres-secret)에서 환경변수로 주입된다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  init.sh: |
+    #!/bin/bash
+    set -e
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname motif <<-SQL
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+      CREATE SCHEMA motif_core;
+      CREATE SCHEMA motif_notif;
+
+      CREATE USER core_app  WITH PASSWORD '${CORE_APP_PASSWORD}';
+      CREATE USER notif_app WITH PASSWORD '${NOTIF_APP_PASSWORD}';
+
+      -- 마이그레이션을 소유 계정으로 실행하기 위한 스키마 소유권 이전
+      ALTER SCHEMA motif_core  OWNER TO core_app;
+      ALTER SCHEMA motif_notif OWNER TO notif_app;
+
+      -- 교차 스키마 접근 차단
+      REVOKE ALL ON SCHEMA public       FROM PUBLIC;
+      REVOKE ALL ON SCHEMA motif_core   FROM notif_app;
+      REVOKE ALL ON SCHEMA motif_notif  FROM core_app;
+
+      -- pg_trgm이 public에 설치되므로 함수 호출을 위한 최소 권한만 부여한다.
+      -- USAGE만 주면 similarity() 등은 쓰되 테이블 생성은 여전히 막힌다.
+      GRANT USAGE ON SCHEMA public TO core_app, notif_app;
+
+      -- 자기 스키마가 앞. public은 pg_trgm 함수(similarity, gin_trgm_ops)
+      -- 조회용으로만 뒤에 둔다. 순서가 바뀌면 테이블이 public에 생긴다.
+      ALTER ROLE core_app  SET search_path TO motif_core, public;
+      ALTER ROLE notif_app SET search_path TO motif_notif, public;
+
+      GRANT CONNECT ON DATABASE motif TO core_app, notif_app;
+    SQL
