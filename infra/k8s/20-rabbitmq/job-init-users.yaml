@@ -1,0 +1,84 @@
+# 컴포넌트별 계정과 권한을 생성하는 일회성 Job.
+#
+# definitions.json에 계정을 넣지 않는 이유: 비밀번호가 ConfigMap과 컨테이너
+# 디스크에 평문으로 남는다. rabbitmqctl은 Secret에서 환경변수로 받은 값을
+# 그대로 쓰므로 파일에 기록되지 않는다.
+#
+# 계정 분리는 DB 계정(core_app/notif_app), IAM(motif-api/motif-gpu-worker)과
+# 같은 원칙이다. 각자 필요한 권한만 갖는다.
+#
+#   core-api     : 잡·이벤트 발행, evt.core 소비
+#   notification : evt.notification 소비 전용 (write 권한 없음)
+#   gpu-worker   : job.composite 소비, composite.done/failed 발행만
+#   ingest-worker: EC2 워커 노드 조인 시점에 추가 예정
+#
+# set_permissions의 세 인자는 configure / write / read 순이다.
+# configure를 "^$"로 두면 큐·익스체인지를 스스로 만들 수 없다. 토폴로지는
+# definitions.json이 관리하므로 애플리케이션에 선언 권한을 줄 필요가 없다.
+#
+# 멱등하다. 계정이 이미 있으면 비밀번호만 갱신되고 권한은 덮어써진다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rabbitmq-init-users
+spec:
+  # 실패 시 3회까지 재시도 (RabbitMQ 기동 대기 중 실패할 수 있음)
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: rabbitmq:3.13-management
+          envFrom:
+            - secretRef:
+                name: rabbitmq-secret
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              # RabbitMQ가 뜰 때까지 대기
+              for i in $(seq 1 60); do
+                if rabbitmqadmin --host=rabbitmq --port=15672 \
+                     --username=admin --password="$RABBITMQ_ADMIN_PASSWORD" \
+                     list vhosts >/dev/null 2>&1; then
+                  echo "rabbitmq is ready"
+                  break
+                fi
+                echo "waiting for rabbitmq... ($i)"
+                sleep 5
+              done
+
+              RMQ="rabbitmqadmin --host=rabbitmq --port=15672 --username=admin --password=$RABBITMQ_ADMIN_PASSWORD"
+
+              # 계정 생성 (이미 있으면 비밀번호 갱신)
+              $RMQ declare user name=core-api     password="$RABBITMQ_CORE_PASSWORD"  tags=
+              $RMQ declare user name=notification password="$RABBITMQ_NOTIF_PASSWORD" tags=
+              $RMQ declare user name=gpu-worker   password="$RABBITMQ_GPU_PASSWORD"   tags=
+
+              # 권한: configure / write / read
+              # core-api: 익스체인지에 발행, evt.core 소비
+              $RMQ declare permission vhost=/motif user=core-api \
+                configure="^$" write="^motif\.(topic|dlx)$" read="^evt\.core$"
+
+              # notification: 소비 전용
+              $RMQ declare permission vhost=/motif user=notification \
+                configure="^$" write="^$" read="^evt\.notification$"
+
+              # gpu-worker: 잡 소비, 결과 이벤트 발행
+              $RMQ declare permission vhost=/motif user=gpu-worker \
+                configure="^$" write="^motif\.topic$" read="^job\.composite$"
+
+              # 라우팅 키 단위 제한. 외부 대여 GPU라 신뢰 경계가 다르므로
+              # 발행 가능한 키를 결과 이벤트로만 좁힌다.
+              $RMQ declare topic_permission vhost=/motif user=core-api \
+                exchange=motif.topic write=".*" read=".*"
+              $RMQ declare topic_permission vhost=/motif user=gpu-worker \
+                exchange=motif.topic write="^composite\.(done|failed)$" read="^job\.composite$"
+
+              echo "--- users ---"
+              $RMQ list users
+              echo "--- permissions ---"
+              $RMQ list permissions

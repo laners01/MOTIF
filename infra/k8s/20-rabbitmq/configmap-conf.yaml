@@ -1,34 +1,20 @@
-# RabbitMQ 서버 설정과 기동 래퍼.
+# RabbitMQ 서버 설정.
 #
-# definitions.json 에 비밀번호를 평문으로 둘 수 없으므로, 기동 시 템플릿의
-# ${...} 를 환경변수로 치환한 뒤 실제 파일을 만들고 서버를 띄운다.
-# 치환된 파일은 컨테이너 안 임시 경로에만 존재한다.
+# definitions.json에 계정이 없으므로 기동 시 치환 과정이 필요 없고,
+# 이미지의 기본 엔트리포인트를 그대로 쓴다.
+# 계정과 권한은 init Job이 rabbitmqctl로 만든다(job-init-users.yaml).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rabbitmq-conf
 data:
   rabbitmq.conf: |
-    # 기동 시 토폴로지 일괄 적용
-    load_definitions = /var/lib/rabbitmq/definitions.json
-
-    # guest 계정은 definitions.json 의 users 목록에 없으므로 생성되지 않는다.
-    # 기본 계정 로그인을 명시적으로 차단한다.
-    loopback_users.guest = true
+    # 기동 시 토폴로지(exchange, queue, binding) 일괄 적용
+    load_definitions = /etc/rabbitmq/definitions.json
 
     # 메모리 워터마크: limits.memory 640Mi 기준으로 여유를 둔다.
     vm_memory_high_watermark.relative = 0.6
     disk_free_limit.absolute = 1GB
 
-    # 관리 UI. Service 에서 테일넷 IP 로만 노출한다.
+    # 관리 UI. Service에서 테일넷 IP로만 노출한다.
     management.tcp.port = 15672
-
-  entrypoint.sh: |
-    #!/bin/bash
-    set -e
-
-    # 템플릿의 환경변수를 치환해 실제 definitions.json 생성
-    envsubst < /etc/rabbitmq-tpl/definitions.json.tpl > /var/lib/rabbitmq/definitions.json
-    chmod 600 /var/lib/rabbitmq/definitions.json
-
-    exec docker-entrypoint.sh rabbitmq-server
