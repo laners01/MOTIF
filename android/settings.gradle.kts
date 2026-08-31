@@ -32,3 +32,4 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 rootProject.name = "modif"
 
 include(":app")
+include(":core:common")
