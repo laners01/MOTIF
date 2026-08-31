@@ -1,0 +1,89 @@
+# Redis 7 — 랭킹 ZSET, 조회수 버퍼, 응답 캐시, 레이트리밋.
+#
+# 영속성을 두지 않는다(설계서 §6: "전부 재계산 가능 — 무영속 허용").
+#   - 랭킹      : 시간 버킷 ZSET 을 5분 배치가 다시 만든다.
+#   - 조회수    : 1분 플러시라 최대 1분치만 유실되고, 야간 재계산이 보정한다.
+#   - 캐시·RL   : 사라져도 무해하다.
+# AOF/RDB 를 끄면 디스크 I/O 와 PVC 가 모두 불필요해져 더 가볍다.
+#
+# refresh 토큰은 Redis 가 아니라 DB 에 있다(설계서 v0.2 변경 ⑦). 그래서
+# 이 데이터가 전부 날아가도 로그인 세션은 유지된다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-conf
+data:
+  redis.conf: |
+    # 영속성 비활성화
+    save ""
+    appendonly no
+
+    # limits.memory 300Mi 보다 낮게 잡아 OOMKill 대신 Redis 가 스스로 정리하게 한다.
+    maxmemory 200mb
+    # 랭킹 ZSET 등 만료 없는 키가 있으므로 TTL 이 설정된 키만 축출한다.
+    maxmemory-policy volatile-lru
+
+    # 테일넷·클러스터 내부에서만 접근하지만 인증은 걸어둔다.
+    protected-mode no
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command:
+            - sh
+            - -c
+            - 'exec redis-server /etc/redis/redis.conf --requirepass "$REDIS_PASSWORD"'
+          ports:
+            - containerPort: 6379
+          envFrom:
+            - secretRef:
+                name: redis-secret
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/redis
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "300Mi"
+              cpu: "300m"
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" ping']
+            initialDelaySeconds: 20
+            periodSeconds: 30
+      volumes:
+        - name: conf
+          configMap:
+            name: redis-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
