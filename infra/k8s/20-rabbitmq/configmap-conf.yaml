@@ -1,0 +1,20 @@
+# RabbitMQ 서버 설정.
+#
+# definitions.json에 계정이 없으므로 기동 시 치환 과정이 필요 없고,
+# 이미지의 기본 엔트리포인트를 그대로 쓴다.
+# 계정과 권한은 init Job이 rabbitmqctl로 만든다(job-init-users.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-conf
+data:
+  rabbitmq.conf: |
+    # 기동 시 토폴로지(exchange, queue, binding) 일괄 적용
+    load_definitions = /etc/rabbitmq/definitions.json
+
+    # 메모리 워터마크: limits.memory 640Mi 기준으로 여유를 둔다.
+    vm_memory_high_watermark.relative = 0.6
+    disk_free_limit.absolute = 1GB
+
+    # 관리 UI. Service에서 테일넷 IP로만 노출한다.
+    management.tcp.port = 15672
