@@ -6,7 +6,7 @@ import com.ssafy.modif.core.navigation.Navigator
 import com.ssafy.modif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.modif.feature.home.impl.HomeScreen
 
-fun EntryProviderScope<NavKey>.homeEntryProvider(navigator: Navigator) {
+fun EntryProviderScope<NavKey>.homeEntry(navigator: Navigator) {
     entry<HomeNavKey> {
         HomeScreen()
     }
