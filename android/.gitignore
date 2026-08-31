@@ -1,15 +1,36 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+node_modules/
+.next/
+out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Android / Gradle
+.gradle/
+build/
+**/build/
 local.properties
+*.iml
+.idea/
+
+# Android release artifacts
+*.apk
+*.aab
+*.ap_
+
+# Firebase config (앱별 시크릿 — 각자 Firebase 콘솔에서 받아 app/ 에 배치)
+google-services.json
+**/google-services.json
+
+# Kotlin / Java
+*.class
+
+# Python
+__pycache__/
+*.py[cod]
+
+# phase execution outputs
+phases/**/phase*-output.json
+phases/**/step*-output.json
+
+# backend-generated API spec dump (백엔드 산출물, 앱 소스 아님 — 로컬 참조용으로만 유지)
+docs/openapi.json
