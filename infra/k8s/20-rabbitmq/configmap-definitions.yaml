@@ -1,0 +1,233 @@
+# RabbitMQ 토폴로지 선언(definitions.json).
+#
+# 큐·익스체인지·바인딩·권한을 기동 시 한 번에 적용한다. 관리 UI에서 손으로
+# 만들면 서버를 다시 세울 때 재현이 안 되므로, 토폴로지도 코드로 관리한다.
+#
+# 설계 근거(아키텍처 설계서 §5.4 / §6):
+#   - topic exchange 하나(motif.topic)로 잡 큐와 도메인 이벤트를 모두 처리한다.
+#     Kafka를 쓰지 않은 이유: 리플레이가 불필요하고, 우선순위 큐가 필요하며,
+#     램 제약이 있다.
+#   - job.composite 는 x-max-priority=10. 모티프(유료, 결제 직후)는 5,
+#     챌린지는 0으로 발행하여 돈을 낸 사용자를 먼저 처리한다.
+#   - 모든 큐는 DLX(motif.dlx)로 연결한다. 실패 메시지는 DLQ에 쌓이고
+#     잡 스윕 배치가 attempt<3 이면 재발행한다.
+#
+# 계정은 컴포넌트별로 분리한다. DB 계정(core_app/notif_app)과 IAM
+# (motif-api/motif-gpu-worker)을 이미 나눴으므로 큐도 같은 원칙을 따른다.
+#   - core-api     : 잡 발행, evt.core 소비, 도메인 이벤트 발행
+#   - notification : evt.notification 소비 전용 (발행 권한 없음)
+#   - gpu-worker   : job.composite 소비, composite.* 발행
+#   - ingest-worker: EC2 워커 노드 조인 시점에 추가 예정
+#
+# 비밀번호는 이 파일에 없다. 컨테이너 기동 시 envsubst 로 치환한다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-definitions
+data:
+  definitions.json.tpl: |
+    {
+      "rabbit_version": "3.13.0",
+      "users": [
+        {
+          "name": "admin",
+          "password": "${RABBITMQ_ADMIN_PASSWORD}",
+          "tags": ["administrator"]
+        },
+        {
+          "name": "core-api",
+          "password": "${RABBITMQ_CORE_PASSWORD}",
+          "tags": []
+        },
+        {
+          "name": "notification",
+          "password": "${RABBITMQ_NOTIF_PASSWORD}",
+          "tags": []
+        },
+        {
+          "name": "gpu-worker",
+          "password": "${RABBITMQ_GPU_PASSWORD}",
+          "tags": []
+        }
+      ],
+      "vhosts": [
+        { "name": "/motif" }
+      ],
+      "permissions": [
+        {
+          "user": "admin",
+          "vhost": "/motif",
+          "configure": ".*", "write": ".*", "read": ".*"
+        },
+        {
+          "user": "core-api",
+          "vhost": "/motif",
+          "configure": "^$",
+          "write": "^motif\\.(topic|dlx)$",
+          "read": "^evt\\.core$"
+        },
+        {
+          "user": "notification",
+          "vhost": "/motif",
+          "configure": "^$",
+          "write": "^$",
+          "read": "^evt\\.notification$"
+        },
+        {
+          "user": "gpu-worker",
+          "vhost": "/motif",
+          "configure": "^$",
+          "write": "^motif\\.topic$",
+          "read": "^job\\.composite$"
+        }
+      ],
+      "topic_permissions": [
+        {
+          "user": "core-api",
+          "vhost": "/motif",
+          "exchange": "motif.topic",
+          "write": ".*",
+          "read": ".*"
+        },
+        {
+          "user": "gpu-worker",
+          "vhost": "/motif",
+          "exchange": "motif.topic",
+          "write": "^composite\\.(done|failed)$",
+          "read": "^job\\.composite$"
+        }
+      ],
+      "exchanges": [
+        {
+          "name": "motif.topic", "vhost": "/motif", "type": "topic",
+          "durable": true, "auto_delete": false, "arguments": {}
+        },
+        {
+          "name": "motif.dlx", "vhost": "/motif", "type": "topic",
+          "durable": true, "auto_delete": false, "arguments": {}
+        }
+      ],
+      "queues": [
+        {
+          "name": "job.composite", "vhost": "/motif", "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-max-priority": 10,
+            "x-dead-letter-exchange": "motif.dlx",
+            "x-dead-letter-routing-key": "dlq.job.composite"
+          }
+        },
+        {
+          "name": "job.media", "vhost": "/motif", "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-dead-letter-exchange": "motif.dlx",
+            "x-dead-letter-routing-key": "dlq.job.media"
+          }
+        },
+        {
+          "name": "evt.core", "vhost": "/motif", "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-dead-letter-exchange": "motif.dlx",
+            "x-dead-letter-routing-key": "dlq.evt.core"
+          }
+        },
+        {
+          "name": "evt.notification", "vhost": "/motif", "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-dead-letter-exchange": "motif.dlx",
+            "x-dead-letter-routing-key": "dlq.evt.notification"
+          }
+        },
+        {
+          "name": "evt.ranking", "vhost": "/motif", "durable": true,
+          "auto_delete": false,
+          "arguments": {
+            "x-dead-letter-exchange": "motif.dlx",
+            "x-dead-letter-routing-key": "dlq.evt.ranking"
+          }
+        },
+        { "name": "dlq.job.composite",    "vhost": "/motif", "durable": true, "auto_delete": false, "arguments": {} },
+        { "name": "dlq.job.media",        "vhost": "/motif", "durable": true, "auto_delete": false, "arguments": {} },
+        { "name": "dlq.evt.core",         "vhost": "/motif", "durable": true, "auto_delete": false, "arguments": {} },
+        { "name": "dlq.evt.notification", "vhost": "/motif", "durable": true, "auto_delete": false, "arguments": {} },
+        { "name": "dlq.evt.ranking",      "vhost": "/motif", "durable": true, "auto_delete": false, "arguments": {} }
+      ],
+      "bindings": [
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "job.composite", "destination_type": "queue",
+          "routing_key": "job.composite", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "job.media", "destination_type": "queue",
+          "routing_key": "job.media", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.core", "destination_type": "queue",
+          "routing_key": "composite.*", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.notification", "destination_type": "queue",
+          "routing_key": "composite.*", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.notification", "destination_type": "queue",
+          "routing_key": "comment.*", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.notification", "destination_type": "queue",
+          "routing_key": "notice.created", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.notification", "destination_type": "queue",
+          "routing_key": "challenge.created", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.ranking", "destination_type": "queue",
+          "routing_key": "video.*", "arguments": {}
+        },
+        {
+          "source": "motif.topic", "vhost": "/motif",
+          "destination": "evt.ranking", "destination_type": "queue",
+          "routing_key": "comment.*", "arguments": {}
+        },
+        {
+          "source": "motif.dlx", "vhost": "/motif",
+          "destination": "dlq.job.composite", "destination_type": "queue",
+          "routing_key": "dlq.job.composite", "arguments": {}
+        },
+        {
+          "source": "motif.dlx", "vhost": "/motif",
+          "destination": "dlq.job.media", "destination_type": "queue",
+          "routing_key": "dlq.job.media", "arguments": {}
+        },
+        {
+          "source": "motif.dlx", "vhost": "/motif",
+          "destination": "dlq.evt.core", "destination_type": "queue",
+          "routing_key": "dlq.evt.core", "arguments": {}
+        },
+        {
+          "source": "motif.dlx", "vhost": "/motif",
+          "destination": "dlq.evt.notification", "destination_type": "queue",
+          "routing_key": "dlq.evt.notification", "arguments": {}
+        },
+        {
+          "source": "motif.dlx", "vhost": "/motif",
+          "destination": "dlq.evt.ranking", "destination_type": "queue",
+          "routing_key": "dlq.evt.ranking", "arguments": {}
+        }
+      ],
+      "policies": [],
+      "parameters": [],
+      "global_parameters": []
+    }
