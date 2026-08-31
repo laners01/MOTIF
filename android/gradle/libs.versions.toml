@@ -60,7 +60,8 @@ media3 = "1.11.0"
 
 # Test
 junit = "4.13.2"
-turbine = "1.1.0"
+turbine = "1.2.1"
+truth = "1.4.5"
 androidxTestCore = "1.5.0"
 androidxTestRunner = "1.5.2"
 androidxTestExtJunit = "1.1.5"
@@ -190,6 +191,7 @@ firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging
 
 # Unit Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
