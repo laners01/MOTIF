@@ -73,8 +73,20 @@ spec:
                   - -c
                   - |
                     set -u
-                    # 노드가 완전히 기동할 때까지 대기
-                    rabbitmqctl await_startup --timeout 120
+
+                    # 쿠키 경쟁 방지: 훅은 root, 서버는 rabbitmq 유저로 돈다.
+                    # 훅의 rabbitmqctl이 먼저 실행되면 Erlang 쿠키를 root 소유로
+                    # 만들어 서버가 자기 쿠키를 읽지 못하고 죽는다(eacces).
+                    # 서버가 만든 쿠키가 나타난 뒤에만 rabbitmqctl을 부른다.
+                    for i in $(seq 1 90); do
+                      [ -s /var/lib/rabbitmq/.erlang.cookie ] && break
+                      sleep 2
+                    done
+                    for i in $(seq 1 90); do
+                      rabbitmqctl -q ping >/dev/null 2>&1 && break
+                      sleep 2
+                    done
+                    rabbitmqctl -q ping
 
                     for u in core-api notification gpu-worker; do
                       rabbitmqctl add_user "$u" placeholder 2>/dev/null || true
