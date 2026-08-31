@@ -19,7 +19,7 @@ data class ModifBackground(
         @Composable
         fun defaultBackground(): ModifBackground =
             ModifBackground(
-                color = colorResource(id = R.color.white),
+                color = colorResource(id = R.color.black),
                 tonalElevation = 0.dp,
             )
     }
