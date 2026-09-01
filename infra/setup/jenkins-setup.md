@@ -86,8 +86,20 @@ docker --version
 ## 3. Jenkins LTS 설치
 
 ```bash
-curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
 ```
+
+> **키는 주기적으로 교체된다.** 검색으로 나오는 문서 대부분이
+> `jenkins.io-2023.key` 를 쓰는데, 그 키로는 지금 저장소 서명을 검증하지
+> 못한다(2026-09-02 실측: `NO_PUBKEY 7198F4B714ABFC68`).
+>
+> 나중에 또 같은 오류가 나면 apt 가 알려주는 키 ID 를 그대로 들고
+> 연도만 바꿔가며 어느 키 파일이 그 ID 를 담고 있는지 확인한다.
+> 아래에서 나오는 지문의 뒤 16자리가 apt 가 요구한 ID 와 같아야 한다.
+>
+> ```bash
+> curl -fsS https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key | gpg --show-keys --with-colons | awk -F: '/^fpr:/{print $10}'
+> ```
 
 ```bash
 echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
@@ -99,6 +111,10 @@ sudo apt-get update
 
 ```bash
 sudo apt-get install -y jenkins
+```
+
+```bash
+systemctl is-active jenkins
 ```
 
 ## 4. Jenkins 를 공인 IP에 노출하지 않는다
