@@ -1,0 +1,20 @@
+# Traefik 설정 덮어쓰기.
+#
+# k3s 는 Traefik 을 Helm 차트로 자동 설치·관리한다. Deployment 를 직접 고치면
+# k3s 가 원래 값으로 되돌려 놓으므로, HelmChartConfig 로 값을 덮어써야 한다.
+# 이 리소스를 apply 하면 k3s 가 감지해 Traefik 을 재배포한다.
+#
+# name/namespace 는 k3s 가 만든 HelmChart 와 정확히 일치해야 한다(traefik/kube-system).
+#
+# 여기서는 로그 시각만 KST 로 바꾼다. Traefik 은 시각을 저장하지 않고 로그에
+# 표시만 하므로 안전하다. 저장 계층인 PostgreSQL 은 UTC 를 유지한다.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    env:
+      - name: TZ
+        value: Asia/Seoul

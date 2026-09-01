@@ -49,6 +49,12 @@ spec:
             - 'exec redis-server /etc/redis/redis.conf --requirepass "$REDIS_PASSWORD"'
           ports:
             - containerPort: 6379
+          env:
+            # 로그 시각을 KST 로 출력한다. Redis 는 시각을 저장하지 않고
+            # 로그에 표시만 하므로 컨테이너 타임존 변경이 안전하다.
+            # (PostgreSQL 은 저장 계층이므로 UTC 를 유지한다.)
+            - name: TZ
+              value: "Asia/Seoul"
           envFrom:
             - secretRef:
                 name: redis-secret

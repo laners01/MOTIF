@@ -40,6 +40,11 @@ spec:
             - name: management
               containerPort: 15672
           env:
+            # 로그 시각을 KST 로 출력한다. 저장 계층(PostgreSQL)은 UTC 를
+            # 유지하며, 여기서 바꾸는 것은 RabbitMQ 컨테이너의 표시 시각뿐이다.
+            # Debian 기반 이미지라 tzdata 가 이미 포함되어 있다.
+            - name: TZ
+              value: "Asia/Seoul"
             # vhost 는 definitions.json 이 만들지만, 정의 파일이 빠지는
             # 구성 변화에도 vhost 만은 남도록 이중으로 지정한다.
             - name: RABBITMQ_DEFAULT_VHOST
