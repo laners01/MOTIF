@@ -1,0 +1,210 @@
+// MOTIF core-api CI/CD (ADR-0007 / ADR-0008)
+//
+// 커밋 1번 -> 빌드 -> containerd 직접 임포트 -> 롤링 배포 -> health 검증.
+// 레지스트리를 쓰지 않는다. 단일 노드라 노드 간 이미지 배포 문제가 없고,
+// GitLab Container Registry가 인스턴스 레벨에서 꺼져 있다(ADR-0007).
+//
+// 대상 브랜치: develop/backend  <- 팀은 파트별 develop 라인을 쓴다. 단일 develop이 아니다.
+//              Jenkins job의 Branch Specifier도 `*/develop/backend` 여야 한다
+//              (infra/setup/jenkins-setup.md §8).
+//
+// 트리거는 SCM 폴링이다. GitLab 계정 권한이 Developer라 웹훅을 걸 수 없다.
+// Maintainer 확보 후 전환 절차는 infra/setup/webhook-migration.md.
+pipeline {
+    agent any
+
+    options {
+        // 아래에서 checkout scm 을 명시적으로 부른다. 기본 체크아웃을 끄지 않으면
+        // 같은 커밋을 두 번 받아 changeSets 기록이 어긋난다.
+        skipDefaultCheckout()
+        // 파이프라인 전체 상한. Deploy 단계의 180s 타임아웃과는 별개다.
+        timeout(time: 30, unit: 'MINUTES')
+        // 배포는 직렬이어야 한다. 두 빌드가 동시에 set image 하면 어느 태그가
+        // 남는지 보장되지 않는다.
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    triggers {
+        pollSCM('H/1 * * * *')
+    }
+
+    parameters {
+        // 변경 감지와 무관하게 강제로 배포하고 싶을 때. 롤백 이후 재배포나
+        // 매니페스트만 고친 뒤 파드를 새로 띄울 때 쓴다.
+        booleanParam(name: 'FORCE_DEPLOY', defaultValue: false,
+                     description: 'backend 변경이 없어도 빌드·배포한다')
+    }
+
+    environment {
+        // 가짜 레지스트리 프리픽스. 실재하지 않는 호스트라 어딘가에서 pull을
+        // 시도하면 조용히 성공하는 대신 즉시 실패한다(ADR-0007 D2).
+        IMAGE_REPO = 'registry.local/motif/core-api'
+        // 빌드번호 태그만 운영 참조로 쓴다. latest 는 어느 커밋인지 알 수 없어
+        // 롤백 대상을 특정할 수 없으므로 Deployment 에서 참조하지 않는다.
+        IMAGE      = "registry.local/motif/core-api:${env.BUILD_NUMBER}"
+        DEPLOYMENT = 'core-api'
+        CONTAINER  = 'core-api'
+        HEALTH_URL = 'https://j15d104.p.ssafy.io/api/health'
+        // k3s 는 /usr/local/bin 에 깔린다. sudoers 항목과 경로가 정확히 같아야
+        // NOPASSWD 가 걸린다.
+        K3S        = '/usr/local/bin/k3s'
+        // 이미지 보관 개수. 초과분은 Cleanup 에서 지운다.
+        KEEP_IMAGES = '5'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git --no-pager log -1 --pretty="%h %an %s"'
+            }
+        }
+
+        // backend 밖 커밋(android/ai/docs)으로는 배포하지 않는다.
+        //
+        // changeset 의 함정: 브랜치의 첫 빌드는 비교 대상이 없어 변경 목록이
+        // 비고, 조건이 false 가 되어 전 단계가 스킵된다. 최초 배포와 수동
+        // 재배포를 위해 탈출구 두 개를 함께 둔다.
+        stage('CI/CD') {
+            when {
+                anyOf {
+                    changeset 'backend/**'
+                    expression { return currentBuild.previousBuild == null }
+                    expression { return params.FORCE_DEPLOY }
+                }
+                beforeAgent true
+            }
+
+            stages {
+
+                stage('Build & Test') {
+                    steps {
+                        // Gradle 데몬을 끄지 않는다. executor 1 이라 빌드가 직렬이고,
+                        // 데몬을 재사용해야 매 빌드 JVM 기동·설정 단계를 다시 하지 않는다.
+                        // 데몬 힙은 호스트 gradle.properties 에서 잡는다(jenkins-setup.md §3).
+                        dir('backend') {
+                            sh './gradlew :app-core-api:bootJar :app-core-api:test'
+                        }
+                    }
+                }
+
+                stage('Docker Build') {
+                    steps {
+                        // 컨텍스트는 app-core-api 디렉터리다. Dockerfile 은 호스트가 만든
+                        // bootJar 를 레이어로 펼치기만 한다(ADR-0008, D5).
+                        sh 'docker build -t "$IMAGE" backend/app-core-api'
+                    }
+                }
+
+                stage('Import to k3s') {
+                    steps {
+                        // k3s 는 도커가 아니라 containerd 를 쓴다. 호스트 도커에 이미지가
+                        // 있어도 k3s 는 보지 못하므로 명시적으로 넘겨야 한다.
+                        // 이 명령 하나만 NOPASSWD 로 열려 있다(jenkins-setup.md §6).
+                        sh 'docker save "$IMAGE" | sudo "$K3S" ctr images import -'
+                        // 임포트가 실제로 됐는지 확인한다. imagePullPolicy: Never 라
+                        // 여기서 빠뜨리면 다음 단계가 ErrImageNeverPull 로 죽는다.
+                        sh 'sudo "$K3S" ctr images ls -q | grep -qx "$IMAGE"'
+                    }
+                }
+
+                stage('Deploy') {
+                    steps {
+                        sh 'kubectl set image deployment/"$DEPLOYMENT" "$CONTAINER"="$IMAGE"'
+                        script {
+                            // maxUnavailable: 0 이라 새 파드가 Ready 가 되기 전에는
+                            // 기존 파드가 죽지 않는다. 타임아웃이 나도 서비스는 살아 있다.
+                            def rc = sh(returnStatus: true,
+                                        script: 'kubectl rollout status deployment/"$DEPLOYMENT" --timeout=180s')
+                            if (rc != 0) {
+                                rollbackAndFail('rollout status 실패 — 180s 안에 새 파드가 Ready 되지 못했다')
+                            }
+                        }
+                    }
+                }
+
+                stage('Verify') {
+                    steps {
+                        script {
+                            // Ingress 를 통과하는 실제 경로로 때린다. 파드가 Ready 여도
+                            // Traefik 라우팅이 어긋나면 사용자에게는 장애다.
+                            def ok = false
+                            for (int i = 1; i <= 3; i++) {
+                                def rc = sh(returnStatus: true,
+                                            script: 'curl -sf --max-time 10 "$HEALTH_URL"')
+                                if (rc == 0) { ok = true; break }
+                                echo "health 시도 ${i}/3 실패 — 10초 후 재시도"
+                                sleep time: 10, unit: 'SECONDS'
+                            }
+                            if (!ok) {
+                                rollbackAndFail("health 스모크 3회 실패 — ${env.HEALTH_URL}")
+                            }
+                            echo "health 200 확인 — ${env.HEALTH_URL}"
+                        }
+                    }
+                }
+
+                // 디스크 보호용. 실패해도 배포는 이미 끝났으므로 빌드를 깨지 않는다.
+                stage('Cleanup old images') {
+                    steps {
+                        // 빌드번호 태그를 숫자로 정렬해 최신 KEEP_IMAGES 개만 남긴다.
+                        // 롤백 대상이 남아 있어야 하므로 1개만 남기지 않는다.
+                        sh '''
+                            set +e
+                            sudo "$K3S" ctr images ls -q \
+                              | grep "^${IMAGE_REPO}:[0-9]\\+$" \
+                              | sort -t: -k2 -n -r \
+                              | tail -n +$((KEEP_IMAGES + 1)) \
+                              | xargs -r -n1 sudo "$K3S" ctr images rm
+                            docker images "$IMAGE_REPO" --format '{{.Repository}}:{{.Tag}}' \
+                              | grep "^${IMAGE_REPO}:[0-9]\\+$" \
+                              | sort -t: -k2 -n -r \
+                              | tail -n +$((KEEP_IMAGES + 1)) \
+                              | xargs -r -n1 docker image rm
+                            exit 0
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "성공 — 배포 이미지 ${env.IMAGE}"
+        }
+        failure {
+            echo "실패 — 빌드 #${env.BUILD_NUMBER}"
+            // 실패 원인 파악용 최소 정보. 롤백이 돌았다면 REVISION 이 되돌아가 있다.
+            sh '''
+                set +e
+                echo "--- deployment ---"
+                kubectl get deployment "$DEPLOYMENT" -o wide
+                echo "--- pods ---"
+                kubectl get pods -l app="$DEPLOYMENT" -o wide
+                echo "--- 최근 이벤트 ---"
+                kubectl get events --sort-by=.lastTimestamp | tail -20
+                exit 0
+            '''
+        }
+        aborted {
+            echo "중단됨 — 빌드 #${env.BUILD_NUMBER}. 배포가 반쯤 진행됐을 수 있으니 rollout 상태를 확인할 것."
+        }
+    }
+}
+
+// 배포 게이트 실패 시 직전 리비전으로 되돌리고 빌드를 FAIL 시킨다.
+// undo 자체가 실패해도(되돌릴 리비전이 없는 최초 배포 등) 원래 실패 사유를
+// 잃지 않도록 error() 는 반드시 던진다.
+void rollbackAndFail(String reason) {
+    echo "배포 게이트 실패: ${reason} — 직전 리비전으로 되돌린다"
+    sh '''
+        set +e
+        kubectl rollout undo deployment/"$DEPLOYMENT"
+        kubectl rollout status deployment/"$DEPLOYMENT" --timeout=120s
+        exit 0
+    '''
+    error(reason)
+}
