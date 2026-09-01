@@ -3,7 +3,7 @@
 # 컨테이너는 /docker-entrypoint-initdb.d/ 안의 스크립트를 데이터 디렉터리가
 # 비어 있을 때만 실행한다. 즉 PVC에 데이터가 이미 있으면 다시 돌지 않는다.
 #
-# 설계 근거(DB 명세서 v0.3 / ERD 설계근거 v0.3):
+# 설계 근거(DB 명세서 v0.5):
 #   - 스키마 2개(motif_core, motif_notif)로 소유권 경계를 나눈다.
 #   - 계정도 2개(core_app, notif_app)로 분리하고 교차 접근을 차단한다.
 #     멀티모듈 구조가 컴파일 타임 방어라면, 이 GRANT는 런타임 2차 방어다.
@@ -42,6 +42,14 @@ data:
       -- pg_trgm이 public에 설치되므로 함수 호출을 위한 최소 권한만 부여한다.
       -- USAGE만 주면 similarity() 등은 쓰되 테이블 생성은 여전히 막힌다.
       GRANT USAGE ON SCHEMA public TO core_app, notif_app;
+
+      -- 팬아웃(DB 명세 v0.5 §구독자 팬아웃): 알림 서비스는
+      -- motif_core.subscriptions 를 읽기 전용으로 조회해 수신자를 얻는다.
+      -- 여기서는 스키마 USAGE(출입 자격)만 부여한다. 테이블 SELECT(방 열쇠)는
+      -- Liquibase 가 subscriptions 생성 직후 changeSet 으로 부여한다
+      -- (소유자 core_app 이 실행: GRANT SELECT ON subscriptions TO notif_app).
+      -- USAGE 만으로는 어떤 테이블도 읽을 수 없어 격리는 유지된다.
+      GRANT USAGE ON SCHEMA motif_core TO notif_app;
 
       -- 자기 스키마가 앞. public은 pg_trgm 함수(similarity, gin_trgm_ops)
       -- 조회용으로만 뒤에 둔다. 순서가 바뀌면 테이블이 public에 생긴다.
