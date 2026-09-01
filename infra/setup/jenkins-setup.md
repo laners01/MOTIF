@@ -390,12 +390,20 @@ cd ~/motif && git checkout develop/backend
 cd ~/motif/backend && ./gradlew :app-core-api:bootJar
 ```
 
+> 이 빌드는 사람 계정의 Gradle 캐시를 쓴다. jenkins 계정 캐시(10절)와는
+> 별개라 첫 Jenkins 빌드는 의존성을 다시 받는다 — 정상이다.
+
+`sudo` 를 붙이는 이유: 8-1절에서 docker 그룹에 넣은 것은 **jenkins 계정뿐**이다.
+사람 계정(ubuntu)은 그룹에 없으므로 그냥 실행하면
+`permission denied ... /var/run/docker.sock` 이 난다. 부트스트랩 1회용이라
+사람 계정을 docker 그룹(사실상 root 권한)에 넣지 않고 sudo 로 넘긴다.
+
 ```bash
-cd ~/motif && docker build -t registry.local/motif/core-api:0 backend/app-core-api
+cd ~/motif && sudo docker build -t registry.local/motif/core-api:0 backend/app-core-api
 ```
 
 ```bash
-docker save registry.local/motif/core-api:0 | sudo /usr/local/bin/k3s ctr images import -
+sudo docker save registry.local/motif/core-api:0 | sudo /usr/local/bin/k3s ctr images import -
 ```
 
 임포트 확인 — 이 줄이 비면 다음 단계가 `ErrImageNeverPull` 로 죽는다.
