@@ -1,0 +1,21 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+plugins {
+    // 툴체인 JDK(21) 자동 프로비저닝 — MODERA 검증 구성 (ADR-0004)
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'motif-backend'
+
+include 'module-common'
+include 'module-event'
+include 'domain-core'
+include 'domain-notif'
+include 'app-core-api'
+include 'app-notification'
+include 'app-gateway'

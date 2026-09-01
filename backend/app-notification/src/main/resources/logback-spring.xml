@@ -1,0 +1,6 @@
+<configuration>
+    <include resource="logback-motif-common.xml"/>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.boot:spring-boot-dependencies:${libs.versions.spring.boot.get()}"
+    }
+}
+
+dependencies {
+    api project(':module-common')
+    api project(':module-event')
+
+    // 엔티티·리포지토리가 노출할 JPA 스택 — 컨슈머(app-core-api)까지 전파
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+}

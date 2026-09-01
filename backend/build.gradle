@@ -1,0 +1,44 @@
+// MOTIF 백엔드 멀티모듈 루트.
+//
+// 의존 방향 (컴파일 타임 강제 — ADR-0004 "공유는 계약 모듈뿐"):
+//   module-common ← module-event ← (domain-core, domain-notif) ← app-*
+//   app-notification 은 domain-core 에 의존할 수 없다.
+//
+// boot 플러그인은 실행체인 app-* 3개에만 적용한다 — 여기서는 버전만 선언(apply false).
+plugins {
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.spring.dependency.management) apply false
+}
+
+allprojects {
+    group = 'com.ssafy.motif'
+    version = '0.0.1-SNAPSHOT'
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    configurations {
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+}

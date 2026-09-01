@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencies {
+    implementation project(':domain-notif')   // domain-core 금지 — 스키마 경계 (ADR-0004)
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'  // Boot 4 신설 스타터
+
+    // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
+    implementation libs.jackson2.databind
+    implementation libs.jackson2.jsr310
+
+    implementation libs.micrometer.prometheus
+
+    runtimeOnly libs.postgresql
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
+}

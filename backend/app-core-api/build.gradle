@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencies {
+    implementation project(':domain-core')
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'  // Boot 4 신설 스타터
+
+    implementation libs.springdoc.webmvc.ui
+
+    // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
+    implementation libs.jackson2.databind
+    implementation libs.jackson2.jsr310
+
+    implementation libs.micrometer.prometheus
+
+    runtimeOnly libs.postgresql
+
+    // QueryDSL(openfeign 포크) — Phase 0에는 엔티티가 없어 생성물도 없지만 wiring을 먼저 통과시킨다
+    implementation libs.querydsl.core
+    implementation libs.querydsl.jpa
+    annotationProcessor variantOf(libs.querydsl.apt) { classifier('jpa') }
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+
+    // MapStruct — 사용 코드 없음, 프로세서 체인(lombok → binding → mapstruct)만 구성
+    implementation libs.mapstruct
+    annotationProcessor libs.mapstruct.processor
+    annotationProcessor libs.lombok.mapstruct.binding
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
+}
+
+// QueryDSL Q클래스 생성 디렉터리 wiring (MODERA 방식)
+def querydslDir = layout.buildDirectory.dir('generated/querydsl').get().asFile
+
+sourceSets {
+    main.java.srcDirs += [querydslDir]
+}
+
+tasks.named('compileJava', JavaCompile).configure {
+    options.generatedSourceOutputDirectory.set(file(querydslDir))
+}
+
+clean {
+    delete file(querydslDir)
+}
