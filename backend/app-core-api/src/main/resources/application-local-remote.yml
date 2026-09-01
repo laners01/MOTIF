@@ -1,0 +1,15 @@
+# 하이브리드 모드 — DB는 자기 compose, MQ는 서버(테일넷) (ADR-0003)
+# SERVER_MQ_PASSWORD는 fallback이 없다 (placeholder 규율, ADR-0004) — 미주입이면
+# placeholder 원문이 비밀번호로 남아 서버 MQ 인증에 실패한다(주입 없이는 동작 불가).
+# 값은 backend/.env.example 참조(팀 비밀 저장소).
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/motif}
+    username: ${DB_USERNAME:core_app}
+    password: ${DB_PASSWORD:motif123}   # 로컬 compose 전용 더미(비밀 아님)
+  rabbitmq:
+    host: ${SERVER_MQ_HOST:100.106.64.43}
+    port: 5672
+    username: ${SERVER_MQ_USERNAME:core-api}
+    password: ${SERVER_MQ_PASSWORD}
+    virtual-host: /motif

@@ -1,0 +1,25 @@
+# 게이트웨이는 프로파일별 접속 정보가 없다 — 업스트림 URI는 env로만 갈린다.
+spring:
+  application:
+    name: app-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            # 내부 헤더는 SCG가 인증 후 스스로 채운다 — 외부 유입은 무조건 제거 (ADR-0002 스푸핑 차단)
+            - RemoveRequestHeader=X-User-Seq
+            - RemoveRequestHeader=X-User-Role
+          routes:
+            - id: core-api
+              uri: ${GATEWAY_CORE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/**
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: 8080
+  shutdown: graceful
+
+# JWT 검증·유저당 레이트리밋(RequestRateLimiter + Redis)은 Phase 1 (ADR-0002)

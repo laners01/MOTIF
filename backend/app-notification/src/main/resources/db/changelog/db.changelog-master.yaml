@@ -1,0 +1,13 @@
+# motif_notif 스키마 마이그레이션 master (MODERA 관례 — ADR-0004).
+#
+# 번호 붙은 raw SQL changelog를 순서대로 include 한다:
+#
+#   databaseChangeLog:
+#     - include:
+#         file: db/changelog/sql/0001-create-notifications.sql
+#
+# 규칙:
+#   - 파일명은 0001부터 증가. 한 번 배포된 파일은 수정하지 않는다(새 번호로 추가).
+#   - 전역 오브젝트(pg_trgm 등)는 여기 두지 않는다 — DB init 스크립트 소유.
+#   - motif_core 쪽 오브젝트는 여기서 만들지 않는다(계정 권한도 없다).
+databaseChangeLog: []
