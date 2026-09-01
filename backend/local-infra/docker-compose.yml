@@ -1,0 +1,82 @@
+# 로컬 격리 모드 인프라 (ADR-0003) — PG + RabbitMQ + Redis + 스텁 GPU 워커.
+#
+# 자격증명은 전부 로컬 전용 더미(비밀 아님, motif 계열 고정).
+# 운영 원본과의 관계:
+#   - postgres/init.sql      ← infra/k8s/10-postgres/configmap-init.yaml (비번만 로컬 고정)
+#   - rabbitmq/definitions.json ← infra/k8s/20-rabbitmq/configmap-definitions.yaml
+#                                 (+ 로컬 전용 motif 계정 — 운영은 postStart 훅이 계정 생성)
+#   - rabbitmq/rabbitmq.conf 의 load_definitions 방식은 운영과 동일.
+#
+# 전 서비스 healthcheck (MODERA local-infra 관례 — ADR-0004).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: motif-postgres
+    environment:
+      POSTGRES_USER: motif          # 로컬 전용 더미
+      POSTGRES_PASSWORD: motif123   # 로컬 전용 더미
+      POSTGRES_DB: motif
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1: 초기화 중 소켓 전용 임시 서버에 속지 않도록 TCP로 확인
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U motif -d motif"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: motif-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # 관리 UI — motif / motif (로컬 전용 더미)
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: motif-redis
+    command: ["redis-server", "--requirepass", "motif123"]   # 로컬 전용 더미
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a motif123 ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # 가짜 합성기 (ADR-0003) — job.composite 소비 → 2초 → composite.done 발행.
+  # 오프라인에서도 발행→소비→완료 전 파이프라인이 돈다.
+  stub-worker:
+    build: ./stub-worker
+    container_name: motif-stub-worker
+    environment:
+      MQ_HOST: rabbitmq
+      MQ_USERNAME: motif
+      MQ_PASSWORD: motif    # 로컬 전용 더미
+      MQ_VHOST: /motif
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      # worker.py가 소비 시작 시 /tmp/healthy를 만들고 연결이 끊기면 지운다
+      test: ["CMD-SHELL", "test -f /tmp/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+volumes:
+  pgdata:
