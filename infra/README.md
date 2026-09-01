@@ -19,10 +19,15 @@ k8s 매니페스트와 서버 셋업 절차. 매니페스트는 여기가 원본
 ## 디렉터리
 
 ```
-infra/k8s/
-├── 00-cert-manager/   ClusterIssuer (Let's Encrypt staging/prod)
-├── 10-postgres/       PostgreSQL 16 + 스키마·계정 격리
-└── 90-ingress/        Traefik Ingress, HTTPS 리다이렉트
+infra/
+├── k8s/
+│   ├── 00-cert-manager/   ClusterIssuer (Let's Encrypt staging/prod)
+│   ├── 10-postgres/       PostgreSQL 16 + 스키마·계정 격리
+│   ├── 20-rabbitmq/       RabbitMQ 3.13 + vhost·계정 격리
+│   ├── 30-redis/          Redis 7 (무영속)
+│   ├── 40-core-api/       core-api 배포 + /api Ingress
+│   └── 90-ingress/        Traefik Ingress, HTTPS 리다이렉트
+└── setup/                 서버 셋업 절차서 (사람이 한 줄씩 실행)
 ```
 
 접두 번호는 적용 순서다.
@@ -112,6 +117,8 @@ kubectl exec -it deploy/postgres -- psql -U notif_app -d motif -c "CREATE TABLE 
 |---|---|
 | `postgres-secret` | 서버에서 `kubectl create secret`, 값은 팀 비밀 저장소 |
 | SSH 키 (`*.pem`) | 팀 비밀 저장소 |
+| `core-api-secret` | 서버에서 `kubectl create secret`, 값은 `k8s/40-core-api/secret.example.yaml.txt` 참조 |
+| GitLab PAT (Jenkins) | Jenkins Credentials `gitlab-pat`, 값은 팀 비밀 저장소 |
 | k3s 설치 옵션 | 이 문서 2절 |
 
 ## 미완 / 후속
@@ -119,7 +126,8 @@ kubectl exec -it deploy/postgres -- psql -U notif_app -d motif -c "CREATE TABLE 
 - [ ] 팀원 Tailscale 조인, key expiry 해제
 - [ ] Postgres 테일넷 노출 (팀원 DB 툴 접속용)
 - [ ] `pg_dump` → S3 백업 크론 (RDS 미사용에 따른 대체)
-- [ ] Docker + Jenkins 파이프라인
-- [ ] RabbitMQ + Redis 배포
+- [x] RabbitMQ + Redis 배포
+- [x] Docker + Jenkins 파이프라인 — `setup/jenkins-setup.md` (절차서 실행은 사람 몫)
+- [ ] 트리거를 폴링에서 웹훅으로 — `setup/webhook-migration.md` (GitLab Maintainer 확보 후)
 - [ ] EC2 워커 노드 조인 (`workload=media`)
 - [ ] 미사용 RDS 인스턴스 삭제

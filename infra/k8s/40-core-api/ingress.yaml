@@ -1,0 +1,53 @@
+# core-api 외부 진입 — /api 를 앱으로 보낸다.
+#
+# 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> core-api Service:8081
+#
+# ── hello 교체 ──────────────────────────────────────────────────────────────
+# 90-ingress/ingress.yaml 의 hello(whoami)는 Walking Skeleton 검증용으로
+# `/` 를 잡고 있다. 이 Ingress 는 `/api` 만 가져가므로 **둘은 공존할 수 있다**
+# — Traefik 은 더 긴 경로 규칙을 먼저 매칭한다. 그래서 전환 순서는
+#   ① 이 파일 apply -> ② /api/health 200 확인 -> ③ hello Ingress 제거
+# 다. 먼저 지우고 나중에 올리면 실패했을 때 되돌릴 자리가 없다.
+#
+# hello Deployment/Service 를 마저 지울지는 사람이 판단한다(램 16Mi 라
+# 남겨둬도 부담이 없고, Ingress 없이도 whoami 로 클러스터 내부 점검에 쓸 수 있다).
+#
+# ── 인증서 ──────────────────────────────────────────────────────────────────
+# hello Ingress 와 같은 host·같은 secretName(motif-tls)을 쓴다. cert-manager 는
+# secretName 기준으로 Certificate 를 하나만 만들므로 새로 발급되지 않고
+# 기존 인증서를 그대로 읽는다 — 발급 요청이 늘지 않는다(prod 는 주당 제한이 있다).
+#
+# 다만 Certificate 의 ownerRef 가 hello Ingress 를 가리키고 있을 수 있어,
+# hello Ingress 를 지우는 순간 Certificate 가 GC 되었다가 이 Ingress 때문에
+# 다시 만들어질 수 있다. 지운 직후 아래를 반드시 확인한다.
+#
+#   kubectl get certificate motif-tls
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: core-api
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # 90-ingress 에 정의된 Middleware. `default-` 는 네임스페이스,
+    # `@kubernetescrd` 는 Traefik 프로바이더 접미사다 — 이름을 하나라도
+    # 틀리면 조용히 무시되어 http 리다이렉트만 안 걸린다.
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - j15d104.p.ssafy.io
+      secretName: motif-tls
+  rules:
+    - host: j15d104.p.ssafy.io
+      http:
+        paths:
+          # /api 하위 전부. 앱이 /api/health, /api/... 를 직접 들고 있어
+          # 경로를 다시 쓰지 않는다(StripPrefix 미사용).
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8081
