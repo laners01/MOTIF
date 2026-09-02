@@ -73,6 +73,8 @@ kubectl run curl-probe --rm -it --image=curlimages/curl:8.11.1 --restart=Never -
 ```
 
 `200` 또는 `403` 이면 통한 것이다. 타임아웃이면 여기서 멈추고 원인부터 찾는다.
+(실측 2026-09-02: `200`. k3s 가 `--flannel-iface=tailscale0` 로 설치돼 있어
+파드에서 노드의 테일넷 IP 로 바로 나간다.)
 
 > UI 접속은 계속 SSH 터널을 쓴다. 바인딩이 테일넷으로 바뀌었으므로
 > 팀원은 Tailscale 조인 후 `http://100.106.64.43:8080` 으로 직접 붙어도 된다.
@@ -83,9 +85,8 @@ kubectl run curl-probe --rm -it --image=curlimages/curl:8.11.1 --restart=Never -
 셀렉터 없는 Service 와 수동 EndpointSlice 로 클러스터 밖(호스트 프로세스)을
 가리킨다. 셀렉터를 비워야 쿠버네티스가 엔드포인트를 자동으로 덮어쓰지 않는다.
 
-아래를 `infra/k8s/50-jenkins-webhook/webhook-route.yaml` 로 만든 뒤 apply 한다.
-**전환을 실행하는 시점에 파일을 만든다** — 지금 커밋해두면 아직 쓰지 않는
-경로가 열려 있는 것처럼 보인다.
+매니페스트는 **`infra/k8s/50-jenkins-webhook/webhook-route.yaml` 에 있다**
+(2026-09-02 전환 시점에 작성·적용). 아래는 그 내용이다.
 
 ```yaml
 # Jenkins 웹훅 수신 경로만 Traefik 으로 외부에 연다.
@@ -159,6 +160,19 @@ spec:
 
 ## 4. Jenkins 쪽 설정
 
+### 4-0. Jenkins URL 갱신
+
+`Jenkins 관리 > System > Jenkins Location > Jenkins URL` 을
+`http://100.106.64.43:8080/` 로 바꾼다. 초기 설정 때 넣은
+`http://localhost:8080/` 는 재바인딩 후 아무도 접근할 수 없는 주소다.
+
+공개 도메인(`https://j15d104.p.ssafy.io/`)으로 두지 않는다. 그 호스트에서는
+`/project/` 만 열려 있어서 Jenkins 가 만들어내는 나머지 링크가 전부
+whoami(또는 404)로 이어진다.
+
+그래서 4-2 에서 플러그인이 보여주는 웹훅 URL 도 테일넷 주소로 나온다.
+GitLab 에 넣을 때는 호스트만 공개 도메인으로 바꿔 쓴다.
+
 ### 4-1. 플러그인 설치
 
 **Manage Jenkins > Plugins > Available** 에서 `GitLab` 설치 후 재시작.
@@ -228,9 +242,23 @@ triggers {
 - [ ] `develop/infra` 에 push 했을 때는 빌드가 **트리거되지 않는지**
       (4-2 의 브랜치 필터)
 - [ ] GitLab > Settings > Webhooks > **Edit > Recent Deliveries** 가 200
-- [ ] 웹훅 URL 의 UI 경로가 여전히 막혀 있는지 — 404 나 연결 거부여야 한다.
-      **200 이 나오면 즉시 중단하고 3절 Ingress 의 path 를 다시 본다.**
-      `curl -s -o /dev/null -w '%{http_code}\n' https://j15d104.p.ssafy.io/login`
+- [ ] 웹훅 URL 의 UI 경로가 Jenkins 로 가지 않는지.
+      **상태 코드만 보면 안 된다** — hello(whoami)가 `/` 를 잡고 있는 동안은
+      `/login` 도 200 을 돌려준다. 200 인지가 아니라 **누가 응답했는지**를
+      봐야 한다. 아래에서 `JENKINS` 가 하나라도 나오면 즉시 중단하고
+      3절 Ingress 의 path 를 다시 본다.
+
+      실측(2026-09-02): `/login` `/manage` `/script` `/credentials`
+      `/job/motif-core-api/` 는 전부 whoami 응답이고,
+      `/project/motif-core-api` 만 Jenkins(`x-jenkins: 2.568.2`) 403 이다.
+      403 은 토큰 없는 요청을 플러그인이 거부한 것으로 정상이다.
+
+```bash
+for p in / /login /manage /script /credentials; do printf "%-16s " "$p"; curl -s --max-time 10 "https://j15d104.p.ssafy.io$p" | grep -qi jenkins && echo "JENKINS (위험)" || echo ok; done
+```
+
+      hello 를 지운 뒤에는 같은 경로들이 404 가 된다. `/project/` 에만 라우팅
+      규칙이 있어서인데, 그래도 Jenkins 로는 가지 않는다.
 - [ ] `/api/health` 가 여전히 200 (새 Ingress 가 기존 라우팅을 건드리지 않았는지)
 
 ## 8. 되돌리기

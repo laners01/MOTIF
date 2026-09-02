@@ -1,0 +1,71 @@
+# GitLab 웹훅 수신 경로만 외부에 연다.
+#
+# 왜 이렇게까지 하는가: 폴링은 Jenkins 가 밖으로 나가는 방향이라 방화벽을
+# 건드릴 일이 없었다. 웹훅은 방향이 반대라 lab.ssafy.com 이 우리 서버로
+# 들어와야 한다. 그렇다고 8080 을 열 수는 없다 — 인증 없는 Jenkins 가
+# 인터넷에 노출되면 서버 전체를 내주는 것과 같다.
+#
+# 그래서 이미 열려 있는 443(Traefik)으로 받아 `/project/` 하나만 Jenkins 로
+# 넘긴다. UI 경로(/, /login, /manage)는 열리지 않는다.
+#
+#   인터넷 -> 443 Traefik -> /project/*  -> 호스트 Jenkins 8080
+#                         -> 그 외        -> core-api / hello
+#
+# 이 경로는 인터넷에 열려 있다. 실제 방어선은 GitLab Plugin 의 Secret Token
+# 이다(webhook-migration.md §4-2/§5). 토큰이 없거나 틀리면 Jenkins 가 버린다.
+---
+# 셀렉터가 없는 Service. 클러스터 밖(호스트 프로세스)을 가리키기 위해서다.
+# 셀렉터를 넣으면 쿠버네티스가 엔드포인트를 자동 관리하며 아래 주소를 지운다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-host
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: jenkins-host
+  labels:
+    # 이 라벨이 Service 와 EndpointSlice 를 잇는다. 틀리면 조용히 502 다.
+    kubernetes.io/service-name: jenkins-host
+addressType: IPv4
+ports:
+  - name: http
+    port: 8080
+endpoints:
+  # 노드의 테일넷 IP. Jenkins 가 여기에 바인딩돼 있어야 한다
+  # (JENKINS_LISTEN_ADDRESS, webhook-migration.md §2).
+  # 127.0.0.1 로 두면 파드에서 닿지 않아 502 가 된다.
+  - addresses:
+      - 100.106.64.43
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins-webhook
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - j15d104.p.ssafy.io
+      secretName: motif-tls
+  rules:
+    - host: j15d104.p.ssafy.io
+      http:
+        paths:
+          # GitLab Plugin 의 수신 엔드포인트는 /project/<job 이름> 이다.
+          # 이 프리픽스 하나만 연다.
+          - path: /project/
+            pathType: Prefix
+            backend:
+              service:
+                name: jenkins-host
+                port:
+                  number: 8080
