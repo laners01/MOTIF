@@ -4,7 +4,7 @@
 # 미주입은 MQ 인증 실패로 드러난다. 접속 정보(호스트·계정명)만 fallback 허용.
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://nosuchhost-rollback-test:5432/motif}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/motif}
     username: ${DB_USERNAME:core_app}
     password: ${DB_PASSWORD}
   rabbitmq:
