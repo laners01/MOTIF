@@ -512,6 +512,16 @@ Jenkins UI 에서 `motif-core-api` > **Build Now**.
       `develop/backend` 에 push 했을 때 `CI/CD` 단계가 통째로 스킵되는지.
 - [ ] **6. 실패 시 자동 롤백** — 아래 참조.
 - [ ] **7. 롤백 후에도 서비스 정상** — 6번 직후 다시 `/api/health` 200.
+- [ ] **8. 배포 중 무중단** — 아래를 실행해 **실패 0회**여야 한다.
+      `maxUnavailable: 0` 과 `preStop` 이 함께 동작하는지 보는 항목이며,
+      둘 중 하나라도 빠지면 배포마다 502 가 몇 건씩 샌다.
+
+      실측 이력(2026-09-02): preStop 없을 때 122회 중 502 1회 + 연결실패 1회.
+      preStop 10s 추가 후 3회 반복 측정에서 517회 전부 200.
+
+```bash
+( for i in $(seq 1 500); do C=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 https://j15d104.p.ssafy.io/api/health); [ "$C" = "200" ] || echo "실패 $C"; sleep 0.2; done ) & sleep 3; kubectl rollout restart deployment/core-api; kubectl rollout status deployment/core-api --timeout=180s; sleep 20; kill %1
+```
 
 ### 6번 — 실패 주입 방법
 
