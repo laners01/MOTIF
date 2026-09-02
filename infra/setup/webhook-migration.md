@@ -231,17 +231,23 @@ triggers {
 주석도 함께 고친다 — "트리거는 SCM 폴링이다" 로 시작하는 파일 상단 문단이
 더 이상 사실이 아니게 된다.
 
-이 변경은 `backend/**` 에 속하므로 `develop/backend` 로 MR 을 낸다. 그리고
-그 MR 의 머지 자체가 웹훅 동작의 첫 검증이 된다.
+이 변경은 `backend/**` 에 속하므로 `develop/backend` 로 MR 을 낸다.
+
+**순서를 지킨다 — 웹훅이 실제로 도는 것을 확인한 뒤에 지운다.** 먼저 지우면
+웹훅이 안 될 때 아무 트리거도 남지 않아 배포 경로가 통째로 끊긴다.
 
 ## 7. 검증
 
-- [ ] `develop/backend` 에 빈 커밋 push → **1분을 기다리지 않고 즉시** 빌드 시작
+- [x] `develop/backend` 에 빈 커밋 push → **1분을 기다리지 않고 즉시** 빌드 시작
       (`git commit --allow-empty -m "chore: 웹훅 검증"`)
-- [ ] 빌드 원인이 폴링이 아닌지 — 빌드 페이지에 `Started by GitLab push` 표시
-- [ ] `develop/infra` 에 push 했을 때는 빌드가 **트리거되지 않는지**
-      (4-2 의 브랜치 필터)
-- [ ] GitLab > Settings > Webhooks > **Edit > Recent Deliveries** 가 200
+      — 실측 2026-09-02: push 21:33:22 → 15초 안에 빌드 #2 시작
+- [x] 빌드 원인이 폴링이 아닌지 — `build.xml` 의 원인이 `GitLabWebHookCause`
+      (`SCMTriggerCause` 가 아님). 빌드 #2~#5 전부 확인
+- [x] 브랜치 필터가 실제로 거르는지 — GitLab `Test > Push events` 는 `master`
+      페이로드를 보내는데, 로그에
+      `Source branch master or target branch master is not allowed` 가 남고
+      빌드가 돌지 않았다. **Test 가 200 을 받아도 빌드가 안 도는 것이 정상이다.**
+- [x] GitLab > Settings > Webhooks > **Edit > Recent Deliveries** 가 200
 - [ ] 웹훅 URL 의 UI 경로가 Jenkins 로 가지 않는지.
       **상태 코드만 보면 안 된다** — hello(whoami)가 `/` 를 잡고 있는 동안은
       `/login` 도 200 을 돌려준다. 200 인지가 아니라 **누가 응답했는지**를
