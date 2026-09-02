@@ -73,6 +73,24 @@ spec:
             # 아니라 컨테이너가 OOMKilled 된다(파드가 조용히 재시작한다).
             - name: JAVA_TOOL_OPTIONS
               value: "-XX:MaxRAMPercentage=50.0"
+          # 종료 직전 유예. maxUnavailable 0 만으로는 무중단이 되지 않는다.
+          #
+          # 실측(2026-09-02, 배포 중 0.2초 간격 122회 요청): 502 1회 + 연결실패
+          # 1회가 났다. 새 파드가 Ready 라 rollout status 는 성공을 반환하지만,
+          # 그 시점에 Traefik 은 아직 종료되는 파드를 엔드포인트에서 지우지
+          # 못했다. 그 짧은 창에 들어온 요청이 죽은 파드로 가서 502 가 된다.
+          #
+          # preStop 은 SIGTERM 보다 먼저 실행된다. 여기서 10초를 버는 동안
+          # 엔드포인트 컨트롤러와 Traefik 이 이 파드를 목록에서 뺀다. 그 뒤에야
+          # SIGTERM 이 가고 Spring 의 graceful shutdown 이 시작된다.
+          #
+          # 시간 예산: preStop 10s + graceful 최대 30s = 40s
+          #            < terminationGracePeriodSeconds 45s. 이 부등식이 깨지면
+          #            종료 도중 SIGKILL 이 들어와 처리 중이던 요청이 끊긴다.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
           # DB_PASSWORD / MQ_PASSWORD — secret.example.yaml.txt 참조.
           # 나머지 접속 정보(DB_URL·DB_USERNAME·MQ_HOST·MQ_USERNAME)는
           # application-prod.yml 의 기본값이 클러스터 Service 이름과 이미 일치해
