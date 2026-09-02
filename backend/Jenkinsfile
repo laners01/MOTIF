@@ -8,8 +8,9 @@
 //              Jenkins job의 Branch Specifier도 `*/develop/backend` 여야 한다
 //              (infra/setup/jenkins-setup.md §8).
 //
-// 트리거는 SCM 폴링이다. GitLab 계정 권한이 Developer라 웹훅을 걸 수 없다.
-// Maintainer 확보 후 전환 절차는 infra/setup/webhook-migration.md.
+// 트리거는 GitLab 웹훅이다. 브랜치 필터(develop/backend)와 Secret Token은
+// job 설정에 있다 — 토큰을 여기 적으면 비밀값을 커밋하는 셈이라 UI에 둔다.
+// 폴링으로 되돌리는 절차는 infra/setup/webhook-migration.md §8.
 pipeline {
     agent any
 
@@ -23,10 +24,6 @@ pipeline {
         // 남는지 보장되지 않는다.
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '30'))
-    }
-
-    triggers {
-        pollSCM('H/1 * * * *')
     }
 
     parameters {
