@@ -1,10 +1,10 @@
 plugins {
-    alias(libs.plugins.modif.android.library)
-    alias(libs.plugins.modif.hilt)
+    alias(libs.plugins.motif.android.library)
+    alias(libs.plugins.motif.hilt)
 }
 
 android {
-    namespace = "com.ssafy.modif.core.datastore"
+    namespace = "com.ssafy.motif.core.datastore"
 
     defaultConfig {
         consumerProguardFiles("consumer-rules.pro")

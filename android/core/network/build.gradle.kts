@@ -1,11 +1,11 @@
 plugins {
-    alias(libs.plugins.modif.android.library)
-    alias(libs.plugins.modif.hilt)
+    alias(libs.plugins.motif.android.library)
+    alias(libs.plugins.motif.hilt)
     alias(libs.plugins.kotlinx.serialization)
 }
 
 android {
-    namespace = "com.ssafy.modif.core.network"
+    namespace = "com.ssafy.motif.core.network"
 }
 
 dependencies {

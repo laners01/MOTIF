@@ -1,5 +1,5 @@
 import com.android.build.api.dsl.LibraryExtension
-import com.ssafy.modif.configureKotlinAndroid
+import com.ssafy.motif.configureKotlinAndroid
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension

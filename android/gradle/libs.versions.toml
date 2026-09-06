@@ -263,12 +263,12 @@ protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 
 # Plugins defined by this project
-modif-android-application = { id = "modif.android.application" }
-modif-android-application-compose = { id = "modif.android.application.compose" }
-modif-android-feature-impl = { id = "modif.android.feature.impl" }
-modif-android-feature-api = { id = "modif.android.feature.api" }
-modif-android-library = { id = "modif.android.library" }
-modif-android-library-compose = { id = "modif.android.library.compose" }
-modif-android-room = { id = "modif.android.room" }
-modif-hilt = { id = "modif.android.hilt" }
-modif-jvm-library = { id = "modif.jvm.library" }
+motif-android-application = { id = "motif.android.application" }
+motif-android-application-compose = { id = "motif.android.application.compose" }
+motif-android-feature-impl = { id = "motif.android.feature.impl" }
+motif-android-feature-api = { id = "motif.android.feature.api" }
+motif-android-library = { id = "motif.android.library" }
+motif-android-library-compose = { id = "motif.android.library.compose" }
+motif-android-room = { id = "motif.android.room" }
+motif-hilt = { id = "motif.android.hilt" }
+motif-jvm-library = { id = "motif.jvm.library" }

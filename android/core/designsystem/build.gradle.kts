@@ -1,10 +1,10 @@
 plugins {
-    alias(libs.plugins.modif.android.library)
-    alias(libs.plugins.modif.android.library.compose)
+    alias(libs.plugins.motif.android.library)
+    alias(libs.plugins.motif.android.library.compose)
 }
 
 android {
-    namespace = "com.ssafy.modif.core.designsystem"
+    namespace = "com.ssafy.motif.core.designsystem"
 }
 
 dependencies {

@@ -1,14 +1,14 @@
 plugins {
-    alias(libs.plugins.modif.android.application)
-    alias(libs.plugins.modif.android.application.compose)
-    alias(libs.plugins.modif.hilt)
+    alias(libs.plugins.motif.android.application)
+    alias(libs.plugins.motif.android.application.compose)
+    alias(libs.plugins.motif.hilt)
 }
 
 android {
-    namespace = "com.ssafy.modif"
+    namespace = "com.ssafy.motif"
 
     defaultConfig {
-        applicationId = "com.ssafy.modif"
+        applicationId = "com.ssafy.motif"
         versionCode = 1
         versionName = "1.0"
     }

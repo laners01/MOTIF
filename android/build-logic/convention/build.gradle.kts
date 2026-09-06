@@ -2,7 +2,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "com.ssafy.modif.buildlogic"
+group = "com.ssafy.motif.buildlogic"
 
 java {
     toolchain {
@@ -21,47 +21,47 @@ dependencies {
 gradlePlugin {
     plugins {
         register("androidApplicationCompose") {
-            id = libs.plugins.modif.android.application.compose.get().pluginId
+            id = libs.plugins.motif.android.application.compose.get().pluginId
             implementationClass = "AndroidApplicationComposeConventionPlugin"
         }
 
         register("androidApplication") {
-            id = libs.plugins.modif.android.application.asProvider().get().pluginId
+            id = libs.plugins.motif.android.application.asProvider().get().pluginId
             implementationClass = "AndroidApplicationConventionPlugin"
         }
 
         register("androidLibraryCompose") {
-            id = libs.plugins.modif.android.library.compose.get().pluginId
+            id = libs.plugins.motif.android.library.compose.get().pluginId
             implementationClass = "AndroidLibraryComposeConventionPlugin"
         }
 
         register("androidLibrary") {
-            id = libs.plugins.modif.android.library.asProvider().get().pluginId
+            id = libs.plugins.motif.android.library.asProvider().get().pluginId
             implementationClass = "AndroidLibraryConventionPlugin"
         }
 
         register("androidFeatureApi") {
-            id = libs.plugins.modif.android.feature.api.get().pluginId
+            id = libs.plugins.motif.android.feature.api.get().pluginId
             implementationClass = "AndroidFeatureApiConventionPlugin"
         }
 
         register("androidFeatureImpl") {
-            id = libs.plugins.modif.android.feature.impl.get().pluginId
+            id = libs.plugins.motif.android.feature.impl.get().pluginId
             implementationClass = "AndroidFeatureImplConventionPlugin"
         }
 
         register("androidRoom") {
-            id = libs.plugins.modif.android.room.get().pluginId
+            id = libs.plugins.motif.android.room.get().pluginId
             implementationClass = "AndroidRoomConventionPlugin"
         }
 
         register("androidHilt") {
-            id = libs.plugins.modif.hilt.get().pluginId
+            id = libs.plugins.motif.hilt.get().pluginId
             implementationClass = "HiltConventionPlugin"
         }
 
         register("jvmLibrary") {
-            id = "modif.jvm.library"
+            id = "motif.jvm.library"
             implementationClass = "JvmLibraryConventionPlugin"
         }
     }

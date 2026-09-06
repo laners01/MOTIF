@@ -1,10 +1,10 @@
 plugins {
-    alias(libs.plugins.modif.android.feature.impl)
-    alias(libs.plugins.modif.android.library.compose)
+    alias(libs.plugins.motif.android.feature.impl)
+    alias(libs.plugins.motif.android.library.compose)
 }
 
 android {
-    namespace = "com.ssafy.modif.feature.home.impl"
+    namespace = "com.ssafy.motif.feature.home.impl"
 }
 
 dependencies {

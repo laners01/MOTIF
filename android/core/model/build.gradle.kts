@@ -1,3 +1,3 @@
 ﻿plugins {
-    alias(libs.plugins.modif.jvm.library)
+    alias(libs.plugins.motif.jvm.library)
 }

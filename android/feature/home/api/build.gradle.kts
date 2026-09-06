@@ -1,7 +1,7 @@
 plugins {
-    alias(libs.plugins.modif.android.feature.api)
+    alias(libs.plugins.motif.android.feature.api)
 }
 
 android {
-    namespace = "com.ssafy.modif.feature.home.api"
+    namespace = "com.ssafy.motif.feature.home.api"
 }

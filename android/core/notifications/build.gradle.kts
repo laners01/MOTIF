@@ -1,10 +1,10 @@
 plugins {
-    alias(libs.plugins.modif.android.library)
-    alias(libs.plugins.modif.hilt)
+    alias(libs.plugins.motif.android.library)
+    alias(libs.plugins.motif.hilt)
 }
 
 android {
-    namespace = "com.ssafy.modif.core.notifications"
+    namespace = "com.ssafy.motif.core.notifications"
 }
 
 dependencies {

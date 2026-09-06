@@ -29,7 +29,7 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "modif"
+rootProject.name = "motif"
 
 include(":app")
 include(":core:common")

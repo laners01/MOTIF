@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.modif.jvm.library)
-    alias(libs.plugins.modif.hilt)
+    alias(libs.plugins.motif.jvm.library)
+    alias(libs.plugins.motif.hilt)
 }
 
 dependencies {

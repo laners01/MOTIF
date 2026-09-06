@@ -1,11 +1,11 @@
 ﻿plugins {
-    alias(libs.plugins.modif.android.library)
-    alias(libs.plugins.modif.android.room)
-    alias(libs.plugins.modif.hilt)
+    alias(libs.plugins.motif.android.library)
+    alias(libs.plugins.motif.android.room)
+    alias(libs.plugins.motif.hilt)
 }
 
 android {
-    namespace = "com.ssafy.modif.core.database"
+    namespace = "com.ssafy.motif.core.database"
 }
 
 dependencies {
