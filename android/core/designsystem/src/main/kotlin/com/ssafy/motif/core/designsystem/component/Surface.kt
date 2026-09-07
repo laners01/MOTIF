@@ -1,6 +1,9 @@
 package com.ssafy.motif.core.designsystem.component
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,9 +11,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.NonRestartableComposable
@@ -19,19 +25,82 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ssafy.motif.core.designsystem.R
+import com.ssafy.motif.core.designsystem.glass.GlassBackdropState
+import com.ssafy.motif.core.designsystem.glass.glassBackdrop
+import com.ssafy.motif.core.designsystem.glass.glassEffect
+import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
 import com.ssafy.motif.core.designsystem.theme.LocalMotifContentColor
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@Composable
+fun GlassSurface(
+    backdropState: GlassBackdropState,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(24.dp),
+    contentColor: Color = Color.White,
+    blurRadius: Dp = 12.dp,
+    blurAlpha: Float = 1f,
+    tintColor: Color = Color.White.copy(alpha = 0.2f),
+    borderWidth: Dp = 1.dp,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    content: @Composable () -> Unit,
+) {
+    val borderBrush =
+        remember {
+            Brush.linearGradient(
+                colors =
+                    listOf(
+                        Color.White.copy(alpha = 0.45f),
+                        Color.White.copy(alpha = 0.18f),
+                        Color.White.copy(alpha = 0.06f),
+                    ),
+            )
+        }
+
+    CompositionLocalProvider(
+        LocalMotifContentColor provides contentColor,
+    ) {
+        Box(
+            modifier =
+                modifier
+                    .clip(shape)
+                    .glassEffect(
+                        backdropState = backdropState,
+                        blurRadius = blurRadius,
+                        blurAlpha = blurAlpha,
+                        tintColor = tintColor,
+                    )
+                    .border(
+                        border =
+                            BorderStroke(
+                                width = borderWidth,
+                                brush = borderBrush,
+                            ),
+                        shape = shape,
+                    )
+                    .padding(contentPadding),
+            propagateMinConstraints = true,
+        ) {
+            content()
+        }
+    }
+}
 @Composable
 @NonRestartableComposable
 fun Surface(
@@ -233,4 +302,65 @@ fun ToggleableSurfacePreview() {
     }
 }
 
+@Preview(showBackground = true, name = "Glass Surface")
+@Composable
+fun GlassTestScreen() {
+    val backdropState =
+        rememberGlassBackdropState()
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        /*
+         * Glass 뒤쪽 영역.
+         *
+         * Image뿐 아니라 Box 전체에 걸어도 됨.
+         */
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .glassBackdrop(
+                        backdropState,
+                    ),
+        ) {
+            Image(
+                painter =
+                    painterResource(
+                        R.drawable.img_challenge,
+                    ),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier =
+                    Modifier.fillMaxSize(),
+            )
+        }
+
+        GlassSurface(
+            backdropState = backdropState,
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .size(
+                        width = 280.dp,
+                        height = 72.dp,
+                    ),
+            shape =
+                RoundedCornerShape(
+                    24.dp,
+                ),
+        ) {
+            Box(
+                modifier =
+                    Modifier.fillMaxSize(),
+                contentAlignment =
+                    Alignment.Center,
+            ) {
+                Text(
+                    text = "Glass Surface",
+                )
+            }
+        }
+    }
+}
 
