@@ -76,8 +76,8 @@ internal fun ArtistSelectScreen(
             onClick = onNextClick,
             shape = RoundedCornerShape(5.dp),
             colors = MotifButtonDefaults.buttonColors(
-                containerColor = MotifTheme.colors.white,
-                contentColor = MotifTheme.colors.gray900,
+                containerColor = MotifTheme.colors.pink,
+                contentColor = MotifTheme.colors.white,
             ),
             modifier = Modifier
                 .padding(horizontal = 20.dp, vertical = 24.dp)
