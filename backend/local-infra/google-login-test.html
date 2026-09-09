@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MOTIF 구글 로그인 테스트</title>
+<style>
+  body { font: 14px/1.6 -apple-system, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 28px; }
+  input { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; }
+  pre { background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap;
+        word-break: break-all; font-size: 12px; }
+  .hint { color: #666; font-size: 13px; }
+  .err { color: #b00; }
+</style>
+
+<h1>MOTIF 구글 로그인 테스트</h1>
+<p class="hint">
+  실제 구글 ID 토큰을 받아 <code>POST /api/v1/auth/login/google</code>(명세 §2.1)을 확인하는 로컬 도구다.
+  <code>file://</code>로 열면 동작하지 않는다 — 아래 절차대로 <b>서버로 띄워서</b> 열어야 한다.
+</p>
+
+<h2>1. 준비</h2>
+<pre>cd backend/local-infra && python3 -m http.server 5500
+# 브라우저에서 http://localhost:5500/google-login-test.html</pre>
+<p class="hint">
+  Google Cloud Console &gt; 사용자 인증 정보 &gt; <b>웹 애플리케이션</b> 클라이언트의
+  <b>승인된 JavaScript 원본</b>에 <code>http://localhost:5500</code>을 추가해야 한다.
+  없으면 구글이 <code>origin_mismatch</code>로 거부한다.
+</p>
+
+<h2>2. 웹 클라이언트 ID</h2>
+<input id="clientId" placeholder="000000000000-xxxxxxxx.apps.googleusercontent.com">
+<p class="hint">
+  <b>웹</b> 클라이언트 ID여야 한다. Android 클라이언트 ID를 넣으면 발급되는 토큰의
+  <code>aud</code>가 서버 설정과 어긋나 401 <code>INVALID_GOOGLE_TOKEN</code>이 된다.
+  서버의 <code>GOOGLE_CLIENT_ID</code>와 같은 값을 써야 한다.
+</p>
+<div id="btn"></div>
+<p id="status" class="hint"></p>
+
+<h2>3. 받은 ID 토큰</h2>
+<pre id="token">(로그인하면 표시된다)</pre>
+
+<h2>4. 서버 호출</h2>
+<pre id="curl">(로그인하면 표시된다)</pre>
+<button id="call" disabled>여기서 바로 호출</button>
+<pre id="result"></pre>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+  const API = 'http://localhost:8081/api/v1/auth/login/google';
+  let idToken = null;
+
+  const el = (id) => document.getElementById(id);
+
+  function onCredential(response) {
+    idToken = response.credential;
+    el('token').textContent = idToken;
+    el('curl').textContent =
+      `curl -i -X POST ${API} \\\n  -H 'Content-Type: application/json' \\\n` +
+      `  -d '{"idToken":"${idToken}"}'`;
+    el('call').disabled = false;
+    el('status').textContent = 'ID 토큰을 받았다. 아래로 서버를 호출하거나 curl 을 복사해 쓴다.';
+  }
+
+  function render() {
+    const clientId = el('clientId').value.trim();
+    if (!clientId || !window.google) return;
+    try {
+      google.accounts.id.initialize({ client_id: clientId, callback: onCredential });
+      google.accounts.id.renderButton(el('btn'), { theme: 'outline', size: 'large' });
+      el('status').textContent = '구글 버튼을 눌러 로그인한다.';
+    } catch (e) {
+      el('status').className = 'err';
+      el('status').textContent = '초기화 실패: ' + e.message;
+    }
+  }
+
+  el('clientId').addEventListener('change', render);
+  el('clientId').addEventListener('blur', render);
+
+  el('call').addEventListener('click', async () => {
+    el('result').textContent = '호출 중...';
+    try {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+      const body = await res.text();
+      let pretty = body;
+      try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch (_) {}
+      el('result').textContent = `HTTP ${res.status}\n\n${pretty}`;
+    } catch (e) {
+      el('result').textContent = '호출 실패: ' + e.message
+        + '\n\n앱이 8081 에 떠 있는지 확인한다. CORS 설정이 없으므로 브라우저가 막으면 위 curl 을 쓴다.';
+    }
+  });
+</script>

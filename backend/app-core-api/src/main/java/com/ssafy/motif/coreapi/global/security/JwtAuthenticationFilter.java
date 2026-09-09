@@ -13,7 +13,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,12 +23,17 @@ import java.util.List;
  * {@code Authorization: Bearer <access token>} 검증 → SecurityContext 채움
  * (ADR-0009 D2 — 게이트웨이가 하던 일).
  *
+ * <p><b>스프링 빈이 아니다.</b> {@code Filter} 를 빈으로 두면 Boot 가 서블릿 컨테이너
+ * 체인에도 자동 등록해 필터가 두 번 놓인다. 그러면 컨테이너 체인(Security 앞)에서 먼저
+ * 실행돼 인증을 채우고, 뒤이어 Security 의 {@code SecurityContextHolderFilter} 가 비어 있는
+ * 컨텍스트로 덮어쓰며, {@code OncePerRequestFilter} 라 체인 안에서는 재실행이 건너뛰어져
+ * <b>인증이 사라진다</b>(유효한 토큰에도 401). {@code SecurityConfig} 가 직접 생성한다.
+ *
  * <p>검증 실패는 여기서 응답하지 않고 <b>인증하지 않은 채 통과</b>시킨다.
  * 보호된 경로면 뒤의 인가 필터가 걸러 {@link RestAuthenticationEntryPoint}가
  * 401 봉투를 쓰고, permitAll 경로면 그대로 처리된다 — 판정을 한 곳에 모은다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
