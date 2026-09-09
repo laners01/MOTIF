@@ -10,4 +10,8 @@
 #   - 파일명은 0001부터 증가. 한 번 배포된 파일은 수정하지 않는다(새 번호로 추가).
 #   - 전역 오브젝트(pg_trgm 등)는 여기 두지 않는다 — DB init 스크립트 소유.
 #   - motif_core 쪽 오브젝트는 여기서 만들지 않는다(계정 권한도 없다).
-databaseChangeLog: []
+# 스키마 계약: backend/docs/erd/MOTIF_DB_SPEC_v0_15.md
+# 수동 선행 SQL(스키마·계정·GRANT USAGE·pg_trgm): backend/docs/db/manual-prereq.sql
+databaseChangeLog:
+  - include:
+      file: db/changelog/sql/0001-device-tokens.sql
