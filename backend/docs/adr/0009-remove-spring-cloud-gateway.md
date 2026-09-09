@@ -102,9 +102,14 @@ NAT 뒤 사용자를 구분하지 못한다)은 **그대로 유효하다**. SCG�
 
 `develop/infra`와 팀 문서에 남은 것:
 
-- [ ] Traefik IngressRoute: `/api`·`/admin` 분리, `/admin`에 `ipAllowList`
-      미들웨어 추가 (`infra/k8s/90-ingress/ingress.yaml`의 SCG 관련 주석도 정리)
-- [ ] `infra/setup/jenkins-setup.md` 체크리스트에서 `app-gateway` 파이프라인 항목 제거
+- [x] Traefik: `/api`·`/admin` Ingress 분리, `/admin`에 `ipAllowList` 미들웨어
+      추가, 90-ingress의 SCG 예고 주석 정리 (`develop/infra`)
+      — 미들웨어 애너테이션이 라우터 단위라 Ingress를 둘로 쪼갰다.
+      **허용 대역은 테일넷만 넣어둔 fail-closed 상태**이며, klipper-lb의
+      SNAT로 Traefik이 실제 클라이언트 IP를 못 볼 수 있어 실효 검증이
+      남아 있다(관측 절차는 미들웨어 파일 헤더).
+- [x] `infra/setup/jenkins-setup.md` 체크리스트에서 `app-gateway` 항목 제거
+- [ ] `/admin` ipAllowList 실효 검증 + 팀 공인 IP 채우기
 - [ ] 아키텍처 설계서 v0.2 → v0.3: SCG 항목 제거, 인증 위치 서술 수정, 램 예산표 갱신
 - [ ] 아키텍처 구성도 v0.7로 교체 (SCG 노드 삭제, Traefik → Core API 직결)
 - [ ] 구현계획서 v0.1: SCG 배포 태스크를 Spring Security 필터 태스크로 대체
