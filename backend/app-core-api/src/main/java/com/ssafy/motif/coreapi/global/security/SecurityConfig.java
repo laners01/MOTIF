@@ -36,6 +36,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
+                // CorsConfigurationSource 빈이 있을 때만 실제로 동작한다. 그 빈은
+                // LocalCorsConfig 가 @Profile("local") 로만 제공하므로 운영에는 CORS 가 없다.
+                // preflight(OPTIONS)는 인가 필터보다 앞에서 처리돼야 해서 여기 선언이 필요하다.
+                .cors(org.springframework.security.config.Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .formLogin(login -> login.disable())
                 .httpBasic(basic -> basic.disable())
