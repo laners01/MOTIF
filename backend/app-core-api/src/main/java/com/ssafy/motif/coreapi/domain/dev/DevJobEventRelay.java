@@ -1,4 +1,4 @@
-package com.ssafy.motif.coreapi.dev;
+package com.ssafy.motif.coreapi.domain.dev;
 
 import com.ssafy.motif.event.contract.CompositeJobRequestedEvent;
 import com.ssafy.motif.event.topology.Exchanges;

@@ -1,7 +1,8 @@
-package com.ssafy.motif.coreapi.dev;
+package com.ssafy.motif.coreapi.domain.dev;
 
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -20,7 +21,11 @@ import java.util.Map;
  *   → job.composite 발행(AFTER_COMMIT) → 스텁 워커 2초 처리 → composite.done
  *   → app-notification 수신. 세 로그의 requestId가 같아야 한다.
  * </pre>
+ *
+ * <p>{@code @Hidden} — Swagger 는 클라이언트(안드로이드) 계약 문서다. 이 엔드포인트는
+ * 로컬 스모크 도구이므로 문서에 싣지 않는다.
  */
+@Hidden
 @Profile("local")
 @ApiController
 @RestController

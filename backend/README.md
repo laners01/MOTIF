@@ -12,7 +12,7 @@ module-common ← module-event ← (domain-core, domain-notif) ← app-*
 |---|---|
 | module-common | ApiResponse 봉투, ErrorCode/BusinessException, @ApiController 마커, BaseTimeEntity, 공통 logback |
 | module-event | MQ 토폴로지 상수 + 이벤트 계약 record — **의존성 0** ([README](module-event/README.md), ADR-0005) |
-| domain-core | motif_core 스키마 도메인 (엔티티·리포지토리·QueryDSL) |
+| domain-core | motif_core 스키마 도메인 (엔티티·리포지토리·QueryDSL) — 패키지 `com.ssafy.motif.domain.core` |
 | domain-notif | motif_notif 스키마 도메인 — domain-core에 의존하지 않는다 |
 | app-core-api | 코어 API — :8081 (관리 :9081) |
 | app-notification | 알림 컨슈머 — :8082 (관리 :9082). **domain-core 의존 금지(컴파일 타임 강제)** |
@@ -81,6 +81,15 @@ Traefik이 core-api로 직결한다 (ADR-0009).
 - **복합 PK는 `@EmbeddedId`** 로 통일한다 (`@IdClass` 금지).
 - **Auditing**: 모든 엔티티는 `BaseTimeEntity` 상속 — `@PrePersist`→`regDttm`,
   `@PreUpdate`→`modDttm`(INSERT 시 NULL이 정상). 타입 `Instant`/컬럼 TIMESTAMPTZ.
+- **app 내부 패키지는 `domain/` + `global/`** — 기능은 `coreapi.domain.<도메인>`,
+  횡단 관심사는 `coreapi.global`. `domain-core` **모듈**(엔티티·리포지토리,
+  `motif.domain.core`)과 앱 안의 `coreapi.domain`(웹·유스케이스)은 다른 계층이다 —
+  같은 단어를 쓰지만 앞 경로로 구분한다.
+- **컨트롤러와 Swagger 문서를 분리한다** — `domain/<도메인>/controller/XxxController` +
+  `domain/<도메인>/docs/XxxControllerDocs`(인터페이스). Swagger 애너테이션은 인터페이스에,
+  **Spring MVC 매핑과 `@Valid` 는 구현 클래스에** 둔다(인터페이스 매핑 상속은 동작이 미묘하다).
+  필드 설명은 DTO 의 `@Schema`, 인증 불필요(🔓) 오퍼레이션은 `@SecurityRequirements` 로
+  전역 bearerAuth 요구를 해제한다. 클라이언트 계약이 아닌 엔드포인트는 `@Hidden`.
 - **ErrorCode 문자열은 전역 유일** — 도메인 enum 추가 시 접두사를 예약하고
   리뷰에서 충돌을 확인한다 (공통은 `C___`).
 - **응답·예외 3종**: `ApiResponse` 봉투 + `ErrorCode` enum + `@ApiController`

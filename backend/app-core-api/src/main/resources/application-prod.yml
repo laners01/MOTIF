@@ -2,6 +2,10 @@
 # 비밀값(password)은 Secret 주입 필수, fallback 금지 (placeholder 규율, ADR-0004).
 # DB_PASSWORD 미주입은 기동 실패(Hikari·Liquibase가 기동 시 접속), MQ_PASSWORD
 # 미주입은 MQ 인증 실패로 드러난다. 접속 정보(호스트·계정명)만 fallback 허용.
+#
+# REDIS_PASSWORD 는 core-api-secret 에 아직 없다(infra/k8s/40-core-api/secret.example
+# 주석 — "Phase 1 에 추가한다"). 미주입이면 placeholder 해석 실패로 기동 자체가
+# 되지 않는다. 이 브랜치를 develop/backend 로 머지하기 전에 Secret 에 키를 추가해야 한다.
 spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://postgres:5432/motif}
@@ -13,3 +17,20 @@ spring:
     username: ${MQ_USERNAME:core-api}
     password: ${MQ_PASSWORD}
     virtual-host: /motif
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      password: ${REDIS_PASSWORD}
+
+# JWT_SECRET 도 core-api-secret 에 없다 — REDIS_PASSWORD 와 함께 추가해야 한다.
+# fallback 을 두지 않는다: 기본값으로 조용히 뜨면 모든 배포가 같은 키로 토큰을
+# 서명하게 되고, 유출 시 회전 대상을 특정할 수 없다.
+# GOOGLE_CLIENT_ID 는 비밀이 아니지만 값이 환경마다 다르고, 틀린 aud 는 다른 앱의
+# 토큰을 통과시키는 구멍이 되므로 역시 fallback 을 두지 않는다.
+motif:
+  auth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID}
+    jwt:
+      secret: ${JWT_SECRET}

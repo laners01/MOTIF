@@ -13,3 +13,19 @@ spring:
     username: ${SERVER_MQ_USERNAME:core-api}
     password: ${SERVER_MQ_PASSWORD}
     virtual-host: /motif
+  # Redis 만은 로컬 compose 를 쓴다 — ADR-0003 표는 이 모드의 MQ·Redis 를 "서버"로
+  # 적었지만, 클러스터 Redis 에는 tailnet Service 가 없다(ClusterIP 뿐. MQ 는
+  # rabbitmq-tailnet 이 있어 도달한다). 랭킹·캐시·레이트리밋은 전부 재계산 가능해
+  # 모드 간 공유가 불필요하므로 로컬로 둔다 — 이 모드의 목적은 MQ 파이프라인 확인이다.
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: motif123        # 로컬 compose 전용 더미(비밀 아님)
+
+motif:
+  auth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+    jwt:
+      secret: ${JWT_SECRET:motif-local-dev-only-jwt-secret-not-a-real-key-32bytes+}   # 로컬 전용 더미(비밀 아님)

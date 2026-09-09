@@ -1,4 +1,4 @@
-package com.ssafy.motif.coreapi.dev;
+package com.ssafy.motif.coreapi.domain.dev;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
