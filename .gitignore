@@ -1,0 +1,10 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
+
+# macOS
+.DS_Store
+
+# Gradle·.env 등 백엔드 전용 항목은 backend/.gitignore 에 둔다
