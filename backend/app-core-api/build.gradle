@@ -59,6 +59,27 @@ dependencies {
     testImplementation libs.spring.security.test
 }
 
+// 기본 test 는 외부 의존이 없는 것만 돈다 — Jenkinsfile 이 :app-core-api:test 를
+// 실행하며 그 에이전트에는 DB·MQ·Redis 가 없다.
+tasks.named('test', Test) {
+    useJUnitPlatform {
+        excludeTags 'local-db'
+    }
+}
+
+// 로컬 compose(ADR-0003 격리 모드)가 떠 있을 때만 도는 통합 테스트.
+//   cd backend/local-infra && docker compose up -d --wait
+//   ./gradlew :app-core-api:localDbTest
+tasks.register('localDbTest', Test) {
+    group = 'verification'
+    description = '로컬 compose DB 를 쓰는 통합 테스트 (@Tag("local-db"))'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'local-db'
+    }
+}
+
 // QueryDSL Q클래스 생성 디렉터리 wiring (MODERA 방식)
 def querydslDir = layout.buildDirectory.dir('generated/querydsl').get().asFile
 

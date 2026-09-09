@@ -20,6 +20,15 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
+# 인증 (명세 §2, ADR-0009 D2). 비밀값은 프로파일별 파일에서 주입한다.
+motif:
+  auth:
+    jwt:
+      # 명세 §2.1 응답 expiresIn: 3600
+      access-token-ttl: 1h
+      # 명세에 값이 없다 — 기본안. 확정되면 이 줄만 고친다
+      refresh-token-ttl: 14d
+
 server:
   port: 8081
   shutdown: graceful

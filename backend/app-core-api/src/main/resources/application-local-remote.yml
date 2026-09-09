@@ -22,3 +22,10 @@ spring:
       host: localhost
       port: 6379
       password: motif123        # 로컬 compose 전용 더미(비밀 아님)
+
+motif:
+  auth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+    jwt:
+      secret: ${JWT_SECRET:motif-local-dev-only-jwt-secret-not-a-real-key-32bytes+}   # 로컬 전용 더미(비밀 아님)

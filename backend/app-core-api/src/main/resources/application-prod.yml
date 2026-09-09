@@ -22,3 +22,15 @@ spring:
       host: ${REDIS_HOST:redis}
       port: 6379
       password: ${REDIS_PASSWORD}
+
+# JWT_SECRET 도 core-api-secret 에 없다 — REDIS_PASSWORD 와 함께 추가해야 한다.
+# fallback 을 두지 않는다: 기본값으로 조용히 뜨면 모든 배포가 같은 키로 토큰을
+# 서명하게 되고, 유출 시 회전 대상을 특정할 수 없다.
+# GOOGLE_CLIENT_ID 는 비밀이 아니지만 값이 환경마다 다르고, 틀린 aud 는 다른 앱의
+# 토큰을 통과시키는 구멍이 되므로 역시 fallback 을 두지 않는다.
+motif:
+  auth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID}
+    jwt:
+      secret: ${JWT_SECRET}
