@@ -17,6 +17,7 @@ android {
 dependencies {
     implementation(projects.feature.home.api)
     implementation(projects.feature.home.impl)
+    implementation(projects.feature.onboarding.api)
     implementation(projects.feature.onboarding.impl)
 
     implementation(projects.core.data)

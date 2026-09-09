@@ -12,4 +12,5 @@ dependencies {
     implementation(projects.core.data)
     implementation(libs.androidx.lifecycle.runtimeCompose)
     implementation(libs.coil.kt.compose)
+    implementation(projects.feature.onboarding.api)
 }
