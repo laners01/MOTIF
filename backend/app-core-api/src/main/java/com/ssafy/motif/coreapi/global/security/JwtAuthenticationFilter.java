@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.global.security;
 
-import com.ssafy.motif.coreapi.auth.jwt.JwtProvider;
+import com.ssafy.motif.coreapi.domain.auth.jwt.JwtProvider;
 import com.ssafy.motif.domain.core.user.UserRole;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;

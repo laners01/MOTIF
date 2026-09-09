@@ -11,7 +11,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.ssafy.motif.coreapi.auth.jwt.AuthProperties;
+import com.ssafy.motif.coreapi.domain.auth.jwt.AuthProperties;
 
 /**
  * 인증·인가 필터 체인 (ADR-0009 D2 — SCG 제거로 core-api가 소유).

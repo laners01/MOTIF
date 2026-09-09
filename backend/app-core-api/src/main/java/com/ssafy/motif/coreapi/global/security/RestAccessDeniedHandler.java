@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.global.security;
 
-import com.ssafy.motif.coreapi.auth.AuthErrorCode;
+import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
