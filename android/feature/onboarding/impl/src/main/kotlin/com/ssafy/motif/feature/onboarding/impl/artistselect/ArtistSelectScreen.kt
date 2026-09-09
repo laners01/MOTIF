@@ -1,8 +1,6 @@
 package com.ssafy.motif.feature.onboarding.impl.artistselect
 
 import android.widget.Toast
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,7 +19,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,10 +43,9 @@ fun ArtistSelectRoute(
 
     ArtistSelectScreen(
         uiState = uiState,
-        onArtistClick = viewModel::toggleArtist,
         onNextClick = {  Toast.makeText(
             context,
-            "${uiState.selectedArtists.size}명 선택 완료",
+            "선택 완료",
             Toast.LENGTH_SHORT
         ).show() },
         modifier = modifier,
@@ -60,7 +56,6 @@ fun ArtistSelectRoute(
 @Composable
 internal fun ArtistSelectScreen(
     uiState: ArtistSelectUiState,
-    onArtistClick: (Long) -> Unit,   //아티스트 클릭시
     onNextClick: () -> Unit,         //n명 선택 버튼 클릭 시
     modifier: Modifier = Modifier,
 ) {
@@ -73,16 +68,12 @@ internal fun ArtistSelectScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)       //사이 상하간격
         ) {
             items(items = uiState.artists, key = { it.id }) { artist ->
-                ArtistCard(artist = artist,
-                    selected = artist.id in uiState.selectedArtists,
-                    onClick = {onArtistClick(artist.id)},
-                )
+                ArtistCard(artist = artist)
             }
 
         }
         Button(
             onClick = onNextClick,
-            enabled = uiState.canProceed,
             shape = RoundedCornerShape(5.dp),
             colors = MotifButtonDefaults.buttonColors(
                 containerColor = MotifTheme.colors.pink,
@@ -94,7 +85,7 @@ internal fun ArtistSelectScreen(
                 .height(54.dp),
         ) {
             Text(
-                text = "${uiState.selectedArtists.size}명 선택",
+                text = "선택 완료",
                 style = MotifTheme.typography.titleSB18,
             )
         }
@@ -112,7 +103,6 @@ internal object ArtistMokData {
     val artists: List<ArtistUiModel> = List(30) { index ->
         sample.copy(id = index.toLong())
     }
-    val selectedIds: Set<Long> = setOf(0L,2L,5L)
 }
 
 
@@ -123,9 +113,7 @@ private fun ArtistSelectScreenPreview() {
         ArtistSelectScreen(
             uiState = ArtistSelectUiState(
                 artists = ArtistMokData.artists,
-                selectedArtists = ArtistMokData.selectedIds,
             ),
-            onArtistClick = {},
             onNextClick = {},
         )
     }
@@ -134,12 +122,10 @@ private fun ArtistSelectScreenPreview() {
 @Composable
 private fun ArtistCard(
     artist: ArtistUiModel,
-    selected: Boolean,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AsyncImage(
@@ -155,13 +141,6 @@ private fun ArtistCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .border(
-                    width = 3.dp,
-                    color = if (selected) MotifTheme.colors.pink
-                    else Color.Transparent,
-                    shape = CircleShape,
-                )
-                .padding(3.dp)
                 .clip(CircleShape),
         )
         Text(

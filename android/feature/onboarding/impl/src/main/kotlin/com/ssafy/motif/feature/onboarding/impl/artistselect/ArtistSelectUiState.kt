@@ -13,12 +13,4 @@ data class ArtistUiModel(
 @Immutable
 data class ArtistSelectUiState(
     val artists: List<ArtistUiModel> = emptyList(),
-    val selectedArtists: Set<Long> = emptySet(),
-){
-    val canProceed: Boolean
-        get() = selectedArtists.size>= MIN_SELECTION_COUNT
-
-    companion object{
-        const val MIN_SELECTION_COUNT = 1
-    }
-}
+)
