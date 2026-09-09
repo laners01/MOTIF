@@ -7,11 +7,11 @@ spring-dependency-management = "1.1.7"
 # spring-cloud = "2025.1.3"         # 게이트웨이 재도입 시 활성화 (ADR-0009)
 querydsl = "7.6"                    # io.github.openfeign.querydsl — com.querydsl 아님 (ADR-0004)
 springdoc = "3.0.3"
-jackson2-mq = "2.18.2"              # MQ 직렬화 전용 (Boot 4 REST는 Jackson 3 — ADR-0004/0005)
+jackson2-mq = "2.18.2"              # MQ 직렬화 + jjwt-jackson (Boot 4 REST는 Jackson 3 — ADR-0004/0005)
 mapstruct = "1.6.3"
 lombok = "1.18.46"
 lombok-mapstruct-binding = "0.2.0"
-# jjwt = "0.13.0"                   # Phase 1 인증에서 활성화
+jjwt = "0.13.0"                     # 서비스 access/refresh JWT 발급·검증 (ADR-0009 D2)
 
 [libraries]
 querydsl-core = { module = "io.github.openfeign.querydsl:querydsl-core", version.ref = "querydsl" }
@@ -26,6 +26,11 @@ lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 lombok-mapstruct-binding = { module = "org.projectlombok:lombok-mapstruct-binding", version.ref = "lombok-mapstruct-binding" }
 micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }   # 버전은 Boot BOM
 postgresql = { module = "org.postgresql:postgresql" }                                  # 버전은 Boot BOM
+jjwt-api     = { module = "io.jsonwebtoken:jjwt-api",     version.ref = "jjwt" }
+jjwt-impl    = { module = "io.jsonwebtoken:jjwt-impl",    version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+spring-security-oauth2-jose = { module = "org.springframework.security:spring-security-oauth2-jose" }  # 버전은 Boot BOM
+spring-security-test        = { module = "org.springframework.security:spring-security-test" }         # 버전은 Boot BOM
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

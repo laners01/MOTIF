@@ -13,6 +13,19 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'  // Boot 4 신설 스타터
 
+    // 인증·인가 — SCG 제거로 core-api가 소유 (ADR-0009 D2). 필터 체인은 이 티켓에서 최초 구성
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // 구글 ID 토큰 검증 — Nimbus 디코더 + JWKS(googleapis /oauth2/v3/certs). 키 롤링·캐싱 내장.
+    // google-api-client(GoogleIdTokenVerifier) 대신 선택: Guava·google-http-client 전이 의존을
+    // 끌어오지 않고, spring-security 트레인과 버전이 함께 간다 (램 제약 — ADR-0009 근거 2)
+    implementation libs.spring.security.oauth2.jose
+
+    // 서비스 access/refresh JWT 발급·검증
+    implementation libs.jjwt.api
+    runtimeOnly libs.jjwt.impl
+    runtimeOnly libs.jjwt.jackson    // 직렬화는 Jackson 2 — 아래 MQ 선언과 같은 트레인을 공유한다
+
     implementation libs.springdoc.webmvc.ui
 
     // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
@@ -39,6 +52,7 @@ dependencies {
     annotationProcessor libs.lombok
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
+    testImplementation libs.spring.security.test
 }
 
 // QueryDSL Q클래스 생성 디렉터리 wiring (MODERA 방식)
