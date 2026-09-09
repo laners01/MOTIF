@@ -97,6 +97,10 @@ S15P21D104-181
 - 머지 커밋은 GitLab 기본 형식을 쓴다: `Merge branch '<브랜치>' into '<대상>'`.
   본문에 MR 제목이 그대로 들어가므로, 제목에 키가 있으면 머지 커밋도 키를 갖는다.
 - 대상은 해당 파트의 `develop/*`.
+- **MR 제목·설명에 도구 서명을 남기지 않는다.** 머지 커밋 본문은 MR 제목·설명으로
+  만들어지므로, 서명이 섞이면 통합 브랜치 이력까지 따라온다.
+  `.claude/settings.json` 의 `attribution.commit`·`attribution.pr` 이 둘 다 빈 값이라
+  Claude 가 쓰는 커밋·MR 어디에도 서명이 붙지 않는다.
 
 ## ADR
 
