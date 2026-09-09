@@ -4,7 +4,7 @@
 [versions]
 spring-boot = "4.0.8"
 spring-dependency-management = "1.1.7"
-spring-cloud = "2025.1.3"           # Boot 4.0 호환 트레인 (gateway 5.0.3, Boot 4.0.8 기준 빌드)
+# spring-cloud = "2025.1.3"         # 게이트웨이 재도입 시 활성화 (ADR-0009)
 querydsl = "7.6"                    # io.github.openfeign.querydsl — com.querydsl 아님 (ADR-0004)
 springdoc = "3.0.3"
 jackson2-mq = "2.18.2"              # MQ 직렬화 전용 (Boot 4 REST는 Jackson 3 — ADR-0004/0005)

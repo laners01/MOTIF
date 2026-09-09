@@ -16,7 +16,6 @@ module-common ← module-event ← (domain-core, domain-notif) ← app-*
 | domain-notif | motif_notif 스키마 도메인 — domain-core에 의존하지 않는다 |
 | app-core-api | 코어 API — :8081 (관리 :9081) |
 | app-notification | 알림 컨슈머 — :8082 (관리 :9082). **domain-core 의존 금지(컴파일 타임 강제)** |
-| app-gateway | Spring Cloud Gateway — :8080 (ADR-0002) |
 
 ## 로컬 개발 3모드 (ADR-0003)
 
@@ -74,8 +73,8 @@ curl -X POST localhost:8081/api/dev/jobs \
 (`docker logs motif-stub-worker`, 각 앱 콘솔의 `[requestId]` 비교 — ADR-0005 추적).
 
 health 확인: `curl localhost:8081/api/health`(앱 포트, Traefik 계약),
-`curl localhost:9081/actuator/health`(관리 포트), gateway 경유
-`curl localhost:8080/api/health`.
+`curl localhost:9081/actuator/health`(관리 포트). 게이트웨이는 없다 —
+Traefik이 core-api로 직결한다 (ADR-0009).
 
 ## 팀 표준 요약
 
@@ -98,7 +97,10 @@ health 확인: `curl localhost:8081/api/health`(앱 포트, Traefik 계약),
 | # | 제목 |
 |---|---|
 | [0001](docs/adr/0001-adopt-adr.md) | ADR 도입 |
-| [0002](docs/adr/0002-two-tier-gateway.md) | Traefik + SCG 2층 구성 |
+| [0002](docs/adr/0002-two-tier-gateway.md) | Traefik + SCG 2층 구성 — **ADR-0009로 대체됨** |
 | [0003](docs/adr/0003-local-dev-three-modes.md) | 로컬 개발 3모드 |
 | [0004](docs/adr/0004-stack-selection-vs-modera.md) | 스택 선정 — MODERA 대비 계승·변경 |
 | [0005](docs/adr/0005-event-conventions.md) | 이벤트 규약 — 발행·소비·직렬화·추적 |
+| [0007](docs/adr/0007-no-registry-containerd-direct-import.md) | 레지스트리 없이 containerd 직접 임포트 |
+| [0008](docs/adr/0008-layered-jar-dockerfile.md) | 레이어드 jar — Boot 4는 `jarmode=tools` |
+| [0009](docs/adr/0009-remove-spring-cloud-gateway.md) | SCG 제거 — 인증은 core-api Spring Security |

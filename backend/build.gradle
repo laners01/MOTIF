@@ -4,7 +4,7 @@
 //   module-common ← module-event ← (domain-core, domain-notif) ← app-*
 //   app-notification 은 domain-core 에 의존할 수 없다.
 //
-// boot 플러그인은 실행체인 app-* 3개에만 적용한다 — 여기서는 버전만 선언(apply false).
+// boot 플러그인은 실행체인 app-* 2개에만 적용한다 — 여기서는 버전만 선언(apply false).
 plugins {
     alias(libs.plugins.spring.boot) apply false
     alias(libs.plugins.spring.dependency.management) apply false

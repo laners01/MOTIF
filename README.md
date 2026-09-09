@@ -7,7 +7,7 @@ SSAFY 15기 공통 프로젝트. Spring Boot 4 멀티모듈 백엔드를 k3s 단
 
 | 경로 | 내용 |
 |---|---|
-| `backend/` | Gradle 멀티모듈. 실행체는 `app-core-api` / `app-notification` / `app-gateway` |
+| `backend/` | Gradle 멀티모듈. 실행체는 `app-core-api` / `app-notification` |
 | `infra/` | k8s 매니페스트와 서버 셋업 절차 (`develop/infra` 라인) |
 | `backend/docs/adr/` | 아키텍처 결정 기록. 왜 그렇게 했는지는 여기에 있다 |
 
