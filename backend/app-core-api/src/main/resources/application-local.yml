@@ -11,6 +11,11 @@ spring:
     username: motif
     password: motif
     virtual-host: /motif
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: motif123        # 로컬 compose 전용 더미(비밀 아님)
 
 logging:
   level:

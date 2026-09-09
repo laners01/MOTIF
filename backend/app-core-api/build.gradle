@@ -16,6 +16,10 @@ dependencies {
     // 인증·인가 — SCG 제거로 core-api가 소유 (ADR-0009 D2). 필터 체인은 이 티켓에서 최초 구성
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
+    // 레이트리밋·랭킹·캐시 — 유저당 token bucket 을 앱 필터로 (ADR-0009 D4).
+    // 구현은 후속 티켓이지만 접속·기동 영향이 있어 설정과 함께 먼저 붙인다
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
     // 구글 ID 토큰 검증 — Nimbus 디코더 + JWKS(googleapis /oauth2/v3/certs). 키 롤링·캐싱 내장.
     // google-api-client(GoogleIdTokenVerifier) 대신 선택: Guava·google-http-client 전이 의존을
     // 끌어오지 않고, spring-security 트레인과 버전이 함께 간다 (램 제약 — ADR-0009 근거 2)
