@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Neutral -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="pink">#FB44A5</color>
+
+    <color name="gray_50">#FCFCFB</color>
+    <color name="gray_100">#F5F5F3</color>
+    <color name="gray_200">#E9E8E5</color>
+    <color name="gray_300">#E8E8E8</color>
+    <color name="gray_400">#C0C0C0</color>
+    <color name="gray_500">#969696</color>
+    <color name="gray_700">#575651</color>
+    <color name="gray_900">#242321</color>
+</resources>
