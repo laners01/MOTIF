@@ -2,6 +2,10 @@
 #
 # 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> core-api Service:8081
 #
+# `/admin` 은 IP 제한이 붙어 라우터가 갈리므로 `ingress-admin.yaml` 에 있다.
+# 게이트웨이는 없다 — Traefik 이 앱으로 직결하고 인증·인가는 앱의 Spring
+# Security 가 한다(ADR-0009).
+#
 # ── hello 교체 ──────────────────────────────────────────────────────────────
 # 90-ingress/ingress.yaml 의 hello(whoami)는 Walking Skeleton 검증용으로
 # `/` 를 잡고 있다. 이 Ingress 는 `/api` 만 가져가므로 **둘은 공존할 수 있다**

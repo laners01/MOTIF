@@ -581,6 +581,7 @@ sudo rm /etc/sudoers.d/jenkins-k3s
 
 - [ ] 트리거를 폴링에서 웹훅으로 — `infra/setup/webhook-migration.md`
       (GitLab 권한이 Maintainer 로 올라간 뒤)
-- [ ] `app-notification` / `app-gateway` 파이프라인 (같은 Dockerfile 형태 복제)
+- [ ] `app-notification` 파이프라인 (같은 Dockerfile 형태 복제)
+      — `app-gateway` 는 ADR-0009(SCG 제거)로 사라졌다
 - [ ] 빌드 실패 알림 (현재는 UI 를 봐야 안다)
 - [ ] PAT 만료일 관리
