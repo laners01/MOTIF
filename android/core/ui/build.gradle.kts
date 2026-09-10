@@ -8,11 +8,14 @@ android {
 }
 
 dependencies {
-    api(projects.core.common)
-    api(projects.core.designsystem)
-    api(projects.core.model)
+    implementation(projects.core.designsystem)
 
     implementation(libs.androidx.core.ktx)
-    implementation(libs.coil.kt)
     implementation(libs.coil.kt.compose)
+
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui.compose)
+
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.database)
 }
