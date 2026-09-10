@@ -25,8 +25,8 @@ infra/
 │   ├── 10-postgres/       PostgreSQL 16 + 스키마·계정 격리
 │   ├── 20-rabbitmq/       RabbitMQ 3.13 + vhost·계정 격리
 │   ├── 30-redis/          Redis 7 (무영속)
-│   ├── 40-core-api/       core-api 배포 + /api Ingress
-│   └── 90-ingress/        Traefik Ingress, HTTPS 리다이렉트
+│   ├── 40-core-api/       core-api 배포 + /api Ingress + /admin Ingress(IP 제한)
+│   └── 90-ingress/        Traefik Ingress, HTTPS 리다이렉트, /admin ipAllowList
 └── setup/                 서버 셋업 절차서 (사람이 한 줄씩 실행)
 ```
 
@@ -124,6 +124,9 @@ kubectl exec -it deploy/postgres -- psql -U notif_app -d motif -c "CREATE TABLE 
 ## 미완 / 후속
 
 - [ ] 팀원 Tailscale 조인, key expiry 해제
+- [ ] `/admin` ipAllowList 실효 검증 — Traefik 이 보는 출발지 IP 가 실제
+      클라이언트 IP 인지 관측하고(klipper-lb SNAT 여부), 팀 공인 IP 를
+      `90-ingress/middleware-admin-ipallowlist.yaml` 에 채운다
 - [ ] Postgres 테일넷 노출 (팀원 DB 툴 접속용)
 - [ ] `pg_dump` → S3 백업 크론 (RDS 미사용에 따른 대체)
 - [x] RabbitMQ + Redis 배포

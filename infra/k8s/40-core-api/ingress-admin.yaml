@@ -1,0 +1,51 @@
+# core-api 어드민 진입 — /admin 을 IP 제한과 함께 앱으로 보낸다.
+#
+# 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> ipAllowList -> core-api Service:8081
+#
+# ── 왜 ingress.yaml 과 파일이 갈리는가 ──────────────────────────────────────
+# Traefik 의 미들웨어 애너테이션은 **라우터(=Ingress) 단위**이지 path 단위가
+# 아니다. `/api` 와 `/admin` 을 한 Ingress 에 넣으면 ipAllowList 가 `/api` 에도
+# 걸려 사용자 API 가 팀 IP 밖에서 막힌다. 그래서 Ingress 를 둘로 나눈다.
+#
+# ── 적용 순서 ───────────────────────────────────────────────────────────────
+# `default-admin-ipallowlist` 는 `90-ingress/middleware-admin-ipallowlist.yaml`
+# 에 있다. 그 Middleware 가 없으면 Traefik 이 이 라우터를 만들지 않아 /admin 이
+# 404 다 — 애너테이션 오타도 같은 증상이므로, 안 될 때는 미들웨어 존재부터 본다.
+#
+#   kubectl get middleware
+#
+# ── 지금은 엔드포인트가 없다 ────────────────────────────────────────────────
+# 어드민 API 는 Phase 1 이다(ADR-0009 D2 — 어드민 JWT 서명키 분리). 이 파일을
+# 먼저 두는 이유는, 엔드포인트가 생기는 날 /admin 이 제한 없이 열리는 사고를
+# 막기 위해서다. 그때까지는 허용된 IP 에서도 앱이 404 를 준다(= 정상).
+#
+# 인증서는 `ingress.yaml` 과 같은 host·같은 secretName(motif-tls)을 쓴다 —
+# cert-manager 는 secretName 기준으로 Certificate 를 하나만 만들므로 발급
+# 요청이 늘지 않는다. 자세한 주의점은 `ingress.yaml` 헤더에 있다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: core-api-admin
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # 순서대로 적용된다: https 리다이렉트 -> IP 제한.
+    # `default-` 는 네임스페이스, `@kubernetescrd` 는 Traefik 프로바이더 접미사다.
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd,default-admin-ipallowlist@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - j15d104.p.ssafy.io
+      secretName: motif-tls
+  rules:
+    - host: j15d104.p.ssafy.io
+      http:
+        paths:
+          # 앱이 /admin/... 을 직접 들고 있어 경로를 다시 쓰지 않는다(StripPrefix 미사용).
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8081

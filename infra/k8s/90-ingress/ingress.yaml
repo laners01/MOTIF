@@ -1,8 +1,12 @@
 # 외부 진입점.
 #
 # 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> Service
-# 추후 Core API가 배포되면 backend를 SCG로 바꾸고 path를 /api, /admin으로 나눈다.
-# 현재는 Walking Skeleton 검증용 whoami가 / 를 받고 있다.
+#
+# 경로 분배는 앱 쪽 Ingress 가 각자 들고 있다 — `/api` 는 40-core-api/ingress.yaml,
+# `/admin` 은 40-core-api/ingress-admin.yaml(IP 제한 포함), `/project/` 는
+# 50-jenkins-webhook/. **애플리케이션 게이트웨이(SCG)는 두지 않는다** — Traefik 이
+# core-api 로 직결하고 인증은 앱의 Spring Security 가 한다(ADR-0009).
+# 여기 남은 whoami 는 Walking Skeleton 검증용으로 아직 `/` 를 받고 있다.
 #
 # 인증서는 cert-manager가 letsencrypt-prod로 발급해 motif-tls Secret에 저장하며,
 # 만료 30일 전 자동 갱신한다.
