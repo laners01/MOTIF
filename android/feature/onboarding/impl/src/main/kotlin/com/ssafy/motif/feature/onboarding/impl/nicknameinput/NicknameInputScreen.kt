@@ -74,7 +74,7 @@ internal fun NicknameInputScreen(
             contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),    //사이 좌우간격
         ) {
-            items(uiState.likedAritsts,key = {it.id}){
+            items(uiState.likedArtists,key = {it.id}){
                 artist -> ArtistCard(
                     artist = artist,
                     selected = false,

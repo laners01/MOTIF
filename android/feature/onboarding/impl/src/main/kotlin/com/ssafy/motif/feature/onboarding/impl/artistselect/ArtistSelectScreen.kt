@@ -38,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.Icon
+import com.ssafy.motif.core.designsystem.component.IconButton
+import com.ssafy.motif.core.designsystem.component.ModifIconButtonDefaults
 import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
@@ -55,6 +57,8 @@ fun ArtistSelectRoute(
     ArtistSelectScreen(
         uiState = uiState,
         onArtistClick = viewModel::toggleArtist,
+        onQueryChange = viewModel::updateQuery,
+        onRemoveClick = viewModel::removeQuery,
         onNextClick = {onNextClick(uiState.selectedArtists.toList())},
         modifier = modifier,
     )
@@ -65,15 +69,17 @@ fun ArtistSelectRoute(
 internal fun ArtistSelectScreen(
     uiState: ArtistSelectUiState,
     onArtistClick: (Long) -> Unit,   //아티스트 클릭시
+    onQueryChange: (String) -> Unit,
+    onRemoveClick: () -> Unit,
     onNextClick: () -> Unit,         //n명 선택 버튼 클릭 시
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        var query by remember{ mutableStateOf("") }
 
         ArtistSearchBar(
-            query = query,
-            onQueryChange = {query = it},
+            query = uiState.query,
+            onQueryChange = onQueryChange,
+            onRemoveClick = onRemoveClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 20.dp, top = 20.dp, end = 20.dp),
@@ -81,12 +87,14 @@ internal fun ArtistSelectScreen(
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            modifier = modifier.weight(1f),
+            modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(20.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),    //사이 좌우간격
             verticalArrangement = Arrangement.spacedBy(20.dp)       //사이 상하간격
-        ) {
-            items(items = uiState.artists, key = { it.id }) { artist ->
+        )
+
+        {
+            items(items = uiState.filteredArtists, key = { it.id }) { artist ->
                 ArtistCard(artist = artist,
                     selected = artist.id in uiState.selectedArtists,
                     onClick = {onArtistClick(artist.id)},
@@ -94,6 +102,18 @@ internal fun ArtistSelectScreen(
             }
 
         }
+
+        if(uiState.query.isNotBlank() && uiState.filteredArtists.isEmpty()){
+            Text(
+                text = "검색 결과가 없습니다",
+                style = MotifTheme.typography.bodyR14,
+                color = MotifTheme.colors.gray400,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(20.dp),
+            )
+        }
+
         Button(
             onClick = onNextClick,
             enabled = uiState.canProceed,
@@ -117,38 +137,54 @@ internal fun ArtistSelectScreen(
 
 internal object ArtistMokData {
 
-    private val sample = ArtistUiModel(
-        0L,
-        "이채영",
-        "프로미스나인",
-        null
+    private val samples = listOf(
+        "이새롬" to "프로미스나인",
+        "송하영" to "프로미스나인",
+        "노지선" to "프로미스나인",
+        "이서연" to "프로미스나인",
+        "이채영" to "프로미스나인",
+        "이나경" to "프로미스나인",
+        "백지헌" to "프로미스나인",
+        "박지원" to "프로미스나인",
+        "장규리" to "프로미스나인",
+        "안유진" to "IVE",
+        "가을" to "IVE",
+        "레이" to "IVE",
+        "장원영" to "IVE",
+        "리즈" to "IVE",
+        "이서" to "IVE",
+        "민지" to "뉴진스",
+        "하니" to "뉴진스",
+        "다니엘" to "뉴진스",
+        "해린" to "뉴진스",
+        "혜인" to "뉴진스",
+        "김채원" to "르세라핌",
+        "사쿠라" to "르세라핌",
+        "허윤진" to "르세라핌",
+        "카즈하" to "르세라핌",
+        "홍은채" to "르세라핌",
+        "예지" to "ITZY",
+        "리아" to "ITZY",
+        "류진" to "ITZY",
+        "채령" to "ITZY",
+        "유나" to "ITZY",
     )
-    val artists: List<ArtistUiModel> = List(30) { index ->
-        sample.copy(id = index.toLong())
-    }
-    val selectedIds: Set<Long> = setOf(0L,2L,5L)
-}
-
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-private fun ArtistSelectScreenPreview() {
-    MotifTheme {
-        ArtistSelectScreen(
-            uiState = ArtistSelectUiState(
-                artists = ArtistMokData.artists,
-                selectedArtists = ArtistMokData.selectedIds,
-            ),
-            onArtistClick = {},
-            onNextClick = {},
+    val artists: List<ArtistUiModel> = samples.mapIndexed { index, (name, groupName) ->
+        ArtistUiModel(
+            id = index.toLong(),
+            name = name,
+            groupName = groupName,
+            profileImageUrl = null,
         )
     }
 }
+
 
 @Composable
 private fun ArtistSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    onRemoveClick:() -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -186,6 +222,17 @@ private fun ArtistSearchBar(
                     innerTextField()
                 },
             )
+            IconButton(
+                painter = painterResource(MotifIcons.Close),
+                onClick = onRemoveClick,
+                colors = ModifIconButtonDefaults.iconButtonColors(
+                    contentColor = MotifTheme.colors.white
+                ),
+                modifier = Modifier
+                    .size(20.dp)
+                    .padding(end = 5.dp)
+            )
+
         }
     }
 }

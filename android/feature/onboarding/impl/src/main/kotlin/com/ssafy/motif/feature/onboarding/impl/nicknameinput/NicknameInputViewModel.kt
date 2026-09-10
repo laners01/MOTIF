@@ -32,6 +32,6 @@ class NicknameInputViewModel @Inject constructor(): ViewModel() {
 
     fun setLikedArtists(artistIds: List<Long>){
         val artists = ArtistMokData.artists.filter{ it.id in artistIds }
-        _uiState.update { state -> state.copy(likedAritsts = artists) }
+        _uiState.update { state -> state.copy(likedArtists = artists) }
     }
 }
