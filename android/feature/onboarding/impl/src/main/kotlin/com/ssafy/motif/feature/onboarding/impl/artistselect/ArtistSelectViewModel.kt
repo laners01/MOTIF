@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
+@HiltViewModel
 class ArtistSelectViewModel @Inject constructor(): ViewModel() {
     private val _uiState = MutableStateFlow(
         ArtistSelectUiState(artists = ArtistMokData.artists),
