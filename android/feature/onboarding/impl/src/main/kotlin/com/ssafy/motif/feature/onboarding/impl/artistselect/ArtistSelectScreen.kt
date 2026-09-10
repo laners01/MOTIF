@@ -1,6 +1,5 @@
 package com.ssafy.motif.feature.onboarding.impl.artistselect
 
-import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +29,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,20 +46,16 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 
 @Composable
 fun ArtistSelectRoute(
+    onNextClick: (List<Long>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ArtistSelectViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     ArtistSelectScreen(
         uiState = uiState,
         onArtistClick = viewModel::toggleArtist,
-        onNextClick = {  Toast.makeText(
-            context,
-            "${uiState.selectedArtists.size}명 선택 완료",
-            Toast.LENGTH_SHORT
-        ).show() },
+        onNextClick = {onNextClick(uiState.selectedArtists.toList())},
         modifier = modifier,
     )
 }
@@ -197,7 +191,7 @@ private fun ArtistSearchBar(
 }
 
 @Composable
-private fun ArtistCard(
+fun ArtistCard(
     artist: ArtistUiModel,
     selected: Boolean,
     onClick: () -> Unit,
