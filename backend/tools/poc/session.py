@@ -12,12 +12,12 @@
 """
 import argparse
 import csv
+import http.client
 import os
 import random
 import sys
 import time
 import urllib.parse
-import urllib.request
 import uuid
 
 # 시청 행동 모델 (설계문서 확정): 3초 스킵 40% / 절반 30% / 완시청 30%
@@ -61,29 +61,63 @@ def parse_policy(text):
 
 
 class Fetcher:
-    """Range 요청 한 곳. 받은 바이트와 걸린 시간만 돌려준다."""
+    """Range 요청 한 곳. 받은 바이트와 걸린 시간만 돌려준다.
+
+    커넥션을 재사용한다(HTTP/1.1 keep-alive). 매번 새로 열면 요청마다 핸드셰이크
+    1 RTT + 슬로스타트를 다시 문다 — RTT 300ms 구간에서는 1초짜리 조각 하나에
+    600ms 넘는 고정비가 붙어서, 대역폭이 남는데도 재버퍼로 잡힌다. 실제
+    플레이어와 CDN 은 전부 커넥션을 재사용하므로 그쪽이 맞는 모델이다.
+    """
 
     def __init__(self, origin, runid, timeout):
-        self.origin = origin.rstrip("/")
+        u = urllib.parse.urlsplit(origin)
+        self.scheme = u.scheme or "http"
+        self.host = u.netloc
+        self.base = u.path.rstrip("/")
         self.runid = runid
         self.timeout = timeout
         self.requests = 0
+        self.reconnects = 0
+        self._conn = None
+
+    def _connect(self):
+        cls = (http.client.HTTPSConnection if self.scheme == "https"
+               else http.client.HTTPConnection)
+        self._conn = cls(self.host, timeout=self.timeout)
 
     def get(self, name, start, end):
         """[start, end] 바이트를 받는다. 받은 바이트 수와 소요 초를 돌려준다."""
         if end < start:
             return 0, 0.0
-        url = f"{self.origin}/{urllib.parse.quote(name)}?s={self.runid}"
-        req = urllib.request.Request(url, headers={"Range": f"bytes={start}-{end}"})
+        path = f"{self.base}/{urllib.parse.quote(name)}?s={self.runid}"
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            body = resp.read()
-            if resp.status not in (200, 206):
-                sys.exit(f"FAIL: {url} 가 {resp.status} 를 냈다")
-            if resp.status == 200 and start > 0:
-                sys.exit(f"FAIL: origin 이 Range 를 무시했다(200) — {url}")
+        for attempt in (1, 2):      # 서버가 idle 커넥션을 닫았으면 한 번 다시 연다
+            try:
+                if self._conn is None:
+                    self._connect()
+                self._conn.request("GET", path, headers={"Range": f"bytes={start}-{end}"})
+                resp = self._conn.getresponse()
+                body = resp.read()  # 끝까지 읽어야 커넥션을 다음 요청에 쓸 수 있다
+                status = resp.status
+                break
+            except (http.client.HTTPException, OSError):
+                if self._conn is not None:
+                    self._conn.close()
+                self._conn = None
+                self.reconnects += 1
+                if attempt == 2:
+                    raise
+        if status not in (200, 206):
+            sys.exit(f"FAIL: {self.scheme}://{self.host}{path} 가 {status} 를 냈다")
+        if status == 200 and start > 0:
+            sys.exit(f"FAIL: origin 이 Range 를 무시했다(200) — {path}")
         self.requests += 1
         return len(body), time.monotonic() - t0
+
+    def close(self):
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
 
 def run_session(feed, policy_n, policy_t, fetcher, rng, realtime, exit_prob):
@@ -192,6 +226,7 @@ def main():
             f = Fetcher(args.origin, runid, args.timeout)
             t0 = time.monotonic()
             r = run_session(feed, policy_n, policy_t, f, rng, args.realtime, args.exit_prob)
+            f.close()
             elapsed = time.monotonic() - t0
 
             for i, item in enumerate(feed):

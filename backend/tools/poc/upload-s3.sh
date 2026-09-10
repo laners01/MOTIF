@@ -4,6 +4,11 @@
 #   sh backend/tools/poc/upload-s3.sh <버킷>          # 드라이런 — 뭘 올릴지만 보여준다
 #   sh backend/tools/poc/upload-s3.sh <버킷> --go     # 실제 업로드
 #
+# PREFIX(기본 poc)로 서비스 경로와 분리한다. motif-media 는 PoC 전용이 아니라
+# assets/·profiles/·raw/ 같은 서비스 프리픽스를 이미 갖고 있다. PoC 가 끝나면
+#   aws s3 rm s3://<버킷>/poc/ --recursive
+# 한 줄로 지운다.
+#
 # 자격증명은 이 스크립트가 다루지 않는다. 미리 설정해 둔다:
 #   aws configure          (또는 aws sso login / AWS_PROFILE)
 #
@@ -23,6 +28,7 @@ set -eu
 
 BUCKET=${1:?"사용법: upload-s3.sh <버킷> [--go]"}
 GO=${2:-}
+PREFIX=${PREFIX:-poc}
 POC=$(cd "$(dirname "$0")/../../local-infra/poc" && pwd)
 VIDEO_DIR=$(grep -E '^VIDEO_DIR=' "$POC/.env" 2>/dev/null | cut -d= -f2- || echo "")
 [ -n "$VIDEO_DIR" ] || { echo "FAIL: $POC/.env 의 VIDEO_DIR 를 못 읽었다" >&2; exit 1; }
@@ -31,11 +37,11 @@ VIDEO_DIR=$(grep -E '^VIDEO_DIR=' "$POC/.env" 2>/dev/null | cut -d= -f2- || echo
 CACHE="public, max-age=31536000, immutable"
 
 set -- \
-    "$VIDEO_DIR"                  "s3://$BUCKET/videos/" \
-    "$POC/renditions/720p"        "s3://$BUCKET/renditions/720p/" \
-    "$POC/renditions/480p"        "s3://$BUCKET/renditions/480p/"
+    "$VIDEO_DIR"                  "s3://$BUCKET/$PREFIX/videos/" \
+    "$POC/renditions/720p"        "s3://$BUCKET/$PREFIX/renditions/720p/" \
+    "$POC/renditions/480p"        "s3://$BUCKET/$PREFIX/renditions/480p/"
 
-echo "버킷: s3://$BUCKET"
+echo "버킷: s3://$BUCKET/$PREFIX/"
 while [ $# -gt 0 ]; do
     src=$1 dst=$2; shift 2
     [ -d "$src" ] || { echo "  건너뜀 (없음): $src" >&2; continue; }
@@ -69,12 +75,15 @@ key=$($DC exec -T poc-harness python3 -c "
 import csv, urllib.parse
 for r in csv.DictReader(open('/work/results/inventory.csv', encoding='utf-8')):
     if r['tag'] == '720p':
-        print('renditions/720p/' + urllib.parse.quote(r['file'])); break" | tr -d '\r\n')
+        print('$PREFIX/renditions/720p/' + urllib.parse.quote(r['file'])); break" | tr -d '\r\n')
 U="https://$CLOUDFRONT_DOMAIN/$key"
 
 echo; echo "== 런북 §3 검증: $U"
-echo "-- Range (206 이어야 한다)"
-$DC exec -T poc-harness curl -sI -r 0-1023 "$U" | grep -iE '^HTTP|content-range|x-cache'
+# GET 으로 확인한다. HEAD 는 본문이 없어 CloudFront·S3 가 Range 를 무시하고 200 을
+# 내므로, 런북 §3 의 `curl -sI -r` 는 정상 배포에서도 실패로 보인다.
+echo "-- Range (206 + content-range 이어야 한다)"
+$DC exec -T poc-harness curl -s -r 0-1023 -o /dev/null -D - "$U" \
+    | grep -iE '^HTTP|content-range|x-cache'
 echo "-- 캐시 (2회차가 Hit 이어야 한다)"
 $DC exec -T poc-harness sh -c "curl -sI '$U' | grep -i x-cache; curl -sI '$U' | grep -i x-cache"
 echo "-- 쿼리스트링 제외 (둘 다 Hit 이어야 캐시 키에서 빠진 것)"
