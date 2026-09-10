@@ -28,4 +28,12 @@ class ArtistSelectViewModel @Inject constructor(): ViewModel() {
             )
         }
     }
+
+    fun removeQuery(){
+        _uiState.update { state -> state.copy(query = "") }
+    }
+
+    fun updateQuery(query:String){
+        _uiState.update { state -> state.copy(query=query) }
+    }
 }
