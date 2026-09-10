@@ -36,10 +36,6 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
-                // CorsConfigurationSource 빈이 있을 때만 실제로 동작한다. 그 빈은
-                // LocalCorsConfig 가 @Profile("local") 로만 제공하므로 운영에는 CORS 가 없다.
-                // preflight(OPTIONS)는 인가 필터보다 앞에서 처리돼야 해서 여기 선언이 필요하다.
-                .cors(org.springframework.security.config.Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .formLogin(login -> login.disable())
                 .httpBasic(basic -> basic.disable())
@@ -56,9 +52,11 @@ public class SecurityConfig {
                         // 명세 §2 인증 API 중 🔓 표시된 것들. 로그아웃(§2.3)은 인증이 필요하다
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login/google").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
-                        // 로컬 전용 도구 (ADR-0003). 컨트롤러 자체가 @Profile("local") 이라
-                        // 다른 프로파일에서는 이 경로에 매핑이 없어 404 다 — 이 permitAll 은
-                        // 경로를 여는 것이 아니라 로컬에서 인증을 면제하는 것이다
+                        // 개발 도구 경로. DevAuthController·DevJobController 는 @Profile("local")
+                        // 이라 운영에는 매핑이 없다(404). 다만 login-test.html 은 정적 리소스라
+                        // 프로파일과 무관하게 운영에서도 열린다 — 의도된 것이다(배포 서버에서
+                        // 구글 로그인을 확인하는 유일한 수단). 페이지 자체는 권한을 주지 않고
+                        // 이미 공개인 /api/v1/auth/login/google 만 호출한다.
                         .requestMatchers("/api/dev/**").permitAll()
                         // springdoc — 관리 포트가 아니라 앱 포트에 뜬다(기본 경로 유지)
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
