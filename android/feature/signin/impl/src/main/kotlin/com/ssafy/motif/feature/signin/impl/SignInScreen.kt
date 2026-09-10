@@ -17,28 +17,94 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.GlassSurface
 import com.ssafy.motif.core.designsystem.component.Icon
+import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.glass.GlassBackdropState
 import com.ssafy.motif.core.designsystem.glass.glassBackdrop
 import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
+import com.ssafy.motif.feature.signin.impl.util.GoogleSignInResult
+import com.ssafy.motif.feature.signin.impl.util.findActivity
+import com.ssafy.motif.feature.signin.impl.util.startGoogleSignIn
+import kotlinx.coroutines.launch
 
 @Composable
 fun SignInScreen(
+    onSignInSuccess: () -> Unit,
+    viewModel: SignInViewModel = hiltViewModel(),
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val uiState by
+    viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(viewModel) {
+        viewModel.signInEvent.collect { event ->
+            when (event) {
+                SignInEvent.Success -> {
+                    onSignInSuccess()
+                }
+            }
+        }
+    }
+
+    SignInScreen(
+        isLoading = uiState.isLoading,
+        isError = uiState.isError,
+        onGoogleSignInClick = {
+            val activity =
+                context.findActivity()
+                    ?: return@SignInScreen
+
+            viewModel.clearSignInError()
+
+            coroutineScope.launch {
+                when (
+                    val result =
+                        startGoogleSignIn(activity)
+                ) {
+                    is GoogleSignInResult.Success -> {
+                        viewModel.signInWithGoogle(
+                            idToken = result.idToken,
+                        )
+                    }
+
+                    GoogleSignInResult.Cancelled -> Unit
+
+                    is GoogleSignInResult.Failure -> {
+                        viewModel.setSignInError()
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
+fun SignInScreen(
+    isLoading: Boolean,
+    isError: Boolean,
     onGoogleSignInClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -66,18 +132,34 @@ fun SignInScreen(
                 .padding(top = 48.dp, end = 10.dp),
         )
 
-        GoogleSignInButton(
-            onClick = onGoogleSignInClick,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(
-                    horizontal = 60.dp,
-                    vertical = 92.dp,
+        if (isLoading) {
+            LoadingWheel()
+        } else {
+            GoogleSignInButton(
+                onClick = onGoogleSignInClick,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(
+                        horizontal = 60.dp,
+                        vertical = 92.dp,
+                    )
+                    .fillMaxWidth()
+                    .height(56.dp),
+            )
+
+            if (isError) {
+                Spacer(
+                    modifier = Modifier.height(12.dp),
                 )
-                .fillMaxWidth()
-                .height(56.dp),
-        )
+
+                Text(
+                    text = "로그인에 실패했습니다. 다시 시도해주세요.",
+                    color = MotifTheme.colors.white,
+                    style = MotifTheme.typography.bodyR14,
+                )
+            }
+        }
     }
 }
 
@@ -176,6 +258,8 @@ private fun GoogleSignInButton(
 private fun SignInScreenPreview() {
     MotifTheme {
         SignInScreen(
+            isLoading = false,
+            isError = false,
             onGoogleSignInClick = {},
         )
     }
