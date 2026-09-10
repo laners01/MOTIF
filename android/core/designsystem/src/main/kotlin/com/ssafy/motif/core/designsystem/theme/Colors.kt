@@ -18,6 +18,7 @@ data class MotifColors(
     val gray700: Color,
     val gray900: Color,
     val black: Color,
+    val pink: Color,
 ) {
     companion object {
         /**
@@ -35,6 +36,7 @@ data class MotifColors(
             gray700 = colorResource(R.color.gray_700),
             gray900 = colorResource(R.color.gray_900),
             black = colorResource(R.color.black),
+            pink = colorResource(R.color.pink)
         )
     }
 }
