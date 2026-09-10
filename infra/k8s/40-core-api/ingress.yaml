@@ -51,3 +51,38 @@ spec:
                 name: core-api
                 port:
                   number: 8081
+          # Swagger — springdoc 기본 경로 그대로 앱 포트에 뜬다. /api 밖이라
+          # 여기 적지 않으면 90-ingress 의 hello(whoami) 가 받아 **200 을 준다**.
+          # 열린 것처럼 보이지만 내용은 whoami 다 — 404 가 아니라서 알아채기 어렵다.
+          #
+          # 세 줄이 필요한 이유:
+          #   /swagger-ui.html  진입점. Prefix `/swagger-ui` 는 세그먼트 단위로
+          #                     매칭하므로 이 파일명을 잡지 못한다. Exact 로 따로 적는다.
+          #   /swagger-ui       UI 리소스(index.html·swagger-initializer.js 등).
+          #                     springdoc 이 상수로 고정한 경로라 앱 설정으로 못 옮긴다
+          #                     (Constants.SWAGGER_UI_PREFIX).
+          #   /v3/api-docs      OpenAPI JSON. 하위 /swagger-config 까지 Prefix 로 덮는다.
+          #
+          # SecurityConfig 는 이 세 경로를 이미 permitAll 하고 있어 앱 변경은 없다.
+          # 공개 노출이다 — 심사·발표 전에 이 블록을 지우면 원래대로 닫힌다.
+          - path: /swagger-ui.html
+            pathType: Exact
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8081
+          - path: /swagger-ui
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8081
+          - path: /v3/api-docs
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8081
