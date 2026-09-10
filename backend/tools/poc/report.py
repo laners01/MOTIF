@@ -126,21 +126,35 @@ def main():
         exit_probs.add(r.get("exit_prob", "?"))
 
     ttff_idx = {(t["network"], t["tag"]): t for t in ttff}
+    # 셰이핑 없이 잰 값 = ffmpeg 프로세스 시작 + 디코더 초기화. 설계문서의
+    # TTFF(net) 은 "ffmpeg 실행 시간"으로 정의돼 이 상수를 포함하는데, 그
+    # 상태로 p50<200ms 를 목표로 걸었다. 빼고도 보여줘야 판정이 성립한다.
+    base = {t["tag"]: int(t["p50_ms"]) for t in ttff if t["network"] == "off"}
 
     rows = []
     for (net, tag, pol), g in sorted(groups.items()):
         total = g["watch"] + g["pre"]
         n_runs = len(g["runs"])
         t = ttff_idx.get((net, tag))
+        b = base.get(tag)
+        net_p50 = f"{int(t['p50_ms']) - b}ms" if (t and b is not None) else "-"
         rows.append([net, tag, pol, n_runs,
                      mb(total / n_runs),
                      pct(g["waste"] / total) if total else "-",
                      g["stalls"],
                      t["p50_ms"] + "ms" if t else "-",
-                     t["p95_ms"] + "ms" if t else "-"])
+                     t["p95_ms"] + "ms" if t else "-",
+                     net_p50])
     L += ["## 2. 매트릭스", "",
-          md_table(["네트워크", "화질", "정책", "세션",
-                    "세션당(MB)", "낭비율", "스톨", "TTFF p50", "TTFF p95"], rows), ""]
+          md_table(["네트워크", "화질", "정책", "세션", "세션당(MB)", "낭비율",
+                    "스톨", "TTFF p50", "TTFF p95", "TTFF(net) p50"], rows), ""]
+
+    if base:
+        L += ["> `TTFF p50` 은 ffmpeg 실행 시간 전체다 — 프로세스 시작·디코더 초기화가",
+              "> 섞여 있다. 셰이핑을 끄고 잰 그 상수가 "
+              + ", ".join(f"`{k}` {v}ms" for k, v in sorted(base.items())) + " 이고,",
+              "> `TTFF(net)` 은 그걸 뺀 순 네트워크 항이다. 설계문서의 p50<200ms 목표는",
+              "> 상수 포함값에 걸려 있어 그대로 쓰면 도구 오버헤드까지 판정에 들어간다.", ""]
 
     if exit_probs == {"0.0"} or exit_probs == {"0"}:
         L += ["> ⚠️ **낭비율은 무효다.** `--exit-prob 0` 이면 피드를 끝까지 소비하므로",

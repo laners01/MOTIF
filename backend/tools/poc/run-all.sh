@@ -31,6 +31,7 @@ REALTIME=${REALTIME:-1}
 REALTIME_PROFILE=${REALTIME_PROFILE:-lte_poor}
 REALTIME_POLICY=${REALTIME_POLICY:-N=2,T=1.5}
 TTFF_RUNS=${TTFF_RUNS:-20}
+REALTIME_SEED=${REALTIME_SEED:-43}
 
 h() { $DC exec -T poc-harness "$@"; }
 
@@ -95,18 +96,34 @@ for r in csv.DictReader(open('$OUT/inventory.csv', encoding='utf-8')):
     done
 done
 
+# ---- TTFF 도구 상수 ----------------------------------------------------
+# ffmpeg 프로세스 시작 + 디코더 초기화가 측정값에 섞여 있다. 셰이핑을 끄고
+# 한 번 재서 그 바닥값을 남긴다 — report.py 가 이걸 빼서 순 네트워크 항을 낸다.
+netem off
+for tag in $TAGS; do
+    f=$(h python3 -c "
+import csv, urllib.parse
+for r in csv.DictReader(open('$OUT/inventory.csv', encoding='utf-8')):
+    if r['tag'] == '$tag':
+        print(urllib.parse.quote(r['file'])); break
+" | tr -d '\r\n')
+    [ -n "$f" ] && h sh /work/tools/ttff.sh "$(tag_url "$tag")/$f" "$TTFF_RUNS" off "$tag"
+done
+
 # ---- 재버퍼 실측 -------------------------------------------------------
 # --realtime 은 영상을 실제 재생 속도로 받는다 = 세션 하나가 시청 시간만큼 걸린다
 # (30개면 7분 안팎). 그래서 전 조합이 아니라 "끊길 수 있는 곳"에서만 돌린다.
 # 여유가 8배인 wifi/lte_good 은 산술로 이미 답이 나와 있어 돌릴 이유가 없다.
 if [ "$REALTIME" = 1 ]; then
-    echo "== 재버퍼 실측 ($REALTIME_PROFILE, $REALTIME_POLICY) — 느리다" >&2
+    # 세션 하나만 도는데 기본 시드(42)는 첫 아이템에서 이탈한다 — 영상 한 개로
+    # "스톨 0" 을 선언할 뻔했다. 긴 세션이 나오는 시드를 쓴다.
+    echo "== 재버퍼 실측 ($REALTIME_PROFILE, $REALTIME_POLICY, seed $REALTIME_SEED) — 느리다" >&2
     netem "$REALTIME_PROFILE"
     for tag in $TAGS; do
         h python3 /work/tools/session.py \
             --feed "$OUT/inventory.csv" --tag "$tag" \
             --policy "$REALTIME_POLICY" --origin "$(tag_url "$tag")" \
-            --network "${REALTIME_PROFILE}-rt" --sessions 1 \
+            --network "${REALTIME_PROFILE}-rt" --sessions 1 --seed "$REALTIME_SEED" \
             --exit-prob "$EXIT_PROB" --realtime --out "$OUT/session.csv"
     done
 fi
