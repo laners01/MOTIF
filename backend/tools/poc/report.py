@@ -148,16 +148,26 @@ def main():
               "> N·T 를 키울수록 유리하기만 해서 정책 비교가 성립하지 않는다.", ""]
 
     # ---- 3. 트래픽 모델 대비 오차 --------------------------------------
-    rate = {r["file"]: float(r["bitrate"]) / 8.0 for r in inventory if r["bitrate"]}
+    # 파일명이 태그 간에 겹친다(같은 원본의 사본이라 이름이 같다). 파일명만으로
+    # 키를 잡으면 마지막 태그의 비트레이트가 나머지를 덮어써서 3·4절이 통째로 틀린다.
+    rate = {(r["file"], r["tag"]): float(r["bitrate"]) / 8.0
+            for r in inventory if r["bitrate"]}
+    tag_rate = defaultdict(list)
+    for (_, tg), v in rate.items():
+        tag_rate[tg].append(v)
     model_rows = []
     for (net, tag, pol), g in sorted(groups.items()):
         n = int(dict(kv.split("=", 1) for kv in pol.split(","))["N"])
         T = float(dict(kv.split("=", 1) for kv in pol.split(","))["T"])
         sel = [r for r in sessions
                if (r["network"], r["file_tag"], r["policy"]) == (net, tag, pol)]
-        watch_model = sum(float(r["watch_seconds"]) * rate.get(r["file"], 0) for r in sel)
+        watch_model = sum(float(r["watch_seconds"]) * rate.get((r["file"], r["file_tag"]), 0)
+                          for r in sel)
         swipes = sum(1 for r in sel if r["watched"] == "1")
-        pre_model = swipes * n * T * (statistics.fmean(rate.values()) if rate else 0)
+        # 프리페치 항의 "평균 비트레이트"는 그 화질의 평균이다 — 전체 평균을 쓰면
+        # 480p 예측에 원본 비트레이트가 섞인다.
+        mean_rate = statistics.fmean(tag_rate[tag]) if tag_rate.get(tag) else 0
+        pre_model = swipes * n * T * mean_rate
         predicted = watch_model + pre_model
         actual = g["watch"] + g["pre"]
         err = (actual - predicted) / predicted if predicted else float("inf")
@@ -177,29 +187,35 @@ def main():
               "> 만큼 이중계산된다. 비용 산정에 쓰기 전에 식을 고칠지 팀에서 정한다.", ""]
 
     # ---- 4. 비트레이트 구간별 분해 --------------------------------------
+    # 태그별로 나눈다 — 섞으면 480p 전체가 "낮음", 원본 전체가 "높음"으로 몰려서
+    # 화질 비교만 다시 보게 되고 "같은 화질 안에서 무거운 파일이 불리한가"를 못 본다.
     if inventory:
-        brs = sorted(float(r["bitrate"]) for r in inventory if r["bitrate"])
-        lo, hi = (brs[len(brs) // 3], brs[2 * len(brs) // 3]) if len(brs) >= 3 else (0, 0)
-        # 경계가 붙어 있으면 구간이 이름만 다른 같은 것이 된다 — 분해할 편차가 없다.
-        if len(brs) >= 3 and hi - lo >= 0.05 * statistics.median(brs):
-            bucket_of = lambda b: "낮음" if b < lo else ("중간" if b < hi else "높음")
+        sec, any_bucket = [], False
+        for tg in sorted(tag_rate):
+            brs = sorted(v * 8 for v in tag_rate[tg])
+            if len(brs) < 3 or brs[-1] - brs[0] < 0.05 * statistics.median(brs):
+                sec.append(f"- `{tg}`: 비트레이트 편차가 5% 미만 "
+                           f"({brs[0]/1e6:.2f}~{brs[-1]/1e6:.2f}Mbps) — 분해 생략")
+                continue
+            lo, hi = brs[len(brs) // 3], brs[2 * len(brs) // 3]
             buckets = defaultdict(lambda: {"bytes": 0, "stalls": 0, "items": 0})
             for r in sessions:
-                b = rate.get(r["file"], 0) * 8
-                k = bucket_of(b)
+                if r["file_tag"] != tg:
+                    continue
+                b = rate.get((r["file"], tg), 0) * 8
+                k = "낮음" if b < lo else ("중간" if b < hi else "높음")
                 buckets[k]["bytes"] += int(r["bytes_watch"]) + int(r["bytes_prefetch"])
                 buckets[k]["stalls"] += int(r["stalls"])
                 buckets[k]["items"] += 1
-            L += ["## 4. 파일 특성 구간별 (비트레이트 3분위)", "",
-                  f"경계: 낮음 < {lo/1e6:.2f}Mbps ≤ 중간 < {hi/1e6:.2f}Mbps ≤ 높음", "",
-                  md_table(["구간", "아이템", "총 바이트(MB)", "스톨"],
-                           [[k, v["items"], mb(v["bytes"]), v["stalls"]]
-                            for k, v in sorted(buckets.items())]), ""]
-
-        elif brs:
-            L += ["## 4. 파일 특성 구간별", "",
-                  f"영상 {len(brs)}개의 비트레이트 편차가 5% 미만이다 "
-                  f"({brs[0]/1e6:.2f}~{brs[-1]/1e6:.2f}Mbps) — 구간 분해 생략.", ""]
+            if not buckets:
+                continue
+            any_bucket = True
+            sec += [f"**{tg}** — 낮음 < {lo/1e6:.2f}Mbps ≤ 중간 < {hi/1e6:.2f}Mbps ≤ 높음", "",
+                    md_table(["구간", "아이템", "총 바이트(MB)", "스톨"],
+                             [[k, v["items"], mb(v["bytes"]), v["stalls"]]
+                              for k, v in sorted(buckets.items())]), ""]
+        if sec:
+            L += ["## 4. 파일 특성 구간별 (화질 안에서 비트레이트 3분위)", ""] + sec + [""]
 
     # ---- 5. 인벤토리 요약 -----------------------------------------------
     if inventory:

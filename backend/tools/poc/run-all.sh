@@ -46,14 +46,16 @@ netem() { $DC exec -T -e "MODE=$NETEM_MODE" "$NETEM_SVC" sh /work/profiles/netem
 trap 'netem off || true' EXIT INT TERM
 
 # ---- 태그 -------------------------------------------------------------
-tag_url() { case "$1" in 720p) echo "http://poc-origin/videos" ;;
+# origin = 팀이 준 원본(VIDEO_DIR). 나머지는 transcode.sh 가 만든 사본이다.
+tag_url() { case "$1" in origin) echo "http://poc-origin/videos" ;;
                          *) echo "http://poc-origin/renditions/$1" ;; esac; }
-tag_dir() { case "$1" in 720p) echo "/srv/videos" ;;
+tag_dir() { case "$1" in origin) echo "/srv/videos" ;;
                          *) echo "/srv/renditions/$1" ;; esac; }
 
-TAGS="720p"
-for t in 480p faststart; do
-    h test -d "/srv/renditions/$t" 2>/dev/null && TAGS="$TAGS $t"
+TAGS="origin"
+for t in $(h sh -c 'ls /srv/renditions 2>/dev/null' | tr -d '\r'); do
+    [ "$t" = selfcheck ] && continue          # 자체검사용 합성 클립은 스윕 대상이 아니다
+    TAGS="$TAGS $t"
 done
 echo "== 태그: $TAGS" >&2
 
@@ -82,7 +84,13 @@ for prof in $PROFILES; do
                 --out "$OUT/session.csv"
         done
         # TTFF 는 프로파일·화질당 한 번. 인벤토리 첫 파일을 대표로 쓴다.
-        f=$(h awk -F, -v t="$tag" 'NR>1 && $2==t {print $1; exit}' "$OUT/inventory.csv" | tr -d '\r\n')
+        # 파일명에 공백·한글·괄호가 있으므로 URL 인코딩해서 넘긴다.
+        f=$(h python3 -c "
+import csv, sys, urllib.parse
+for r in csv.DictReader(open('$OUT/inventory.csv', encoding='utf-8')):
+    if r['tag'] == '$tag':
+        print(urllib.parse.quote(r['file'])); break
+" | tr -d '\r\n')
         [ -n "$f" ] && h sh /work/tools/ttff.sh "$url/$f" "$TTFF_RUNS" "$prof" "$tag"
     done
 done
