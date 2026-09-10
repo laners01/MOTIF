@@ -8,6 +8,11 @@ android {
 }
 
 dependencies {
+    implementation(projects.core.data)
     implementation(projects.feature.signin.api)
+
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.google.identity.googleid)
 }
