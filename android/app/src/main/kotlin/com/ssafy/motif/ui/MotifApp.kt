@@ -16,6 +16,7 @@ import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
+import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
 
 @Composable
 fun MotifApp(
@@ -29,6 +30,7 @@ fun MotifApp(
     val entryProvider = entryProvider {
         homeEntry(navigator)
         onboardingEntry(navigator)
+        rankingEntry(navigator)
     }
 
     Box(modifier.fillMaxSize()) {
