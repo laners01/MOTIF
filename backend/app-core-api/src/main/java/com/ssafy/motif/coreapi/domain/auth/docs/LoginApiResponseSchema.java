@@ -18,15 +18,15 @@ public record LoginApiResponseSchema(
         @Schema(description = "항상 SUCCESS", example = "SUCCESS")
         ApiResult result,
 
-        @Schema(description = "성공 시 null", nullable = true)
+        @Schema(description = "성공은 SUCCESS 고정 (명세 §1.2)", example = "SUCCESS")
         String code,
 
-        @Schema(description = "성공 시 null", nullable = true)
+        @Schema(description = "성공은 고정 문구 (명세 §1.2)", example = "요청이 성공했습니다.")
         String message,
 
         LoginResponse data,
 
-        @Schema(description = "ISO-8601 UTC")
+        @Schema(description = "ISO-8601 UTC, 밀리초 3자리 (명세 §1.3)", example = "2026-09-10T00:00:00.000Z")
         Instant timestamp
 ) {
 }

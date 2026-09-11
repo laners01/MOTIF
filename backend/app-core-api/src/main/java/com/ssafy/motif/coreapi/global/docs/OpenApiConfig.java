@@ -48,18 +48,22 @@ public class OpenApiConfig {
                         `app-notification` 은 HTTP 엔드포인트가 없는 이벤트 소비 전용이라 이 문서에 없다 (ADR-0009).
 
                         ### 응답 형태
-                        모든 응답은 아래 봉투로 감싸져 온다(성공·실패 공통).
+                        모든 응답은 아래 봉투로 감싸져 온다(성공·실패 공통 — 명세 §1.2).
                         ```json
                         {
                           "result": "SUCCESS 또는 FAIL",
-                          "code": "성공은 null, 실패는 에러코드 문자열",
-                          "message": "사용자 표시용 메시지 (성공은 null)",
-                          "data": { "...": "성공 payload, 실패는 보통 null" },
-                          "timestamp": "ISO-8601 UTC"
+                          "code": "성공은 SUCCESS 고정, 실패는 에러코드 문자열",
+                          "message": "성공은 \\"요청이 성공했습니다.\\" 고정, 실패는 사용자 표시용 메시지",
+                          "data": { "...": "성공 payload, 실패는 null 또는 상세" },
+                          "timestamp": "ISO-8601 UTC, 밀리초 3자리 (2026-09-10T00:00:00.000Z)"
                         }
                         ```
+                        분기는 `result` 와 HTTP 상태로만 한다 — `message` 는 표시용이다.
                         검증 실패(400)일 때는 `data` 에 `[{"field": "...", "message": "..."}]` 형태의
                         필드별 오류 배열이 담긴다.
+
+                        봉투를 반환하지 않는 예외가 하나 있다 — **좋아요 생성/취소 POST·DELETE 성공은
+                        `204 No Content`** 이며 본문이 없다(명세 §1.2, §7.3·§8.3·§9.5·§10.2).
 
                         전 API 공통 실패는 400 `INVALID_PARAMETER`, 401 `UNAUTHORIZED`,
                         403 `ACCOUNT_SUSPENDED`/`ACCOUNT_DELETED`, 429 `RATE_LIMITED`,

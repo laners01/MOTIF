@@ -28,10 +28,10 @@ public record FailResponseSchema(
         @Schema(description = "사용자 표시용 메시지")
         String message,
 
-        @Schema(description = "실패 상세. 검증 실패면 필드 오류 리스트, 그 밖에는 null", nullable = true)
+        @Schema(description = "실패 상세. 검증 실패면 필드 오류 리스트, 그 밖에는 null 또는 상세 문자열", nullable = true)
         Object data,
 
-        @Schema(description = "ISO-8601 UTC")
+        @Schema(description = "ISO-8601 UTC, 밀리초 3자리 (명세 §1.3)", example = "2026-09-10T00:00:00.000Z")
         Instant timestamp
 ) {
 }

@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.domain.auth.service;
 
+import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
 import com.ssafy.motif.coreapi.domain.auth.dto.UserSummaryResponse;
 import com.ssafy.motif.coreapi.domain.auth.jwt.JwtProvider;
@@ -97,10 +97,10 @@ public class GoogleLoginProcessor {
     /** 명세 §1.5 — 정지·삭제 계정은 로그인 시점에 막는다. */
     private void verifyLoginable(UserAccount account, User user) {
         if (user.isDeleted()) {
-            throw new BusinessException(AuthErrorCode.ACCOUNT_DELETED);
+            throw new BusinessException(CommonErrorCode.ACCOUNT_DELETED);
         }
         if (account.isSuspended()) {
-            throw new BusinessException(AuthErrorCode.ACCOUNT_SUSPENDED);
+            throw new BusinessException(CommonErrorCode.ACCOUNT_SUSPENDED);
         }
     }
 

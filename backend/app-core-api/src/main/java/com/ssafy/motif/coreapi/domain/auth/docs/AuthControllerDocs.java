@@ -47,8 +47,8 @@ public interface AuthControllerDocs {
                             examples = @ExampleObject(name = "신규 가입", value = """
                                     {
                                       "result": "SUCCESS",
-                                      "code": null,
-                                      "message": null,
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
                                       "data": {
                                         "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwicm9sZSI6IlVTRVIifQ.xxxxx",
                                         "refreshToken": "s7Fq2vXk9pLmNbVcZxAsDfGhJkLqWeRtYuIoP1234567",
@@ -65,7 +65,7 @@ public interface AuthControllerDocs {
                             examples = @ExampleObject(value = """
                                     {
                                       "result": "FAIL",
-                                      "code": "C001",
+                                      "code": "INVALID_PARAMETER",
                                       "message": "요청 값이 올바르지 않습니다.",
                                       "data": [{ "field": "idToken", "message": "idToken은 필수입니다" }],
                                       "timestamp": "2026-09-10T00:00:00.000Z"

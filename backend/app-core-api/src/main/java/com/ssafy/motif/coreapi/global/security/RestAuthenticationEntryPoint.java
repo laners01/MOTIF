@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.global.security;
 
-import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +23,6 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
         log.debug("미인증 접근: {} {}", request.getMethod(), request.getRequestURI());
-        errorWriter.write(response, AuthErrorCode.UNAUTHORIZED);
+        errorWriter.write(response, CommonErrorCode.UNAUTHORIZED);
     }
 }
