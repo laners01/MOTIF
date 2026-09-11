@@ -76,7 +76,7 @@ internal fun RankingScreen(
                 painter = painterResource(MotifIcons.BarArrowLeft),
                 onClick = onRemoveClick,
                 colors = ModifIconButtonDefaults.iconButtonColors(
-                    contentColor = MotifTheme.colors.white
+                    contentColor = MotifTheme.colors.typo
                 ),
                 modifier = Modifier
                     .height(14.dp)
@@ -86,7 +86,7 @@ internal fun RankingScreen(
             Text(
                 text = "Who's on",
                 style = MotifTheme.typography.bodySB16,
-                color = MotifTheme.colors.white,
+                color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
                 modifier = Modifier
@@ -144,7 +144,7 @@ fun ArtistRankCard(
             Text(
                 text = "${challenge.ranking}",
                 style = MotifTheme.typography.titleSB20,
-                color = MotifTheme.colors.white,
+                color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
                 modifier = Modifier.padding(bottom = 3.dp)
@@ -191,7 +191,7 @@ fun ArtistRankCard(
                         "${challenge.rankingChanged}"
                     },
                     style = MotifTheme.typography.captionSB8,
-                    color = MotifTheme.colors.white,
+                    color = MotifTheme.colors.typo,
                     maxLines = 1,
                     overflow = TextOverflow.Visible,
                 )
@@ -226,7 +226,7 @@ fun ArtistRankCard(
             Text(
                 text = challenge.name,
                 style = MotifTheme.typography.bodySB16,
-                color = MotifTheme.colors.white,
+                color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(end = 5.dp)
@@ -244,7 +244,7 @@ fun ArtistRankCard(
         Text(
             text = challenge.challengeName,
             style = MotifTheme.typography.bodySB16,
-            color = MotifTheme.colors.white,
+            color = MotifTheme.colors.typo,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -286,7 +286,7 @@ private fun ArtistSearchBar(
             Icon(
                 painter = painterResource(MotifIcons.Search),
                 null,
-                tint = MotifTheme.colors.white,
+                tint = MotifTheme.colors.typo,
                 modifier = Modifier.size(20.dp)
             )
 
@@ -295,9 +295,9 @@ private fun ArtistSearchBar(
                 onValueChange = onQueryChange,
                 singleLine = true,
                 textStyle = MotifTheme.typography.bodyR14.copy(
-                    color = MotifTheme.colors.white,
+                    color = MotifTheme.colors.typo,
                 ),
-                cursorBrush = SolidColor(MotifTheme.colors.white),
+                cursorBrush = SolidColor(MotifTheme.colors.typo),
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 8.dp),
@@ -306,7 +306,7 @@ private fun ArtistSearchBar(
                         Text(
                             text = "함께하고 싶은 멤버나 그룹을 찾아보세요",
                             style = MotifTheme.typography.bodyR14,
-                            color = MotifTheme.colors.white,
+                            color = MotifTheme.colors.typo,
                         )
                     }
                     innerTextField()
@@ -316,7 +316,7 @@ private fun ArtistSearchBar(
                 painter = painterResource(MotifIcons.Close),
                 onClick = onRemoveClick,
                 colors = ModifIconButtonDefaults.iconButtonColors(
-                    contentColor = MotifTheme.colors.white
+                    contentColor = MotifTheme.colors.typo
                 ),
                 modifier = Modifier
                     .size(20.dp)

@@ -120,7 +120,7 @@ internal fun ArtistSelectScreen(
             shape = RoundedCornerShape(5.dp),
             colors = MotifButtonDefaults.buttonColors(
                 containerColor = MotifTheme.colors.pink,
-                contentColor = MotifTheme.colors.white,
+                contentColor = MotifTheme.colors.typo,
             ),
             modifier = Modifier
                 .padding(horizontal = 20.dp, vertical = 24.dp)
@@ -196,7 +196,7 @@ private fun ArtistSearchBar(
             Icon(
                 painter = painterResource(MotifIcons.Search),
                 null,
-                tint = MotifTheme.colors.white,
+                tint = MotifTheme.colors.typo,
                 modifier = Modifier.size(20.dp)
             )
 
@@ -205,9 +205,9 @@ private fun ArtistSearchBar(
                 onValueChange = onQueryChange,
                 singleLine = true,
                 textStyle = MotifTheme.typography.bodyR14.copy(
-                    color = MotifTheme.colors.white,
+                    color = MotifTheme.colors.typo,
                 ),
-                cursorBrush = SolidColor(MotifTheme.colors.white),
+                cursorBrush = SolidColor(MotifTheme.colors.typo),
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 8.dp),
@@ -216,7 +216,7 @@ private fun ArtistSearchBar(
                         Text(
                             text = "함께하고 싶은 멤버나 그룹을 찾아보세요",
                             style = MotifTheme.typography.bodyR14,
-                            color = MotifTheme.colors.white,
+                            color = MotifTheme.colors.typo,
                         )
                     }
                     innerTextField()
@@ -226,7 +226,7 @@ private fun ArtistSearchBar(
                 painter = painterResource(MotifIcons.Close),
                 onClick = onRemoveClick,
                 colors = ModifIconButtonDefaults.iconButtonColors(
-                    contentColor = MotifTheme.colors.white
+                    contentColor = MotifTheme.colors.typo
                 ),
                 modifier = Modifier
                     .size(20.dp)
@@ -273,7 +273,7 @@ fun ArtistCard(
         Text(
             text = artist.name,
             style = MotifTheme.typography.bodySB16,
-            color = MotifTheme.colors.white,
+            color = MotifTheme.colors.typo,
             maxLines = 1,
             overflow = TextOverflow.Visible,
             modifier = Modifier.padding(top = 8.dp),
@@ -282,7 +282,7 @@ fun ArtistCard(
         Text(
             text = artist.groupName,
             style = MotifTheme.typography.captionSB12,
-            color = MotifTheme.colors.white,
+            color = MotifTheme.colors.typo,
             maxLines = 1,
             overflow = TextOverflow.Visible,
         )
