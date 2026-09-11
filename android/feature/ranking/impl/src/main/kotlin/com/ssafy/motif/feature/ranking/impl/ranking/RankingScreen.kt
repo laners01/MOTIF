@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -102,13 +103,13 @@ internal fun RankingScreen(
             onRemoveClick = onRemoveClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, top = 10.dp, end = 20.dp),
+                .padding(start = 20.dp, end = 20.dp),
         )
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(1),
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(20.dp),
+            contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),    //사이 좌우간격
             verticalArrangement = Arrangement.spacedBy(20.dp)       //사이 상하간격
         )
@@ -140,18 +141,18 @@ fun ArtistRankCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier.width(24.dp),) {
             Text(
                 text = "${challenge.ranking}",
                 style = MotifTheme.typography.titleSB20,
                 color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
-                modifier = Modifier.padding(bottom = 3.dp)
             )
             Row(verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.padding(top = 3.dp)){
+                horizontalArrangement = Arrangement.spacedBy(5.dp),){
                 Icon(
                     painter = if(challenge.rankingChanged>0){
                         painterResource(MotifIcons.RankingUpper)
@@ -181,21 +182,21 @@ fun ArtistRankCard(
                 )
 
 
-
-                Text(
-                    text = if(challenge.rankingChanged.toInt() == 0){
-                        ""
-                    }else if(challenge.rankingChanged<0){
-                        "${challenge.rankingChanged}".drop(1)
-                    }else{
-                        "${challenge.rankingChanged}"
-                    },
-                    style = MotifTheme.typography.captionSB8,
-                    color = MotifTheme.colors.typo,
-                    maxLines = 1,
-                    overflow = TextOverflow.Visible,
-                )
-
+                if(challenge.rankingChanged != 0L) {
+                    Text(
+                        text = if (challenge.rankingChanged.toInt() == 0) {
+                            ""
+                        } else if (challenge.rankingChanged < 0) {
+                            "${challenge.rankingChanged}".drop(1)
+                        } else {
+                            "${challenge.rankingChanged}"
+                        },
+                        style = MotifTheme.typography.captionSB8,
+                        color = MotifTheme.colors.typo,
+                        maxLines = 1,
+                        overflow = TextOverflow.Visible,
+                    )
+                }
 
             }
 
@@ -220,8 +221,8 @@ fun ArtistRankCard(
                 .clip(RoundedCornerShape(4.dp))
                 .clickable(onClick = onArtistClick),
         )
-        Row(modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically
+        Row(verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
             Text(
                 text = challenge.name,
@@ -229,7 +230,6 @@ fun ArtistRankCard(
                 color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 5.dp)
             )
 
             Text(
@@ -247,6 +247,8 @@ fun ArtistRankCard(
             color = MotifTheme.colors.typo,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
         )
 
         Box(
@@ -305,7 +307,7 @@ private fun ArtistSearchBar(
                     if(query.isEmpty()){
                         Text(
                             text = "함께하고 싶은 멤버나 그룹을 찾아보세요",
-                            style = MotifTheme.typography.bodyR14,
+                            style = MotifTheme.typography.bodyR16,
                             color = MotifTheme.colors.typo,
                         )
                     }
@@ -337,7 +339,7 @@ internal object RankingMokData {
             profileImageUrl = null,
             ranking = 1L,
             challengeName = "Supersonic 챌린지",
-            rankingChanged = 2L,
+            rankingChanged = 20L,
         ),
         ChallengeUiModel(
             id = 2L,
