@@ -53,6 +53,8 @@ data class MotifTypography(
     val bodySB16: TextStyle,
     val bodyR14: TextStyle,
     val bodySB14: TextStyle,
+    val bodyR12: TextStyle,
+    val bodySB12: TextStyle,
 
     val captionR12: TextStyle,
     val captionM12: TextStyle,
@@ -134,6 +136,18 @@ data class MotifTypography(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
                 lineHeight = 18.sp,
+            ),
+            bodyR12 = TextStyle(
+                fontFamily = pretendardFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            ),
+            bodySB12 = TextStyle(
+                fontFamily = pretendardFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+                lineHeight = 14.sp,
             ),
             captionSB12 = TextStyle(
                 fontFamily = pretendardFontFamily,
