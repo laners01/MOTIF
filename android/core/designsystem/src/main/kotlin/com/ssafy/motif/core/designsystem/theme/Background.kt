@@ -19,7 +19,7 @@ data class MotifBackground(
         @Composable
         fun defaultBackground(): MotifBackground =
             MotifBackground(
-                color = colorResource(id = R.color.black),
+                color = colorResource(id = R.color.background),
                 tonalElevation = 0.dp,
             )
     }

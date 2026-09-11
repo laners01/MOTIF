@@ -9,6 +9,10 @@ import com.ssafy.motif.core.designsystem.R
 @Immutable
 data class MotifColors(
     val white: Color,
+    val black: Color,
+    val typo: Color,
+    val background: Color,
+    val pink: Color,
     val gray50: Color,
     val gray100: Color,
     val gray200: Color,
@@ -17,8 +21,6 @@ data class MotifColors(
     val gray500: Color,
     val gray700: Color,
     val gray900: Color,
-    val black: Color,
-    val pink: Color,
 ) {
     companion object {
         /**
@@ -27,6 +29,10 @@ data class MotifColors(
         @Composable
         fun defaultColors(): MotifColors = MotifColors(
             white = colorResource(R.color.white),
+            black = colorResource(R.color.black),
+            typo = colorResource(R.color.typo),
+            background = colorResource(R.color.background),
+            pink = colorResource(R.color.pink),
             gray50 = colorResource(R.color.gray_50),
             gray100 = colorResource(R.color.gray_100),
             gray200 = colorResource(R.color.gray_200),
@@ -35,8 +41,6 @@ data class MotifColors(
             gray500 = colorResource(R.color.gray_500),
             gray700 = colorResource(R.color.gray_700),
             gray900 = colorResource(R.color.gray_900),
-            black = colorResource(R.color.black),
-            pink = colorResource(R.color.pink)
         )
     }
 }
