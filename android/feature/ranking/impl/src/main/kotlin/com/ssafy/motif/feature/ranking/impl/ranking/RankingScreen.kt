@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,24 +70,28 @@ internal fun RankingScreen(
     modifier: Modifier = Modifier,
 ){
     Column(modifier = modifier.fillMaxSize(),){
-        Row(modifier = Modifier.padding(start = 10.dp, top = 20.dp),
+        Row(modifier = Modifier.padding(start = 24.dp, top = 23.dp, bottom = 23.dp),
             verticalAlignment = Alignment.CenterVertically) {
             IconButton(
-                painter = painterResource(MotifIcons.ArrowLeft),
+                painter = painterResource(MotifIcons.BarArrowLeft),
                 onClick = onRemoveClick,
-                size = 48.dp,
                 colors = ModifIconButtonDefaults.iconButtonColors(
                     contentColor = MotifTheme.colors.white
                 ),
                 modifier = Modifier
-                    .padding(end = 5.dp)
+                    .height(14.dp)
+                    .width(16.dp)
+                    .padding(end = 5.dp),
             )
             Text(
                 text = "Who's on",
-                style = MotifTheme.typography.titleSB20,
+                style = MotifTheme.typography.bodySB16,
                 color = MotifTheme.colors.white,
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
+                modifier = Modifier
+                    .height(19.dp)
+                    .width(71.dp)
             )
 
         }
@@ -145,28 +150,37 @@ fun ArtistRankCard(
                 modifier = Modifier.padding(bottom = 3.dp)
             )
             Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 modifier = Modifier.padding(top = 3.dp)){
-                Text(
-                    text = if(challenge.rankingChanged>0){
-                        "▲"
+                Icon(
+                    painter = if(challenge.rankingChanged>0){
+                        painterResource(MotifIcons.RankingUpper)
                     }else if(challenge.rankingChanged<0){
-                        "▼"
+                        painterResource(MotifIcons.RankingLower)
                     }else{
-                        "-"
-                    },
-
-                    style = MotifTheme.typography.captionR10,
-                    color = if(challenge.rankingChanged>0){
+                        painterResource(MotifIcons.RankingUnchanged)
+                    } ,
+                    contentDescription = null,
+                    tint = if(challenge.rankingChanged>0){
                         MotifTheme.colors.pink
                     }else if(challenge.rankingChanged<0){
                         MotifTheme.colors.gray500
                     }else{
                         MotifTheme.colors.gray500
                     },
+                    modifier = if(challenge.rankingChanged > 0 || challenge.rankingChanged<0){
+                        Modifier
+                            .height(7.dp)
+                            .width(6.dp)
+                    }else{
+                        Modifier
+                            .height(2.dp)
+                            .width(12.dp)
+                    },
 
-                    maxLines = 1,
-                    overflow = TextOverflow.Visible,
                 )
+
+
 
                 Text(
                     text = if(challenge.rankingChanged.toInt() == 0){
@@ -176,7 +190,7 @@ fun ArtistRankCard(
                     }else{
                         "${challenge.rankingChanged}"
                     },
-                    style = MotifTheme.typography.captionR10,
+                    style = MotifTheme.typography.captionSB8,
                     color = MotifTheme.colors.white,
                     maxLines = 1,
                     overflow = TextOverflow.Visible,
@@ -203,7 +217,7 @@ fun ArtistRankCard(
             modifier = Modifier
                 .width(48.dp)
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(5.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .clickable(onClick = onArtistClick),
         )
         Row(modifier = Modifier.weight(1f),
@@ -229,7 +243,7 @@ fun ArtistRankCard(
         }
         Text(
             text = challenge.challengeName,
-            style = MotifTheme.typography.bodySB14,
+            style = MotifTheme.typography.bodySB16,
             color = MotifTheme.colors.white,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -237,22 +251,17 @@ fun ArtistRankCard(
 
         Box(
             modifier = Modifier
-                .size(30.dp)
+                .size(20.dp)
                 .clickable(onClick = onPlayClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(MotifIcons.FilledPlay),
+                painter = painterResource(MotifIcons.PlayOutline),
                 contentDescription = null,
                 tint = MotifTheme.colors.pink,
-                modifier = Modifier.size(28.dp),
-            )
-            Icon(
-                painter = painterResource(MotifIcons.FilledPlay),
-                contentDescription = "재생",
-                tint = MotifTheme.colors.black,
-                modifier = Modifier.size(22.dp)
-                    .padding(end = 1.dp),
+                modifier = Modifier
+                    .height(18.dp)
+                    .width(14.dp),
             )
         }
 

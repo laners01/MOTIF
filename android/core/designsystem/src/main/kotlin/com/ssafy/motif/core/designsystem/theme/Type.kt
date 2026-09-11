@@ -50,6 +50,8 @@ data class MotifTypography(
     val captionSB12: TextStyle,
     val captionR10: TextStyle,
     val captionSB10: TextStyle,
+    val captionSB8: TextStyle,
+    val captionR8: TextStyle,
 ) {
     companion object {
         /**
@@ -148,6 +150,19 @@ data class MotifTypography(
                 fontSize = 10.sp,
                 lineHeight = 14.sp,
             ),
+            captionSB8 = TextStyle(
+                fontFamily = pretendardFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 8.sp,
+                lineHeight = 12.sp,
+            ),
+            captionR8 = TextStyle(
+                fontFamily = pretendardFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 8.sp,
+                lineHeight = 12.sp,
+            ),
+
         )
     }
 }

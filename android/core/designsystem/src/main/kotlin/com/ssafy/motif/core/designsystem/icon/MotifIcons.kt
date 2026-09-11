@@ -12,6 +12,9 @@ object MotifIcons {
     val ArrowLeft = R.drawable.ic_arrow_left_24
 
     @DrawableRes
+    val BarArrowLeft = R.drawable.ic_arrow_left_with_bar_24
+
+    @DrawableRes
     val ArtistCheck = R.drawable.ic_artist_check_24
 
     @DrawableRes
@@ -34,6 +37,9 @@ object MotifIcons {
 
     @DrawableRes
     val FilledPlay = R.drawable.ic_filled_play_24
+
+    @DrawableRes
+    val PlayOutline = R.drawable.ic_play_outline_24
 
     @DrawableRes
     val Flag = R.drawable.ic_flag_24
@@ -94,4 +100,14 @@ object MotifIcons {
 
     @DrawableRes
     val Volume = R.drawable.ic_volume_24
+
+    @DrawableRes
+    val RankingUnchanged = R.drawable.ic_ranking_unchanged_24
+
+    @DrawableRes
+    val RankingUpper = R.drawable.ic_ranking_upper_24
+
+    @DrawableRes
+    val RankingLower = R.drawable.ic_ranking_lower_24
+
 }
