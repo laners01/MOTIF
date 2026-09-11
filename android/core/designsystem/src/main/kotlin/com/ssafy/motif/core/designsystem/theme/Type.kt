@@ -24,6 +24,14 @@ private fun pretendardFont(
     ),
 )
 
+private val paytoneOneFontFamily = FontFamily(
+    Font(
+        resId = R.font.paytone_one_regular,
+        weight = FontWeight.Normal,
+        style = FontStyle.Normal,
+    ),
+)
+
 internal val pretendardFontFamily = FontFamily(
     pretendardFont(FontWeight.Normal),
     pretendardFont(FontWeight.Medium),
@@ -33,6 +41,7 @@ internal val pretendardFontFamily = FontFamily(
 
 @Immutable
 data class MotifTypography(
+    val rankR36: TextStyle,
     val titleB22: TextStyle,
     val titleB20: TextStyle,
     val titleSB20: TextStyle,
@@ -57,6 +66,13 @@ data class MotifTypography(
          */
         @Composable
         fun defaultTypography(): MotifTypography = MotifTypography(
+            rankR36 = TextStyle(
+                fontFamily = paytoneOneFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 36.sp,
+                lineHeight = 52.sp,
+            ),
+
             titleB22 = TextStyle(
                 fontFamily = pretendardFontFamily,
                 fontWeight = FontWeight.Bold,

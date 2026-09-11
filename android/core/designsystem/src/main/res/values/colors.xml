@@ -4,6 +4,9 @@
     <!-- Neutral -->
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
+    <color name="typo">#EEEEEE</color>
+    <color name="background">#222328</color>
+
     <color name="pink">#FB44A5</color>
 
     <color name="gray_50">#FCFCFB</color>
