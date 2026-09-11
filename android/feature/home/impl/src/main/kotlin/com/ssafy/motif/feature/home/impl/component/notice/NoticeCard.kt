@@ -39,7 +39,7 @@ import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
-internal fun NoticeItem(
+internal fun NoticeCard(
     notice: Notice,
     onArtistClick: (Long) -> Unit,
     onLikeClick: (Long) -> Unit,
@@ -177,7 +177,7 @@ private fun NoticeArtistHeader(
 
 @Preview(name = "Notice Item", showBackground = true)
 @Composable
-private fun NoticeItemPreview() {
+private fun NoticeCardPreview() {
     val context = LocalContext.current
 
     val previewImageUrl =
@@ -192,7 +192,7 @@ private fun NoticeItemPreview() {
                 )
                 .padding(16.dp),
         ) {
-            NoticeItem(
+            NoticeCard(
                 notice = Notice(
                     id = 1L,
                     artist = Artist(
