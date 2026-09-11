@@ -1,5 +1,7 @@
 package com.ssafy.motif.core.data.di
 
+import com.ssafy.motif.core.data.repository.AuthRepository
+import com.ssafy.motif.core.data.repository.AuthRepositoryImpl
 import com.ssafy.motif.core.data.util.ConnectivityManagerNetworkMonitor
 import com.ssafy.motif.core.data.util.NetworkMonitor
 import dagger.Binds
@@ -15,4 +17,9 @@ abstract class DataModule {
     internal abstract fun bindsNetworkMonitor(
         networkMonitor: ConnectivityManagerNetworkMonitor,
     ): NetworkMonitor
+
+    @Binds
+    internal abstract fun bindAuthRepository(
+        authRepositoryImpl: AuthRepositoryImpl,
+    ): AuthRepository
 }

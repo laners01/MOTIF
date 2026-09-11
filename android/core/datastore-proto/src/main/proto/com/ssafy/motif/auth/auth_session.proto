@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option java_package = "com.ssafy.motif.core.datastore";
+option java_multiple_files = true;
+
+message AuthSessionPreferences {
+  string access_token = 1;
+  string refresh_token = 2;
+  optional int64 user_id = 3;
+  string device_id = 4;
+}
