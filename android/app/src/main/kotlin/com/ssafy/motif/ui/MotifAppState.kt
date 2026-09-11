@@ -9,6 +9,7 @@ import com.ssafy.motif.core.navigation.NavigationState
 import com.ssafy.motif.core.navigation.rememberNavigationState
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.onboarding.api.navigation.ArtistSelectNavKey
+import com.ssafy.motif.feature.ranking.api.navigation.RankingNavKey
 import com.ssafy.motif.navigation.TOP_LEVEL_NAV_ITEMS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,8 +22,8 @@ fun rememberMotifAppState(
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
 ): MotifAppState {
     val navigationState = rememberNavigationState(
-        startKey = ArtistSelectNavKey,
-        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys+ ArtistSelectNavKey,
+        startKey = RankingNavKey,
+        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys+ RankingNavKey,
     )
 
     return remember(
