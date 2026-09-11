@@ -9,4 +9,5 @@ android {
 
 dependencies {
     implementation(projects.feature.home.api)
+    implementation(libs.coil.kt.compose)
 }
