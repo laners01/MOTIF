@@ -23,6 +23,9 @@ class RankingViewModel @Inject constructor(): ViewModel(){
     fun showArtistDetail(chllengeId: Long){
 
     }
+    fun goBackScreen(){
+
+    }
     fun removeQuery(){
         _uiState.update { state -> state.copy(query = "") }
     }

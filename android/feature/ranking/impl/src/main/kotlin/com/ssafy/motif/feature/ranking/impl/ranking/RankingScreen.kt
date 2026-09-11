@@ -33,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.Icon
@@ -56,6 +57,7 @@ fun RankingRoute(
         onArtistClick = viewModel::showArtistDetail,
         onQueryChange = viewModel::updateQuery,
         onRemoveClick = viewModel::removeQuery,
+        onBackClick = viewModel::goBackScreen,
         onPlayClick = viewModel::playChallenge,
         modifier = modifier,
     )
@@ -68,31 +70,28 @@ internal fun RankingScreen(
     onArtistClick:(Long) -> Unit,   //아티스트 클릭시
     onQueryChange:(String) -> Unit, //검색어 변경시
     onRemoveClick:() -> Unit,       //검색어 삭제
+    onBackClick:() -> Unit,
     modifier: Modifier = Modifier,
 ){
     Column(modifier = modifier.fillMaxSize(),){
-        Row(modifier = Modifier.padding(start = 24.dp, top = 23.dp, bottom = 23.dp),
-            verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(start = 20.dp, top = 23.dp, bottom = 23.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             IconButton(
                 painter = painterResource(MotifIcons.BarArrowLeft),
-                onClick = onRemoveClick,
+                onClick = onBackClick,
+                size = 18.dp,
                 colors = ModifIconButtonDefaults.iconButtonColors(
                     contentColor = MotifTheme.colors.typo
                 ),
-                modifier = Modifier
-                    .height(14.dp)
-                    .width(16.dp)
-                    .padding(end = 5.dp),
             )
             Text(
                 text = "Who's on",
-                style = MotifTheme.typography.bodySB16,
+                style = MotifTheme.typography.bodySB16.copy(lineHeight = 19.sp),
                 color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
                 modifier = Modifier
-                    .height(19.dp)
-                    .width(71.dp)
             )
 
         }
@@ -109,8 +108,7 @@ internal fun RankingScreen(
         LazyVerticalGrid(
             columns = GridCells.Fixed(1),
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),    //사이 좌우간격
+            contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)       //사이 상하간격
         )
 
@@ -184,9 +182,7 @@ fun ArtistRankCard(
 
                 if(challenge.rankingChanged != 0L) {
                     Text(
-                        text = if (challenge.rankingChanged.toInt() == 0) {
-                            ""
-                        } else if (challenge.rankingChanged < 0) {
+                        text = if (challenge.rankingChanged < 0) {
                             "${challenge.rankingChanged}".drop(1)
                         } else {
                             "${challenge.rankingChanged}"
