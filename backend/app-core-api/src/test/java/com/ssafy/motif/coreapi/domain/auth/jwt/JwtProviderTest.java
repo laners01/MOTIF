@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.domain.auth.jwt;
 
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.domain.core.user.User;
 import com.ssafy.motif.domain.core.user.UserRole;
 import io.jsonwebtoken.Claims;
@@ -60,7 +60,7 @@ class JwtProviderTest {
         assertThatThrownBy(() -> provider(Duration.ofHours(1)).parse(foreign))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AuthErrorCode.UNAUTHORIZED);
+                .isEqualTo(CommonErrorCode.UNAUTHORIZED);
     }
 
     @Test
@@ -72,7 +72,7 @@ class JwtProviderTest {
         assertThatThrownBy(() -> expiring.parse(expired))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AuthErrorCode.UNAUTHORIZED);
+                .isEqualTo(CommonErrorCode.UNAUTHORIZED);
     }
 
     @Test

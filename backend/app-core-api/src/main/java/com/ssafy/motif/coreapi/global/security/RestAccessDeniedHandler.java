@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.global.security;
 
-import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +23,6 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {
         log.debug("권한 부족: {} {}", request.getMethod(), request.getRequestURI());
-        errorWriter.write(response, AuthErrorCode.FORBIDDEN);
+        errorWriter.write(response, CommonErrorCode.FORBIDDEN);
     }
 }

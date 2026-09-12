@@ -74,8 +74,33 @@ public class RefreshToken {
         return new RefreshToken(user, tokenHash, expiresDttm);
     }
 
+    /** 로그아웃·계정 정지 등으로 폐기한다 (명세 §2.3, DB SPEC §6). */
     public void revoke() {
         this.revokedDttm = Instant.now();
+    }
+
+    /**
+     * 재발급(rotation)에 사용 — 마지막 사용 시각을 남기고 <b>같은 시각에 폐기</b>한다
+     * (명세 §2.2, DB SPEC §6 "사용 시 `last_used_dttm`, `revoked_dttm` 갱신 후 새 행 INSERT").
+     *
+     * <p>두 시각이 같은 값인 것은 의도다 — refresh token 은 1회용이라 "사용된 순간"이
+     * 곧 "폐기된 순간"이다. 이후 같은 토큰이 다시 오면 {@link #isRevoked()}가 참이라
+     * 재사용 감지로 걸린다.
+     */
+    public void useForRotation() {
+        Instant now = Instant.now();
+        this.lastUsedDttm = now;
+        this.revokedDttm = now;
+    }
+
+    /** 폐기됨 — 이 토큰이 다시 들어오면 재사용(탈취 신호)이다 (명세 §2.2). */
+    public boolean isRevoked() {
+        return this.revokedDttm != null;
+    }
+
+    /** 만료 판정. 경계값({@code expiresDttm == at})은 만료로 본다. */
+    public boolean isExpired(Instant at) {
+        return !this.expiresDttm.isAfter(at);
     }
 
     @PrePersist

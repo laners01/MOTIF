@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.domain.auth.service;
 
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
 import com.ssafy.motif.domain.core.auth.AccountStatus;
 import com.ssafy.motif.domain.core.auth.RefreshToken;
@@ -139,7 +139,7 @@ class GoogleLoginProcessorLocalDbTest {
         assertThatThrownBy(() -> processor.process(subject))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AuthErrorCode.ACCOUNT_SUSPENDED);
+                .isEqualTo(CommonErrorCode.ACCOUNT_SUSPENDED);
     }
 
     @Test
@@ -154,7 +154,7 @@ class GoogleLoginProcessorLocalDbTest {
         assertThatThrownBy(() -> processor.process(subject))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AuthErrorCode.ACCOUNT_DELETED);
+                .isEqualTo(CommonErrorCode.ACCOUNT_DELETED);
     }
 
     @Test

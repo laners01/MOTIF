@@ -38,16 +38,16 @@ public class GlobalExceptionHandler {
         List<FieldErrorResponse> fieldErrors = e.getBindingResult().getFieldErrors().stream()
                 .map(error -> new FieldErrorResponse(error.getField(), error.getDefaultMessage()))
                 .toList();
-        return ResponseEntity.status(CommonErrorCode.INVALID_INPUT.getStatus())
-                .body(ApiResponse.fail(CommonErrorCode.INVALID_INPUT, fieldErrors));
+        return ResponseEntity.status(CommonErrorCode.INVALID_PARAMETER.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.INVALID_PARAMETER, fieldErrors));
     }
 
-    /** 본문 해석 불가·파라미터 타입 불일치 — INVALID_INPUT. */
+    /** 본문 해석 불가·파라미터 타입 불일치 — INVALID_PARAMETER. */
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(Exception e) {
         log.warn("요청 해석 실패: {}", e.getMessage());
-        return ResponseEntity.status(CommonErrorCode.INVALID_INPUT.getStatus())
-                .body(ApiResponse.fail(CommonErrorCode.INVALID_INPUT));
+        return ResponseEntity.status(CommonErrorCode.INVALID_PARAMETER.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.INVALID_PARAMETER));
     }
 
     /** 그 밖의 모든 예외 — 스택은 로그로만 남기고 응답에는 싣지 않는다. */

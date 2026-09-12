@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.auth.docs.AuthControllerDocs;
 import com.ssafy.motif.coreapi.domain.auth.dto.GoogleLoginRequest;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
+import com.ssafy.motif.coreapi.domain.auth.dto.TokenRefreshRequest;
 import com.ssafy.motif.coreapi.domain.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,5 +34,12 @@ public class AuthController implements AuthControllerDocs {
     @PostMapping("/login/google")
     public ApiResponse<LoginResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
         return ApiResponse.success(authService.loginWithGoogle(request.idToken()));
+    }
+
+    /** §2.2 토큰 재발급 (rotation). */
+    @Override
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refresh(@Valid @RequestBody TokenRefreshRequest request) {
+        return ApiResponse.success(authService.refresh(request.refreshToken()));
     }
 }

@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.domain.auth.jwt;
 
-import com.ssafy.motif.coreapi.domain.auth.AuthErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.domain.core.user.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -56,7 +56,7 @@ public class JwtProvider {
     /**
      * 서명·만료를 검증하고 claims를 돌려준다.
      *
-     * @throws com.ssafy.motif.common.exception.BusinessException {@link AuthErrorCode#UNAUTHORIZED}
+     * @throws com.ssafy.motif.common.exception.BusinessException {@link CommonErrorCode#UNAUTHORIZED}
      */
     public Claims parse(String token) {
         try {
@@ -69,7 +69,7 @@ public class JwtProvider {
             // 사유(만료·서명 불일치)는 응답에 싣지 않는다 — 로그에만 남긴다.
             log.debug("access token 검증 실패: {}", e.getMessage());
             throw new com.ssafy.motif.common.exception.BusinessException(
-                    AuthErrorCode.UNAUTHORIZED, "access token 검증 실패: " + e.getMessage());
+                    CommonErrorCode.UNAUTHORIZED, "access token 검증 실패: " + e.getMessage());
         }
     }
 }
