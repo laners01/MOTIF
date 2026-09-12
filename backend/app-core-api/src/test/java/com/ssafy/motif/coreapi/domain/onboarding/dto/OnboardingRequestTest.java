@@ -13,7 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 온보딩 요청의 형식 규칙 (명세 §3.3). DB 없이 도는 계약이라 기본 {@code test} 태스크에 둔다.
  *
  * <p>닉네임 규칙은 명세가 "영문·한글·`.`·`_`, 2~20자"로만 적어 경계가 애매한 지점
- * (숫자·공백·자모·길이 경계)이 많다. 여기서 해석을 고정한다.
+ * (공백·자모·길이 경계)이 많다. 여기서 해석을 고정한다. <b>숫자는 팀 확정으로 허용</b>한다
+ * (2026-09-12) — §2.1 이 발급하는 임시 닉네임 {@code user_1} 이 통과해야 하기 때문이다.
  */
 class OnboardingRequestTest {
 
@@ -25,16 +26,22 @@ class OnboardingRequestTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"user_1", "모티프2025", "99", "b2b.dance"})
+    @DisplayName("허용 — 숫자 (§2.1 임시 닉네임 user_{seq} 가 통과해야 한다)")
+    void digitsAreAllowed(String nickname) {
+        assertThat(nickname).matches(OnboardingRequest.NICKNAME_PATTERN);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {
             "a",                                  // 2자 미만
             "가나다라마바사아자차카타파하가나다라마바사",   // 21자
-            "user_1",                             // 숫자 — 명세 열거에 없다
             "모티프 러버",                          // 공백
             "motif!",                             // 기호
             "ㄱㄴㄷ",                              // 완성형이 아닌 자모
             "🔥모티프"                             // 이모지
     })
-    @DisplayName("거부 — 길이 경계 밖·숫자·공백·기호·자모·이모지")
+    @DisplayName("거부 — 길이 경계 밖·공백·기호·자모·이모지")
     void invalidNicknames(String nickname) {
         assertThat(nickname).doesNotMatch(OnboardingRequest.NICKNAME_PATTERN);
     }

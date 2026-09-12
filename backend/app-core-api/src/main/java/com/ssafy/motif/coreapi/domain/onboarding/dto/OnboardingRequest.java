@@ -19,21 +19,21 @@ public record OnboardingRequest(
 
         @NotBlank(message = "nickname은 필수입니다")
         @Pattern(regexp = NICKNAME_PATTERN, message = NICKNAME_MESSAGE)
-        @Schema(description = "확정할 닉네임. 영문·한글·마침표·언더바 2~20자. 중복 허용",
+        @Schema(description = "확정할 닉네임. 영문·한글·숫자·마침표·언더바 2~20자. 중복 허용",
                 example = "모티프러버", requiredMode = Schema.RequiredMode.REQUIRED)
         String nickname
 ) {
 
     /**
-     * 명세 §3.3 — "영문·한글·`.`·`_`, 2~20자". 숫자는 열거에 없어 허용하지 않는다.
+     * 명세 §3.3 "영문·한글·`.`·`_`, 2~20자" + <b>숫자 허용</b> (2026-09-12 팀 확정).
      *
-     * <p>이 규칙대로면 §2.1 이 만드는 임시 닉네임 {@code user_1} 은 숫자 때문에 통과하지
-     * 못한다. 검증은 사용자 입력에만 걸려 동작에는 문제가 없으나, 숫자 허용 여부는
-     * 팀 확인 대상이다 (상세 명세 `03-onboarding.md` 미결).
+     * <p>숫자를 넣은 이유: 명세의 열거에는 없지만 §2.1 이 가입 시 만드는 임시 닉네임이
+     * {@code user_{seq}}(예: {@code user_1}) 라, 숫자를 막으면 서버가 발급한 값이
+     * 자기 검증을 통과하지 못하는 모순이 생긴다. 원본 명세서에도 반영이 필요하다.
      */
-    public static final String NICKNAME_PATTERN = "^[a-zA-Z가-힣._]{2,20}$";
+    public static final String NICKNAME_PATTERN = "^[a-zA-Z0-9가-힣._]{2,20}$";
 
-    public static final String NICKNAME_MESSAGE = "2~20자의 영문·한글·마침표·언더바만 허용합니다.";
+    public static final String NICKNAME_MESSAGE = "2~20자의 영문·한글·숫자·마침표·언더바만 허용합니다.";
 
     /**
      * 중복을 제거한 아티스트 목록. 순서는 요청 그대로 유지한다(로그·디버깅 편의).

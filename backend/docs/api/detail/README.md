@@ -100,7 +100,7 @@ API 하나가 Jira 이슈 하나·브랜치 하나다. 절 단위 파일에 해�
   "code": "INVALID_PARAMETER",
   "message": "요청 값이 올바르지 않습니다.",
   "data": [
-    { "field": "nickname", "message": "2~20자의 영문·한글·마침표·언더바만 허용합니다." }
+    { "field": "nickname", "message": "2~20자의 영문·한글·숫자·마침표·언더바만 허용합니다." }
   ],
   "timestamp": "2026-09-02T06:00:00.000Z"
 }
