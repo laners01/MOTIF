@@ -70,6 +70,16 @@ public class User extends BaseTimeEntity {
     }
 
     /**
+     * 닉네임 변경 (명세 §3.3 온보딩 확정, §4.2 수정).
+     *
+     * <p>형식 검증은 요청 DTO 가 한다 — 엔티티는 DB CHECK(1~50자)만 지키면 되고,
+     * API 규칙(2~20자·허용 문자)은 계층이 다르다. 중복 검사는 하지 않는다(C1 회의 확정).
+     */
+    public void changeNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    /**
      * 자리표시자. 닉네임에 UNIQUE가 없어(0012는 GIN trigram만) 동시 가입에도
      * 충돌하지 않는다. 길이는 CHECK(1~50) 범위 안이다.
      */
