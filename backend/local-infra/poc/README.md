@@ -2,6 +2,8 @@
 
 판정 기준·프로파일: [../../docs/poc/video-delivery.md](../../docs/poc/video-delivery.md)
 
+계측 도구는 [../../tools/poc/](../../tools/poc/) 에 있다(티켓 543).
+
 ```bash
 cp .env.example .env                                        # 1. VIDEO_DIR 을 영상 폴더로 (영상 없으면 그대로 둬도 된다)
 docker compose up -d --build                                # 2. 띄우기
@@ -37,5 +39,7 @@ cat logs/access.csv                                         # 5. 로그 회수 �
 - 영상은 레포에 넣지 않는다 — `VIDEO_DIR` 마운트. 목록 확인은 `http://poc-origin/videos/`(autoindex)
 - Docker Desktop(Windows/Mac)에서도 컨테이너 안 `tc` 는 동작한다(리눅스 VM). 호스트가 아니라 컨테이너 eth0 에 건다
 - Git Bash 에서 돌리면 `/work/...` 경로가 Windows 경로로 바뀐다. `MSYS_NO_PATHCONV=1` 를 앞에 붙이거나 PowerShell 을 쓴다
-- `verify.sh` 가 ifb 오류로 실패하면 커널에 ifb 모듈이 없는 것 — 스크립트가 대안을 출력한다
+- `verify.sh` 가 ifb 오류로 실패하면 커널에 ifb 모듈이 없는 것(Docker Desktop macOS 가 그렇다).
+  그 환경에서는 origin egress 에 거는 `MODE=egress` 경로를 쓴다 — `tools/poc/run-all.sh`·
+  `selfcheck.sh` 가 자동으로 판별하고, `selfcheck.sh` 2b 단계가 같은 검사를 대신한다
 - 실제 영상으로는 아직 안 돌려봤다(`/videos/`·`VIDEO_DIR` 미검증). 티켓 4 에서 확인한다
