@@ -23,6 +23,7 @@ public class AuthService {
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final GoogleLoginProcessor googleLoginProcessor;
     private final RefreshTokenRotator refreshTokenRotator;
+    private final RefreshTokenRevoker refreshTokenRevoker;
 
     public LoginResponse loginWithGoogle(String idToken) {
         String oauthSubject = googleIdTokenVerifier.verifyAndGetSubject(idToken);
@@ -41,5 +42,15 @@ public class AuthService {
      */
     public LoginResponse refresh(String refreshToken) {
         return refreshTokenRotator.rotate(refreshToken);
+    }
+
+    /**
+     * 로그아웃 (명세 §2.3) — 현재 기기의 refresh token 만 폐기한다. 멱등이라 폐기할
+     * 대상이 없어도 예외를 던지지 않는다.
+     *
+     * @param userSeq 인증된 요청자. 남의 토큰을 폐기하지 못하도록 소유자 판정에 쓴다
+     */
+    public void logout(Integer userSeq, String refreshToken) {
+        refreshTokenRevoker.revokeForLogout(userSeq, refreshToken);
     }
 }

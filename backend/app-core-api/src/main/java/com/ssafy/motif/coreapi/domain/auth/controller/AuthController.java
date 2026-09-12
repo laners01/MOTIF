@@ -5,10 +5,13 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.auth.docs.AuthControllerDocs;
 import com.ssafy.motif.coreapi.domain.auth.dto.GoogleLoginRequest;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
+import com.ssafy.motif.coreapi.domain.auth.dto.LogoutRequest;
 import com.ssafy.motif.coreapi.domain.auth.dto.TokenRefreshRequest;
 import com.ssafy.motif.coreapi.domain.auth.service.AuthService;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,5 +44,19 @@ public class AuthController implements AuthControllerDocs {
     @PostMapping("/refresh")
     public ApiResponse<LoginResponse> refresh(@Valid @RequestBody TokenRefreshRequest request) {
         return ApiResponse.success(authService.refresh(request.refreshToken()));
+    }
+
+    /**
+     * §2.3 로그아웃 — 현재 기기 refresh token 폐기.
+     *
+     * <p>인증이 필요한 첫 엔드포인트다. principal 은 {@code JwtAuthenticationFilter} 가
+     * access token claims 로 채운 {@link AuthenticatedUser} 이며, 여기서 꺼내 쓴다.
+     */
+    @Override
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@AuthenticationPrincipal AuthenticatedUser user,
+                                    @Valid @RequestBody LogoutRequest request) {
+        authService.logout(user.userSeq(), request.refreshToken());
+        return ApiResponse.success();
     }
 }
