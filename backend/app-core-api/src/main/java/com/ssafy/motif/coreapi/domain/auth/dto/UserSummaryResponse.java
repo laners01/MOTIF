@@ -4,10 +4,11 @@ import com.ssafy.motif.domain.core.user.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 명세 §2.1 응답의 {@code user} 요약.
+ * 명세 §2.1·§2.2 응답의 {@code user} 요약.
  *
  * @param profileImageUrl 공개 등급이라 CloudFront 일반 URL이다(명세 §1.7).
  *                        키가 없으면 {@code null} — 신규 가입은 항상 이 경우다.
+ *                        변환은 {@code global.media.PublicMediaUrlResolver} 가 한다.
  */
 public record UserSummaryResponse(
         @Schema(description = "사용자 PK", example = "1")
@@ -20,17 +21,7 @@ public record UserSummaryResponse(
         String profileImageUrl
 ) {
 
-    public static UserSummaryResponse of(User user, String publicMediaBaseUrl) {
-        return new UserSummaryResponse(
-                user.getUserSeq(),
-                user.getNickname(),
-                toPublicUrl(user.getProfileImageKey(), publicMediaBaseUrl));
-    }
-
-    private static String toPublicUrl(String key, String baseUrl) {
-        if (key == null || key.isBlank() || baseUrl == null || baseUrl.isBlank()) {
-            return null;
-        }
-        return baseUrl.endsWith("/") ? baseUrl + key : baseUrl + "/" + key;
+    public static UserSummaryResponse of(User user, String profileImageUrl) {
+        return new UserSummaryResponse(user.getUserSeq(), user.getNickname(), profileImageUrl);
     }
 }

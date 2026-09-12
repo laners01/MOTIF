@@ -76,8 +76,9 @@ public class OpenApiConfig {
                         3. 인증이 필요한 API 호출
 
                         `accessToken` 은 1시간 후 만료된다(응답의 `expiresIn` 이 초 단위 값이다).
-                        재발급 `POST /api/v1/auth/refresh` 와 로그아웃 `POST /api/v1/auth/logout` 은
-                        명세 §2.2·§2.3 에 있으나 **아직 구현되지 않았다** — 별도 티켓이라 이 문서에도 없다.
+                        만료되면 `POST /api/v1/auth/refresh` 로 재발급받는다 — refresh token 은 1회용이라
+                        재발급 때마다 교체된다(§2.2). 로그아웃 `POST /api/v1/auth/logout`(§2.3)은
+                        **아직 구현되지 않았다** — 별도 티켓이라 이 문서에도 없다.
 
                         `/api/health` 는 Traefik 과의 계약용 얇은 health 이고,
                         관리 엔드포인트(actuator·prometheus)는 관리 포트 9081 에만 열린다.

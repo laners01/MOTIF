@@ -3,6 +3,7 @@ package com.ssafy.motif.coreapi.domain.auth.docs;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.domain.auth.dto.GoogleLoginRequest;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
+import com.ssafy.motif.coreapi.domain.auth.dto.TokenRefreshRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -43,7 +44,7 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "로그인 성공",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = LoginApiResponseSchema.class),
+                            schema = @Schema(implementation = TokenApiResponseSchema.class),
                             examples = @ExampleObject(name = "신규 가입", value = """
                                     {
                                       "result": "SUCCESS",
@@ -95,4 +96,94 @@ public interface AuthControllerDocs {
     })
     com.ssafy.motif.common.response.ApiResponse<LoginResponse> loginWithGoogle(
             @Schema(description = "구글 Sign-In 이 발급한 ID 토큰") GoogleLoginRequest request);
+
+    @Operation(
+            summary = "토큰 재발급 (rotation)",
+            description = """
+                    refresh token 으로 새 토큰 쌍을 발급한다 (명세 §2.2).
+
+                    - 인증 불필요 (🔓) — access token 이 만료된 상태에서 호출하는 API 다. `Authorization` 헤더는 무시한다.
+                    - **refresh token 은 1회용이다.** 이 호출이 성공하면 보낸 토큰은 폐기되고 새 토큰이 나온다.
+                      클라이언트는 **받은 쌍으로 저장소를 교체**한다.
+                    - 이미 폐기된 토큰이 다시 오면 **재사용(탈취 신호)** 으로 보고 401 이다.
+                      미존재·만료·폐기·재사용 네 경우가 모두 같은 응답이다 — 사유는 알려주지 않는다.
+                    - 401 을 받으면 로컬 토큰을 전부 버리고 로그인 화면으로 간다. **재시도하지 않는다.**
+                    - 동시 요청은 클라이언트가 **단일 큐(mutex)로 직렬화**한다. 여럿이 각자 재발급하면 하나만 성공하고
+                      나머지는 401 을 받아 불필요한 로그아웃이 일어난다.
+                    - 응답 형태는 §2.1 과 같다. `isNewUser` 는 재발급에서 의미가 없어 항상 `false` 다.
+                    - 다른 기기의 토큰은 영향받지 않는다 (`refresh_tokens` 는 기기별 행).
+
+                    상세 명세: `backend/docs/api/detail/02-auth.md`
+                    """)
+    @SecurityRequirements  // 🔓
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "재발급 성공 — 보낸 refresh token 은 이 시점에 폐기됐다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = TokenApiResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwicm9sZSI6IlVTRVIifQ.yyyyy",
+                                        "refreshToken": "Zr3Nk8dQpWxE2uYtA5bHvCmLs9fJgKo0987654321",
+                                        "tokenType": "Bearer",
+                                        "expiresIn": 3600,
+                                        "isNewUser": false,
+                                        "user": {
+                                          "userSeq": 1,
+                                          "nickname": "모티프러버",
+                                          "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                                        }
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @ApiResponse(responseCode = "400", description = "`refreshToken` 누락·빈 문자열",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": [{ "field": "refreshToken", "message": "refreshToken은 필수입니다" }],
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @ApiResponse(responseCode = "401",
+                    description = "미존재·만료·폐기·**재사용 감지** — 네 경우 모두 이 응답이다. 로컬 토큰을 버리고 재로그인",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_REFRESH_TOKEN",
+                                      "message": "다시 로그인해 주세요.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @ApiResponse(responseCode = "403", description = "재발급 시점 계정 상태 재검증 실패 — 정지·삭제 계정 (명세 §1.5)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = {
+                                    @ExampleObject(name = "정지 계정", value = """
+                                            {
+                                              "result": "FAIL",
+                                              "code": "ACCOUNT_SUSPENDED",
+                                              "message": "정지된 계정입니다.",
+                                              "data": null,
+                                              "timestamp": "2026-09-10T00:00:00.000Z"
+                                            }"""),
+                                    @ExampleObject(name = "삭제 계정", value = """
+                                            {
+                                              "result": "FAIL",
+                                              "code": "ACCOUNT_DELETED",
+                                              "message": "삭제된 계정입니다.",
+                                              "data": null,
+                                              "timestamp": "2026-09-10T00:00:00.000Z"
+                                            }""")
+                            }))
+    })
+    com.ssafy.motif.common.response.ApiResponse<LoginResponse> refresh(
+            @Schema(description = "재발급에 쓸 refresh token") TokenRefreshRequest request);
 }

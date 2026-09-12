@@ -18,7 +18,15 @@ import lombok.RequiredArgsConstructor;
 public enum AuthErrorCode implements ErrorCode {
 
     /** 구글 ID 토큰 검증 실패 — 만료·위조·aud 불일치 (명세 §2.1). */
-    INVALID_GOOGLE_TOKEN(401, "INVALID_GOOGLE_TOKEN", "구글 인증에 실패했습니다. 다시 로그인해 주세요.");
+    INVALID_GOOGLE_TOKEN(401, "INVALID_GOOGLE_TOKEN", "구글 인증에 실패했습니다. 다시 로그인해 주세요."),
+
+    /**
+     * refresh token 재발급 거부 (명세 §2.2) — 미존재·만료·폐기·<b>재사용 감지</b>.
+     *
+     * <p>네 조건을 한 코드로 묶은 것은 의도다. 어느 쪽인지 알려주면 "이 토큰은
+     * 존재하지만 만료됐다" 같은 정보가 새어 나간다. 사유는 로그에만 남긴다.
+     */
+    INVALID_REFRESH_TOKEN(401, "INVALID_REFRESH_TOKEN", "다시 로그인해 주세요.");
 
     private final int status;
     private final String code;

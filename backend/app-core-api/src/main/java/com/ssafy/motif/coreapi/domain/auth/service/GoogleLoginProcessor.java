@@ -1,13 +1,12 @@
 package com.ssafy.motif.coreapi.domain.auth.service;
 
-import com.ssafy.motif.common.error.CommonErrorCode;
-import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
 import com.ssafy.motif.coreapi.domain.auth.dto.UserSummaryResponse;
 import com.ssafy.motif.coreapi.domain.auth.jwt.JwtProvider;
+import com.ssafy.motif.coreapi.domain.auth.service.RefreshTokenIssuer.IssuedRefreshToken;
+import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.domain.core.auth.OauthProvider;
 import com.ssafy.motif.domain.core.auth.OauthProviderRepository;
-import com.ssafy.motif.domain.core.auth.RefreshToken;
 import com.ssafy.motif.domain.core.auth.RefreshTokenRepository;
 import com.ssafy.motif.domain.core.auth.UserAccount;
 import com.ssafy.motif.domain.core.auth.UserAccountRepository;
@@ -16,11 +15,9 @@ import com.ssafy.motif.domain.core.auth.UserOauthAccountRepository;
 import com.ssafy.motif.domain.core.user.User;
 import com.ssafy.motif.domain.core.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -44,13 +41,8 @@ public class GoogleLoginProcessor {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProvider jwtProvider;
     private final RefreshTokenIssuer refreshTokenIssuer;
-
-    /**
-     * 공개 미디어 base URL (명세 §1.7 — 프로필 이미지는 공개 등급 CloudFront 일반 URL).
-     * 값이 비면 {@code profileImageUrl}은 항상 null이다. 확정은 §4.3 presign 티켓.
-     */
-    @Value("${motif.media.public-base-url:}")
-    private String publicMediaBaseUrl;
+    private final AccountStatusVerifier accountStatusVerifier;
+    private final PublicMediaUrlResolver publicMediaUrlResolver;
 
     @Transactional
     public LoginResponse process(String oauthSubject) {
@@ -62,17 +54,18 @@ public class GoogleLoginProcessor {
                 .orElseGet(() -> signUp(oauthSubject));
         User user = account.getUser();
 
-        verifyLoginable(account, user);
+        accountStatusVerifier.verifyActive(account);
 
         String accessToken = jwtProvider.issueAccessToken(user);
-        String refreshToken = issueRefreshToken(user);
+        IssuedRefreshToken refreshToken = refreshTokenIssuer.issueFor(user);
+        refreshTokenRepository.save(refreshToken.entity());
 
         return LoginResponse.of(
                 accessToken,
-                refreshToken,
+                refreshToken.rawToken(),
                 jwtProvider.accessTokenTtlSeconds(),
                 isNewUser,
-                UserSummaryResponse.of(user, publicMediaBaseUrl));
+                UserSummaryResponse.of(user, publicMediaUrlResolver.resolve(user.getProfileImageKey())));
     }
 
     /** users → user_accounts → user_oauth_accounts 3행 생성 (명세 §2.1). */
@@ -92,23 +85,5 @@ public class GoogleLoginProcessor {
         userOauthAccountRepository.save(UserOauthAccount.link(account, provider, oauthSubject));
 
         return account;
-    }
-
-    /** 명세 §1.5 — 정지·삭제 계정은 로그인 시점에 막는다. */
-    private void verifyLoginable(UserAccount account, User user) {
-        if (user.isDeleted()) {
-            throw new BusinessException(CommonErrorCode.ACCOUNT_DELETED);
-        }
-        if (account.isSuspended()) {
-            throw new BusinessException(CommonErrorCode.ACCOUNT_SUSPENDED);
-        }
-    }
-
-    private String issueRefreshToken(User user) {
-        String token = refreshTokenIssuer.generateToken();
-        Instant expiresAt = Instant.now().plus(refreshTokenIssuer.ttl());
-        refreshTokenRepository.save(
-                RefreshToken.issue(user, refreshTokenIssuer.hash(token), expiresAt));
-        return token;
     }
 }

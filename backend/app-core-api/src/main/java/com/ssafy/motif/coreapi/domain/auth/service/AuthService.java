@@ -8,10 +8,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 /**
- * 인증 유스케이스 (명세 §2.1). 토큰 재발급·로그아웃(§2.2·§2.3)은 후속 티켓이다.
+ * 인증 유스케이스 (명세 §2.1·§2.2). 로그아웃(§2.3)은 후속 티켓이다.
  *
  * <p><b>트랜잭션 밖</b>이다 — 구글 서버 왕복(JWKS·검증)을 DB 트랜잭션 안에 두지
  * 않고, 동시 최초 로그인 충돌 시 새 트랜잭션으로 재시도하기 위한 경계다.
+ * DB 작업은 {@link GoogleLoginProcessor}·{@link RefreshTokenRotator} 가 각자의
+ * 트랜잭션에서 처리한다.
  */
 @Slf4j
 @Service
@@ -20,6 +22,7 @@ public class AuthService {
 
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final GoogleLoginProcessor googleLoginProcessor;
+    private final RefreshTokenRotator refreshTokenRotator;
 
     public LoginResponse loginWithGoogle(String idToken) {
         String oauthSubject = googleIdTokenVerifier.verifyAndGetSubject(idToken);
@@ -31,5 +34,12 @@ public class AuthService {
             log.info("동시 최초 로그인 충돌 — 재시도로 처리한다: {}", e.getMessage());
             return googleLoginProcessor.process(oauthSubject);
         }
+    }
+
+    /**
+     * 토큰 재발급 (명세 §2.2). 외부 왕복이 없어 rotation 트랜잭션에 그대로 위임한다.
+     */
+    public LoginResponse refresh(String refreshToken) {
+        return refreshTokenRotator.rotate(refreshToken);
     }
 }
