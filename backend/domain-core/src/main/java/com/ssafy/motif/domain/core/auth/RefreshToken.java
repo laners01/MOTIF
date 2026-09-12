@@ -98,6 +98,17 @@ public class RefreshToken {
         return this.revokedDttm != null;
     }
 
+    /**
+     * 이 토큰이 해당 사용자의 것인지 (명세 §2.3 로그아웃).
+     *
+     * <p>남의 토큰을 폐기해 주면 임의 사용자를 로그아웃시킬 수 있으므로, 폐기 전에
+     * 반드시 확인한다. 미저장 엔티티({@code userSeq == null})나 인자가 null 이면
+     * 소유로 보지 않는다.
+     */
+    public boolean isOwnedBy(Integer userSeq) {
+        return userSeq != null && userSeq.equals(this.user.getUserSeq());
+    }
+
     /** 만료 판정. 경계값({@code expiresDttm == at})은 만료로 본다. */
     public boolean isExpired(Instant at) {
         return !this.expiresDttm.isAfter(at);

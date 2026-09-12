@@ -3,8 +3,12 @@ package com.ssafy.motif.coreapi.domain.auth.docs;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.domain.auth.dto.GoogleLoginRequest;
 import com.ssafy.motif.coreapi.domain.auth.dto.LoginResponse;
+import com.ssafy.motif.coreapi.domain.auth.dto.LogoutRequest;
 import com.ssafy.motif.coreapi.domain.auth.dto.TokenRefreshRequest;
+import com.ssafy.motif.coreapi.global.docs.SuccessNoDataApiResponseSchema;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -186,4 +190,62 @@ public interface AuthControllerDocs {
     })
     com.ssafy.motif.common.response.ApiResponse<LoginResponse> refresh(
             @Schema(description = "재발급에 쓸 refresh token") TokenRefreshRequest request);
+
+    @Operation(
+            summary = "로그아웃 (현재 기기)",
+            description = """
+                    보낸 refresh token 하나만 폐기한다 (명세 §2.3).
+
+                    - **인증 필요** — 우측 상단 Authorize 로 accessToken 을 넣고 호출한다.
+                    - **현재 기기만** 로그아웃된다. 다른 기기의 refresh token 은 그대로 살아 있다.
+                    - **멱등하다.** 미존재·이미 폐기·만료·타인 소유 토큰을 보내도 200 이다 —
+                      어느 경우인지 알려주면 토큰 존재 여부가 새어 나가기 때문이다.
+                    - **access token 은 무효화되지 않는다.** JWT 라 서버에 상태가 없어 만료(기본 1시간)까지 유효하다.
+                      **클라이언트가 로컬에서 반드시 폐기**해야 한다.
+                    - **푸시는 이 API 로 멈추지 않는다.** FCM 디바이스 토큰 비활성화(§14.2
+                      `DELETE /api/v1/notifications/device-tokens`)를 **따로** 호출해야 한다.
+
+                    클라이언트 순서: ① 이 API → ② §14.2 디바이스 토큰 비활성화 → ③ 로컬 토큰 폐기
+
+                    상세 명세: `backend/docs/api/detail/02-auth.md`
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "로그아웃 성공 — 폐기할 대상이 없었어도 200 이다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = SuccessNoDataApiResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @ApiResponse(responseCode = "400", description = "`refreshToken` 누락·빈 문자열",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": [{ "field": "refreshToken", "message": "refreshToken은 필수입니다" }],
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @ApiResponse(responseCode = "401", description = "access token 없음·만료·위조",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "UNAUTHORIZED",
+                                      "message": "로그인이 필요합니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    com.ssafy.motif.common.response.ApiResponse<Void> logout(
+            // 인증 필터가 채우는 principal 이라 요청 파라미터가 아니다 — 문서에서 감춘다
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Schema(description = "폐기할 refresh token") LogoutRequest request);
 }

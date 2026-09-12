@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 2.1 | POST | `/api/v1/auth/login/google` | 🔓 | 구현됨 (상세 명세 미작성 — Swagger 참조) |
 | 2.2 | POST | `/api/v1/auth/refresh` | 🔓 | **이 문서** |
-| 2.3 | POST | `/api/v1/auth/logout` | 필요 | 예정 |
+| 2.3 | POST | `/api/v1/auth/logout` | 필요 | **이 문서** |
 
 ---
 
@@ -175,3 +175,107 @@ Content-Type: application/json; charset=utf-8
 
 - **폐기·만료 행의 하드 삭제 주기** — DB 명세서 §6 은 "운영 정책의 보존 기간에 따라 주기적 삭제"라고만 한다. 배치는 별도 티켓이며, 쌓이는 동안에도 `uq_refresh_tokens_hash` 때문에 정확성 문제는 없다.
 - **refresh token TTL 14일**은 명세에 값이 없어 `application.yml` 의 기본안이다(`motif.auth.jwt.refresh-token-ttl`).
+
+---
+
+## 2.3 POST /api/v1/auth/logout
+
+현재 기기에서 로그아웃한다 — 보낸 refresh token 하나만 폐기하고, **다른 기기의 세션은 그대로 둔다**.
+
+**인증이 필요하다.** §2.1·§2.2 와 달리 🔓 가 아니다.
+
+### 요청
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer {accessToken}
+Content-Type: application/json; charset=utf-8
+```
+
+```json
+{
+  "refreshToken": "s7Fq2vXk9pLmNbVcZxAsDfGhJkLqWeRtYuIoP1234567"
+}
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|---|---|:---:|---|
+| `refreshToken` | string | Y | 공백 불가. **이 기기가 보관 중인** 값을 그대로 보낸다 |
+
+### 성공 응답 (200)
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": null,
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+### 서버 처리 순서
+
+1. access token 에서 인증된 `userSeq` 를 얻는다.
+2. 받은 refresh token 을 SHA-256 hex 로 변환해 `refresh_tokens.token_hash` 로 조회한다.
+3. **본인 소유이고 아직 폐기되지 않았으면** `revoked_dttm` 을 기록한다.
+4. 그 외(미존재 · 이미 폐기 · 만료 · **타인 소유**)는 아무 일도 하지 않고 200 을 준다.
+
+**멱등하다.** 로그아웃은 네트워크 실패로 재시도되거나 중복 호출되기 쉽고, 실패시켜서 얻을 것이 없다. 같은 요청을 몇 번 보내도 결과는 "그 토큰이 폐기된 상태"로 같다.
+
+행을 잠그지 않는다 — §2.2 rotation 과 달리 동시 실행이 계약을 깨지 않는다(둘 다 같은 값으로 폐기할 뿐이다).
+
+### 서버가 하지 않는 일
+
+- **access token 은 무효화되지 않는다.** JWT 라 서버에 상태가 없어 만료(기본 1시간)까지 유효하다 — **클라이언트가 로컬에서 반드시 폐기**해야 한다. 만료 전 무효화를 하려면 Redis 블랙리스트 같은 상태 저장이 필요한데, 명세가 요구하지 않아 도입하지 않았다.
+- **FCM 디바이스 토큰 비활성화(§14.2)를 하지 않는다.** 코어 API 가 알림 서비스를 HTTP 로 호출하지 않는다는 원칙(원본 §2.3 "클라 2콜") 때문이며, 클라이언트가 `DELETE /api/v1/notifications/device-tokens` 를 **따로** 호출해야 푸시가 멈춘다.
+- **다른 기기의 토큰을 건드리지 않는다.** 전 기기 로그아웃은 이 API 가 아니다.
+
+### 실패 응답
+
+**도메인 분기가 없다.** 공통 분기만 적용된다 — [`README.md`](README.md) 참조.
+
+**400 — `INVALID_PARAMETER`** (`refreshToken` 누락·빈 문자열)
+
+```json
+{
+  "result": "FAIL",
+  "code": "INVALID_PARAMETER",
+  "message": "요청 값이 올바르지 않습니다.",
+  "data": [
+    { "field": "refreshToken", "message": "refreshToken은 필수입니다" }
+  ],
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+**401 — `UNAUTHORIZED`** (access token 없음·만료·위조)
+
+```json
+{
+  "result": "FAIL",
+  "code": "UNAUTHORIZED",
+  "message": "로그인이 필요합니다.",
+  "data": null,
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+> access token 이 만료돼 401 이 나면, 클라이언트는 §2.2 로 재발급받아 다시 로그아웃하거나 — 어차피 로그아웃이 목적이므로 — **로컬 토큰을 버리는 것으로 끝내도 된다**. 서버의 refresh 행은 만료(기본 14일)로 자연 소멸한다.
+
+### 클라이언트 처리 순서
+
+1. `POST /api/v1/auth/logout` (이 API)
+2. `DELETE /api/v1/notifications/device-tokens` (§14.2 — 푸시 중단)
+3. 로컬의 access·refresh token 폐기
+
+2번을 빠뜨리면 **로그아웃한 기기로 푸시가 계속 간다.**
+
+### 이 문서에서 정한 기본안
+
+| 항목 | 기본안 | 근거 |
+|---|---|---|
+| 타인 소유 토큰을 보낸 경우 | 폐기하지 않고 **200** | 403·404 를 주면 "그 토큰이 존재한다"는 정보가 샌다. §2.2 의 사유 비노출과 같은 원칙 |
+| 계정 정지·삭제 상태 | **검사하지 않음** | 정지된 계정도 로그아웃은 되는 편이 안전하다. 토큰을 없애는 요청을 막을 이유가 없다 |
+| `refreshToken` 누락·빈 문자열 | 400 `INVALID_PARAMETER` | 무엇을 폐기할지 알 수 없으므로 멱등 대상이 아니다 |
+| 이미 폐기된 토큰 | 200, **폐기 시각을 덮어쓰지 않음** | 최초 폐기 시각이 감사에 더 유용하다 |
