@@ -118,6 +118,12 @@ S15P21D104-181
 | presign API `AdminMediaController`·`AdminMediaService`·`AdminMediaKind` | `app-core-api/.../admin/media/` | 588 |
 | 영상 검증 `VideoRules` (폼이 보낸 길이·해상도 대조) | `app-core-api/.../admin/media/` | 589 |
 | 감사 로그 `AdminAuditLogger` + logback `ADMIN_AUDIT` 어펜더 | `app-core-api/.../admin/audit/` · `logback-spring.xml` | 555 |
+| 챌린지 엔티티·리포지토리 `Challenge`·`ChallengeParticipant`·`EditedChallenge`·`Song` | `domain-core/.../challenge/` · `song/` | S15P21D104-559 |
+| 슬롯 마스크·2ⁿ−1 완결성 `SlotRules` (순수 계산) | `app-core-api/.../admin/challenge/` | 559 |
+| 챌린지 §3.7.2·3·4·5·6·8 전량 `AdminChallengeService` | `app-core-api/.../admin/challenge/` | 559·560·561 |
+| S3 HEAD `AdminMediaService.requireUploaded` (부재 키 모아 409) | `app-core-api/.../admin/media/` | 559 |
+| `CHALLENGE_NOT_FOUND`·`EDITED_CHALLENGE_NOT_FOUND` `ChallengeErrorCode` | `app-core-api/.../domain/challenge/` | 559 |
+| `ChallengeCreatedEvent` · `ChallengeEventRelay`(AFTER_COMMIT) | `module-event/.../contract/` · `app-core-api/.../domain/challenge/` | 562 |
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
@@ -126,6 +132,13 @@ mediaJobPublisher.publish(
     challengeSeq,
     videoKey,                                    // challenges/{uuid}.mp4
     MediaKeys.forChallengeOrigin(uuid));
+```
+
+```java
+// 챌린지 슬롯을 다룰 때 — 마스크는 서버가 계산한다. 비트를 직접 쓰지 않는다
+SlotRules.checkParticipants(mainArtistSeq, participants);       // 메인 포함·중복·bbox
+List<Integer> masks = SlotRules.editedMasks(n, editedList);     // 2ⁿ−1 완결성 + 마스크
+adminMediaService.requireUploaded(keys);                        // HEAD, 부재 키를 data 에
 ```
 
 ```java
