@@ -1,6 +1,10 @@
 /* 어드민 화면 공통 — 최소 구현(§1.7 "디자인 불요"). 프레임워크 없이 몇 줄로 끝낸다. */
 * { box-sizing: border-box; }
-body { margin: 0 auto; padding: 0 16px 64px; max-width: 1000px;
+/* 밝은 화면 전용이라고 브라우저에 알린다. 없으면 다크 모드 기기에서 캔버스와 폼
+   컨트롤이 어둡게 깔리는데 글자색은 #1a1a1a 고정이라 화면이 거의 안 보인다.
+   색 팔레트를 두 벌 만들 화면이 아니므로(§1.7 "디자인 불요") 한쪽으로 못박는다. */
+:root { color-scheme: light; }
+body { margin: 0 auto; padding: 0 16px 64px; max-width: 1000px; background: #fff;
        font: 14px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; color: #1a1a1a; }
 nav { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; }
 nav a { color: #0b57d0; }
