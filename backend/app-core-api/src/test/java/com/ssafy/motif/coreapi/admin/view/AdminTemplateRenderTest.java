@@ -73,6 +73,21 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("소속사 · 그룹 — 두 탭과 행 뼈대가 한 화면에 들어간다")
+    void orgs() {
+        String html = render("admin/orgs");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 소속사 · 그룹</title>")
+                .contains("/admin/orgs.js")
+                .contains("data-tab=\"company\"")
+                .contains("data-tab=\"group\"")
+                .contains("id=\"company-row\"")
+                .contains("id=\"group-row\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("가격 관리 — 에셋·패스 두 탭이 한 화면에 들어간다")
     void prices() {
         String html = render("admin/prices");

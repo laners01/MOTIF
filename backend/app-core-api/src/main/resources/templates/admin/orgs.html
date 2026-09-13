@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('소속사 · 그룹', ~{::main})}">
+<body>
+<!--/* 소속사(§3.3) 와 그룹(§3.4) 을 탭 하나로 묶은 화면. 로직은 orgs.js. */-->
+<main>
+    <nav class="tabs">
+        <button type="button" data-tab="company" class="active">소속사</button>
+        <button type="button" data-tab="group">그룹</button>
+    </nav>
+
+    <section data-panel="company">
+        <h2>소속사 <span class="muted">— 활성 회사명은 중복될 수 없다</span></h2>
+        <p>
+            <label style="display:inline">검색 <input type="search" id="company-q" placeholder="회사명"></label>
+            <label style="display:inline"><input type="checkbox" id="company-deleted"> 삭제분 포함</label>
+            <button type="button" id="company-reload">조회</button>
+        </p>
+        <p>
+            <label style="display:inline">새 소속사 <input type="text" id="company-new-name" maxlength="50" placeholder="SM엔터테인먼트"></label>
+            <button type="button" id="company-create">등록</button>
+        </p>
+        <p class="err" id="company-err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>#</th><th>회사명</th><th>그룹</th><th>아티스트</th><th>등록일</th><th></th><th>결과</th></tr>
+            </thead>
+            <tbody id="companies"></tbody>
+        </table>
+        <p class="muted">비삭제 그룹·아티스트가 남아 있으면 삭제가 409 로 막힌다 — 먼저 옮겨야 한다.</p>
+    </section>
+
+    <section data-panel="group" hidden>
+        <h2>그룹 <span class="muted">— 소속사를 바꾸면 비삭제 멤버의 소속사도 함께 옮겨진다</span></h2>
+        <p>
+            <label style="display:inline">소속사
+                <select id="group-company"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline">검색 <input type="search" id="group-q" placeholder="그룹명"></label>
+            <label style="display:inline"><input type="checkbox" id="group-deleted"> 삭제분 포함</label>
+            <button type="button" id="group-reload">조회</button>
+        </p>
+        <p>
+            <label style="display:inline">새 그룹
+                <select id="group-new-company"><option value="">소속사 선택</option></select>
+            </label>
+            <input type="text" id="group-new-name" maxlength="50" placeholder="aespa">
+            <button type="button" id="group-create">등록</button>
+        </p>
+        <p class="err" id="group-err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>#</th><th>그룹명</th><th>소속사</th><th>멤버</th><th>등록일</th><th></th><th>결과</th></tr>
+            </thead>
+            <tbody id="groups"></tbody>
+        </table>
+        <p class="muted">비삭제 멤버가 있으면 삭제가 409 로 막힌다.</p>
+    </section>
+
+    <template id="company-row">
+        <tr>
+            <td class="seq"></td>
+            <td><input type="text" class="name" maxlength="50"></td>
+            <td class="group-count"></td>
+            <td class="artist-count"></td>
+            <td class="reg"></td>
+            <td><button type="button" class="save">저장</button>
+                <button type="button" class="delete">삭제</button></td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+    <template id="group-row">
+        <tr>
+            <td class="seq"></td>
+            <td><input type="text" class="name" maxlength="50"></td>
+            <td><select class="company"></select></td>
+            <td class="member-count"></td>
+            <td class="reg"></td>
+            <td><button type="button" class="save">저장</button>
+                <button type="button" class="delete">삭제</button></td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/orgs.js" defer></script>
+</main>
+</body>
+</html>
