@@ -1,7 +1,9 @@
 package com.ssafy.motif.coreapi.domain.challenge.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,13 +15,81 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 챌린지 조회 API 문서 계약 (명세 §7.2).
+ * 팬 앱 챌린지 조회 API 문서 계약 (명세 §7.1·§7.2).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
  */
 @Tag(name = "챌린지 원본 (CHALLENGE)", description = "명세 §7 — 아티스트 원본 챌린지")
 public interface ChallengeControllerDocs {
+
+    @Operation(
+            summary = "숏폼 피드 (§7.1)",
+            description = """
+                    숏폼 화면의 스와이프 목록이다 (명세 §7.1). **커서 페이지네이션**(§1.9).
+
+                    - **인증 필요.** `isLiked`·`isSubscribed` 가 호출자 기준이다.
+                    - `cursor` 를 생략하면 첫 페이지다. 응답의 `nextCursor` 를 그대로 다시 넣어 다음 장을 받는다.
+                      `hasNext=false`(= `nextCursor=null`)면 끝이다.
+                    - **커서는 서버가 만든 opaque 토큰이다.** 해석·조작하지 마라 — 정렬 키가 바뀌어도
+                      계약이 깨지지 않는 이유다. 망가진 토큰은 400 `INVALID_PARAMETER` 다.
+                    - `size` 기본 20, 최대 100.
+                    - `videoUrl` 은 **마스터 재생목록(`master.m3u8`)** 이다 (§1.7, ADR-0010 D2).
+                      화질 3종(1080p/720p/480p) 자동 전환(ABR). 후처리 전이면 원본 MP4 일 수 있다.
+                    - `thumbnailUrl` 은 첫 프레임 로딩 전 플레이스홀더다 (회의 확정 R2).
+                    - **`title` 이 없다**(R3 컬럼 삭제). 화면 식별은 곡명(`song.title`)·아티스트·썸네일이다.
+                    - `artist.groupName` 은 없다 (회의 확정).
+                    - `participantCount` 는 **PUBLIC·PRIVATE 를 모두 포함**한다.
+                    - 삭제된 챌린지는 나오지 않는다 (§1.8 공통 비노출).
+
+                    ### 현재 정렬 — 추천이 아직 없다
+
+                    명세는 "구독 아티스트 + 인기·관심 기반 추천 종합(`rank:challenge` 활용)" 이지만
+                    랭킹이 구현되지 않았다. **지금은 최신순**이다. 커서가 opaque 토큰이라 랭킹이
+                    붙어도 클라이언트는 고칠 것이 없다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": {
+                                "list": [
+                                  {
+                                    "challengeSeq": 11,
+                                    "videoUrl": "https://cdn.../challenges/{uuid}/master.m3u8",
+                                    "thumbnailUrl": "https://cdn.../challenges/{uuid}/thumb.jpg",
+                                    "durationMs": 15000,
+                                    "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.../profiles/3.jpg" },
+                                    "song": { "title": "Supernova", "singerName": "aespa" },
+                                    "viewCount": 120000,
+                                    "participantCount": 340,
+                                    "likeCount": 5600,
+                                    "commentCount": 210,
+                                    "isLiked": false,
+                                    "isSubscribed": true
+                                  }
+                                ],
+                                "prevCursor": null,
+                                "nextCursor": "MTE",
+                                "hasPrevious": false,
+                                "hasNext": true
+                              },
+                              "timestamp": "2026-09-14T00:00:00.000Z"
+                            }
+                            """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "cursor 토큰이 잘못됨 (`INVALID_PARAMETER`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<CursorResponse<ChallengeFeedItem>> feed(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "이전 응답의 nextCursor. 생략하면 첫 페이지") String cursor,
+            @Parameter(description = "페이지 크기 (기본 20, 최대 100)") int size);
 
     @Operation(
             summary = "챌린지 상세 (§7.2)",

@@ -1,7 +1,11 @@
 package com.ssafy.motif.domain.core.artist;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, SubscriptionId> {
@@ -25,5 +29,18 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Subs
      * <p>별도의 완료 플래그 컬럼을 두지 않기로 한 결정(원본 §16 #16)에 따른 파생 판정이라,
      * 구독을 전부 해제한 사용자는 다시 온보딩할 수 있다. 플래그가 도입되면 바뀐다.
      */
+    /**
+     * 한 페이지 분 {@code isSubscribed} 를 한 번에 (API 명세 §7.1).
+     *
+     * <p>피드 20건에 아티스트가 몇 명이든 조회는 한 번이다. 항목마다
+     * {@link #existsByIdUserSeqAndIdArtistSeq} 를 부르면 그대로 N+1 이다.
+     */
+    @Query(value = """
+            select artist_seq from motif_core.subscriptions
+             where user_seq = :userSeq and artist_seq in (:artistSeqs)
+            """, nativeQuery = true)
+    List<Integer> findSubscribedArtistSeqs(@Param("userSeq") Integer userSeq,
+                                           @Param("artistSeqs") Collection<Integer> artistSeqs);
+
     boolean existsByIdUserSeq(Integer userSeq);
 }

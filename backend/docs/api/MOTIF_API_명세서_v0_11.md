@@ -818,6 +818,8 @@ DB 에는 **마스터 재생목록 경로 하나만** 저장한다(ADR-0010 D4).
 
 - `participantCount` 는 챌린지의 게시 참여 수이며 **PUBLIC·PRIVATE를 모두 포함**한다. PRIVATE 영상 자체의 조회 비노출 정책과 카운트 집계는 분리한다.
 
+- **구현 현황 (2026-09-14)** — 추천 로직은 아직 없다. `rank:challenge` 랭킹이 만들어지지 않아 **최신순**으로 내려간다. 커서는 §1.9 대로 서버가 만든 opaque 토큰이라 랭킹이 붙어도 클라이언트 계약은 바뀌지 않는다. `prevCursor`·`hasPrevious` 는 순방향 구현이라 항상 `null`·`false` 다(§1.9 — 역방향은 §16 미결).
+
 **실패 분기** — 공통 외 없음.
 
 ### 7.2 GET /challenges/{challengeSeq}

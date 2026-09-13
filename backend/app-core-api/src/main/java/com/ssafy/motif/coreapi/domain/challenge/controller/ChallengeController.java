@@ -3,23 +3,26 @@ package com.ssafy.motif.coreapi.domain.challenge.controller;
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.challenge.docs.ChallengeControllerDocs;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
 import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 팬 앱 챌린지 조회 API (명세 §7.2). Base URL 은 {@code /api/v1}.
+ * 팬 앱 챌린지 조회 API (명세 §7.1·§7.2). Base URL 은 {@code /api/v1}.
  *
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isSubscribed} 가
  * 호출자 기준이다.
  *
- * <p>§7.1 피드·§7.3 좋아요·§7.4 조회 이벤트는 이 티켓 범위가 아니라 매핑이 없다.
+ * <p>§7.3 좋아요·§7.4 조회 이벤트는 아직 매핑이 없다.
  *
  * <p>경로가 {@code /api/v1/**} 이고 {@code /api/v1/admin/**} 이 아니므로 springdoc
  * {@code user} 그룹 문서에 자동으로 잡힌다({@code OpenApiConfig}).
@@ -33,6 +36,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChallengeController implements ChallengeControllerDocs {
 
     private final ChallengeQueryService challengeQueryService;
+
+    /**
+     * §7.1 숏폼 피드 — 커서.
+     *
+     * <p>매핑이 {@code /{challengeSeq}} 보다 <b>먼저 잡힌다</b>. 리터럴 경로가 경로
+     * 변수보다 구체적이라 스프링이 {@code /feed} 를 상세로 보내지 않는다 — 순서에
+     * 의존하는 것이 아니라 매칭 규칙이다.
+     */
+    @Override
+    @GetMapping("/feed")
+    public ApiResponse<CursorResponse<ChallengeFeedItem>> feed(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(challengeQueryService.feed(user.userSeq(), cursor, size));
+    }
 
     /** §7.2 챌린지 상세 Bottom Sheet. */
     @Override
