@@ -119,6 +119,19 @@ pipeline {
 
                 stage('Deploy') {
                     steps {
+                        script {
+                            // 롤백 목표를 태그 하나로 고정해 둔다.
+                            //
+                            // `rollout undo` 를 쓰면 안 되는 이유: undo 는 "직전 리비전"
+                            // 으로 되짚는데, 연속 실패하면 되짚을 때마다 한 칸씩 더
+                            // 내려간다. 2026-09-13 에 빌드 29~33 이 같은 이유로 연달아
+                            // 깨지면서 운영 이미지가 33 -> 28 까지 후퇴했다.
+                            // 되돌릴 곳은 직전 리비전이 아니라 이 빌드가 건드리기 전의
+                            // 태그, 딱 하나다.
+                            env.PREV_IMAGE = sh(returnStdout: true, script:
+                                'kubectl get deployment/"$DEPLOYMENT" -o jsonpath=\'{.spec.template.spec.containers[0].image}\'').trim()
+                            echo "배포 전 이미지: ${env.PREV_IMAGE}"
+                        }
                         sh 'kubectl set image deployment/"$DEPLOYMENT" "$CONTAINER"="$IMAGE"'
                         script {
                             // maxUnavailable: 0 이라 새 파드가 Ready 가 되기 전에는
@@ -219,14 +232,17 @@ void gitlabStatus(String state) {
     }
 }
 
-// 배포 게이트 실패 시 직전 리비전으로 되돌리고 빌드를 FAIL 시킨다.
-// undo 자체가 실패해도(되돌릴 리비전이 없는 최초 배포 등) 원래 실패 사유를
-// 잃지 않도록 error() 는 반드시 던진다.
+// 배포 게이트 실패 시 Deploy 단계가 기록해 둔 PREV_IMAGE 로 되돌리고 빌드를
+// FAIL 시킨다. 되돌리기가 실패해도(PREV_IMAGE 가 비는 최초 배포 등) 원래 실패
+// 사유를 잃지 않도록 error() 는 반드시 던진다.
 void rollbackAndFail(String reason) {
-    echo "배포 게이트 실패: ${reason} — 직전 리비전으로 되돌린다"
+    echo "배포 게이트 실패: ${reason} — ${env.PREV_IMAGE} 로 되돌린다"
+    // maxUnavailable: 0 이라 새 파드가 Ready 를 못 얻은 경우엔 구 파드가 그대로
+    // 살아 있다. 그때 이 set image 는 새 ReplicaSet 을 0 으로 내리는 역할만 한다.
+    // 롤아웃은 성공했는데 Verify 가 깨진 경우에만 실제로 파드가 교체된다.
     sh '''
         set +e
-        kubectl rollout undo deployment/"$DEPLOYMENT"
+        kubectl set image deployment/"$DEPLOYMENT" "$CONTAINER"="$PREV_IMAGE"
         kubectl rollout status deployment/"$DEPLOYMENT" --timeout=120s
         exit 0
     '''
