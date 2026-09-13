@@ -63,8 +63,8 @@ public class SecurityConfig {
                         // 이미 공개인 /api/v1/auth/login/google 만 호출한다.
                         .requestMatchers("/api/dev/**").permitAll()
                         // springdoc — 관리 포트가 아니라 앱 포트에 뜬다(기본 경로 유지).
-                        // 공개는 user 그룹 문서까지다. /v3/api-docs/admin 을 함께 열면 어드민
-                        // 명세 §1.1(경로 존재 비노출)이 무의미해진다 — 공인망에서 401 로 막는다
+                        // 공개는 user 그룹 문서까지다. /v3/api-docs/admin 은 이 체인에 없다 —
+                        // AdminPaths.API_DOCS 로 어드민 체인이 가져간다(공인망 404, 어드민 토큰 200)
                         .requestMatchers("/v3/api-docs/swagger-config", "/v3/api-docs/user",
                                 "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // 관리 포트(9081)는 별도 컨텍스트라 이 체인이 닿지 않는 것이 정상이지만,

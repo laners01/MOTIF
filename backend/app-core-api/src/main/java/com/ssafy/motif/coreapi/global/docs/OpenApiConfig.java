@@ -22,7 +22,8 @@ import java.util.List;
  * {@code springdoc.enable-default-api-docs=false} 로 꺼 두었다.
  * <ul>
  *   <li>{@code user} — 공인망 공개. {@code SecurityConfig} 가 permitAll 한다.</li>
- *   <li>{@code admin} — 테일넷 전용. 공인망에서는 401 이고 인그레스가 다시 막는다.</li>
+ *   <li>{@code admin} — 테일넷 전용. 어드민 체인이 가져간다({@link AdminPaths#API_DOCS}) —
+ *       공인망은 {@code AdminIpFilter} 가 404, 테일넷은 어드민 토큰으로 200.</li>
  * </ul>
  *
  * <p>bearerAuth 스킴을 <b>전역</b>으로 요구한다. 인증이 필요 없는(🔓) 오퍼레이션은
@@ -60,7 +61,14 @@ public class OpenApiConfig {
                 .build();
     }
 
-    /** 어드민 문서. 테일넷에서만 의미가 있다 (어드민 명세 §1.1). */
+    /**
+     * 어드민 문서. 테일넷 + 어드민 토큰으로만 열린다 (어드민 명세 §1.1).
+     *
+     * <p>경로를 {@link AdminPaths#API_DOCS} 로 고정해 두는 이유는 그 상수가
+     * 어드민 체인·{@code AdminIpFilter} 와 같은 목록을 보기 때문이다. 여기 그룹 이름만
+     * 바꾸면 문서 경로가 어긋나 사용자 체인으로 떨어지고, 어드민 토큰으로는 못 여는
+     * 상태가 조용히 된다.
+     */
     @Bean
     public GroupedOpenApi adminApi() {
         return GroupedOpenApi.builder()
