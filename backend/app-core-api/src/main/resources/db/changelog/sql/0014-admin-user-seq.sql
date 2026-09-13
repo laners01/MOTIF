@@ -54,3 +54,18 @@ ALTER TABLE admins ADD CONSTRAINT fk_admins_user FOREIGN KEY (user_seq)
 --rollback ALTER TABLE admins DROP CONSTRAINT fk_admins_user;
 --rollback ALTER TABLE admins DROP CONSTRAINT uq_admins_user_seq;
 --rollback ALTER TABLE admins ALTER COLUMN user_seq DROP NOT NULL;
+
+--changeset claude:0014-04-check-admins-password-hash
+--comment BCrypt 형태만 허용 — 주입 실패가 조용히 지나가지 못하게 한다 (S15P21D104-608)
+-- 실측(2026-09-13): 0015 시드는 해시를 Liquibase property 로 받는데,
+-- ADMIN_SEED_HASH 가 없으면 Spring Boot 의 Binder 가 해석 못 한 placeholder 를
+-- 예외 없이 통과시켜 password_hash 에 '${ADMIN_SEED_HASH}' 문자열이 그대로 들어갔다.
+-- 앱은 멀쩡히 떴고, 아무도 로그인할 수 없는 계정만 남았다. 게다가 changeSet 은
+-- 적용 완료로 기록돼 값을 고치려면 새 changeSet 이 필요해진다.
+--
+-- 그래서 앱이 아니라 DB 가 막는다. 이 제약이 있으면 그 INSERT 가 실패하고
+-- Liquibase 가 기동을 멈춘다 — 조용한 고장이 시끄러운 고장이 된다.
+-- 형식 검사일 뿐 해시의 정당성은 보지 않는다(cost·salt 는 DB 가 알 수 없다).
+ALTER TABLE admins ADD CONSTRAINT ck_admins_password_hash_bcrypt
+    CHECK (password_hash ~ '^\$2[aby]\$[0-9]{2}\$.{53}$');
+--rollback ALTER TABLE admins DROP CONSTRAINT ck_admins_password_hash_bcrypt;
