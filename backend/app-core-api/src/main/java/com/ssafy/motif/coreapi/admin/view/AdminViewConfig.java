@@ -40,5 +40,7 @@ public class AdminViewConfig implements WebMvcConfigurer {
         registry.addViewController(AdminPaths.VIEW + "/artists").setViewName("admin/artists");
         // 챌린지 목록 (§1.7, §3.7.1) — 등록은 위 /challenges/new 다
         registry.addViewController(AdminPaths.VIEW + "/challenges").setViewName("admin/challenges");
+        // 모티프 에셋 목록 (§1.7, §3.8.1) — 활성·가격은 /prices 가 한다
+        registry.addViewController(AdminPaths.VIEW + "/assets").setViewName("admin/assets");
     }
 }

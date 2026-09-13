@@ -138,4 +138,18 @@ class AdminTemplateRenderTest {
                 .contains("/admin/challenges/new");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("에셋 목록 — 행 뼈대와 타입·활성 필터가 들어간다 (§3.8.1)")
+    void assets() {
+        String html = render("admin/assets");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 모티프 에셋 목록</title>")
+                .contains("/admin/assets.js")
+                .contains("id=\"asset-row\"")
+                .contains("id=\"asset-type\"")
+                .contains("id=\"is-active\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
 }
