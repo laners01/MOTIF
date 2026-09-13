@@ -90,6 +90,17 @@ public class Artist extends BaseTimeEntity {
         this.companySeq = companySeq;
     }
 
+    /**
+     * 소프트 삭제 (§3.5.5).
+     *
+     * <p>수정 주체를 받지 않는다 — {@code artists} 에 {@code mod_usr_seq} 칼럼이 없다
+     * (DDL 0003-01, 클래스 javadoc). 누가 지웠는지는 {@code users.mod_usr_seq} 와
+     * 감사 로그에 남는다. 에셋·가격 연쇄는 서비스가 같은 트랜잭션에서 이어 붙인다.
+     */
+    public void softDelete() {
+        this.deleted = true;
+    }
+
     /** {@code null} 은 "그 필드는 그대로" 라는 뜻이다 (§3.5.4 부분 수정). */
     public void changeProfile(String bio, String motifBgImageKey) {
         if (bio != null) {

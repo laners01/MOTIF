@@ -93,6 +93,18 @@ public class User extends BaseTimeEntity {
         this.modUsrSeq = modUsrSeq;
     }
 
+    /**
+     * 소프트 삭제 — 아티스트 삭제 연쇄 (어드민 명세 §3.5.5).
+     *
+     * <p>{@code artists} 와 {@code users} 는 한 쌍이라({@code uq_artists_user}) 둘 중
+     * 하나만 지우면 이름 없는 아티스트이거나 아무 역할 없는 ARTIST 유저가 남는다 —
+     * 등록(§3.5.2)이 한 트랜잭션인 것과 같은 이유로 삭제도 한 트랜잭션이다.
+     */
+    public void softDelete(Integer modUsrSeq) {
+        this.deleted = true;
+        this.modUsrSeq = modUsrSeq;
+    }
+
     /** INSERT 직후 호출 — {@code user_{seq}} 임시 닉네임을 확정한다. */
     public void applyInitialNickname() {
         this.nickname = "user_" + this.userSeq;

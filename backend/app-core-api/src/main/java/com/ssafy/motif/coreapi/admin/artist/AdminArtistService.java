@@ -5,6 +5,7 @@ import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateRequest;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateResponse;
+import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDeleteResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistSummaryResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistUpdateRequest;
@@ -25,10 +26,12 @@ import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.artist.Company;
 import com.ssafy.motif.domain.core.artist.CompanyRepository;
+import com.ssafy.motif.domain.core.asset.MotifAssetPriceRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.notice.NoticeRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import com.ssafy.motif.domain.core.user.User;
 import com.ssafy.motif.domain.core.user.UserRepository;
 import com.ssafy.motif.domain.core.user.UserRole;
@@ -38,13 +41,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 아티스트 목록·등록·상세·수정 (어드민 명세 §3.5.1~§3.5.4) — S15P21D104-385.
+ * 아티스트 목록·등록·상세·수정·삭제 (어드민 명세 §3.5) — S15P21D104-385·558.
  *
  * <p><b>{@code users(ARTIST)} 와 {@code artists} 를 한 트랜잭션에 만든다.</b>
  * {@code artists} 에는 이름 칸이 없고({@code users.nickname} 이 이름이다) FK·
@@ -63,7 +67,9 @@ import java.util.stream.Stream;
  * 모티프 배경은 {@code artists.motif_bg_image_key} 로 <b>테이블이 갈린다</b> —
  * 프로필은 모든 유저의 것이고 배경은 아티스트 전용이기 때문이다.
  *
- * <p>삭제(§3.5.5)는 여기 없다 — 에셋·가격 연쇄가 붙는 별도 티켓이다(S15P21D104-558).
+ * <p><b>삭제(§3.5.5)는 연쇄가 붙는다</b> — {@code artists}·{@code users} 의
+ * {@code is_deleted} 와 에셋·에셋 가격·패스 가격의 {@code is_active} 를 한 트랜잭션에
+ * 내린다({@link #delete}, S15P21D104-558).
  */
 @Service
 @RequiredArgsConstructor
@@ -79,6 +85,8 @@ public class AdminArtistService {
     private final UserRepository userRepository;
     private final ChallengeRepository challengeRepository;
     private final MotifAssetRepository motifAssetRepository;
+    private final MotifAssetPriceRepository motifAssetPriceRepository;
+    private final MotifPassPriceRepository motifPassPriceRepository;
     private final NoticeRepository noticeRepository;
     private final AdminPassPriceService adminPassPriceService;
     private final AdminMediaService adminMediaService;
@@ -156,6 +164,46 @@ public class AdminArtistService {
         auditLogger.write(admin, "UPDATE_ARTIST", "ARTIST", artistSeq, AdminAuditLogger.RESULT_OK);
         artistRepository.flush();
         return detail(artistSeq);
+    }
+
+    /**
+     * §3.5.5 — 소프트 삭제 + 에셋·가격 연쇄. 전부 <b>한 트랜잭션</b>이다.
+     *
+     * <p>끄는 대상이 두 종류인 이유는 테이블마다 "종료" 를 다르게 쓰기 때문이다 —
+     * {@code artists}·{@code users} 는 {@code is_deleted}, {@code motif_assets} 와 가격
+     * 2종은 {@code is_active} 다(에셋에는 삭제 플래그가 아예 없다 — DB §30).
+     * 나눠서 커밋하면 <b>아티스트만 사라지고 상점에는 에셋이 남는</b> 상태가 생긴다.
+     *
+     * <p>챌린지·참여 영상은 그대로 둔다(콘텐츠 보존 — 티켓 558). 구독 행도 지우지
+     * 않는다 — 대상이 비노출될 뿐이다.
+     *
+     * <p><b>이미 삭제된 아티스트는 404 다.</b> 재삭제가 200 을 주면 존재 여부가 새고,
+     * 무엇보다 두 번째 응답의 연쇄 건수가 전부 0 이라 "정말 꺼졌나" 를 운영자가 구분할
+     * 수 없다. 티켓 558 이 멱등 규칙으로 404 를 못박았다(§3.5 실패표의 409
+     * {@code ARTIST_ALREADY_DELETED} 와 어긋난다 — 표 쪽이 404 행 "대상 없음·삭제" 와
+     * 이미 중복이다).
+     */
+    @Transactional
+    public ArtistDeleteResponse delete(AuthenticatedAdmin admin, int artistSeq) {
+        Artist artist = artistRepository.findByArtistSeqAndDeletedFalse(artistSeq)
+                .orElseThrow(() -> new BusinessException(ArtistErrorCode.ARTIST_NOT_FOUND,
+                        "미존재·삭제 아티스트: artistSeq=" + artistSeq));
+        User user = userRepository.findById(artist.getUserSeq())
+                .orElseThrow(() -> new IllegalStateException(
+                        "아티스트에 users 행이 없다 — FK 로 불가능해야 한다: artistSeq=" + artistSeq));
+
+        artist.softDelete();
+        user.softDelete(admin.userSeq());
+
+        // 벌크 UPDATE 는 영속성 컨텍스트를 우회한다 — 위 두 변경은 첫 호출의
+        // flushAutomatically 가 밀어 넣는다(각 리포지토리 javadoc).
+        Instant now = Instant.now();
+        int assets = motifAssetRepository.deactivateByArtist(artistSeq, now);
+        int assetPrices = motifAssetPriceRepository.deactivateByArtist(artistSeq, admin.userSeq(), now);
+        int passPrices = motifPassPriceRepository.deactivateByArtist(artistSeq, admin.userSeq(), now);
+
+        auditLogger.write(admin, "DELETE_ARTIST", "ARTIST", artistSeq, AdminAuditLogger.RESULT_OK);
+        return new ArtistDeleteResponse(assets, assetPrices, passPrices);
     }
 
     // --- 소속 규칙 -----------------------------------------------------------
