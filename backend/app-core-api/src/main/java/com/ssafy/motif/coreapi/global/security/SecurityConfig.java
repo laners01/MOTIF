@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -19,9 +20,11 @@ import com.ssafy.motif.coreapi.domain.auth.jwt.JwtProvider;
  *
  * <p>세션을 만들지 않는다(JWT). CSRF는 쿠키·폼을 쓰지 않으므로 끈다.
  *
- * <p><b>{@code /admin}의 팀 IP·테일넷 제한은 여기가 아니다</b> — Traefik
- * {@code ipAllowList} 미들웨어가 맡는다(ADR-0009 D3). 앱에서 하면 프록시 뒤
- * 클라이언트 IP를 헤더로 신뢰해야 한다.
+ * <p><b>어드민 경로는 이 체인이 아니다</b> —
+ * {@code admin.security.AdminSecurityConfig}(@Order(1))가 먼저 매칭한다. 팀 IP·테일넷
+ * 제한도 Traefik 이 아니라 {@code AdminIpFilter} 가 맡는다: 비허용 응답이 <b>404</b>여야
+ * 하는데 Traefik {@code ipAllowList} 는 403 만 낼 수 있다(어드민 명세 §1.1, 회의 확정 R1
+ * — ADR-0009 D3 의 "Traefik 담당" 서술을 대체한다).
  */
 @Configuration
 @EnableWebSecurity
@@ -34,6 +37,7 @@ public class SecurityConfig {
     private final RestAccessDeniedHandler accessDeniedHandler;
 
     @Bean
+    @Order(2)   // 어드민 체인(@Order(1)) 다음 — 이 체인은 경로 제한이 없는 catch-all 이다
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())

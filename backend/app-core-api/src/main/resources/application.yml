@@ -29,6 +29,37 @@ motif:
       # 명세에 값이 없다 — 기본안. 확정되면 이 줄만 고친다
       refresh-token-ttl: 14d
 
+  # 미디어 — 버킷은 app-media 와 같은 곳을 본다. core-api 는 presign 서명만 하고
+  # 바이트는 다루지 않는다(원칙 ① — 브라우저 → S3 직행)
+  media:
+    s3:
+      bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
+      region: ${AWS_REGION:ap-northeast-2}
+
+  # 어드민 (어드민 명세 §1.1·§1.2·§1.3·§1.4). 비밀값·허용 IP 는 프로파일별 파일에서 주입한다
+  admin:
+    jwt:
+      # §1.2 — 12시간, refresh 없음(기본안). 만료되면 재로그인
+      ttl: 12h
+    audit:
+      # §1.3 보존 90일(기본안). 경로는 prod 가 PVC 마운트 지점으로 덮는다
+      history-days: 90
+    media:
+      # presign 조건은 서명에 박힌다 — 다른 값으로 PUT 하면 S3 가 거부한다 (§1.4)
+      video:
+        content-types: video/mp4,video/quicktime
+        max-size: 300MB
+        presign-ttl: 600s
+      image:
+        content-types: image/jpeg,image/png,image/webp
+        max-size: 10MB
+        presign-ttl: 300s
+      # 업로드 화면이 보낸 길이·해상도를 대조하는 규칙 (§1.4 2항, §8 #3 미결 — 값만 고친다)
+      rules:
+        challenge-max-duration: 60s
+        asset-max-duration: 20s
+        edited-tolerance: 500ms
+
 server:
   port: 8081
   shutdown: graceful

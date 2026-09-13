@@ -29,3 +29,9 @@ motif:
       client-id: ${GOOGLE_CLIENT_ID:}
     jwt:
       secret: ${JWT_SECRET:motif-local-dev-only-jwt-secret-not-a-real-key-32bytes+}   # 로컬 전용 더미(비밀 아님)
+  admin:
+    allowed-cidrs: 127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
+    jwt:
+      secret: ${ADMIN_JWT_SECRET:motif-local-dev-only-ADMIN-jwt-secret-not-a-real-key+}   # 로컬 전용 더미(비밀 아님)
+    audit:
+      dir: build/logs
