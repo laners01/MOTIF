@@ -57,7 +57,13 @@ spec:
       - name: TZ
         value: Asia/Seoul
     service:
-      type: ClusterIP
+      # 키는 service.type 이 아니라 service.spec.type 이다. 이 차트(traefik 40.x)는
+      # Service 필드를 service.spec.* 로 받아 그대로 병합한다 — k3s 자신도
+      # service.spec.ipFamilyPolicy 를 그렇게 넣는다. service.type 으로 쓰면
+      # 차트가 읽지 않아 Service 가 LoadBalancer 로 남고, svclb 가 80/443 을 계속
+      # 쥔 채 새 Traefik 파드만 FailedScheduling(Pending) 이 된다. 2026-09-13 실측.
+      spec:
+        type: ClusterIP
     ports:
       web:
         hostPort: 80
