@@ -1,0 +1,39 @@
+# 공통 설정 — 프로파일별 접속 정보는 application-{local,local-remote,prod}.yml (ADR-0003)
+spring:
+  application:
+    name: app-media
+  profiles:
+    default: local          # 프로파일 미지정 = 격리 모드
+  jpa:
+    hibernate:
+      ddl-auto: validate    # 전 프로파일 고정 — DDL은 Liquibase 소유 (ADR-0004)
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: motif
+  liquibase:
+    enabled: false          # core 스키마의 소유자는 core-api 다 — 여기서 마이그레이션하지 않는다
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: 8083
+  shutdown: graceful
+
+management:
+  server:
+    port: 9083              # 관리 포트 분리 — 전 모듈 통일 (ADR-0004)
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+motif:
+  media:
+    ffmpeg: ffmpeg          # 컨테이너 이미지에 설치된 경로 (PATH 기준)
+    ffprobe: ffprobe
+    work-dir: /tmp/motif-media
