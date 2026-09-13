@@ -129,9 +129,15 @@ S15P21D104-181
 | `Admin` 엔티티·리포지토리 (가입 경로 없음 — 생성자 없음) | `domain-core/.../admin/` | 608 |
 | `admins.user_seq` NOT NULL UNIQUE FK · 어드민 시드 | `db/changelog/sql/0014`·`0015` | 593 · 608 |
 | `/admin/login` 화면 (스타일·스크립트 인라인 — layout 을 쓰지 않는다) | `templates/admin/login.html` | 608 |
-| **offset 페이지 응답** `PageResponse` (§1.2 고정 구조 — 목록 API 는 이걸 쓴다) | `module-common/.../response/` | S15P21D104-389 |
+| **offset 페이지 응답** `PageResponse`(record, spring-data 의존 없음) | `module-common/.../response/` | S15P21D104-389 |
+| **`Page` → `PageResponse` 어댑터 `PageResponses`** (`of`·`of(page, mapper)`·`pageable()` — size 를 100 으로 자른다) | `app-core-api/.../global/response/` | 389·385·609 |
 | 곡 API `AdminSongController`·`AdminSongService` (§3.6 목록·등록) | `app-core-api/.../admin/song/` | 389 |
 | `Song` 엔티티 전량 매핑 + `SongRepository.search`·`countChallenges` | `domain-core/.../song/` | 389 |
+| 아티스트 API `AdminArtistController`·`AdminArtistService` (§3.5 목록·등록·상세·수정) | `app-core-api/.../admin/artist/` | 385 |
+| `ArtistGroup`·`Company` 엔티티 · `Artist` §3.5 컬럼 확장 · `ArtistCount` 집계 프로젝션 | `domain-core/.../artist/` | 385 |
+| 공지 §3.10.1·2·3 `AdminNoticeService.list`·`create`·`detail` · `NoticeEventRelay` | `app-core-api/.../admin/notice/` · `domain/notice/` | 611·402·403 |
+| 챌린지 §3.7.1 목록 `AdminChallengeService.list` · `ChallengeRepository.search` | `app-core-api/.../admin/challenge/` · `domain-core/.../challenge/` | 609 |
+| 에셋 §3.8.1 목록 `AdminAssetService.list` · `MotifAssetRepository.search` | `app-core-api/.../admin/asset/` · `domain-core/.../asset/` | 610 |
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
@@ -156,18 +162,21 @@ adminJwtProvider.issue(new AuthenticatedAdmin(adminSeq, userSeq, name));   // �
 ```
 
 ```java
-// 목록 API 를 만들 때 — 페이지 구조를 새로 짜지 않는다 (§1.2 고정)
-return new PageResponse<>(list, found.getNumber(), found.getSize(),
-        found.getTotalElements(), found.getTotalPages(), found.hasNext(), found.hasPrevious());
-// 어드민 화면 fillSelect 가 data.list 를 꺼내 쓴다 — 배열을 data 에 바로 싣지 않는다
-```
-
-```java
 // 어드민 API 를 새로 만들 때 — 아래는 이미 있다
 @RequestMapping(AdminPaths.API + "/companies")          // 경로 상수
 throw new BusinessException(AdminErrorCode.COMPANY_IN_USE, msg, Map.of("refs", n));  // §5 코드 + data
 videoRules.checkChallengeOrigin(new VideoRules.Meta(durationMs, width, height));     // 폼 값 검증
 adminAuditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE", seq, AdminAuditLogger.RESULT_OK);
+```
+
+```java
+// 목록 API 를 새로 만들 때 — 페이지 봉투·상한은 이미 있다. size 를 직접 자르지 않는다
+return PageResponses.of(repository.search(q, PageResponses.pageable(page, size)), this::item);
+// 응답 타입은 PageResponse<T> (module-common). 어드민 화면 fillSelect 가 data.list 를
+// 꺼내 쓰므로 배열을 data 에 바로 싣지 않는다.
+//
+// PageResponse 는 record 뿐이고 Page 를 받는 변환은 PageResponses 에 있다 —
+// module-common 이 spring-data 에 의존하지 않기 위해서다. 둘을 합치지 말 것.
 ```
 
 **`AdminErrorCode` 에 코드를 새로 추가하지 않는다** — 명세 §5 표는 전량 등록돼 있다.

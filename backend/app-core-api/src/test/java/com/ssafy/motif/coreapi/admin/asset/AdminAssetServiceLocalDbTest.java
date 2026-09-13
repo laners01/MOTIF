@@ -5,9 +5,12 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetListItem;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAssetPriceRepository;
@@ -213,6 +216,65 @@ class AdminAssetServiceLocalDbTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.COUNTRY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("목록은 아티스트 이름·KR 가격·운영 지표를 쿼리 한 번에 준다 (§3.8.1)")
+    void listJoinsNameAndPrice() {
+        Integer assetSeq = adminAssetService.create(admin, request(new BigDecimal("3900.00"))).assetSeq();
+        entityManager.flush();
+
+        PageResponse<AssetListItem> page =
+                adminAssetService.list(artistSeq, null, null, PageResponses.pageable(0, 20));
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.page()).isZero();
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.hasNext()).isFalse();
+        assertThat(page.list()).singleElement().satisfies(item -> {
+            assertThat(item.assetSeq()).isEqualTo(assetSeq);
+            assertThat(item.artist().artistSeq()).isEqualTo(artistSeq);
+            assertThat(item.artist().name()).isNotBlank();
+            assertThat(item.artist().groupName()).isNull();      // 그룹 미소속 — left join 이라 행이 살아 있다
+            assertThat(item.assetType()).isEqualTo(AssetType.NORMAL);
+            assertThat(item.isActive()).isTrue();
+            assertThat(item.durationMs()).isEqualTo(9800);
+            assertThat(item.price().countryCode()).isEqualTo("KR");
+            assertThat(item.price().amount()).isEqualByComparingTo("3900.00");
+            assertThat(item.price().isActive()).isTrue();
+            assertThat(item.purchaseCount()).isZero();
+            assertThat(item.resultCount()).isZero();
+            assertThat(item.regDttm()).isNotNull();
+        });
+    }
+
+    @Test
+    @DisplayName("KR 가격 행이 없으면 price 는 null — 화면이 '가격 미설정'을 띄우는 근거다")
+    void listGivesNullPriceWhenNoKrRow() {
+        Integer assetSeq = adminAssetService.create(admin, request(new BigDecimal("3900.00"))).assetSeq();
+        entityManager.flush();
+        entityManager.createNativeQuery(
+                        "delete from motif_core.motif_asset_prices where asset_seq = :seq")
+                .setParameter("seq", assetSeq)
+                .executeUpdate();
+
+        assertThat(adminAssetService.list(artistSeq, null, null, PageResponses.pageable(0, 20)).list())
+                .singleElement()
+                .satisfies(item -> assertThat(item.price()).isNull());
+    }
+
+    @Test
+    @DisplayName("isActive 필터 — null 이면 전체, 지정하면 그 상태만")
+    void listFiltersByActive() {
+        Integer assetSeq = adminAssetService.create(admin, request(new BigDecimal("3900.00"))).assetSeq();
+        adminAssetService.changeActive(admin, assetSeq, false);
+        entityManager.flush();
+
+        assertThat(adminAssetService.list(artistSeq, true, null, PageResponses.pageable(0, 20)).list()).isEmpty();
+        assertThat(adminAssetService.list(artistSeq, false, null, PageResponses.pageable(0, 20)).list()).hasSize(1);
+        assertThat(adminAssetService.list(artistSeq, null, null, PageResponses.pageable(0, 20)).list()).hasSize(1);
+        assertThat(adminAssetService.list(artistSeq, null, AssetType.PREMIUM, PageResponses.pageable(0, 20)).list())
+                .isEmpty();
     }
 
     // --- 픽스처 -------------------------------------------------------------

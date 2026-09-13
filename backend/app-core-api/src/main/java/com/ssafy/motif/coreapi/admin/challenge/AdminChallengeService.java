@@ -7,6 +7,7 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeUpdateRequest;
@@ -24,9 +25,12 @@ import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.domain.core.artist.ArtistName;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
+import com.ssafy.motif.domain.core.challenge.ChallengeListRow;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
@@ -39,6 +43,7 @@ import com.ssafy.motif.event.contract.MediaJobRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -134,6 +139,19 @@ public class AdminChallengeService {
                     List.of(new ChallengeValidateResponse.Issue(
                             code.getCode(), code.getMessage(), e.getData())));
         }
+    }
+
+    /**
+     * 목록 (§3.7.1) — 아티스트·곡 필터, offset 페이지.
+     *
+     * <p>쿼리 한 번이다. 아티스트 이름·곡·슬롯 수·편집본 수를 행마다 따로 읽으면
+     * 20행짜리 한 페이지에 40번을 더 왕복한다({@link ChallengeListRow}).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ChallengeListItem> list(Integer artistSeq, Integer songSeq,
+                                                boolean includeDeleted, Pageable pageable) {
+        return PageResponses.of(challengeRepository.search(artistSeq, songSeq, includeDeleted, pageable)
+                .map(row -> ChallengeListItem.of(row, mediaUrlResolver.resolve(row.thumbnailKey()))));
     }
 
     /** 상세 (§3.7.3). */

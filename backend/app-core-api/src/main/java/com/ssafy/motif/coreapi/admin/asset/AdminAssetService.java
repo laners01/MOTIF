@@ -5,6 +5,7 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetListItem;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceResponse;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
@@ -15,7 +16,10 @@ import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.asset.AssetErrorCode;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
+import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.asset.MotifAssetPrice;
 import com.ssafy.motif.domain.core.asset.MotifAssetPriceRepository;
@@ -23,6 +27,7 @@ import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.country.Country;
 import com.ssafy.motif.domain.core.country.CountryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +74,40 @@ public class AdminAssetService {
     private final VideoRules videoRules;
     private final PublicMediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
+
+    /**
+     * §3.8.1 — 목록. 아티스트·활성·타입 필터, offset 페이지.
+     *
+     * <p>쿼리 한 번이다 — 아티스트 이름·그룹·KR 가격·구매 수·결과물 수가 전부 다른
+     * 테이블이라, 행마다 채우면 한 페이지에 수십 번을 더 왕복한다
+     * ({@link MotifAssetRepository#search}).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AssetListItem> list(Integer artistSeq, Boolean isActive,
+                                            AssetType assetType, Pageable pageable) {
+        return PageResponses.of(assetRepository
+                .search(artistSeq, isActive, assetType == null ? null : assetType.name(),
+                        DEFAULT_COUNTRY_CODE, pageable)
+                .map(this::listItem));
+    }
+
+    private AssetListItem listItem(MotifAssetRepository.AssetListRow row) {
+        return new AssetListItem(
+                row.getAssetSeq(),
+                new AssetListItem.ArtistSummary(row.getArtistSeq(), row.getArtistName(), row.getGroupName()),
+                row.getTitle(),
+                mediaUrlResolver.resolve(row.getThumbnailKey()),
+                row.getDurationMs(),
+                AssetType.valueOf(row.getAssetType()),
+                row.getActive(),
+                // KR 가격 행이 없으면 price 자체가 null 이다 — 0원과 구분돼야 한다(§3.8.1)
+                row.getPriceAmount() == null ? null : new AssetPriceResponse(
+                        DEFAULT_COUNTRY_CODE, row.getPriceAmount(),
+                        row.getPriceCurrency(), row.getPriceActive()),
+                row.getPurchaseCount(),
+                row.getResultCount(),
+                row.getRegDttm());
+    }
 
     /** §3.8.2 — 에셋과 KR 가격을 한 트랜잭션에 만든다. */
     @Transactional
