@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('챌린지 등록', ~{::main})}">
+<body>
+<!--/* 부록 A 시퀀스 1~6 을 그대로 세로로 편 화면. 로직은 전부 challenge-new.js. */-->
+<main>
+    <p class="err" id="err" hidden></p>
+
+    <section>
+        <h2>1. 원본 영상</h2>
+        <input type="file" id="file" accept="video/mp4,video/quicktime">
+        <p class="muted" id="meta-line">파일을 고르면 길이·해상도를 읽어(§1.4) presign → S3 업로드까지 진행한다.</p>
+        <div class="frame" id="frame-wrap" hidden>
+            <video id="frame" muted playsinline></video>
+            <div class="box" id="box" hidden></div>
+        </div>
+    </section>
+
+    <section>
+        <h2>2. 기본 정보</h2>
+        <label>메인 아티스트 <select id="artist"><option value="">선택</option></select></label>
+        <label>곡 <select id="song"><option value="">선택</option></select></label>
+        <label>소개글 <textarea id="description" rows="3" placeholder="Supernova 챌린지"></textarea></label>
+    </section>
+
+    <section>
+        <h2>3. 슬롯 <span class="muted">— 화면 좌→우 순서, 0~4개. 순서가 곧 participantMask 다(§3.7.2)</span></h2>
+        <table>
+            <thead>
+            <tr><th>#</th><th>아티스트</th><th>좌상단 X</th><th>좌상단 Y</th><th>우하단 X</th><th>우하단 Y</th><th></th></tr>
+            </thead>
+            <tbody id="slots"></tbody>
+        </table>
+        <p>
+            <button type="button" id="add-slot">슬롯 추가</button>
+            <span class="muted">슬롯 행을 클릭해 지정한 뒤 위 첫 프레임을 드래그하면 원본 px 좌표가 채워진다.</span>
+        </p>
+    </section>
+
+    <section>
+        <h2>4. 편집본 매트릭스 <span class="muted">— 슬롯 n개 → 2ⁿ−1 조합, AI팀이 준 키를 넣는다</span></h2>
+        <table>
+            <thead>
+            <tr><th>mask</th><th>제외 슬롯</th><th>영상 키</th><th>첫 장면 키</th><th>길이(ms)</th><th>완료</th></tr>
+            </thead>
+            <tbody id="matrix"></tbody>
+        </table>
+        <p id="matrix-status" class="muted">슬롯을 추가하면 조합 표가 생긴다.</p>
+    </section>
+
+    <section>
+        <h2>5. 등록</h2>
+        <ol class="progress">
+            <li data-step="upload">업로드</li>
+            <li data-step="validate">검증</li>
+            <li data-step="create">등록</li>
+        </ol>
+        <button type="button" id="validate">사전 검증</button>
+        <button type="button" id="submit" disabled>등록</button>
+        <p id="result"></p>
+        <ul id="issues"></ul>
+    </section>
+
+    <!--/* 행 뼈대 — innerHTML 로 짓지 않는다(아티스트명이 그대로 들어간다) */-->
+    <template id="slot-row">
+        <tr>
+            <td class="idx"></td>
+            <td><select class="slot-artist"><option value="">선택</option></select></td>
+            <td><input type="number" min="0" data-k="leftTopX"></td>
+            <td><input type="number" min="0" data-k="leftTopY"></td>
+            <td><input type="number" min="0" data-k="rightBottomX"></td>
+            <td><input type="number" min="0" data-k="rightBottomY"></td>
+            <td><button type="button" class="del">삭제</button></td>
+        </tr>
+    </template>
+    <template id="matrix-row">
+        <tr>
+            <td class="mask"></td>
+            <td class="removed"></td>
+            <td><input type="text" class="key" data-k="videoKey" placeholder="edited/11/e1.mp4"></td>
+            <td><input type="text" class="key" data-k="initialSceneKey" placeholder="edited/11/e1.jpg"></td>
+            <td><input type="number" min="0" data-k="durationMs"></td>
+            <td class="done"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/challenge-new.js" defer></script>
+</main>
+</body>
+</html>

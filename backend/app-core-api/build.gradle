@@ -8,6 +8,8 @@ dependencies {
     implementation project(':domain-core')
 
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
+    // 어드민 화면 (어드민 명세 §1.1 — /admin/** 은 Thymeleaf, 데이터는 /api/v1/admin/** fetch)
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
