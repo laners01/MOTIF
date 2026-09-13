@@ -102,6 +102,30 @@ S15P21D104-181
   `.claude/settings.json` 의 `attribution.commit`·`attribution.pr` 이 둘 다 빈 값이라
   Claude 가 쓰는 커밋·MR 어디에도 서명이 붙지 않는다.
 
+## 구현 시 주의 — 이미 있는 것을 다시 만들지 않는다
+
+여러 세션이 병렬로 돌면 같은 것을 두 번 만들기 쉽다. 아래는 **이미 머지된 것**이다.
+
+| 있는 것 | 위치 | 티켓 |
+|---|---|---|
+| `MediaJobRequestedEvent` | `module-event/.../contract/` | S15P21D104-603 |
+| `MediaJobPublisher` · `MediaJobEventRelay` · `MediaKeys` | `app-core-api/.../domain/media/` | 603 |
+| `app-media` 모듈 전체 (렌디션·HLS·썸네일·S3·Dockerfile) | `app-media/` | 603 |
+
+```java
+// 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
+mediaJobPublisher.publish(
+    MediaJobRequestedEvent.SOURCE_CHALLENGE_ORIGIN,
+    challengeSeq,
+    videoKey,                                    // challenges/{uuid}.mp4
+    MediaKeys.forChallengeOrigin(uuid));
+```
+
+**인코딩 파라미터(GOP·비트레이트·faststart)는 `app-media` 에만 둔다 — core-api 에
+복사하지 않는다.** 두 곳에 있으면 한쪽만 고쳤을 때 화질 간 키프레임 정렬이 깨지는데,
+그러면 **예외도 로그도 없이 화질 전환만** 안 된다(ADR-0010 D4). 어드민의 동기 ffmpeg
+범위는 **길이·썸네일까지**다(어드민 명세 §1.4).
+
 ## ADR
 
 규칙·스택·구조를 바꾸거나 대안을 검토했다면 `docs/adr/`에 ADR을 추가한다
