@@ -19,6 +19,8 @@ import com.ssafy.motif.coreapi.admin.media.AdminMediaKind;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.media.VideoRules;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.domain.media.MediaJobPublisher;
+import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
@@ -32,18 +34,22 @@ import com.ssafy.motif.domain.core.challenge.EditedChallenge;
 import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.song.Song;
 import com.ssafy.motif.domain.core.song.SongRepository;
+import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
+import com.ssafy.motif.event.contract.MediaJobRequestedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -78,12 +84,17 @@ public class AdminChallengeService {
     private final VideoRules videoRules;
     private final PublicMediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
+    private final MediaJobPublisher mediaJobPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 등록 (§3.7.2). 검증 → 트랜잭션 INSERT 순서다.
      *
      * <p>썸네일 파일은 아직 없다 — 키만 산출물 규약으로 계산해 넣고 app-media 가
      * 나중에 만든다(§1.4 검증 3항). 그때까지 썸네일 URL 은 404 다(§8 #19).
+     *
+     * <p>커밋 후 메시지 <b>2건</b>이 나간다 — {@code challenge.created}(구독자 팬아웃)와
+     * {@code job.media}(렌디션·HLS·썸네일). 롤백되면 0건이다({@link #publishCreated}).
      */
     @Transactional
     public ChallengeSlotsResponse create(AuthenticatedAdmin admin, ChallengeCreateRequest request) {
@@ -94,6 +105,7 @@ public class AdminChallengeService {
                 request.videoKey(), thumbnailKey(request.videoKey()),
                 Math.toIntExact(request.durationMs())));
         saveSlots(challenge.getChallengeSeq(), request.slots());
+        publishCreated(challenge);
 
         auditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE",
                 challenge.getChallengeSeq(), AdminAuditLogger.RESULT_OK);
@@ -233,6 +245,43 @@ public class AdminChallengeService {
                         edited.stream().map(EditedChallenge::getEditedChallengeSeq).toList())
                 .forEach(row -> counts.put(row.getEditedChallengeSeq(), row.getJobCount()));
         return counts;
+    }
+
+    /**
+     * 등록 완료 통지 2건 (§1.6 표 · §4 계약) — 둘 다 <b>커밋 후에</b> 나간다.
+     *
+     * <p>여기서 부르는 것은 발행이 아니라 스프링 애플리케이션 이벤트다. MQ 로 나가는
+     * 시점은 {@code @TransactionalEventListener(AFTER_COMMIT)} 인 릴레이가 정한다
+     * ({@link com.ssafy.motif.coreapi.domain.challenge.ChallengeEventRelay} ·
+     * {@link com.ssafy.motif.coreapi.domain.media.MediaJobEventRelay}). 커밋 전에 보내면
+     * app-media 가 아직 없는 행을 갱신하려 들고, 알림은 없던 챌린지를 광고한다.
+     *
+     * <p>{@code job.media} 는 <b>새로 짜지 않고</b> {@link MediaJobPublisher} 를 부른다 —
+     * 합성 결과와 어드민 원본이 같은 한 곳을 거쳐 같은 큐로 가야 인코딩 파라미터가
+     * 갈라지지 않는다(ADR-0010 D1).
+     */
+    private void publishCreated(Challenge challenge) {
+        Integer artistSeq = challenge.getArtistSeq();
+        String artistName = artistRepository.findNames(Set.of(artistSeq)).stream()
+                .findFirst().map(ArtistName::name).orElse(null);
+        String songTitle = songRepository.findById(challenge.getSongSeq())
+                .map(Song::getTitle).orElse(null);
+
+        eventPublisher.publishEvent(new ChallengeCreatedEvent(
+                UUID.randomUUID().toString(), Instant.now(),
+                challenge.getChallengeSeq(), artistSeq, artistName, songTitle,
+                challenge.getThumbnailKey()));
+
+        mediaJobPublisher.publish(
+                MediaJobRequestedEvent.SOURCE_CHALLENGE_ORIGIN,
+                challenge.getChallengeSeq(),
+                challenge.getVideoKey(),
+                MediaKeys.forChallengeOrigin(originUuid(challenge.getVideoKey())));
+    }
+
+    /** {@code challenges/{uuid}.mp4} → {@code uuid}. 키 규약은 {@link #requireOriginKey} 가 이미 확인했다. */
+    private static String originUuid(String videoKey) {
+        return videoKey.substring(ORIGIN_PREFIX.length(), videoKey.length() - ORIGIN_EXTENSION.length());
     }
 
     /** 슬롯·편집본 INSERT — 등록(§3.7.2)과 슬롯 교체(§3.7.5)가 공유한다. */
