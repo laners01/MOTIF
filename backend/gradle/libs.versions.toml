@@ -12,8 +12,10 @@ mapstruct = "1.6.3"
 lombok = "1.18.46"
 lombok-mapstruct-binding = "0.2.0"
 jjwt = "0.13.0"                     # 서비스 access/refresh JWT 발급·검증 (ADR-0009 D2)
+aws-sdk = "2.32.14"                 # S3 v2 — app-media 산출물 업로드 (ADR-0010)
 
 [libraries]
+aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
 querydsl-core = { module = "io.github.openfeign.querydsl:querydsl-core", version.ref = "querydsl" }
 querydsl-jpa  = { module = "io.github.openfeign.querydsl:querydsl-jpa",  version.ref = "querydsl" }
 querydsl-apt  = { module = "io.github.openfeign.querydsl:querydsl-apt",  version.ref = "querydsl" }
