@@ -13,6 +13,7 @@
 import argparse
 import csv
 import http.client
+from collections import defaultdict
 import os
 import random
 import sys
@@ -24,6 +25,14 @@ import uuid
 WATCH_MODEL = ((0.40, "skip"), (0.30, "half"), (0.30, "full"))
 SKIP_SECONDS = 3.0
 SLICE_SECONDS = 1.0  # --realtime 에서 재버퍼를 판정하는 단위
+
+# 플레이어가 재생 위치보다 앞서 받아두는 목표치(초).
+#
+# 이게 없으면 "1초 재생하려고 1초치를 그때 받는" 모델이 되어, 실제보다 훨씬
+# 잘 끊긴다. 실제 플레이어는 여유가 있을 때 앞질러 받아 버퍼를 쌓고, 그
+# 버퍼로 네트워크 요동을 흡수한다 (ExoPlayer DefaultLoadControl 기본 최대 50초).
+# 30초는 그보다 보수적인 값이다.
+BUFFER_TARGET = 30.0
 
 # 스와이프 한 번마다 이 확률로 세션이 끝난다.
 #
@@ -37,21 +46,38 @@ SLICE_SECONDS = 1.0  # --realtime 에서 재버퍼를 판정하는 단위
 DEFAULT_EXIT_PROB = 0.05
 
 
-def load_feed(path, tag):
+def load_feed(path, tag, ladder=None):
+    """tag 하나면 고정 화질, ladder 가 있으면 화질별 정보를 한 아이템에 묶는다."""
     with open(path, newline="", encoding="utf-8") as fh:
-        rows = [r for r in csv.DictReader(fh) if not tag or r["tag"] == tag]
+        rows = list(csv.DictReader(fh))
+    if ladder:
+        by_file = defaultdict(dict)
+        for r in rows:
+            if r["tag"] in ladder:
+                by_file[r["file"]][r["tag"]] = r
+        feed = []
+        for f in sorted(by_file):
+            v = by_file[f]
+            if len(v) != len(ladder):        # 화질이 다 갖춰진 파일만 쓴다
+                continue
+            base = v[ladder[0]]
+            feed.append({
+                "file": f,
+                "duration": float(base["duration"]),
+                "levels": [{"tag": t,
+                            "rate": float(v[t]["bitrate"]) / 8.0,
+                            "size": int(v[t]["size"])} for t in ladder],
+            })
+        if not feed:
+            sys.exit(f"FAIL: {path} 에 {ladder} 가 모두 있는 파일이 없다")
+        return feed
+
+    rows = [r for r in rows if not tag or r["tag"] == tag]
     if not rows:
         sys.exit(f"FAIL: {path} 에 tag={tag} 인 항목이 없다")
-    feed = []
-    for r in rows:
-        rate = float(r["bitrate"]) / 8.0  # bytes/sec
-        feed.append({
-            "file": r["file"],
-            "duration": float(r["duration"]),
-            "rate": rate,
-            "size": int(r["size"]),
-        })
-    return feed
+    return [{"file": r["file"], "duration": float(r["duration"]),
+             "levels": [{"tag": r["tag"], "rate": float(r["bitrate"]) / 8.0,
+                         "size": int(r["size"])}]} for r in rows]
 
 
 def parse_policy(text):
@@ -74,6 +100,7 @@ class Fetcher:
         self.scheme = u.scheme or "http"
         self.host = u.netloc
         self.base = u.path.rstrip("/")
+        self.sub = ""            # ABR 이면 화질 태그가 여기 들어간다
         self.runid = runid
         self.timeout = timeout
         self.requests = 0
@@ -85,11 +112,13 @@ class Fetcher:
                else http.client.HTTPConnection)
         self._conn = cls(self.host, timeout=self.timeout)
 
-    def get(self, name, start, end):
+    def get(self, name, start, end, sub=""):
         """[start, end] 바이트를 받는다. 받은 바이트 수와 소요 초를 돌려준다."""
+        self.sub = sub
         if end < start:
             return 0, 0.0
-        path = f"{self.base}/{urllib.parse.quote(name)}?s={self.runid}"
+        sub = f"/{self.sub}" if self.sub else ""
+        path = f"{self.base}{sub}/{urllib.parse.quote(name)}?s={self.runid}"
         t0 = time.monotonic()
         for attempt in (1, 2):      # 서버가 idle 커넥션을 닫았으면 한 번 다시 연다
             try:
@@ -120,35 +149,93 @@ class Fetcher:
             self._conn = None
 
 
-def run_session(feed, policy_n, policy_t, fetcher, rng, realtime, exit_prob):
-    got = [0] * len(feed)          # 아이템별로 앞에서부터 받아둔 바이트
-    watch_b = [0] * len(feed)
-    pre_b = [0] * len(feed)
-    watched = [False] * len(feed)
-    secs = [0.0] * len(feed)
-    stalls = [0] * len(feed)
+class Abr:
+    """ExoPlayer AdaptiveTrackSelection 의 핵심 휴리스틱만 옮긴 것.
 
-    def want_bytes(i, seconds):
-        return min(int(feed[i]["rate"] * seconds), feed[i]["size"])
+    라이브러리 자체가 아니라 **판단 규칙의 모형**이다. 파라미터는 ExoPlayer
+    기본값을 따랐다 — 대역폭의 70%만 쓰고(여유), 버퍼가 충분할 때만 올리고,
+    마르면 즉시 내린다. 절대값 예측이 아니라 고정 화질과의 비교가 목적이다.
+    """
 
-    def fetch_upto(i, target):
-        """이 아이템을 앞에서부터 target 바이트까지 채운다. 늘어난 양을 돌려준다."""
-        if target <= got[i]:
+    BANDWIDTH_FRACTION = 0.70     # ExoPlayer bandwidthFraction
+    UP_MIN_BUFFER = 10.0          # 이만큼 쌓여야 화질을 올린다 (초)
+    PANIC_BUFFER = 3.0            # 이 아래로 마르면 최저 화질로 즉시 내린다
+    EWMA_ALPHA = 0.3              # 최근 표본 가중치
+
+    def __init__(self, levels):
+        self.levels = sorted(levels, key=lambda l: l["rate"])   # 낮은 화질부터
+        self.idx = 0
+        self.est = None
+        self.switches = 0
+
+    def sample(self, nbytes, seconds):
+        if seconds <= 0 or nbytes <= 0:
+            return
+        tp = nbytes / seconds
+        self.est = tp if self.est is None else (
+            self.EWMA_ALPHA * tp + (1 - self.EWMA_ALPHA) * self.est)
+
+    def select(self, buffer_seconds):
+        if self.est is None:
+            return self.levels[self.idx]          # 첫 조각은 최저에서 시작
+        budget = self.est * self.BANDWIDTH_FRACTION
+        want = 0
+        for i, lv in enumerate(self.levels):
+            if lv["rate"] <= budget:
+                want = i
+        if buffer_seconds < self.PANIC_BUFFER:
+            want = 0
+        elif want > self.idx and buffer_seconds < self.UP_MIN_BUFFER:
+            want = self.idx                        # 버퍼가 얕으면 올리지 않는다
+        if want != self.idx:
+            self.switches += 1
+            self.idx = want
+        return self.levels[self.idx]
+
+
+def run_session(feed, policy_n, policy_t, fetcher, rng, realtime, exit_prob, abr, pace):
+    n = len(feed)
+    have = [defaultdict(float) for _ in range(n)]   # 아이템별·화질별 확보한 초
+    watch_b = [0] * n
+    pre_b = [0] * n
+    watched = [False] * n
+    secs = [0.0] * n
+    stalls = [0] * n          # 멈춘 횟수(연속 구간 1회)
+    stall_sec = [0.0] * n     # 멈춘 시간 합
+    switches = [0] * n
+
+    def fetch(i, lv, a, b):
+        """아이템 i 의 재생구간 [a, b) 초를 화질 lv 로 확보한다. (바이트, 초)
+
+        화질을 바꾸면 **바꾼 지점부터** 받는다. 앞부분을 다시 받지 않는다 —
+        실제 플레이어는 조각 단위로 주소만 바꿔 이어받는다. 이미 확보한
+        구간(프리페치분)은 건너뛴다.
+        """
+        cov = have[i][lv["tag"]]          # 이 화질로 확보한 지점(초)
+        if b <= cov:
             return 0, 0.0
-        n, dt = fetcher.get(feed[i]["file"], got[i], target - 1)
-        got[i] += n
-        return n, dt
+        a = max(a, cov)
+        start = min(int(a * lv["rate"]), lv["size"])
+        end = min(int(b * lv["rate"]), lv["size"])
+        have[i][lv["tag"]] = b
+        if end <= start:
+            return 0, 0.0
+        return fetcher.get(feed[i]["file"], start, end - 1,
+                           lv["tag"] if abr else "")
 
-    for i in range(len(feed)):
-        # 스와이프 시점에 이탈 판정. 첫 아이템은 이미 열었으므로 예외다.
+    for i in range(n):
         if i > 0 and rng.random() < exit_prob:
             break
         watched[i] = True
         item = feed[i]
+        # 화질 정보는 **아이템마다** 다르다 (비트레이트·크기가 파일별로 다름).
+        # 하나를 뽑아 전체에 쓰면 짧은 파일에서 파일 끝을 넘는 Range 를 요청해 416 이 난다.
+        fixed = item["levels"][0]
+        sel = Abr(item["levels"]) if abr else None
 
         roll, acc = rng.random(), 0.0
-        for p, kind in WATCH_MODEL:
-            acc += p
+        for pv, kind in WATCH_MODEL:
+            acc += pv
             if roll < acc:
                 break
         w = {"skip": min(SKIP_SECONDS, item["duration"]),
@@ -156,44 +243,62 @@ def run_session(feed, policy_n, policy_t, fetcher, rng, realtime, exit_prob):
              "full": item["duration"]}[kind]
         secs[i] = w
 
-        target = want_bytes(i, w)
         if not realtime:
-            n, _ = fetch_upto(i, target)
-            watch_b[i] += n
+            lv = sel.levels[0] if abr else fixed
+            nb, _ = fetch(i, lv, 0.0, w)
+            watch_b[i] += nb
         else:
-            # 1초 조각으로 나눠 받으며 버퍼 잔량을 따라간다.
-            # 재생은 벽시계 1초당 영상 1초를 먹고, 조각 하나는 영상 1초를 채운다.
-            #
-            # 한계: 프리페치를 재생 중이 아니라 재생 후에 돌린다. 실제 플레이어는
-            # 둘을 동시에 하므로 대역폭을 나눠 쓰고, 그만큼 여기 스톨 수는 낙관적이다.
-            # 동시 실행은 스레드가 필요해서 두지 않았다 — 판정에는 영향이 없다.
-            # 원본은 이미 전 조각이 스톨하고, 렌디션은 여유가 5배라 프리페치를
-            # 얹어도 안 넘는다(0.78Mbps 재생 + 0.17Mbps 프리페치 vs 4Mbps).
-            # 여유가 2배 밑으로 내려가는 렌디션을 검토하게 되면 그때 동시화한다.
-            buf = got[i] / item["rate"]      # 프리페치로 이미 확보한 재생 가능 초
-            played = 0.0
-            while played < w:
-                step = min(SLICE_SECONDS, w - played)
-                n, dt = fetch_upto(i, want_bytes(i, played + step))
-                watch_b[i] += n
-                buf += step - dt
-                if buf < 0:
-                    stalls[i] += 1
-                    buf = 0.0
-                played += step
+            lv = sel.select(0.0) if abr else fixed
+            # 재생 위치 t 와 받아둔 끝 filled 을 따로 둔다. 둘의 차이가 버퍼다.
+            t = 0.0
+            dry = False
+            filled = have[i][lv["tag"]]        # 프리페치로 확보한 지점
+            while t < w:
+                if filled < w and (filled - t) < BUFFER_TARGET:
+                    if abr:
+                        lv = sel.select(filled - t)
+                    nxt = min(filled + SLICE_SECONDS, w)
+                    nb, dt = fetch(i, lv, filled, nxt)
+                    watch_b[i] += nb
+                    if abr:
+                        sel.sample(nb, dt)
+                    filled = nxt
+                else:
+                    # 버퍼가 찼다 — 받을 게 없으니 재생 속도로 시간이 흐른다.
+                    dt = min(SLICE_SECONDS, w - t)
+                    if pace:
+                        time.sleep(dt)
+                # 흐른 시간(dt)만큼 재생한다. 버퍼가 모자라면 거기서 멈춘다.
+                advance = max(min(dt, filled - t), 0.0)
+                if advance < dt - 1e-9:
+                    stall_sec[i] += dt - advance
+                    if not dry:
+                        stalls[i] += 1     # 새로 멈춘 순간만 1회로 센다
+                    dry = True
+                else:
+                    dry = False
+                t += advance
+            switches[i] = sel.switches if abr else 0
 
-        for k in range(i + 1, min(i + 1 + policy_n, len(feed))):
-            n, _ = fetch_upto(k, want_bytes(k, policy_t))
-            pre_b[k] += n
+        pf = sel.levels[sel.idx] if abr else fixed
+        for k in range(i + 1, min(i + 1 + policy_n, n)):
+            lvk = next((x for x in feed[k]["levels"] if x["tag"] == pf["tag"]),
+                       feed[k]["levels"][0])
+            nb, _ = fetch(k, lvk, 0.0, policy_t)
+            pre_b[k] += nb
 
-    return dict(got=got, watch_b=watch_b, pre_b=pre_b,
-                watched=watched, secs=secs, stalls=stalls)
+    return dict(watch_b=watch_b, pre_b=pre_b, watched=watched,
+                secs=secs, stalls=stalls, stall_sec=stall_sec, switches=switches)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--feed", required=True, help="probe.sh 가 만든 inventory.csv")
     ap.add_argument("--tag", default="", help="inventory 의 tag 로 거른다 (720p 등)")
+    ap.add_argument("--abr", default="",
+                    help="화질 사다리를 쉼표로 (예: 480p,720p). 주면 재생 중 전환을 "
+                         "시뮬레이션한다. --origin 은 태그 바로 위 경로여야 한다 "
+                         "(예: http://poc-origin/renditions)")
     ap.add_argument("--policy", required=True, help="N=2,T=1.5")
     ap.add_argument("--origin", required=True, help="http://poc-origin/videos")
     ap.add_argument("--network", default="-", help="CSV 라벨 (netem 프로파일명)")
@@ -202,6 +307,9 @@ def main():
     ap.add_argument("--exit-prob", type=float, default=DEFAULT_EXIT_PROB,
                     help="스와이프당 이탈 확률 (기본 %(default)s — 제안값, 팀 확인 필요). "
                          "0 이면 낭비 지표가 구조적으로 0 이 된다")
+    ap.add_argument("--pace", action="store_true",
+                    help="버퍼가 찼을 때 실제로 대기해서 벽시계를 재생 시간에 맞춘다. "
+                         "측정 도중 네트워크를 바꾸는 시나리오에 필요하다")
     ap.add_argument("--realtime", action="store_true",
                     help="비트레이트 속도로 받으며 재버퍼를 판정한다 (세션이 영상 길이만큼 걸린다)")
     ap.add_argument("--timeout", type=float, default=120.0)
@@ -209,7 +317,10 @@ def main():
     args = ap.parse_args()
 
     policy_n, policy_t = parse_policy(args.policy)
-    feed = load_feed(args.feed, args.tag)
+    ladder = [x.strip() for x in args.abr.split(",") if x.strip()]
+    if ladder and not args.realtime:
+        sys.exit("FAIL: --abr 은 --realtime 과 같이 쓴다 (전환 판단에 시간축이 필요하다)")
+    feed = load_feed(args.feed, args.tag, ladder or None)
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     new = not os.path.exists(args.out)
@@ -218,14 +329,15 @@ def main():
         if new:
             wr.writerow(["runid", "session", "item", "file", "policy", "network",
                          "file_tag", "watch_seconds", "bytes_watch", "bytes_prefetch",
-                         "watched", "stalls", "exit_prob"])
+                         "watched", "stalls", "stall_sec", "exit_prob", "switches"])
 
         for s in range(args.sessions):
             runid = uuid.uuid4().hex[:12]
             rng = random.Random(args.seed + s)
             f = Fetcher(args.origin, runid, args.timeout)
             t0 = time.monotonic()
-            r = run_session(feed, policy_n, policy_t, f, rng, args.realtime, args.exit_prob)
+            r = run_session(feed, policy_n, policy_t, f, rng, args.realtime,
+                            args.exit_prob, bool(ladder), args.pace)
             f.close()
             elapsed = time.monotonic() - t0
 
@@ -233,15 +345,21 @@ def main():
                 if r["watch_b"][i] == 0 and r["pre_b"][i] == 0:
                     continue
                 wr.writerow([runid, s, i, item["file"], args.policy, args.network,
-                             args.tag or "-", f"{r['secs'][i]:.2f}",
+                             ("abr:" + "+".join(ladder)) if ladder else (args.tag or "-"),
+                             f"{r['secs'][i]:.2f}",
                              r["watch_b"][i], r["pre_b"][i],
-                             int(r["watched"][i]), r["stalls"][i], args.exit_prob])
+                             int(r["watched"][i]), r["stalls"][i],
+                             f"{r['stall_sec'][i]:.1f}", args.exit_prob,
+                             r["switches"][i]])
 
             total = sum(r["watch_b"]) + sum(r["pre_b"])
             waste = sum(p for p, w in zip(r["pre_b"], r["watched"]) if not w)
-            print(f"session {s} [{args.network}/{args.tag or '-'}/{args.policy}] "
+            label = ("abr:" + "/".join(ladder)) if ladder else (args.tag or "-")
+            sw = f" 전환={sum(r['switches'])}" if ladder else ""
+            print(f"session {s} [{args.network}/{label}/{args.policy}] "
                   f"run={runid} {total/1e6:.1f}MB 낭비={waste/1e6:.2f}MB "
-                  f"스톨={sum(r['stalls'])} 요청={f.requests} {elapsed:.1f}s",
+                  f"스톨={sum(r['stalls'])}회/{sum(r['stall_sec']):.0f}초{sw} "
+                  f"요청={f.requests} {elapsed:.1f}s",
                   file=sys.stderr)
 
 
