@@ -16,15 +16,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.IconButton
@@ -35,32 +31,11 @@ import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.feature.onboarding.impl.artistselect.ArtistCard
-
-@Composable
-fun NicknameInputRoute(
-    artistIds: List<Long>,
-    onCompleteClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    viewModel: NicknameInputViewModel = hiltViewModel(),
-){
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(artistIds) {
-        viewModel.setLikedArtists(artistIds)
-    }
-
-    NicknameInputScreen(
-        uiState = uiState,
-        onNicknameChange = viewModel::updateNickname,
-        onRemoveClick = viewModel::removeNickname,
-        onCompleteClick = onCompleteClick,
-        modifier = modifier,
-    )
-}
+import com.ssafy.motif.feature.onboarding.impl.onboarding.OnboardingUiState
 
 @Composable
 internal fun NicknameInputScreen(
-    uiState: NicknameInputUiState,
+    uiState: OnboardingUiState,
     onNicknameChange:(String) -> Unit,
     onRemoveClick:() -> Unit,
     onCompleteClick:() -> Unit,     //완료 버튼 눌렀을 때
@@ -108,7 +83,7 @@ internal fun NicknameInputScreen(
                 .padding(start = 20.dp, top = 20.dp, end = 20.dp),
         )
         Text(
-            text = "${uiState.nickname.length}/${NicknameInputUiState.MAX_NICKNAME_LENGTH}",
+            text = "${uiState.nickname.length}/${OnboardingUiState.MAX_NICKNAME_LENGTH}",
             style = MotifTheme.typography.bodySB14,
             color = MotifTheme.colors.gray400,
             modifier = modifier
