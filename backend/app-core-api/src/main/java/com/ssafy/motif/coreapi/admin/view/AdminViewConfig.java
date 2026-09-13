@@ -36,5 +36,7 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 공지 — 목록·수정 (§1.7, §3.10)
         registry.addViewController(AdminPaths.VIEW + "/notices").setViewName("admin/notice-list");
         registry.addViewController(AdminPaths.VIEW + "/notices/{noticeSeq}/edit").setViewName("admin/notice-edit");
+        // 아티스트 — 목록·등록·수정 (§1.7, §3.5). 소속사·그룹 드롭다운은 §3.3.1·§3.4.1
+        registry.addViewController(AdminPaths.VIEW + "/artists").setViewName("admin/artists");
     }
 }

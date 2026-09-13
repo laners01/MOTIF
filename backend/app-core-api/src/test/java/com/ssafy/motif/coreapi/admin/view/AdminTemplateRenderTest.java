@@ -111,4 +111,18 @@ class AdminTemplateRenderTest {
                 .contains("draggable=\"true\"");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("아티스트 관리 — 목록 행 뼈대와 소속사 잠금 안내가 들어간다 (§3.5.2)")
+    void artists() {
+        String html = render("admin/artists");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 아티스트 관리</title>")
+                .contains("/admin/artists.js")
+                .contains("id=\"artist-row\"")
+                .contains("id=\"company-lock\"")
+                .contains("id=\"group\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
 }
