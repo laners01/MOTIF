@@ -111,6 +111,9 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
      */
     long countByArtistSeqInAndDeletedFalse(Collection<Integer> artistSeqs);
 
+    /** 소속사 삭제 차단 (§3.3.4 {@code COMPANY_IN_USE}) — 비삭제 아티스트가 남아 있으면 막는다. */
+    long countByCompanySeqAndDeletedFalse(Integer companySeq);
+
     /**
      * 구독자 수 증가 — <b>원자적 UPDATE</b> (명세 §3.3, §5.6).
      *
