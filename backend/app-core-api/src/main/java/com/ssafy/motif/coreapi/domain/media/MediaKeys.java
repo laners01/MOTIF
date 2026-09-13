@@ -46,6 +46,21 @@ public final class MediaKeys {
         return "challenges/" + require(videoUuid, "videoUuid");
     }
 
+    /**
+     * 에셋 썸네일 — {@code assets/{uuid}/thumb.jpg} (어드민 명세 §1.4 3항).
+     *
+     * <p>등록 시점에는 <b>아직 없는 파일</b>을 가리킨다. 규약으로 계산해 넣고 파일은
+     * app-media 가 만들며, 그때까지 썸네일 URL 은 404 다(§8 #19). 에셋 미리보기는
+     * HLS 로 가공하지 않으므로(§8 #17 — MP4 유지) 산출물은 이 썸네일 하나뿐이다.
+     *
+     * @param videoKey 업로드 키 {@code assets/{uuid}.mp4}
+     */
+    public static String forAssetThumbnail(String videoKey) {
+        String key = require(videoKey, "videoKey");
+        int dot = key.lastIndexOf('.');
+        return (dot < 0 ? key : key.substring(0, dot)) + "/thumb.jpg";
+    }
+
     private static String require(String v, String name) {
         if (v == null || v.isBlank()) {
             throw new IllegalArgumentException(name + " 가 비어 있다");
