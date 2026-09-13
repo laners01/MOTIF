@@ -1,6 +1,8 @@
 package com.ssafy.motif.coreapi.domain.artist.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -13,7 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.3).
+ * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.3 · §5.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -82,5 +84,41 @@ public interface ArtistControllerDocs {
     })
     ApiResponse<ArtistDetailResponse> detail(
             @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(
+            summary = "아티스트 챌린지 그리드 (§5.4)",
+            description = """
+                    해당 아티스트의 챌린지를 **페이지 없이 전량** 최신순으로 반환한다 (회의 확정 R2).
+
+                    - **인증 필요.**
+                    - 그리드 경량 항목이다 — `title` 도 `videoUrl` 도 없다.
+                      (R3 에서 `challenges.title` 컬럼 자체가 삭제됐다. 화면 식별은 곡명·아티스트로 한다.)
+                    - 재생에 필요한 정보는 항목을 탭한 뒤 §7.2 상세에서 받는다.
+                    - 삭제된 챌린지는 빠진다 (§1.8).
+                    - `page`·`cursor` 파라미터가 **없다** — 전량 반환이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "챌린지 전량 (최신순)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          { "challengeSeq": 11, "thumbnailUrl": "https://cdn.../challenges/uuid/thumb.jpg", "viewCount": 120000 }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<ListResponse<ArtistChallengeResponse>> challenges(
             @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
 }
