@@ -40,7 +40,7 @@ motif:
   media:
     ffmpeg: ffmpeg          # 컨테이너 이미지에 설치된 경로 (PATH 기준)
     ffprobe: ffprobe
-    work-dir: /tmp/motif-media
+    work-dir: ${MOTIF_MEDIA_WORK_DIR:/var/tmp/motif-media}
     s3:
       bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
       region: ${AWS_REGION:ap-northeast-2}
