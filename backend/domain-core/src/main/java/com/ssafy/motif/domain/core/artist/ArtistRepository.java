@@ -46,6 +46,12 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
      * <p>{@code q} 는 {@code users.nickname} 부분 일치다. 0012 의 GIN trigram 인덱스가
      * {@code ILIKE '%…%'} 를 받쳐 준다 — 앞뒤 와일드카드라 B-tree 로는 못 탄다.
      *
+     * <p><b>{@code q} 에 {@code null} 을 넘기지 않는다.</b> 검색어가 없으면 호출부가 빈
+     * 문자열로 정규화해 넘기고, {@code like '%%'} 가 전체 조회가 된다. {@code :q is null}
+     * 분기를 두면 타입 없는 {@code null} 을 Postgres 가 {@code bytea} 로 추론해
+     * {@code function lower(bytea) does not exist} 로 죽는다 — 2026-09-13 운영에서 실제로
+     * 500 이 났다(같은 함정을 {@code SongRepository.search} 도 밟았다).
+     *
      * <p>정렬을 {@code artistSeq DESC} 로 고정한다. {@link Pageable} 의 sort 를 그대로
      * 흘리면 클라이언트가 임의 칼럼으로 정렬해 인덱스 없는 풀스캔을 유발할 수 있고,
      * 화면(§1.7)이 요구하는 것은 최신 등록순 하나다.
@@ -63,7 +69,7 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
             where (:includeDeleted = true or a.deleted = false)
               and (:groupSeq is null or a.groupSeq = :groupSeq)
               and (:companySeq is null or a.companySeq = :companySeq)
-              and (:q is null or lower(u.nickname) like lower(concat('%', :q, '%')))
+              and lower(u.nickname) like lower(concat('%', :q, '%'))
             order by a.artistSeq desc
             """,
             countQuery = """
@@ -73,7 +79,7 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
             where (:includeDeleted = true or a.deleted = false)
               and (:groupSeq is null or a.groupSeq = :groupSeq)
               and (:companySeq is null or a.companySeq = :companySeq)
-              and (:q is null or lower(u.nickname) like lower(concat('%', :q, '%')))
+              and lower(u.nickname) like lower(concat('%', :q, '%'))
             """)
     Page<ArtistListRow> search(@Param("q") String q,
                                @Param("groupSeq") Integer groupSeq,

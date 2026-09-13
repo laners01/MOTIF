@@ -269,6 +269,24 @@ class AdminArtistServiceLocalDbTest {
     }
 
     @Test
+    @DisplayName("q 가 없거나 공백뿐이면 전체 조회다 — null 을 쿼리로 넘기면 lower(bytea) 로 죽는다")
+    void listWithoutQueryReturnsAll() {
+        // 공유 로컬 DB 라 기존 행이 있다 — 절대 개수가 아니라 증분으로 본다.
+        long before = adminArtistService.list(null, null, null, false, 0, 1).totalElements();
+
+        adminArtistService.create(admin, new ArtistCreateRequest("카리나", groupSeq, companySeq, null, null, null));
+        adminArtistService.create(admin, new ArtistCreateRequest("윈터", groupSeq, companySeq, null, null, null));
+        entityManager.flush();
+
+        // 2026-09-13 운영 500 회귀 방어. 기존 목록 테스트가 전부 q 를 넘겨서 이 경로가
+        // 한 번도 실행되지 않았고, 배포 후에야 lower(bytea) 로 드러났다.
+        assertThat(adminArtistService.list(null, null, null, false, 0, 20).totalElements())
+                .isEqualTo(before + 2);
+        assertThat(adminArtistService.list("   ", null, null, false, 0, 20).totalElements())
+                .isEqualTo(before + 2);
+    }
+
+    @Test
     @DisplayName("삭제된 아티스트는 기본 목록에서 빠지고 includeDeleted 로만 보인다")
     void deletedAreHiddenByDefault() {
         Integer artistSeq = adminArtistService.create(admin,

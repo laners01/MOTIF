@@ -90,7 +90,7 @@ public class AdminArtistService {
     public PageResponse<ArtistSummaryResponse> list(String q, Integer groupSeq, Integer companySeq,
                                                     boolean includeDeleted, int page, int size) {
         Page<ArtistListRow> rows = artistRepository.search(
-                blankToNull(q), groupSeq, companySeq, includeDeleted,
+                blankToEmpty(q), groupSeq, companySeq, includeDeleted,
                 PageRequest.of(Math.max(page, 0), clampSize(size)));
 
         List<Integer> artistSeqs = rows.getContent().stream().map(ArtistListRow::artistSeq).toList();
@@ -299,7 +299,14 @@ public class AdminArtistService {
         return size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
     }
 
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
+    /**
+     * 검색어 없음 → 빈 문자열. {@code null} 을 쿼리로 넘기지 않는다.
+     *
+     * <p>{@code lower(:q)} 에 타입 없는 {@code null} 이 들어가면 Postgres 가 {@code bytea} 로
+     * 추론해 {@code function lower(bytea) does not exist} 로 죽는다 — 운영 500 을 실제로
+     * 겪은 지점이다. 빈 문자열이면 {@code like '%%'} 라 전체 조회가 되고 분기가 사라진다.
+     */
+    private static String blankToEmpty(String value) {
+        return value == null ? "" : value.strip();
     }
 }
