@@ -37,6 +37,9 @@ public class AdminViewConfig implements WebMvcConfigurer {
         registry.addViewController(AdminPaths.VIEW + "/prices").setViewName("admin/prices");
         // 공지 — 목록·수정 (§1.7, §3.10)
         registry.addViewController(AdminPaths.VIEW + "/notices").setViewName("admin/notice-list");
+        // 작성 (§3.10.2) — API 는 402 로 있었는데 화면이 없어 등록할 길이 없었다.
+        // /notices/{noticeSeq}/edit 보다 먼저 둘 필요는 없다 — 리터럴이 경로 변수보다 구체적이다
+        registry.addViewController(AdminPaths.VIEW + "/notices/new").setViewName("admin/notice-new");
         registry.addViewController(AdminPaths.VIEW + "/notices/{noticeSeq}/edit").setViewName("admin/notice-edit");
         // 아티스트 — 목록·등록·수정 (§1.7, §3.5). 소속사·그룹 드롭다운은 §3.3.1·§3.4.1
         registry.addViewController(AdminPaths.VIEW + "/artists").setViewName("admin/artists");
