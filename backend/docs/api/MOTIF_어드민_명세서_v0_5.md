@@ -1046,10 +1046,12 @@ FROM motif_core.users u WHERE u.nickname = 'admin_kim' AND u.role = 'ADMIN';
 
 ## 부록 C. 구현 체크리스트 (BE)
 
-- [ ] `AdminAuthFilter`(쿠키·Bearer, `typ=ADMIN`, 별도 시크릿) · `AdminIpFilter`(X-Forwarded-For 허용 CIDR, 비허용 404) · Traefik `forwardedHeaders.trustedIPs`/`rateLimit` 미들웨어
-- [ ] 감사 로그 JSON 파일 appender(롤링·HOSTNAME 포함) + PVC 마운트
+- [x] `AdminAuthFilter`(쿠키·Bearer, `typ=ADMIN`, 별도 시크릿) · `AdminIpFilter`(X-Forwarded-For 허용 CIDR, 비허용 404) *(588)* — [ ] Traefik `forwardedHeaders.trustedIPs`/`rateLimit` 미들웨어는 인프라 몫
+- [x] 감사 로그 JSON 파일 appender(롤링·HOSTNAME 포함) + `AdminAuditLogger` *(555)* — [ ] PVC 마운트는 인프라 몫
 - [ ] ~~`MediaProbeService`~~ **v0.5 삭제** — core-api 는 ffmpeg 를 돌리지 않는다. 대신 업로드 화면 JS 가 길이·해상도를 읽어 폼에 싣는다(§1.4)
-- [ ] `AdminMediaController.presign`(kind→prefix·Content-Type·크기 조건)
+- [x] `AdminMediaController.presign`(kind→prefix·Content-Type·크기 조건) *(588)*
+- [x] 영상 검증 `VideoRules`(방향·길이·편집본 ±500ms, 수치는 `motif.admin.media.rules`) *(589)*
+- [x] §5 어드민 에러 코드 전량 등록 `module-common/.../error/AdminErrorCode` *(588)*
 - [ ] 소속사·그룹·아티스트·곡 CRUD(연쇄 규칙 트랜잭션)
 - [ ] `ChallengeAdminService.create`(마스크 계산·완결성 검증·원자 INSERT·이벤트) + `validate`
 - [ ] 에셋·에셋 가격·패스 가격 upsert(활성 전환 조건)

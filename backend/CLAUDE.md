@@ -111,6 +111,13 @@ S15P21D104-181
 | `MediaJobRequestedEvent` | `module-event/.../contract/` | S15P21D104-603 |
 | `MediaJobPublisher` · `MediaJobEventRelay` · `MediaKeys` | `app-core-api/.../domain/media/` | 603 |
 | `app-media` 모듈 전체 (렌디션·HLS·썸네일·S3·Dockerfile) | `app-media/` | 603 |
+| **어드민 §5 에러 코드 전량** `AdminErrorCode` | `module-common/.../error/` | S15P21D104-588 |
+| `BusinessException` 의 `data` — 실패 상세를 응답 `data` 로 | `module-common/.../exception/` | 588 |
+| `AdminIpFilter`(404) · `AdminAuthFilter`(쿠키+Bearer) · `AdminJwtProvider` · `AdminSecurityConfig`(@Order(1)) | `app-core-api/.../admin/security/` | 588 |
+| `AdminPaths` — 어드민 경로 상수 | `app-core-api/.../admin/` | 588 |
+| presign API `AdminMediaController`·`AdminMediaService`·`AdminMediaKind` | `app-core-api/.../admin/media/` | 588 |
+| 영상 검증 `VideoRules` (폼이 보낸 길이·해상도 대조) | `app-core-api/.../admin/media/` | 589 |
+| 감사 로그 `AdminAuditLogger` + logback `ADMIN_AUDIT` 어펜더 | `app-core-api/.../admin/audit/` · `logback-spring.xml` | 555 |
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
@@ -121,10 +128,23 @@ mediaJobPublisher.publish(
     MediaKeys.forChallengeOrigin(uuid));
 ```
 
+```java
+// 어드민 API 를 새로 만들 때 — 아래는 이미 있다
+@RequestMapping(AdminPaths.API + "/companies")          // 경로 상수
+throw new BusinessException(AdminErrorCode.COMPANY_IN_USE, msg, Map.of("refs", n));  // §5 코드 + data
+videoRules.checkChallengeOrigin(new VideoRules.Meta(durationMs, width, height));     // 폼 값 검증
+adminAuditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE", seq, AdminAuditLogger.RESULT_OK);
+```
+
+**`AdminErrorCode` 에 코드를 새로 추가하지 않는다** — 명세 §5 표는 전량 등록돼 있다.
+표에 없는 코드가 필요하면 명세를 먼저 고친다. 여러 세션이 각자 코드를 덧붙이면
+같은 파일에서 계속 충돌한다.
+
 **인코딩 파라미터(GOP·비트레이트·faststart)는 `app-media` 에만 둔다 — core-api 에
 복사하지 않는다.** 두 곳에 있으면 한쪽만 고쳤을 때 화질 간 키프레임 정렬이 깨지는데,
-그러면 **예외도 로그도 없이 화질 전환만** 안 된다(ADR-0010 D4). 어드민의 동기 ffmpeg
-범위는 **길이·썸네일까지**다(어드민 명세 §1.4).
+그러면 **예외도 로그도 없이 화질 전환만** 안 된다(ADR-0010 D4).
+**core-api 에는 ffmpeg 가 아예 없다** — 길이·해상도는 업로드 화면 JS 가 읽어 보내고
+서버는 `VideoRules` 로 대조만 한다(어드민 명세 v0.5 §1.4).
 
 ## ADR
 
