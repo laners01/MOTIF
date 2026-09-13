@@ -193,6 +193,27 @@ public class AdminChallengeService {
         return detailOf(challenge);
     }
 
+    /**
+     * 소프트 삭제 (§3.7.7) — {@code challenges.is_deleted} 만 세운다. {@code data} 는 null 이다.
+     *
+     * <p><b>자식 행을 건드리지 않는다</b>(DB SPEC §12 서비스 규칙). 참여 영상·댓글·좋아요는
+     * 그대로 남고, 일반 API 가 "삭제된 챌린지에 속한 참여 영상" 을 거르는 쪽에서 비노출을
+     * 책임진다. 여기서 연쇄로 지우면 되돌릴 수 없고 {@code participant_count} 도 어긋난다 —
+     * 그래서 화면 확인 대화상자가 "참여 영상 n건이 앱에서 비노출됨" 이라고만 말한다.
+     *
+     * <p>건수는 목록 항목의 {@code participantCount}(= {@code challenges.participant_count})
+     * 를 화면이 이미 갖고 있다 — 별도 조회도, 전용 엔드포인트도 두지 않는다.
+     *
+     * <p>이미 삭제된 챌린지는 {@link #requireChallenge} 가 404 로 막는다 — 재삭제가 성공한
+     * 것처럼 보이면 화면이 없는 변경을 보고하게 된다.
+     */
+    @Transactional
+    public void delete(AuthenticatedAdmin admin, Integer challengeSeq) {
+        requireChallenge(challengeSeq).softDelete();
+        auditLogger.write(admin, "DELETE_CHALLENGE", "CHALLENGE",
+                challengeSeq, AdminAuditLogger.RESULT_OK);
+    }
+
     /** 삭제된 챌린지는 어드민에게도 404 다 (§3.7 실패표 "대상 없음·삭제"). */
     Challenge requireChallenge(Integer challengeSeq) {
         return challengeRepository.findByChallengeSeqAndDeletedFalse(challengeSeq)

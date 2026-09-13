@@ -87,6 +87,18 @@ public class Challenge extends BaseTimeEntity {
         return new Challenge(artistSeq, songSeq, description, videoKey, thumbnailKey, durationMs);
     }
 
+    /**
+     * 소프트 삭제 (§3.7.7) — 이 플래그 <b>하나만</b> 세운다.
+     *
+     * <p>참여 영상·댓글·좋아요 행은 연쇄 삭제하지 않는다(DB SPEC §12 서비스 규칙).
+     * 삭제된 챌린지에 속한 참여 영상은 자체 {@code is_deleted=FALSE} 여도 일반 API 가
+     * 걸러 내므로 비노출은 이미 보장된다 — 자식을 지우면 복구 여지와 카운터 정합
+     * ({@code participant_count}) 이 함께 사라진다.
+     */
+    public void softDelete() {
+        this.deleted = true;
+    }
+
     /** 소개글·곡만 바꾼다 (§3.7.4). {@code null} 은 "그 필드는 그대로" 라는 뜻이다. */
     public void update(String description, Integer songSeq) {
         if (description != null) {

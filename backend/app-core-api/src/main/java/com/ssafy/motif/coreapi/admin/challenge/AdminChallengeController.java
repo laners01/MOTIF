@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -99,5 +100,15 @@ public class AdminChallengeController {
             @PathVariable Integer challengeSeq,
             @Valid @RequestBody ChallengeSlotsRequest request) {
         return ApiResponse.success(adminChallengeService.replaceSlots(admin, challengeSeq, request));
+    }
+
+    @Operation(summary = "챌린지 삭제",
+            description = "소프트 삭제. 참여 영상·댓글·좋아요 행은 연쇄 삭제하지 않는다 — "
+                    + "삭제된 챌린지에 속한 참여 영상은 일반 API 가 걸러 비노출된다(DB §12).")
+    @DeleteMapping("/{challengeSeq}")
+    public ApiResponse<Void> delete(@AuthenticationPrincipal AuthenticatedAdmin admin,
+                                    @PathVariable Integer challengeSeq) {
+        adminChallengeService.delete(admin, challengeSeq);
+        return ApiResponse.success();
     }
 }
