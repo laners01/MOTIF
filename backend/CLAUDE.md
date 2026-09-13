@@ -138,6 +138,17 @@ S15P21D104-181
 | 공지 §3.10.1·2·3 `AdminNoticeService.list`·`create`·`detail` · `NoticeEventRelay` | `app-core-api/.../admin/notice/` · `domain/notice/` | 611·402·403 |
 | 챌린지 §3.7.1 목록 `AdminChallengeService.list` · `ChallengeRepository.search` | `app-core-api/.../admin/challenge/` · `domain-core/.../challenge/` | 609 |
 | 에셋 §3.8.1 목록 `AdminAssetService.list` · `MotifAssetRepository.search` | `app-core-api/.../admin/asset/` · `domain-core/.../asset/` | 610 |
+| **api-docs 그룹 분리** `GroupedOpenApi` user·admin + `springdoc.enable-default-api-docs=false` | `app-core-api/.../global/docs/OpenApiConfig` · `application.yml` | S15P21D104-612 |
+| `AdminPaths.API_DOCS` — `/v3/api-docs/admin` 도 어드민 경로다(공인망 404, 어드민 토큰 200) | `app-core-api/.../admin/AdminPaths` | 612 |
+| 소속사 §3.3 · 그룹 §3.4 CRUD `AdminCompanyController`·`AdminCompanyService`·`AdminGroupController`·`AdminGroupService` | `app-core-api/.../admin/org/` | S15P21D104-383 · 384 |
+| `CompanyListRow`·`GroupListRow` 프로젝션 · 참조수 상관 서브쿼리 · `ArtistRepository.countByCompanySeq…`·`countByGroupSeq…` | `domain-core/.../artist/` | 383 · 384 |
+| **커서 페이지 봉투** `CursorResponse`(§1.9) · 비페이지 봉투 `ListResponse`(§5.4) · 토큰 코덱 `Cursors` | `module-common/.../response/` · `app-core-api/.../global/response/` | S15P21D104-79 |
+| 팬 조회 API `ArtistController`(§5.3·5.4·5.5) · `ChallengeController`(§7.2) + `…QueryService` | `app-core-api/.../domain/artist/` · `domain/challenge/` | 67 · 76 · 79 · 138 |
+| 어드민 화면 `orgs`·`artists`·`songs`·`challenges`·`assets` (전부 `layout.html` 프래그먼트) | `templates/admin/` · `static/admin/` | 387 · 388 · 395 · 401 · 613 |
+
+**§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed
+쿠키가 필요한데 레포에 서명 발급 수단이 없다(키페어·만료 설정 전무). 공개 URL 로 대신
+내보내면 유료 결과물이 무기명 링크로 샌다 — 서명이 붙는 티켓에서 채운다(`ponytail:` 주석 있음).
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
