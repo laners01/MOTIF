@@ -52,8 +52,24 @@ async function upload(file, kind, challengeSeq) {
         method: 'POST',
         body: {kind, contentType: file.type, contentLength: file.size, challengeSeq},
     });
-    const put = await fetch(uploadUrl, {method: 'PUT', headers: {'Content-Type': file.type}, body: file});
-    if (!put.ok) throw new Error(`S3 업로드 실패 (${put.status})`);
+    let put;
+    try {
+        put = await fetch(uploadUrl, {method: 'PUT', headers: {'Content-Type': file.type}, body: file});
+    } catch (e) {
+        // fetch 가 던졌다 = 응답을 못 봤다. PUT 은 단순 요청이 아니라 프리플라이트가 먼저
+        // 나가는데, 버킷에 CORS 규칙이 없으면 그 OPTIONS 가 403 이고 브라우저가 여기서 끊는다.
+        // 상태코드가 없으므로 S3 탓인지 네트워크 탓인지 이 자리에서 구분되지 않는다
+        throw new Error('S3 업로드가 브라우저에서 차단됐다 — 버킷 CORS 규칙(PUT 허용)을 확인해라. ' + e.message);
+    }
+    if (!put.ok) {
+        // S3 는 실패를 XML 로 준다. <Code> 를 그대로 보여준다 — AccessDenied(권한),
+        // SignatureDoesNotMatch(서명 헤더 불일치), RequestTimeTooSkewed(시계) 가 전부 403 이라
+        // 상태코드만 봐서는 어느 쪽인지 알 수 없다
+        const body = await put.text().catch(() => '');
+        const code = (body.match(/<Code>([^<]+)<\/Code>/) || [])[1];
+        const message = (body.match(/<Message>([^<]+)<\/Message>/) || [])[1];
+        throw new Error(`S3 업로드 실패 (${put.status}${code ? ' ' + code : ''})${message ? ' — ' + message : ''}`);
+    }
     return objectKey;
 }
 
