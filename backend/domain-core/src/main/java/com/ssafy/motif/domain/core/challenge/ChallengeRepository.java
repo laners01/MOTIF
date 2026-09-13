@@ -55,6 +55,37 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
     boolean isLikedBy(@Param("challengeSeq") Integer challengeSeq, @Param("userSeq") Integer userSeq);
 
     /** 어드민도 삭제된 챌린지는 수정 대상으로 잡지 않는다 — §3.7 실패표 404 "대상 없음·삭제". */
+    /**
+     * 숏폼 피드 첫 페이지 (API 명세 §7.1) — 최신순 커서.
+     *
+     * <p><b>커서 유무로 메서드를 가른다.</b> {@code :cursor is null or …} 로 한 쿼리에
+     * 합치면 타입 없는 {@code null} 을 Postgres 가 추론하다 운영에서 터진다 —
+     * {@code NoticeRepository} 가 같은 이유로 갈라져 있다.
+     *
+     * <p>정렬 키가 {@code challengeSeq} 하나다. 명세는 "구독 아티스트 + 인기·관심 기반
+     * 추천 종합(rank:challenge 활용)" 이라고 적었지만 <b>랭킹이 아직 없다</b> —
+     * 최신순으로 내고 추천은 후속이다. 커서가 opaque 토큰이라 정렬 키가 바뀌어도
+     * 클라이언트 계약은 깨지지 않는다(§1.9).
+     */
+    List<Challenge> findByDeletedFalseOrderByChallengeSeqDesc(Pageable pageable);
+
+    /** 피드 다음 페이지 — 커서(마지막 항목의 seq)보다 작은 것부터. */
+    List<Challenge> findByDeletedFalseAndChallengeSeqLessThanOrderByChallengeSeqDesc(
+            Integer challengeSeq, Pageable pageable);
+
+    /**
+     * 한 페이지 분 {@code isLiked} 를 한 번에 (API 명세 §7.1).
+     *
+     * <p>항목마다 {@link #isLikedBy} 를 부르면 20행짜리 페이지에 20번을 더 왕복한다.
+     * 좋아요한 seq 만 돌려주고 호출부가 {@code Set} 으로 대조한다.
+     */
+    @Query(value = """
+            select challenge_seq from motif_core.challenge_likes
+             where user_seq = :userSeq and challenge_seq in (:challengeSeqs)
+            """, nativeQuery = true)
+    List<Integer> findLikedChallengeSeqs(@Param("userSeq") Integer userSeq,
+                                         @Param("challengeSeqs") Collection<Integer> challengeSeqs);
+
     Optional<Challenge> findByChallengeSeqAndDeletedFalse(Integer challengeSeq);
 
     /**

@@ -3,7 +3,10 @@ package com.ssafy.motif.coreapi.domain.challenge.service;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
+import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistName;
@@ -16,11 +19,13 @@ import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.song.Song;
 import com.ssafy.motif.domain.core.song.SongRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -44,6 +49,86 @@ public class ChallengeQueryService {
     private final SongRepository songRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PublicMediaUrlResolver mediaUrlResolver;
+
+    /** §1.9 size 상한 — 커서 목록 공통. */
+    private static final int MAX_SIZE = 100;
+
+    /**
+     * §7.1 숏폼 피드 — 커서, 최신순.
+     *
+     * <p><b>명세의 추천은 아직 없다.</b> §7.1 은 "구독 아티스트 + 인기·관심 기반 추천
+     * 종합(서버 내부 로직, {@code rank:challenge} 활용)" 이라고 적었는데 랭킹이 만들어지지
+     * 않았다. 지금은 최신순으로 낸다 — 커서가 opaque 토큰이라(§1.9) 정렬 키가 바뀌어도
+     * 클라이언트 계약은 깨지지 않는다. 랭킹 티켓이 이 메서드만 갈아끼우면 된다.
+     *
+     * <p>{@code size + 1} 건을 읽어 넘치면 잘라내고 그 사실을 {@code hasNext} 로 쓴다 —
+     * 총 개수를 세지 않는 것이 커서 방식의 요점이다.
+     *
+     * <p><b>한 페이지에 조회 5번으로 끝낸다.</b> 챌린지 · 아티스트 · 곡 · 좋아요 · 구독
+     * 각각 배치다. 항목마다 읽으면 20행에 80번을 더 왕복한다.
+     */
+    public CursorResponse<ChallengeFeedItem> feed(Integer userSeq, String cursor, int size) {
+        int limit = Math.clamp(size, 1, MAX_SIZE);
+        Integer after = Cursors.decode(cursor);
+
+        // 커서 유무로 메서드를 가른다 — null 을 쿼리 파라미터로 흘리지 않는다
+        // (ChallengeRepository javadoc: 타입 없는 null → Postgres 추론 → 운영 500)
+        PageRequest page = PageRequest.of(0, limit + 1);
+        List<Challenge> rows = after == null
+                ? challengeRepository.findByDeletedFalseOrderByChallengeSeqDesc(page)
+                : challengeRepository.findByDeletedFalseAndChallengeSeqLessThanOrderByChallengeSeqDesc(
+                        after, page);
+
+        boolean hasNext = rows.size() > limit;
+        List<Challenge> challenges = hasNext ? rows.subList(0, limit) : rows;
+        if (challenges.isEmpty()) {
+            return CursorResponse.forward(List.of(), null);
+        }
+
+        List<Integer> challengeSeqs = challenges.stream().map(Challenge::getChallengeSeq).toList();
+        List<Integer> artistSeqs = challenges.stream().map(Challenge::getArtistSeq).distinct().toList();
+        List<Integer> songSeqs = challenges.stream().map(Challenge::getSongSeq).distinct().toList();
+
+        Map<Integer, ArtistName> artists = artistRepository.findNames(artistSeqs).stream()
+                .collect(Collectors.toMap(ArtistName::artistSeq, Function.identity()));
+        Map<Integer, Song> songs = songRepository.findAllById(songSeqs).stream()
+                .collect(Collectors.toMap(Song::getSongSeq, Function.identity()));
+        Set<Integer> liked = Set.copyOf(
+                challengeRepository.findLikedChallengeSeqs(userSeq, challengeSeqs));
+        Set<Integer> subscribed = Set.copyOf(
+                subscriptionRepository.findSubscribedArtistSeqs(userSeq, artistSeqs));
+
+        List<ChallengeFeedItem> list = challenges.stream()
+                .map(c -> toFeedItem(c, artists.get(c.getArtistSeq()), songs.get(c.getSongSeq()),
+                        liked.contains(c.getChallengeSeq()), subscribed.contains(c.getArtistSeq())))
+                .toList();
+
+        String nextCursor = hasNext ? Cursors.encode(challengeSeqs.getLast()) : null;
+        return CursorResponse.forward(list, nextCursor);
+    }
+
+    private ChallengeFeedItem toFeedItem(Challenge c, ArtistName artist, Song song,
+                                         boolean liked, boolean subscribed) {
+        return new ChallengeFeedItem(
+                c.getChallengeSeq(),
+                // 챌린지 원본은 공개 등급이라 서명 없는 CloudFront URL 이다 (§1.7)
+                mediaUrlResolver.resolve(c.getVideoKey()),
+                mediaUrlResolver.resolve(c.getThumbnailKey()),
+                c.getDurationMs(),
+                new ChallengeFeedItem.Artist(
+                        c.getArtistSeq(),
+                        artist == null ? null : artist.name(),
+                        artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey())),
+                new ChallengeFeedItem.Song(
+                        song == null ? null : song.getTitle(),
+                        song == null ? null : song.getSingerName()),
+                c.getViewCount(),
+                c.getParticipantCount(),
+                c.getLikeCount(),
+                c.getCommentCount(),
+                liked,
+                subscribed);
+    }
 
     /** §7.2 챌린지 상세. */
     public ChallengeDetailResponse detail(Integer userSeq, Integer challengeSeq) {
