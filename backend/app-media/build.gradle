@@ -30,3 +30,13 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
 }
+
+// 실제 영상 검사(RealVideoPackagingTest)에 -D 를 넘긴다. 지정하지 않으면 그 테스트는
+// 스스로 건너뛰므로 평소 빌드에는 영향이 없다.
+tasks.named('test') {
+    ['motif.test.video', 'motif.test.out'].each { k ->
+        if (System.getProperty(k)) {
+            systemProperty k, System.getProperty(k)
+        }
+    }
+}

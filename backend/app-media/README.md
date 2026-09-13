@@ -41,6 +41,27 @@ GPU 워커가 없어 **합성 경로는 안 돈다**. 어드민이 올리는 **�
 여기는 ffmpeg·ffprobe 를 프로세스로 부른다. ADR-0008 레이어드 JAR 방식은
 그대로 쓰되 베이스만 달라진다(이미지 ~100MB 증가).
 
+## 안드로이드 확인용 실물
+
+실제 팀 영상(60초 1080p)을 이 파이프라인으로 가공해 CDN 에 올려뒀다.
+**Media3 의 fMP4 + `EXT-X-BYTERANGE` 지원 확인**(인계 문서 확인 요청 ①)에 쓰면 된다.
+
+```
+https://d21so2cpi8si9r.cloudfront.net/poc/hls/master.m3u8
+https://d21so2cpi8si9r.cloudfront.net/poc/hls/thumb.jpg
+```
+
+검증한 것 — Range 206(`content-range: bytes 0-1023/7905450`), 마스터·화질별
+재생목록 모두 ffmpeg 로 연속 재생, `Content-Type` 정상.
+
+| | |
+|---|---|
+| 원본 | 25.8MB (1080p, 60초) |
+| 산출물 합계 | 12.4MB (48%) |
+| 480p / 720p | 4.2MB / 7.5MB |
+| 썸네일 | 59.6KB |
+| 가공 시간 | 6.7초 |
+
 ## 검사
 
 ```bash
