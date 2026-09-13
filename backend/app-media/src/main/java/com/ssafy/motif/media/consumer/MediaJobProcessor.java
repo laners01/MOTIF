@@ -47,7 +47,7 @@ public class MediaJobProcessor {
             Path out = work.resolve("out");
 
             storage.download(event.sourceKey(), source);
-            packager.packageForPlayback(source, out);
+            packager.packageForPlayback(source, out, event.thumbnailAtMs());
             storage.uploadTree(out, event.outputPrefix());
             recordKeys(event);
 

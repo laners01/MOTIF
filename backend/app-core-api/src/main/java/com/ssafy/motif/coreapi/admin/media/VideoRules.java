@@ -44,6 +44,14 @@ public class VideoRules {
     /** 가로·세로가 0 이하. */
     public static final String DIMENSION_INVALID = "DIMENSION_INVALID";
 
+    /**
+     * 썸네일 시각이 0 미만이거나 영상 길이 이상 (§4.8).
+     *
+     * <p>막지 않으면 ffmpeg 가 그 지점에서 <b>빈 프레임</b>을 뱉는다 — 예외도 로그도
+     * 없이 까만 썸네일이 피드에 올라간다.
+     */
+    public static final String THUMBNAIL_AT_OUT_OF_RANGE = "THUMBNAIL_AT_OUT_OF_RANGE";
+
     private final AdminMediaProperties properties;
 
     /**
@@ -56,12 +64,26 @@ public class VideoRules {
 
     /** 챌린지 원본 — 세로 · 최대 길이 이내 (§1.4). */
     public void checkChallengeOrigin(Meta meta) {
+        checkChallengeOrigin(meta, null);
+    }
+
+    /**
+     * 챌린지 원본 — 세로 · 최대 길이 이내 (§1.4) · 썸네일 시각이 영상 안 (§4.8).
+     *
+     * @param thumbnailAtMs 선택 값이라 null 이면 검사하지 않는다 — 워커가 기본값 1500 을 쓴다
+     */
+    public void checkChallengeOrigin(Meta meta, Long thumbnailAtMs) {
         List<String> reasons = baseReasons(meta);
         if (meta.width() > 0 && meta.height() > 0 && meta.height() <= meta.width()) {
             reasons.add(PORTRAIT_REQUIRED);
         }
         if (meta.durationMs() > properties.rules().challengeMaxDuration().toMillis()) {
             reasons.add(DURATION_EXCEEDED);
+        }
+        // durationMs 와 같다면 마지막 프레임 다음이라 이미 영상 밖이다 — 경계는 배타적이다
+        if (thumbnailAtMs != null
+                && (thumbnailAtMs < 0 || thumbnailAtMs >= meta.durationMs())) {
+            reasons.add(THUMBNAIL_AT_OUT_OF_RANGE);
         }
         reject(reasons, "챌린지 원본 규격 위반");
     }

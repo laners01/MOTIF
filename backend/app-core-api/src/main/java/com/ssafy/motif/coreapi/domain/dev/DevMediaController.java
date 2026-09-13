@@ -46,7 +46,7 @@ public class DevMediaController {
     @PostMapping
     public ApiResponse<Map<String, String>> requestMediaJob(@Valid @RequestBody Request request) {
         String uuid = devMediaService.request(request.sourceType(), request.sourceSeq(),
-                request.sourceKey(), request.outputPrefix());
+                request.sourceKey(), request.outputPrefix(), request.thumbnailAtMs());
         return ApiResponse.success(Map.of("mediaJobUuid", uuid));
     }
 
@@ -54,7 +54,9 @@ public class DevMediaController {
             @NotBlank String sourceType,
             @Positive long sourceSeq,
             @NotBlank String sourceKey,
-            @NotBlank String outputPrefix) {
+            @NotBlank String outputPrefix,
+            /* 선택 — null 이면 워커 기본값 1.5초 (§4.8) */
+            Long thumbnailAtMs) {
     }
 
     /** 발행은 커밋 후에 일어난다 — 트랜잭션 경계가 있어야 relay 가 동작한다. */
@@ -65,8 +67,9 @@ public class DevMediaController {
         private final MediaJobPublisher publisher;
 
         @Transactional
-        String request(String sourceType, long sourceSeq, String sourceKey, String outputPrefix) {
-            return publisher.publish(sourceType, sourceSeq, sourceKey, outputPrefix);
+        String request(String sourceType, long sourceSeq, String sourceKey,
+                       String outputPrefix, Long thumbnailAtMs) {
+            return publisher.publish(sourceType, sourceSeq, sourceKey, outputPrefix, thumbnailAtMs);
         }
     }
 }

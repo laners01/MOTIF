@@ -35,6 +35,48 @@ class VideoRulesTest {
     class ChallengeOrigin {
 
         @Test
+        @DisplayName("썸네일 시각을 안 보내면 검사하지 않는다 — 워커 기본값 1.5초")
+        void 썸네일_시각_생략() {
+            assertThatCode(() -> rules.checkChallengeOrigin(new Meta(10_000, 1080, 1920), null))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("영상 안이면 통과한다")
+        void 썸네일_시각_통과() {
+            assertThatCode(() -> rules.checkChallengeOrigin(new Meta(10_000, 1080, 1920), 9_999L))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("길이와 같으면 이미 영상 밖이다 — 경계는 배타적")
+        void 썸네일_시각_경계() {
+            assertThatThrownBy(() -> rules.checkChallengeOrigin(new Meta(10_000, 1080, 1920), 10_000L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getData())
+                    .isEqualTo(List.of(VideoRules.THUMBNAIL_AT_OUT_OF_RANGE));
+        }
+
+        @Test
+        @DisplayName("음수면 막는다 — 폼 값이라 임의의 수가 올 수 있다")
+        void 썸네일_시각_음수() {
+            assertThatThrownBy(() -> rules.checkChallengeOrigin(new Meta(10_000, 1080, 1920), -1L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getData())
+                    .isEqualTo(List.of(VideoRules.THUMBNAIL_AT_OUT_OF_RANGE));
+        }
+
+        @Test
+        @DisplayName("막으면 ffmpeg 가 빈 프레임을 뱉는 일이 없다 — 다른 위반과 함께 모아서 던진다")
+        void 썸네일_시각_다른_위반과_함께() {
+            assertThatThrownBy(() -> rules.checkChallengeOrigin(new Meta(10_000, 1920, 1080), 20_000L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getData())
+                    .isEqualTo(List.of(VideoRules.PORTRAIT_REQUIRED,
+                            VideoRules.THUMBNAIL_AT_OUT_OF_RANGE));
+        }
+
+        @Test
         @DisplayName("세로이고 정확히 상한 길이면 통과한다")
         void 경계값_통과() {
             assertThatCode(() -> rules.checkChallengeOrigin(new Meta(CHALLENGE_MAX_MS, 1080, 1920)))

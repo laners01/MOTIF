@@ -39,21 +39,23 @@ class HlsPackagerTest {
     void 화질_간_키프레임이_정확히_일치한다() {
         Path out = pack();
 
-        List<String> a = segmentBoundaries(out, "480p");
-        List<String> b = segmentBoundaries(out, "720p");
+        List<String> first = segmentBoundaries(out, Rendition.LADDER.get(0).tag());
+        assertThat(first).hasSizeGreaterThan(1);
 
-        // 조각 경계는 키프레임에만 놓인다. 두 화질의 키프레임 시각이 다르면
-        // 720p 3번 조각 다음에 480p 4번 조각을 붙일 수 없다 = 전환 불가
-        assertThat(a).isEqualTo(b);
-        assertThat(a).hasSizeGreaterThan(1);
+        // 조각 경계는 키프레임에만 놓인다. 화질 간 키프레임 시각이 다르면
+        // 720p 3번 조각 다음에 480p 4번 조각을 붙일 수 없다 = 전환 불가.
+        // 1080p 를 더한 뒤로는 세 단이 전부 같아야 한다 — 한 쌍만 봐서는 모른다
+        for (Rendition r : Rendition.LADDER) {
+            assertThat(segmentBoundaries(out, r.tag())).as(r.tag() + " 조각 경계").isEqualTo(first);
+        }
     }
 
     @Test
     void 조각이_한_파일_안의_바이트_구간으로_지정된다() throws IOException {
         Path out = pack();
 
-        for (String tag : List.of("480p", "720p")) {
-            Path dir = out.resolve(tag);
+        for (Rendition r : Rendition.LADDER) {
+            Path dir = out.resolve(r.tag());
             try (Stream<Path> files = Files.list(dir)) {
                 // data.m4s + index.m3u8 두 개뿐 — 조각마다 파일이 생기면 여기서 걸린다
                 assertThat(files).hasSize(2);
@@ -70,15 +72,17 @@ class HlsPackagerTest {
 
         String master = Files.readString(out.resolve(HlsPackager.MASTER));
         assertThat(master).startsWith("#EXTM3U");
-        assertThat(master).contains("480p/index.m3u8", "720p/index.m3u8");
+        for (Rendition r : Rendition.LADDER) {
+            assertThat(master).contains(r.tag() + "/index.m3u8");
+        }
 
         List<Long> bandwidths = master.lines()
                 .filter(l -> l.startsWith("#EXT-X-STREAM-INF:"))
                 .map(l -> Long.parseLong(l.replaceAll(".*BANDWIDTH=(\\d+).*", "$1")))
                 .toList();
-        assertThat(bandwidths).hasSize(2);
+        assertThat(bandwidths).hasSize(Rendition.LADDER.size());
         // ABR 이 이 값으로 화질을 고른다. 낮은 화질이 더 커지면 사다리가 뒤집힌다
-        assertThat(bandwidths.get(0)).isLessThan(bandwidths.get(1));
+        assertThat(bandwidths).isSorted();
     }
 
     @Test
@@ -101,6 +105,61 @@ class HlsPackagerTest {
         assertThat(thumb).exists();
         // 원본 해상도로 뽑으면 120KB 가 넘는다 — 피드 목록 30개면 3.6MB 다
         assertThat(Files.size(thumb)).isBetween(5_000L, 80_000L);
+    }
+
+    @Test
+    void 원본보다_큰_단은_건너뛴다() throws IOException {
+        // 가로 720 원본 — 1080p 단(가로 1080)은 업스케일이라 만들어선 안 된다
+        Path out = packSource(720, 1280, "src720.mp4", "out720");
+
+        String master = Files.readString(out.resolve(HlsPackager.MASTER));
+        assertThat(master).contains("480p/index.m3u8", "720p/index.m3u8");
+        // 만들었다면 마스터에 RESOLUTION=1080x1920 이 적히고 ABR 이 그걸 최고 화질로 믿는다.
+        // 실제 내용은 720 을 늘린 흐릿한 영상이다
+        assertThat(master).doesNotContain("1080p/index.m3u8");
+        assertThat(out.resolve("1080p")).doesNotExist();
+        // 남은 최상단은 원본 그대로여야 한다
+        assertThat(master).contains("RESOLUTION=720x1280");
+    }
+
+    @Test
+    void 모든_단이_스킵되면_원본_해상도로_한_단을_만든다() throws IOException {
+        // 가로 320 — 사다리 최저단(480)보다도 작다. 한 단도 안 만들면 재생할 것이 없다
+        Path out = packSource(320, 568, "src320.mp4", "out320");
+
+        String master = Files.readString(out.resolve(HlsPackager.MASTER));
+        assertThat(master).contains("320p/index.m3u8");
+        assertThat(out.resolve("320p")).exists();
+        // 업스케일한 단이 끼어들지 않았는지
+        assertThat(master).doesNotContain("480p/", "720p/", "1080p/");
+        assertThat(master).contains("RESOLUTION=320x568");
+    }
+
+    @Test
+    void 최상단이_원본_해상도를_그대로_담는다() throws IOException {
+        // 2026-09-14 이전에는 1080x1920 원본의 최상단이 608x1080 이었다 —
+        // 최고 화질을 틀어도 폰에서 1.8배 확대돼 보였다
+        Path out = pack();
+
+        String master = Files.readString(out.resolve(HlsPackager.MASTER));
+        assertThat(master).contains("RESOLUTION=1080x1920");
+    }
+
+    @Test
+    void 가로_영상은_처리하지_않는다() {
+        // 업로드 검증(VideoRules.PORTRAIT_REQUIRED)은 화면 JS 가 보낸 값을 믿는다.
+        // 합성 결과는 그 검증을 아예 안 타므로 실제 바이트를 읽는 여기가 최종 방어선이다
+        Path src = source(1920, 1080, "land.mp4");
+        Path out = tmp.resolve("outLand");
+
+        try {
+            new HlsPackager().packageForPlayback(src, out);
+        } catch (MediaEncodingException expected) {
+            assertThat(expected).hasMessageContaining("세로 영상만 처리한다");
+            assertThat(out).doesNotExist();
+            return;
+        }
+        throw new AssertionError("가로 영상은 예외가 나야 한다");
     }
 
     @Test
@@ -133,6 +192,26 @@ class HlsPackagerTest {
         if (!Files.exists(out.resolve(HlsPackager.MASTER))) {
             new HlsPackager().packageForPlayback(src, out);
         }
+        return out;
+    }
+
+    /** 지정한 해상도의 원본을 만든다. */
+    private Path source(int w, int h, String srcName) {
+        Path src = tmp.resolve(srcName);
+        if (!Files.exists(src)) {
+            run("ffmpeg", "-v", "error", "-y",
+                    "-f", "lavfi", "-i", "testsrc2=size=" + w + "x" + h + ":rate=30:duration=" + DURATION_SECONDS,
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=" + DURATION_SECONDS,
+                    "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "3000k", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-shortest", src.toString());
+        }
+        return src;
+    }
+
+    /** 지정한 해상도의 원본을 만들어 가공한다. 업스케일 가드 검사용. */
+    private Path packSource(int w, int h, String srcName, String outName) {
+        Path out = tmp.resolve(outName);
+        new HlsPackager().packageForPlayback(source(w, h, srcName), out);
         return out;
     }
 

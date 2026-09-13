@@ -110,7 +110,7 @@ public class AdminChallengeService {
                 request.videoKey(), thumbnailKey(request.videoKey()),
                 Math.toIntExact(request.durationMs())));
         saveSlots(challenge.getChallengeSeq(), request.slots());
-        publishCreated(challenge);
+        publishCreated(challenge, request.thumbnailAtMs());
 
         auditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE",
                 challenge.getChallengeSeq(), AdminAuditLogger.RESULT_OK);
@@ -299,7 +299,7 @@ public class AdminChallengeService {
      * 합성 결과와 어드민 원본이 같은 한 곳을 거쳐 같은 큐로 가야 인코딩 파라미터가
      * 갈라지지 않는다(ADR-0010 D1).
      */
-    private void publishCreated(Challenge challenge) {
+    private void publishCreated(Challenge challenge, Long thumbnailAtMs) {
         Integer artistSeq = challenge.getArtistSeq();
         String artistName = artistRepository.findNames(Set.of(artistSeq)).stream()
                 .findFirst().map(ArtistName::name).orElse(null);
@@ -315,7 +315,8 @@ public class AdminChallengeService {
                 MediaJobRequestedEvent.SOURCE_CHALLENGE_ORIGIN,
                 challenge.getChallengeSeq(),
                 challenge.getVideoKey(),
-                MediaKeys.forChallengeOrigin(originUuid(challenge.getVideoKey())));
+                MediaKeys.forChallengeOrigin(originUuid(challenge.getVideoKey())),
+                thumbnailAtMs);
     }
 
     /** {@code challenges/{uuid}.mp4} → {@code uuid}. 키 규약은 {@link #requireOriginKey} 가 이미 확인했다. */
@@ -424,7 +425,8 @@ public class AdminChallengeService {
         }
         requireOriginKey(request.videoKey());
         videoRules.checkChallengeOrigin(new VideoRules.Meta(
-                request.durationMs(), request.width(), request.height()));
+                request.durationMs(), request.width(), request.height()),
+                request.thumbnailAtMs());
         verifySlots(request.artistSeq(), request.durationMs(), request.slots(),
                 List.of(request.videoKey()));
     }
