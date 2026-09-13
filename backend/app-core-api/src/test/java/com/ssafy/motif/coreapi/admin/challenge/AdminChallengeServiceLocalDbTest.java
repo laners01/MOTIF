@@ -13,6 +13,7 @@ import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
@@ -354,6 +355,39 @@ class AdminChallengeServiceLocalDbTest {
     }
 
     @Test
+    @DisplayName("삭제(§3.7.7)는 is_deleted 만 세운다 — 참여 영상·댓글·슬롯·편집본 행은 남는다 (DB §12)")
+    void 삭제는_자식을_연쇄하지_않는다() {
+        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
+        Integer seq = created.challengeSeq();
+        newParticipationVideo(seq);
+        newChallengeComment(seq);
+
+        adminChallengeService.delete(ADMIN, seq);
+
+        assertThat(deleted(seq)).isTrue();
+        // 연쇄 삭제는 명세 위반이다 — 자식이 한 행이라도 사라지면 여기서 깨진다
+        assertThat(rows("participation_videos", seq)).isEqualTo(1);
+        assertThat(rows("challenge_comments", seq)).isEqualTo(1);
+        assertThat(rows("challenge_participants", seq)).isEqualTo(1);
+        assertThat(rows("edited_challenges", seq)).isEqualTo(1);
+        // 참여 영상이 스스로 삭제되지도 않는다 — 비노출은 조회 쪽이 거르는 일이다
+        assertThat(scalar("select count(*) from motif_core.participation_videos "
+                + "where challenge_seq = ?1 and is_deleted = false", seq)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 챌린지의 재삭제는 404 — 없는 변경을 성공으로 보고하지 않는다")
+    void 삭제_재삭제는_404() {
+        ChallengeSlotsResponse created = create(List.of(), List.of());
+        adminChallengeService.delete(ADMIN, created.challengeSeq());
+
+        assertThatThrownBy(() -> adminChallengeService.delete(ADMIN, created.challengeSeq()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode().getCode())
+                .isEqualTo(ChallengeErrorCode.CHALLENGE_NOT_FOUND.getCode());
+    }
+
+    @Test
     @DisplayName("size 는 §1.5 상한 100 으로 잘린다 — 운영 화면이 큰 수를 보내도 표가 비지 않는다")
     void 페이지_크기_상한() {
         assertThat(PageResponses.pageable(0, 500).getPageSize()).isEqualTo(PageResponses.MAX_SIZE);
@@ -455,6 +489,52 @@ class AdminChallengeServiceLocalDbTest {
         });
     }
 
+    /**
+     * 참여 영상 한 건 (§3.7.7 확인 대화상자가 세는 대상) — 삭제가 이 행을 건드리면 안 된다.
+     *
+     * <p>{@code job_seq} 가 NOT NULL UNIQUE FK 라 잡을 먼저 만든다. 잡은 슬롯이 아니라
+     * 원본 위 합성이므로 {@code edited_challenge_seq} 는 NULL 이다.
+     */
+    private void newParticipationVideo(Integer challengeSeq) {
+        inTransaction(() -> {
+            UUID jobUuid = UUID.randomUUID();
+            Integer userSeq = newUser("USER");
+            execute("""
+                    insert into motif_core.composite_jobs
+                        (job_uuid, job_type, user_seq, challenge_seq, raw_video_key,
+                         status, result_video_key, result_thumbnail_key)
+                    values (?1, 'CHALLENGE', ?2, ?3, 'raw/x.mp4',
+                            'DONE', 'videos/x.mp4', 'videos/x.jpg')
+                    """, jobUuid, userSeq, challengeSeq);
+            Integer jobSeq = scalar("select job_seq from motif_core.composite_jobs where job_uuid = ?1",
+                    jobUuid);
+            execute("""
+                    insert into motif_core.participation_videos
+                        (challenge_seq, artist_seq, user_seq, job_seq, description,
+                         video_key, thumbnail_key, duration_ms)
+                    values (?1, ?2, ?3, ?4, 't', 'videos/x.mp4', 'videos/x.jpg', ?5)
+                    """, challengeSeq, mainArtist, userSeq, jobSeq, ORIGIN_DURATION_MS);
+            createdJobs.add(challengeSeq);
+            return null;
+        });
+    }
+
+    /** 댓글 한 건 — 참여 영상과 함께 "연쇄 삭제하지 않는다" 규칙(DB §12)의 대상이다. */
+    private void newChallengeComment(Integer challengeSeq) {
+        inTransaction(() -> {
+            execute("insert into motif_core.challenge_comments (challenge_seq, user_seq, content) "
+                    + "values (?1, ?2, 't')", challengeSeq, newUser("USER"));
+            return null;
+        });
+    }
+
+    private boolean deleted(Integer challengeSeq) {
+        return inTransaction(() -> (Boolean) entityManager.createNativeQuery(
+                        "select is_deleted from motif_core.challenges where challenge_seq = ?1")
+                .setParameter(1, challengeSeq)
+                .getSingleResult());
+    }
+
     private Integer newUser(String role) {
         String nickname = "t-" + UUID.randomUUID().toString().substring(0, 20);
         execute("insert into motif_core.users (nickname, role) values (?1, ?2)", nickname, role);
@@ -481,6 +561,11 @@ class AdminChallengeServiceLocalDbTest {
     @AfterEach
     void cleanUp() {
         inTransaction(() -> {
+            // 참여 영상·댓글이 잡·챌린지를 참조한다 — FK 역순이라 이 둘이 가장 먼저다
+            createdChallenges.forEach(seq -> {
+                execute("delete from motif_core.participation_videos where challenge_seq = ?1", seq);
+                execute("delete from motif_core.challenge_comments where challenge_seq = ?1", seq);
+            });
             createdJobs.forEach(seq ->
                     execute("delete from motif_core.composite_jobs where challenge_seq = ?1", seq));
             createdChallenges.forEach(seq -> {
