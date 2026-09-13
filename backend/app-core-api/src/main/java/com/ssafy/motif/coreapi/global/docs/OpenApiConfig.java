@@ -1,11 +1,13 @@
 package com.ssafy.motif.coreapi.global.docs;
 
+import com.ssafy.motif.coreapi.admin.AdminPaths;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +16,14 @@ import java.util.List;
 
 /**
  * Swagger UI 구성. 경로는 springdoc 기본값을 유지한다
- * ({@code /swagger-ui.html}, {@code /v3/api-docs}) — {@code SecurityConfig} 가 permitAll 한다.
+ * ({@code /swagger-ui.html}, {@code /v3/api-docs/{group}}).
+ *
+ * <p>문서는 <b>두 그룹</b>으로 갈린다 — 합본 기본 문서는
+ * {@code springdoc.enable-default-api-docs=false} 로 꺼 두었다.
+ * <ul>
+ *   <li>{@code user} — 공인망 공개. {@code SecurityConfig} 가 permitAll 한다.</li>
+ *   <li>{@code admin} — 테일넷 전용. 공인망에서는 401 이고 인그레스가 다시 막는다.</li>
+ * </ul>
  *
  * <p>bearerAuth 스킴을 <b>전역</b>으로 요구한다. 인증이 필요 없는(🔓) 오퍼레이션은
  * 각 docs 인터페이스에서 {@code @SecurityRequirements} 로 그 요구를 해제한다 —
@@ -36,6 +45,28 @@ public class OpenApiConfig {
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME_NAME))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME_NAME, bearerScheme()))
                 .servers(servers());
+    }
+
+    /**
+     * 공인망에 나가는 문서. 어드민 경로를 뺀다 — 어드민 명세 §1.1 은 경로의 존재를 숨기려고
+     * 403 이 아니라 404 를 쓰는데, 합본 문서가 그 경로를 전부 적어 두면 소용이 없다.
+     */
+    @Bean
+    public GroupedOpenApi userApi() {
+        return GroupedOpenApi.builder()
+                .group("user")
+                .pathsToMatch("/api/v1/**")
+                .pathsToExclude(AdminPaths.API + "/**")
+                .build();
+    }
+
+    /** 어드민 문서. 테일넷에서만 의미가 있다 (어드민 명세 §1.1). */
+    @Bean
+    public GroupedOpenApi adminApi() {
+        return GroupedOpenApi.builder()
+                .group("admin")
+                .pathsToMatch(AdminPaths.API + "/**")
+                .build();
     }
 
     private Info apiInfo() {

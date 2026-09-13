@@ -90,4 +90,11 @@ management:
       probes:
         enabled: true
 
-# springdoc은 기본 경로 유지 (/v3/api-docs, /swagger-ui.html)
+# springdoc은 기본 경로 유지 (/v3/api-docs/{group}, /swagger-ui.html)
+springdoc:
+  # 그룹(user·admin)을 나눈 뒤에도 켜 두면 /v3/api-docs 가 둘을 합친 문서를 그대로 뱉는다 —
+  # 공인망에 어드민 경로를 흘리던 구멍이 그것이라 끈다. 문서는 그룹 경로로만 나간다.
+  enable-default-api-docs: false
+  swagger-ui:
+    # 그룹 목록의 기본 선택. 끄면 사전순으로 admin 이 먼저 잡혀 공인망에서 401 을 본다
+    urls-primary-name: user
