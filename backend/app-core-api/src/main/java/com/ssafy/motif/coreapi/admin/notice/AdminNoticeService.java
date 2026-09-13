@@ -9,7 +9,10 @@ import com.ssafy.motif.coreapi.admin.notice.dto.NoticeDetailResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeImageResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.admin.notice.dto.NoticeCreateRequest;
+import com.ssafy.motif.coreapi.admin.notice.dto.NoticeCreateResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeListItemResponse;
+import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.media.MediaErrorCode;
 import com.ssafy.motif.coreapi.domain.notice.NoticeErrorCode;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
@@ -20,7 +23,9 @@ import com.ssafy.motif.domain.core.notice.NoticeImage;
 import com.ssafy.motif.domain.core.notice.NoticeImageRepository;
 import com.ssafy.motif.domain.core.notice.NoticeImageRepository.ImageCount;
 import com.ssafy.motif.domain.core.notice.NoticeRepository;
+import com.ssafy.motif.event.contract.NoticeCreatedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -30,15 +35,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * 공지 조회·수정·삭제 (어드민 명세 §3.10) — 571(수정·삭제) · 611(조회).
+ * 공지 조회·작성·수정·삭제 (어드민 명세 §3.10) — 571(수정·삭제) · 611(조회) · 402·403(작성).
  *
  * <p><b>수정은 알림을 다시 보내지 않는다.</b> {@code notice.created} 는 등록(§3.10.2)
  * 한 번만 발행한다 — 오타를 고칠 때마다 구독자 전원에게 푸시가 가면 알림이 못 쓰게 된다
- * (명세 확정). 그래서 이 서비스에는 <b>발행기 의존이 아예 없다</b>. 등록 티켓이
- * {@code MediaJobPublisher}·이벤트 발행을 붙일 때도 이 경로에는 걸지 않는다.
+ * (명세 확정). 발행은 {@link #create} 안의 {@link #publishCreated} 한 군데뿐이고
+ * {@link #update} 에서는 부르지 않는다 — 통합 테스트가 이 경계를 지킨다.
+ *
+ * <p><b>영상이 없으므로 {@code job.media} 도 없다.</b> 공지는 이미지만 붙고 렌디션·HLS
+ * 대상이 아니다 — 챌린지 등록이 메시지 2건인 것과 다르다(§1.6 표).
  *
  * <p><b>이미지는 부분 수정이 없다.</b> {@code imageKeys} 가 오면 기존 행을 하드 삭제하고
  * 배열 순서대로 다시 만든다(DB §28). {@code uq_notice_images_order} 가
@@ -49,8 +58,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminNoticeService {
 
-    /** 목록 본문 앞자락 (§3.10.1). */
+    /** 목록 본문 앞자락 (§3.10.1). 이벤트 페이로드는 더 짧다 — 푸시 본문은 어차피 잘린다. */
     private static final int LIST_PREVIEW_LENGTH = 80;
+    /** {@code notice.created} payload 의 {@code contentPreview} (§4). */
+    private static final int EVENT_PREVIEW_LENGTH = 60;
     /** §1.5 — size 기본 20 · 최대 100. */
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -60,6 +71,7 @@ public class AdminNoticeService {
     private final AdminMediaService adminMediaService;
     private final PublicMediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 목록 (§3.10.1) — 아티스트 필터 · 삭제분 포함 여부 · 최신순 고정.
@@ -98,6 +110,27 @@ public class AdminNoticeService {
     @Transactional(readOnly = true)
     public NoticeDetailResponse detail(int noticeSeq) {
         return detail(notice(noticeSeq));
+    }
+
+    /**
+     * 작성 (§3.10.2) — 본문 + 이미지 n행을 한 트랜잭션에, 커밋 후 {@code notice.created}.
+     *
+     * <p>이미지 INSERT 는 수정 경로와 <b>같은 {@link #replaceImages}</b> 를 쓴다. 새
+     * 공지라 지울 행이 없어 앞의 삭제는 빈 동작이고, 대신 HEAD 검증과
+     * {@code display_order} 규칙이 한 곳에만 남는다 — 두 벌이면 한쪽만 고쳐져 등록과
+     * 수정의 순서 규칙이 갈라진다.
+     */
+    @Transactional
+    public NoticeCreateResponse create(AuthenticatedAdmin admin, NoticeCreateRequest request) {
+        requireArtist(request.artistSeq());
+
+        Notice notice = noticeRepository.save(Notice.register(request.artistSeq(), request.content()));
+        replaceImages(notice.getNoticeSeq(), request.imageKeys());
+        publishCreated(notice);
+
+        auditLogger.write(admin, "CREATE_NOTICE", "NOTICE",
+                notice.getNoticeSeq(), AdminAuditLogger.RESULT_OK);
+        return new NoticeCreateResponse(notice.getNoticeSeq());
     }
 
     /** §3.10.4 — 본문 교체 + 이미지 전체 교체. 이벤트 없음. */
@@ -151,7 +184,32 @@ public class AdminNoticeService {
         }
     }
 
-    /** 본문 앞자락 — 목록은 80자다(§3.10.1). */
+    /**
+     * 등록 통지 (§1.6 표 · §4 계약) — <b>커밋 후에</b> 나간다.
+     *
+     * <p>여기서 부르는 것은 발행이 아니라 스프링 애플리케이션 이벤트다. MQ 로 나가는
+     * 시점은 {@code @TransactionalEventListener(AFTER_COMMIT)} 인
+     * {@link com.ssafy.motif.coreapi.domain.notice.NoticeEventRelay} 가 정한다.
+     */
+    private void publishCreated(Notice notice) {
+        String artistName = artistRepository.findNames(Set.of(notice.getArtistSeq())).stream()
+                .findFirst().map(ArtistName::name).orElse(null);
+
+        eventPublisher.publishEvent(new NoticeCreatedEvent(
+                UUID.randomUUID().toString(), Instant.now(),
+                notice.getNoticeSeq(), notice.getArtistSeq(), artistName,
+                preview(notice.getContent(), EVENT_PREVIEW_LENGTH)));
+    }
+
+    /** 아티스트가 존재하고 비삭제인지 (§3.10 실패표 {@code ARTIST_NOT_FOUND}). */
+    private void requireArtist(Integer artistSeq) {
+        if (artistRepository.countByArtistSeqInAndDeletedFalse(Set.of(artistSeq)) != 1) {
+            throw new BusinessException(ArtistErrorCode.ARTIST_NOT_FOUND,
+                    "존재하지 않거나 삭제된 아티스트: artistSeq=" + artistSeq);
+        }
+    }
+
+    /** 목록·이벤트가 함께 쓰는 본문 앞자락. 길이만 다르다(80자 / 60자). */
     private static String preview(String content, int max) {
         return content.length() <= max ? content : content.substring(0, max);
     }

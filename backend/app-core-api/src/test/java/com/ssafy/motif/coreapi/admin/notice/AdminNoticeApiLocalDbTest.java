@@ -3,15 +3,22 @@ package com.ssafy.motif.coreapi.admin.notice;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
+import com.ssafy.motif.coreapi.admin.notice.dto.NoticeCreateRequest;
+import com.ssafy.motif.coreapi.admin.notice.dto.NoticeCreateResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeDetailResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeImageResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeListItemResponse;
+import com.ssafy.motif.coreapi.admin.notice.dto.NoticeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.media.MediaErrorCode;
 import com.ssafy.motif.coreapi.domain.notice.NoticeErrorCode;
+import com.ssafy.motif.domain.core.notice.NoticeImageRepository;
 import com.ssafy.motif.domain.core.notice.NoticeRepository;
 import com.ssafy.motif.domain.core.user.User;
 import com.ssafy.motif.domain.core.user.UserRepository;
 import com.ssafy.motif.domain.core.user.UserRole;
+import com.ssafy.motif.event.contract.NoticeCreatedEvent;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,18 +42,23 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 /**
- * 공지 목록·상세를 실제 DB에 대고 검증한다 — S15P21D104-611 (§3.10.1·§3.10.3).
+ * 공지 조회·작성을 실제 DB에 대고 검증한다 — 611(§3.10.1·§3.10.3) · 402·403(§3.10.2).
  *
  * <p>수정·삭제(571)는 {@link AdminNoticeServiceLocalDbTest} 가 맡는다.
  *
  * <p><b>단언은 전부 이 테스트가 만든 아티스트로 좁힌다.</b> 로컬 compose DB 는 재사용되고
  * 시드 공지가 들어 있을 수 있어, 전체 건수에 기대면 남의 데이터로 깨진다.
  *
+ * <p>발행은 {@code RabbitTemplate} 이 아니라 <b>애플리케이션 이벤트</b>로 본다. 실제 MQ
+ * 전송은 {@code AFTER_COMMIT} 이라 트랜잭션을 롤백하는 테스트에서는 애초에 돌지 않는다 —
+ * 거기에 {@code never()} 를 걸면 무엇을 고쳐도 통과하는 빈 검증이 된다.
+ *
  * <p>실행 전 {@code backend/local-infra && docker compose up -d --wait}.
  */
 @Tag("local-db")
 @SpringBootTest
 @Transactional
+@RecordApplicationEvents
 class AdminNoticeApiLocalDbTest {
 
     private static final String LONG_CONTENT = "가".repeat(200);
@@ -54,7 +68,11 @@ class AdminNoticeApiLocalDbTest {
     @Autowired
     private NoticeRepository noticeRepository;
     @Autowired
+    private NoticeImageRepository noticeImageRepository;
+    @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private ApplicationEvents events;
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -199,6 +217,88 @@ class AdminNoticeApiLocalDbTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(NoticeErrorCode.NOTICE_NOT_FOUND);
+    }
+
+    // --- 402 · 403 작성 ------------------------------------------------------
+
+    @Test
+    @DisplayName("작성 — 배열 순서가 display_order 0..n−1 로 깔린다")
+    void createStoresImagesInArrayOrder() {
+        NoticeCreateResponse created = adminNoticeService.create(admin, new NoticeCreateRequest(
+                artistSeq, "컴백 소식", List.of("notices/a.jpg", "notices/b.jpg", "notices/c.jpg")));
+        entityManager.flush();
+
+        assertThat(created.noticeSeq()).isNotNull();
+        assertThat(noticeImageRepository.findByNoticeSeqOrderByDisplayOrderAsc(created.noticeSeq()))
+                .extracting(image -> image.getImageKey() + "@" + image.getDisplayOrder())
+                .containsExactly("notices/a.jpg@0", "notices/b.jpg@1", "notices/c.jpg@2");
+        assertThat(noticeRepository.findById(created.noticeSeq()).orElseThrow().getContent())
+                .isEqualTo("컴백 소식");
+    }
+
+    @Test
+    @DisplayName("imageKeys 를 생략하면 이미지 없는 공지가 된다")
+    void createWithoutImagesIsValid() {
+        NoticeCreateResponse created = adminNoticeService.create(admin,
+                new NoticeCreateRequest(artistSeq, "이미지 없는 공지", null));
+        entityManager.flush();
+
+        assertThat(noticeImageRepository.findByNoticeSeqOrderByDisplayOrderAsc(created.noticeSeq()))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("올라오지 않은 이미지 키는 409 — 부재 키를 전부 모아 돌려준다")
+    void createRejectsMissingImageKeys() {
+        given(adminMediaService.exists("notices/b.jpg")).willReturn(false);
+        given(adminMediaService.exists("notices/c.jpg")).willReturn(false);
+
+        assertThatThrownBy(() -> adminNoticeService.create(admin, new NoticeCreateRequest(
+                artistSeq, "컴백 소식", List.of("notices/a.jpg", "notices/b.jpg", "notices/c.jpg"))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(thrown -> {
+                    BusinessException e = (BusinessException) thrown;
+                    assertThat(e.getErrorCode()).isEqualTo(MediaErrorCode.IMAGE_NOT_UPLOADED);
+                    assertThat(e.getData()).isEqualTo(
+                            java.util.Map.of("imageKeys", List.of("notices/b.jpg", "notices/c.jpg")));
+                });
+    }
+
+    @Test
+    @DisplayName("없는 아티스트로는 쓸 수 없다")
+    void createRejectsUnknownArtist() {
+        assertThatThrownBy(() -> adminNoticeService.create(admin,
+                new NoticeCreateRequest(-1, "컴백 소식", List.of())))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ArtistErrorCode.ARTIST_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("작성은 notice.created 1건 — 본문 앞 60자를 싣는다")
+    void createPublishesNoticeCreatedOnce() {
+        NoticeCreateResponse created = adminNoticeService.create(admin,
+                new NoticeCreateRequest(artistSeq, LONG_CONTENT, List.of()));
+
+        List<NoticeCreatedEvent> published = events.stream(NoticeCreatedEvent.class).toList();
+        assertThat(published).hasSize(1);
+        assertThat(published.getFirst().noticeSeq()).isEqualTo(created.noticeSeq());
+        assertThat(published.getFirst().artistSeq()).isEqualTo(artistSeq);
+        assertThat(published.getFirst().contentPreview()).hasSize(60);
+        assertThat(published.getFirst().eventId()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("수정은 notice.created 를 다시 내지 않는다 — 등록에서만 발행한다")
+    void updateDoesNotRepublish() {
+        NoticeCreateResponse created = adminNoticeService.create(admin,
+                new NoticeCreateRequest(artistSeq, "원래 본문", List.of()));
+        entityManager.flush();
+
+        adminNoticeService.update(admin, created.noticeSeq(),
+                new NoticeUpdateRequest("고친 본문", List.of("notices/x.jpg")));
+
+        assertThat(events.stream(NoticeCreatedEvent.class)).hasSize(1);   // 등록 때의 1건 그대로
     }
 
     // --- 픽스처 -------------------------------------------------------------
