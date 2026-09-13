@@ -55,6 +55,24 @@ async function load() {
             ? `${c.videoUrl}${c.videoUrl.endsWith('.m3u8') ? ' — HLS. 브라우저가 못 열면 링크로 확인해라' : ' — 원본 MP4. app-media 후처리 전이다'}`
             : '영상 URL 이 없다 — motif.media.public-base-url 미설정이거나 키가 비었다';
 
+        // 썸네일은 app-media 산출물이라 후처리 전에는 키만 있고 파일이 없다(404).
+        // 깨진 아이콘 대신 "생성 중" 으로 보여 어드민이 고장과 구분할 수 있게 한다
+        if (c.thumbnailUrl) {
+            const img = document.createElement('img');
+            img.className = 'thumb-lg';
+            img.src = c.thumbnailUrl;
+            img.alt = '';
+            img.onerror = () => {
+                img.replaceWith(Object.assign(document.createElement('p'),
+                        {className: 'thumb-none', textContent: '썸네일 생성 중 — 후처리가 끝나면 표시된다'}));
+            };
+            $('thumb-wrap').replaceChildren(img);
+            $('thumb-note').textContent = c.thumbnailUrl;
+        } else {
+            $('thumb-wrap').replaceChildren();
+            $('thumb-note').textContent = '썸네일 URL 이 없다 — 키가 비었거나 CDN 설정이 빠졌다';
+        }
+
         set('seq', `${c.challengeSeq}${c.isDeleted ? ' (삭제됨)' : ''}`);
         set('artist', c.artist?.name ?? '');
         set('song', c.song ? `${c.song.title} / ${c.song.singerName}` : '');

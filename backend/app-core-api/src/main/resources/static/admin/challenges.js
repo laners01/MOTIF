@@ -10,6 +10,33 @@ const set = (scope, selector, text) => {
     scope.querySelector(selector).textContent = text;
 };
 
+/**
+ * 썸네일 셀. 후처리(app-media)가 끝나기 전에는 키만 있고 파일이 없어 404 다 —
+ * 그때 img 를 그대로 두면 깨진 아이콘이 뜨므로 onerror 로 문구를 바꾼다.
+ * "아직 없음" 과 "잘못 만들어짐" 을 화면에서 구분하려는 것이다.
+ */
+function thumb(url, cls) {
+    if (!url) {
+        const span = document.createElement('span');
+        span.className = 'thumb-none';
+        span.textContent = '없음';
+        return span;
+    }
+    const img = document.createElement('img');
+    img.className = cls;
+    img.src = url;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = () => {
+        const span = document.createElement('span');
+        span.className = 'thumb-none';
+        span.textContent = '생성 중';
+        span.title = url;
+        img.replaceWith(span);
+    };
+    return img;
+}
+
 function challengeRow(challenge) {
     const tr = $('challenge-row').content.firstElementChild.cloneNode(true);
     tr.dataset.seq = challenge.challengeSeq;
@@ -18,6 +45,7 @@ function challengeRow(challenge) {
     seqLink.href = `/admin/challenges/${challenge.challengeSeq}`;
     seqLink.textContent = challenge.challengeSeq;
     tr.querySelector('.seq').replaceChildren(seqLink);
+    tr.querySelector('.thumb-cell').replaceChildren(thumb(challenge.thumbnailUrl, 'thumb'));
     set(tr, '.artist', challenge.artist?.name ?? '');
     set(tr, '.song', challenge.song ? `${challenge.song.title} / ${challenge.song.singerName}` : '');
     set(tr, '.duration', `${(challenge.durationMs / 1000).toFixed(1)}초`);

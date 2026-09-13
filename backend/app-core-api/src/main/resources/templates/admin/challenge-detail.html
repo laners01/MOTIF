@@ -13,9 +13,15 @@
     <p class="err" id="err" hidden></p>
 
     <section>
-        <h2>1. 원본</h2>
-        <div class="frame">
-            <video id="video" controls playsinline width="270"></video>
+        <h2>1. 원본 · 썸네일</h2>
+        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap">
+            <div class="frame">
+                <video id="video" controls playsinline width="270"></video>
+            </div>
+            <div>
+                <div id="thumb-wrap"></div>
+                <p class="muted" id="thumb-note"></p>
+            </div>
         </div>
         <p class="muted" id="video-note"></p>
     </section>
