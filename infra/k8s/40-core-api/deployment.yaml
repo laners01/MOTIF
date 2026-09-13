@@ -103,6 +103,9 @@ spec:
           envFrom:
             - secretRef:
                 name: core-api-secret
+            # 비밀 아닌 설정(ADMIN_ALLOWED_CIDRS) — configmap.yaml.
+            - configMapRef:
+                name: core-api-config
           # 어드민 감사 로그(어드민 명세 §1.3). 경로는 application-prod.yml 의
           # motif.admin.audit.dir 과 같아야 한다 — 어긋나면 파드가 기동하지 않는다.
           volumeMounts:

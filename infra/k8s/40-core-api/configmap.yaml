@@ -1,0 +1,32 @@
+# core-api 비밀 아닌 설정.
+#
+# ADMIN_ALLOWED_CIDRS — 어드민 경로 접근 허용 대역 (어드민 명세 §1.1).
+# 비밀이 아니고 팀 IP 가 바뀌면 자주 고치므로 Secret 이 아니라 ConfigMap 이다.
+# 고친 뒤에는 `kubectl rollout restart deployment/core-api` 가 필요하다
+# (envFrom 은 파드 생성 시점에 해석된다).
+#
+# ── 값을 늘리기 전에 반드시 읽을 것 ─────────────────────────────────────────
+# 앱의 AdminIpFilter 는 X-Forwarded-For 첫 값으로 판정한다. 그런데 현재
+# k3s servicelb(klipper-lb)가 MASQUERADE 를 걸어, 외부에서 들어온 요청은
+# 전부 출발지가 클러스터 내부 IP(10.42.x.x)로 바뀐 채 도착한다
+# (90-ingress/helmchartconfig-traefik.yaml 참조).
+#
+# 따라서 **공인 IP 를 여기 적어도 통하지 않는다.** 그렇다고 10.42.0.0/16 을
+# 넣으면 SNAT 된 모든 외부 요청이 통과해 어드민이 전 인터넷에 열린다.
+# 엣지에서 출발지 보존을 먼저 고친 뒤에 공인 IP 를 추가한다.
+#
+# ── 현재 값 ─────────────────────────────────────────────────────────────────
+#   100.64.0.0/10  테일넷(Tailscale CGNAT). 원 IP 가 보존되면 그때 의미가 생긴다.
+#   127.0.0.1/32   kubectl port-forward 경로. 이때만 앱이 127.0.0.1 을 본다.
+#                  외부 요청은 Traefik 이 XFF 를 채우므로 절대 127.0.0.1 이
+#                  될 수 없다 — 인터넷을 여는 값이 아니다. 엣지가 고쳐지기
+#                  전까지 어드민 API 를 확인할 수 있는 유일한 통로다.
+#
+#   ssh <노드> 'kubectl port-forward deploy/core-api 18081:8081'
+#   curl localhost:18081/api/v1/admin/... -H "Authorization: Bearer <토큰>"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-api-config
+data:
+  ADMIN_ALLOWED_CIDRS: "100.64.0.0/10,127.0.0.1/32"
