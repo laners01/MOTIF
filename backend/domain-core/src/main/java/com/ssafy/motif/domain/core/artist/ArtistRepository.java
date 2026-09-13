@@ -1,5 +1,7 @@
 package com.ssafy.motif.domain.core.artist;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -7,8 +9,77 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ArtistRepository extends JpaRepository<Artist, Integer> {
+
+    /** 삭제된 아티스트는 없는 것으로 본다 — 상세·수정 대상 조회(§3.5.3·§3.5.4). */
+    Optional<Artist> findByArtistSeqAndDeletedFalse(Integer artistSeq);
+
+    /**
+     * 상세 한 줄 (§3.5.3) — 목록과 같은 조인·같은 투영이다.
+     *
+     * <p>삭제된 아티스트도 준다. 목록에서 {@code includeDeleted} 로 찾아 들어간 화면이
+     * 404 로 끊기면 안 된다 — 존재 여부만 본다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistListRow(
+                       a.artistSeq, u.userSeq, u.nickname, u.profileImageKey,
+                       g.groupSeq, g.groupName, c.companySeq, c.companyName,
+                       a.bio, a.motifBgImageKey,
+                       a.subscriberCount, a.deleted, a.regDttm)
+            from Artist a
+              join User u on u.userSeq = a.userSeq
+              left join ArtistGroup g on g.groupSeq = a.groupSeq
+              join Company c on c.companySeq = a.companySeq
+            where a.artistSeq = :artistSeq
+            """)
+    Optional<ArtistListRow> findRow(@Param("artistSeq") Integer artistSeq);
+
+    /**
+     * 아티스트 목록·검색 (§3.5.1) — 이름·그룹·소속사 필터 + offset 페이지.
+     *
+     * <p>{@code users} 는 {@code uq_artists_user} 로 1:1 이라 inner join, {@code group_seq}
+     * 는 솔로면 {@code null} 이라 left join 이다. 연관을 매핑하는 대신 ON 조인을 쓴다
+     * ({@link Artist} javadoc — 목록 아닌 조회까지 조인이 따라붙는 것을 피한다).
+     *
+     * <p>{@code q} 는 {@code users.nickname} 부분 일치다. 0012 의 GIN trigram 인덱스가
+     * {@code ILIKE '%…%'} 를 받쳐 준다 — 앞뒤 와일드카드라 B-tree 로는 못 탄다.
+     *
+     * <p>정렬을 {@code artistSeq DESC} 로 고정한다. {@link Pageable} 의 sort 를 그대로
+     * 흘리면 클라이언트가 임의 칼럼으로 정렬해 인덱스 없는 풀스캔을 유발할 수 있고,
+     * 화면(§1.7)이 요구하는 것은 최신 등록순 하나다.
+     */
+    @Query(value = """
+            select new com.ssafy.motif.domain.core.artist.ArtistListRow(
+                       a.artistSeq, u.userSeq, u.nickname, u.profileImageKey,
+                       g.groupSeq, g.groupName, c.companySeq, c.companyName,
+                       a.bio, a.motifBgImageKey,
+                       a.subscriberCount, a.deleted, a.regDttm)
+            from Artist a
+              join User u on u.userSeq = a.userSeq
+              left join ArtistGroup g on g.groupSeq = a.groupSeq
+              join Company c on c.companySeq = a.companySeq
+            where (:includeDeleted = true or a.deleted = false)
+              and (:groupSeq is null or a.groupSeq = :groupSeq)
+              and (:companySeq is null or a.companySeq = :companySeq)
+              and (:q is null or lower(u.nickname) like lower(concat('%', :q, '%')))
+            order by a.artistSeq desc
+            """,
+            countQuery = """
+            select count(a)
+            from Artist a
+              join User u on u.userSeq = a.userSeq
+            where (:includeDeleted = true or a.deleted = false)
+              and (:groupSeq is null or a.groupSeq = :groupSeq)
+              and (:companySeq is null or a.companySeq = :companySeq)
+              and (:q is null or lower(u.nickname) like lower(concat('%', :q, '%')))
+            """)
+    Page<ArtistListRow> search(@Param("q") String q,
+                               @Param("groupSeq") Integer groupSeq,
+                               @Param("companySeq") Integer companySeq,
+                               @Param("includeDeleted") boolean includeDeleted,
+                               Pageable pageable);
 
     /**
      * 아티스트 표시 이름 — {@code users.nickname} 이다.

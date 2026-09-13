@@ -1,14 +1,26 @@
 package com.ssafy.motif.domain.core.notice;
 
+import com.ssafy.motif.domain.core.artist.ArtistCount;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+import java.util.Collection;
 import java.time.Instant;
 import java.util.Optional;
 
 public interface NoticeRepository extends JpaRepository<Notice, Integer> {
+
+    /** 아티스트 목록·상세의 {@code noticeCount} (어드민 §3.5.1) — 페이지 전체를 한 번에. */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistCount(n.artistSeq, count(n))
+            from Notice n
+            where n.artistSeq in :artistSeqs and n.deleted = false
+            group by n.artistSeq
+            """)
+    List<ArtistCount> countByArtists(@Param("artistSeqs") Collection<Integer> artistSeqs);
 
     /** 삭제된 공지는 없는 것으로 본다 — 수정·삭제 대상 조회(§3.10.4·§3.10.5). */
     Optional<Notice> findByNoticeSeqAndDeletedFalse(Integer noticeSeq);

@@ -64,6 +64,22 @@ public class User extends BaseTimeEntity {
         return new User(NICKNAME_PLACEHOLDER, UserRole.USER);
     }
 
+    /**
+     * 어드민이 만드는 아티스트 유저 (어드민 명세 §3.5.2).
+     *
+     * <p>{@link #signUp()} 과 달리 닉네임이 처음부터 확정이다 — 가입 흐름이 아니라
+     * 운영자가 이름을 적어 넣는 등록이라 {@code user_{seq}} 자리표시자 단계가 없다.
+     * {@code user_accounts} 는 만들지 않는다 — 아티스트는 로그인하지 않는다(회의 확정).
+     */
+    public static User createArtist(String nickname) {
+        return new User(nickname, UserRole.ARTIST);
+    }
+
+    /** 수정 주체 기록 — {@code users.mod_usr_seq} (어드민 명세 §3.5.4 "name 변경은 … mod_usr_seq"). */
+    public void recordModifier(Integer modUsrSeq) {
+        this.modUsrSeq = modUsrSeq;
+    }
+
     /** INSERT 직후 호출 — {@code user_{seq}} 임시 닉네임을 확정한다. */
     public void applyInitialNickname() {
         this.nickname = "user_" + this.userSeq;
