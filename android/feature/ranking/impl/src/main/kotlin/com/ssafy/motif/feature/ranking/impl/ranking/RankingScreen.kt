@@ -47,7 +47,7 @@ import com.ssafy.motif.core.model.ranking.ChallengeRankCard
 
 
 @Composable
-fun RankingRoute(
+fun RankingScreen(
     modifier: Modifier = Modifier,
     viewModel: RankingViewModel = hiltViewModel(),
 ) {
