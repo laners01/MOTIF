@@ -31,8 +31,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminSongService {
 
-    /** §1.5 — {@code size} 기본 20 · 최대 100. */
-    private static final int DEFAULT_SIZE = 20;
+    /**
+     * §1.5 상한. 기본값 20 은 컨트롤러의 {@code @RequestParam(defaultValue)} 가 갖는다 —
+     * 두 곳에 두면 한쪽만 고쳤을 때 문서와 동작이 갈린다.
+     */
     private static final int MAX_SIZE = 100;
 
     /**

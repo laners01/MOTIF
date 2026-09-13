@@ -14,8 +14,13 @@ public interface SongRepository extends JpaRepository<Song, Integer> {
     /**
      * 곡명·가수명 부분 일치 검색 (어드민 명세 §3.6.1).
      *
-     * <p>{@code q} 가 없으면 전체다 — {@code :q is null} 분기를 쿼리 안에 둬서 호출부가
-     * 검색용·전체용 메서드를 따로 갖지 않게 한다.
+     * <p><b>{@code q} 에 {@code null} 을 넘기지 않는다.</b> 검색어가 없으면 호출부가 빈
+     * 문자열로 정규화해 넘기고, 그러면 {@code like '%%'} 가 되어 전체 조회가 된다 —
+     * 검색용·전체용 메서드를 따로 두지 않으면서 분기도 없앤 방식이다.
+     *
+     * <p>{@code :q is null} 분기를 두지 않는 이유(실측): 타입 없는 {@code null} 파라미터를
+     * Postgres 가 {@code bytea} 로 추론해 {@code function lower(bytea) does not exist} 로
+     * 쿼리가 죽는다. 정규화를 호출부에 두면 이 함정 자체가 사라진다.
      *
      * <p><b>trgm 인덱스가 없다.</b> 명세가 "규모 소"라고 못박은 테이블이라 full scan +
      * ILIKE 로 충분하다 — 곡 수가 수만 건이 되면 그때 인덱스를 단다.
@@ -24,8 +29,7 @@ public interface SongRepository extends JpaRepository<Song, Integer> {
      */
     @Query("""
             select s from Song s
-            where :q is null
-               or lower(s.title) like lower(concat('%', :q, '%'))
+            where lower(s.title) like lower(concat('%', :q, '%'))
                or lower(s.singerName) like lower(concat('%', :q, '%'))
             """)
     Page<Song> search(@Param("q") String q, Pageable pageable);
