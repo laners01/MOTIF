@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.onboarding.impl.artistselect
+package com.ssafy.motif.feature.onboarding.impl.onboarding
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,8 +42,7 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.feature.onboarding.impl.onboarding.ArtistUiModel
-import com.ssafy.motif.feature.onboarding.impl.onboarding.OnboardingUiState
+import com.ssafy.motif.core.model.onboarding.OnboardingArtist
 
 @Composable
 internal fun ArtistSelectScreen(
@@ -149,8 +148,8 @@ internal object ArtistMokData {
         "채령" to "ITZY",
         "유나" to "ITZY",
     )
-    val artists: List<ArtistUiModel> = samples.mapIndexed { index, (name, groupName) ->
-        ArtistUiModel(
+    val artists: List<OnboardingArtist> = samples.mapIndexed { index, (name, groupName) ->
+        OnboardingArtist(
             id = index.toLong(),
             name = name,
             groupName = groupName,
@@ -219,7 +218,7 @@ private fun ArtistSearchBar(
 
 @Composable
 fun ArtistCard(
-    artist: ArtistUiModel,
+    artist: OnboardingArtist,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,

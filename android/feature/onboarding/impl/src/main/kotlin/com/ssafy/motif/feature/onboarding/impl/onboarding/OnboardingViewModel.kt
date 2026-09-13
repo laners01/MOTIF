@@ -1,7 +1,6 @@
 package com.ssafy.motif.feature.onboarding.impl.onboarding
 
 import androidx.lifecycle.ViewModel
-import com.ssafy.motif.feature.onboarding.impl.artistselect.ArtistMokData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

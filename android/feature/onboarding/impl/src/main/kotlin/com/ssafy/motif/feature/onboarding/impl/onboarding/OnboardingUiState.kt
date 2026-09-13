@@ -1,14 +1,7 @@
 package com.ssafy.motif.feature.onboarding.impl.onboarding
 
 import androidx.compose.runtime.Immutable
-
-@Immutable
-data class ArtistUiModel(
-    val id: Long,
-    val name: String,
-    val groupName: String,
-    val profileImageUrl: String?,
-)
+import com.ssafy.motif.core.model.onboarding.OnboardingArtist
 
 enum class OnboardingStep {
     ArtistSelect,
@@ -18,12 +11,12 @@ enum class OnboardingStep {
 @Immutable
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.ArtistSelect,
-    val artists: List<ArtistUiModel> = emptyList(),
+    val artists: List<OnboardingArtist> = emptyList(),
     val selectedArtists: Set<Long> = emptySet(),
     val query: String = "",
     val nickname: String = "",
 ) {
-    val filteredArtists: List<ArtistUiModel>
+    val filteredArtists: List<OnboardingArtist>
         get() = if (query.isBlank()) {
             artists
         } else {
@@ -33,7 +26,7 @@ data class OnboardingUiState(
             }
         }
 
-    val likedArtists: List<ArtistUiModel>
+    val likedArtists: List<OnboardingArtist>
         get() = artists.filter { it.id in selectedArtists }
 
     val canProceed: Boolean

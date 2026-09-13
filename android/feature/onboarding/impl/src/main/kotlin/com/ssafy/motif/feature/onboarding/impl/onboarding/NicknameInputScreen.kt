@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.onboarding.impl.nicknameinput
+package com.ssafy.motif.feature.onboarding.impl.onboarding
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,8 +30,6 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.feature.onboarding.impl.artistselect.ArtistCard
-import com.ssafy.motif.feature.onboarding.impl.onboarding.OnboardingUiState
 
 @Composable
 internal fun NicknameInputScreen(
