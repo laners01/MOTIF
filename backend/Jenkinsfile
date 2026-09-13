@@ -15,9 +15,9 @@
 // ── 2026-09-14: 모듈 여러 개를 다룬다 ────────────────────────────────────────
 // 예전에는 IMAGE_REPO·DEPLOYMENT·CONTAINER 가 core-api 로 하드코딩돼 있어
 // app-media 는 사람이 손으로 배포했다(scp → docker build → ctr import →
-// set image). 이제 MODULES 목록을 돌면서 **바뀐 모듈만** 배포한다.
+// set image). 이제 modules() 목록을 돌면서 **바뀐 모듈만** 배포한다.
 //
-// 모듈을 추가할 때 손댈 곳은 MODULES 한 곳이다. 아래 단계들은 목록을 돈다.
+// 모듈을 추가할 때 손댈 곳은 modules() 한 곳이다. 아래 단계들은 그 목록을 돈다.
 
 // ── 배포 대상 ────────────────────────────────────────────────────────────────
 //
@@ -29,7 +29,8 @@
 // image/deployment/container 이름은 전부 모듈 이름에서 파생한다 —
 // registry.local/motif/<name>:<빌드번호>, Deployment 와 컨테이너 이름도 <name>.
 // 지금 두 모듈 다 이 규약을 지킨다. 어긋나는 모듈이 생기면 그때 필드를 판다.
-MODULES = [
+List modules() {
+    return [
     [name: 'core-api',
      gradle: ':app-core-api',
      context: 'backend/app-core-api',
@@ -46,20 +47,20 @@ MODULES = [
      paths: ['backend/app-media/'],
      health: null],
 ]
+}
 
 // 여기가 바뀌면 **모든 모듈**을 배포한다. 공용 모듈·빌드 스크립트라
 // 어느 앱이 영향을 받는지 경로만으로 가릴 수 없다.
-SHARED_PATHS = [
-    'backend/module-',
-    'backend/domain-',
-    'backend/build.gradle',
-    'backend/settings.gradle',
-    'backend/gradle/',
-    'backend/gradlew',
-]
-
-// 이번 빌드에서 배포할 모듈. 'Select modules' 가 채우고 뒤 단계들이 읽는다.
-targets = []
+List sharedPaths() {
+    return [
+        'backend/module-',
+        'backend/domain-',
+        'backend/build.gradle',
+        'backend/settings.gradle',
+        'backend/gradle/',
+        'backend/gradlew',
+    ]
+}
 
 pipeline {
     agent any
@@ -136,20 +137,25 @@ pipeline {
                 stage('Select modules') {
                     steps {
                         script {
-                            targets = selectModules()
-                            if (targets.isEmpty()) {
+                            List picked = selectModules()
+                            // 스테이지 사이로 넘길 때 최상위 변수를 쓰지 않는다 —
+                            // WorkflowScript 의 필드가 되어 Jenkins 가 매 빌드
+                            // "Did you forget the `def` keyword?" 경고를 낸다
+                            // (파이프라인 상태로 직렬화된다). env 는 원래 그 용도다.
+                            env.DEPLOY_TARGETS = picked.collect { it.name }.join(',')
+                            if (picked.isEmpty()) {
                                 // backend/** 는 바뀌었는데 어느 모듈에도 안 걸리는 경우
                                 // (backend/docs/**, backend/CLAUDE.md 등). 배포할 것이 없다.
                                 echo '배포 대상 모듈이 없다 — backend 안이지만 앱 코드가 아니다'
                             } else {
-                                echo "배포 대상: ${targets.collect { it.name }.join(', ')}"
+                                echo "배포 대상: ${env.DEPLOY_TARGETS.replace(',', ', ')}"
                             }
                         }
                     }
                 }
 
                 stage('Build & Test') {
-                    when { expression { return !targets.isEmpty() } }
+                    when { expression { return (env.DEPLOY_TARGETS) as Boolean } }
                     steps {
                         script {
                             // Gradle 데몬을 끄지 않는다. executor 1 이라 빌드가 직렬이고,
@@ -158,8 +164,9 @@ pipeline {
                             //
                             // 모듈이 여럿이면 한 번의 gradle 호출로 묶는다 — 설정 단계가
                             // 한 번만 돈다.
-                            String tasks = targets.collect { "${it.gradle}:bootJar ${it.gradle}:test" }
-                                                  .join(' ')
+                            String tasks = selectedModules()
+                                    .collect { "${it.gradle}:bootJar ${it.gradle}:test" }
+                                    .join(' ')
                             dir('backend') {
                                 sh "./gradlew ${tasks}"
                             }
@@ -168,10 +175,10 @@ pipeline {
                 }
 
                 stage('Docker Build & Import') {
-                    when { expression { return !targets.isEmpty() } }
+                    when { expression { return (env.DEPLOY_TARGETS) as Boolean } }
                     steps {
                         script {
-                            for (m in targets) {
+                            for (m in selectedModules()) {
                                 String image = imageOf(m)
                                 // 컨텍스트는 각 모듈 디렉터리다. Dockerfile 은 호스트가 만든
                                 // bootJar 를 레이어로 펼치기만 한다(ADR-0008, D5).
@@ -189,10 +196,10 @@ pipeline {
                 }
 
                 stage('Deploy') {
-                    when { expression { return !targets.isEmpty() } }
+                    when { expression { return (env.DEPLOY_TARGETS) as Boolean } }
                     steps {
                         script {
-                            for (m in targets) {
+                            for (m in selectedModules()) {
                                 deployModule(m)
                             }
                         }
@@ -201,10 +208,10 @@ pipeline {
 
                 // 디스크 보호용. 실패해도 배포는 이미 끝났으므로 빌드를 깨지 않는다.
                 stage('Cleanup old images') {
-                    when { expression { return !targets.isEmpty() } }
+                    when { expression { return (env.DEPLOY_TARGETS) as Boolean } }
                     steps {
                         script {
-                            for (m in targets) {
+                            for (m in selectedModules()) {
                                 // 빌드번호 태그를 숫자로 정렬해 최신 KEEP_IMAGES 개만 남긴다.
                                 // 롤백 대상이 남아 있어야 하므로 1개만 남기지 않는다.
                                 withEnv(["IMAGE_REPO=${repoOf(m)}"]) {
@@ -269,6 +276,16 @@ String repoOf(Map m) { return "registry.local/motif/${m.name}" }
 // 롤백 대상을 특정할 수 없으므로 Deployment 에서 참조하지 않는다.
 String imageOf(Map m) { return "${repoOf(m)}:${env.BUILD_NUMBER}" }
 
+/** 'Select modules' 가 고른 모듈. env 에 담긴 이름을 정의로 되돌린다. */
+List selectedModules() {
+    String names = env.DEPLOY_TARGETS ?: ''
+    if (!names) {
+        return []
+    }
+    List wanted = names.split(',').toList()
+    return modules().findAll { wanted.contains(it.name) }
+}
+
 // 이번 빌드에서 배포할 모듈을 고른다.
 //
 // 우선순위: DEPLOY_MODULES 파라미터 > 변경 경로 자동 판정.
@@ -278,12 +295,12 @@ List selectModules() {
     String forced = params.DEPLOY_MODULES?.trim()
     if (forced) {
         List names = forced.split(',').collect { it.trim() }.findAll { it }
-        List picked = MODULES.findAll { names.contains(it.name) }
-        List unknown = names.findAll { n -> !MODULES.any { it.name == n } }
+        List picked = modules().findAll { names.contains(it.name) }
+        List unknown = names.findAll { n -> !modules().any { it.name == n } }
         if (unknown) {
             // 오타를 조용히 넘기면 "배포했다고 믿었는데 안 된" 상태가 된다.
             error("DEPLOY_MODULES 에 모르는 모듈이 있다: ${unknown.join(', ')} " +
-                  "(가능: ${MODULES.collect { it.name }.join(', ')})")
+                  "(가능: ${modules().collect { it.name }.join(', ')})")
         }
         echo "DEPLOY_MODULES 지정 — 자동 판정을 건너뛴다"
         return picked
@@ -292,13 +309,13 @@ List selectModules() {
     List changed = changedPaths()
     if (changed.isEmpty() || params.FORCE_DEPLOY || currentBuild.previousBuild == null) {
         echo '변경 경로를 판정할 수 없다(최초 빌드·강제·빈 changeSet) — 전 모듈을 배포한다'
-        return MODULES
+        return modules()
     }
-    if (changed.any { p -> SHARED_PATHS.any { p.startsWith(it) } }) {
+    if (changed.any { p -> sharedPaths().any { p.startsWith(it) } }) {
         echo '공용 모듈·빌드 스크립트가 바뀌었다 — 전 모듈을 배포한다'
-        return MODULES
+        return modules()
     }
-    return MODULES.findAll { m -> changed.any { p -> m.paths.any { p.startsWith(it) } } }
+    return modules().findAll { m -> changed.any { p -> m.paths.any { p.startsWith(it) } } }
 }
 
 /**
@@ -372,7 +389,7 @@ void deployModule(Map m) {
         echo "[${m.name}] health 200 확인 — ${m.health}"
     } else {
         // HTTP 스모크가 없는 모듈. readiness 그룹이 의존성을 보므로 rollout
-        // 성공이 곧 "DB·MQ 에 붙었다"는 뜻이다 — MODULES 주석 참조.
+        // 성공이 곧 "DB·MQ 에 붙었다"는 뜻이다 — modules() 주석 참조.
         echo "[${m.name}] HTTP 스모크 없음 — rollout 성공으로 갈음한다(readiness 가 db·rabbit 을 본다)"
     }
 
