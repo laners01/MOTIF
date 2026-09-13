@@ -1,5 +1,7 @@
 package com.ssafy.motif.coreapi.global.docs;
 
+import com.ssafy.motif.coreapi.admin.security.AdminJwtProvider;
+import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,9 @@ class OpenApiGroupLocalDbTest {
     @Autowired
     private MockMvcTester mvc;
 
+    @Autowired
+    private AdminJwtProvider adminJwtProvider;
+
     @Test
     @DisplayName("합본 기본 문서는 나오지 않는다 — 그게 어드민 19경로를 흘리던 곳이다")
     void defaultApiDocsIsGone() {
@@ -49,8 +54,19 @@ class OpenApiGroupLocalDbTest {
     }
 
     @Test
-    @DisplayName("admin 그룹 문서는 공인망에서 열리지 않는다 (인그레스 앞에 한 겹 더)")
+    @DisplayName("admin 그룹 문서는 토큰 없이 열리지 않는다")
     void adminGroupIsNotPublic() {
         assertThat(mvc.get().uri("/v3/api-docs/admin")).hasStatus(401);
+    }
+
+    @Test
+    @DisplayName("admin 그룹 문서는 어드민 토큰으로는 열린다 — 막기만 하고 못 보면 그것도 고장이다")
+    void adminGroupOpensForAdminToken() {
+        String token = adminJwtProvider.issue(new AuthenticatedAdmin(1, 1, "admin"));
+
+        assertThat(mvc.get().uri("/v3/api-docs/admin").header("Authorization", "Bearer " + token))
+                .hasStatusOk()
+                .bodyText()
+                .contains("/api/v1/admin");
     }
 }
