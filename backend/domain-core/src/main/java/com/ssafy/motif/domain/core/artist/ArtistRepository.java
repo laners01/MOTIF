@@ -6,8 +6,24 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
+import java.util.List;
 
 public interface ArtistRepository extends JpaRepository<Artist, Integer> {
+
+    /**
+     * 아티스트 표시 이름 — {@code users.nickname} 이다.
+     *
+     * <p>{@code artists} 에 이름 칸이 없다({@link Artist} javadoc). 연관을 매핑하는 대신
+     * 두 엔티티를 조인해 필요한 두 값만 꺼낸다 — 어드민 챌린지 상세(§3.7.3)는 메인
+     * 아티스트 1명 + 슬롯 최대 4명의 이름만 있으면 되고, 그 때문에 {@code Artist} 에
+     * {@code @ManyToOne} 을 달면 목록 조회마다 조인이 따라붙는다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistName(a.artistSeq, u.nickname)
+            from Artist a, User u
+            where a.userSeq = u.userSeq and a.artistSeq in :artistSeqs
+            """)
+    List<ArtistName> findNames(@Param("artistSeqs") Collection<Integer> artistSeqs);
 
     /**
      * 요청된 아티스트가 <b>전부</b> 존재하고 비삭제인지 확인하기 위한 개수 조회.

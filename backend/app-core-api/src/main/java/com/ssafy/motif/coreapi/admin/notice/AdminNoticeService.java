@@ -3,7 +3,7 @@ package com.ssafy.motif.coreapi.admin.notice;
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
-import com.ssafy.motif.coreapi.admin.media.MediaObjectChecker;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeDetailResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeImageResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeUpdateRequest;
@@ -42,7 +42,7 @@ public class AdminNoticeService {
 
     private final NoticeRepository noticeRepository;
     private final NoticeImageRepository noticeImageRepository;
-    private final MediaObjectChecker mediaObjectChecker;
+    private final AdminMediaService adminMediaService;
     private final PublicMediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
 
@@ -83,7 +83,7 @@ public class AdminNoticeService {
      */
     private void replaceImages(int noticeSeq, List<String> imageKeys) {
         List<String> missing = imageKeys.stream()
-                .filter(key -> !mediaObjectChecker.exists(key))
+                .filter(key -> !adminMediaService.exists(key))
                 .toList();
         if (!missing.isEmpty()) {
             throw new BusinessException(MediaErrorCode.IMAGE_NOT_UPLOADED,

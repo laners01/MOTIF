@@ -8,7 +8,7 @@ import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceResponse;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
-import com.ssafy.motif.coreapi.admin.media.MediaObjectChecker;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.media.VideoRules;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
@@ -65,7 +65,7 @@ public class AdminAssetService {
     private final MotifAssetPriceRepository priceRepository;
     private final ArtistRepository artistRepository;
     private final CountryRepository countryRepository;
-    private final MediaObjectChecker mediaObjectChecker;
+    private final AdminMediaService adminMediaService;
     private final VideoRules videoRules;
     private final PublicMediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
@@ -157,7 +157,7 @@ public class AdminAssetService {
     }
 
     private void requireUploaded(String videoKey) {
-        if (!mediaObjectChecker.exists(videoKey)) {
+        if (!adminMediaService.exists(videoKey)) {
             throw new BusinessException(AdminErrorCode.MEDIA_NOT_UPLOADED,
                     "S3 에 없는 영상 키: " + videoKey, Map.of("videoKey", videoKey));
         }

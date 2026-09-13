@@ -1053,13 +1053,13 @@ FROM motif_core.users u WHERE u.nickname = 'admin_kim' AND u.role = 'ADMIN';
 - [x] 영상 검증 `VideoRules`(방향·길이·편집본 ±500ms, 수치는 `motif.admin.media.rules`) *(589)*
 - [x] §5 어드민 에러 코드 전량 등록 `module-common/.../error/AdminErrorCode` *(588)*
 - [ ] 소속사·그룹·아티스트·곡 CRUD(연쇄 규칙 트랜잭션)
-- [ ] `ChallengeAdminService.create`(마스크 계산·완결성 검증·원자 INSERT·이벤트) + `validate`
+- [x] `AdminChallengeService` §3.7.2·3·4·5·6·8(마스크 계산·완결성 검증·원자 INSERT·이벤트) + `validate` *(559·560·561)*
 - [ ] 에셋·에셋 가격·패스 가격 upsert(활성 전환 조건)
 - [ ] 공지(+이미지 교체)·배너(재정렬 오프셋)
 - [ ] `ActAsArtistController` — 사용자 서비스 위임 + 구조화 로그
 - [ ] 신고 처리(멱등 후처리) · 회원 정지(`user.suspended`)
-- [ ] module-event: `ChallengeCreated`, `NoticeCreated`, `UserSuspended` DTO · 알림 서비스 컨슈머 3종 + Redis 멱등
-- [ ] *(v0.4)* `ChallengeAdminService.create` 커밋 후 **`job.media` 발행** — `MediaJobPublisher.publish(CHALLENGE_ORIGIN, challengeSeq, videoKey, MediaKeys.forChallengeOrigin(uuid))`
+- [ ] module-event: ~~`ChallengeCreated`~~ *(562)*, `NoticeCreated`, `UserSuspended` DTO · 알림 서비스 컨슈머 3종 + Redis 멱등
+- [x] *(v0.4·562)* `AdminChallengeService.create` 커밋 후 **`job.media` 발행** — `MediaJobPublisher.publish(CHALLENGE_ORIGIN, challengeSeq, videoKey, MediaKeys.forChallengeOrigin(uuid))`
 - [ ] *(v0.5)* 업로드 화면 JS 에 길이·해상도 추출 추가(`<video>` onloadedmetadata → hidden 필드)
 - [ ] *(v0.4)* Jenkinsfile 에 `app-media` 빌드·이미지 추가 · k8s 매니페스트(`resources.limits.cpu: 1`)
 - [ ] ~~S15P21D104-590 core-api Dockerfile ffmpeg~~ **v0.5 삭제**

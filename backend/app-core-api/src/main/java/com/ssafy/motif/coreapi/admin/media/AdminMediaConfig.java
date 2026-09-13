@@ -9,12 +9,13 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
- * 어드민 S3 구성 — <b>서명과 HEAD 뿐이다</b>.
+ * 어드민 S3 구성 — 서명 발급({@link S3Presigner})과 존재 확인({@link S3Client}) 둘뿐이다.
  *
- * <p>core-api 는 바이트를 다루지 않는다(원칙 ① — 브라우저 → S3 직행). 필요한 것은
- * 업로드 URL 서명({@link S3Presigner})과 업로드 완료 확인용 HEAD({@link S3Client},
- * §1.4 검증 1항) 둘뿐이다 — {@code getObject}·{@code putObject} 는 쓰지 않으며 실제
- * 오브젝트 입출력은 app-media 소유다.
+ * <p>core-api 는 <b>바이트를 다루지 않는다</b>(원칙 ① — 브라우저 → S3 직행). 오브젝트
+ * 입출력·인코딩은 전부 app-media 다. {@code S3Client} 를 둔 이유는 하나 —
+ * {@code HEAD} 다. 명세 §1.4 가 "서버는 키만 받고(Claim-Check) 존재를 HEAD 로 확인한다"
+ * 고 정했고 §3.7.2 검증 4항이 등록 트랜잭션 진입 전 모든 키를 HEAD 하게 한다.
+ * HEAD 는 메타데이터만 읽으므로 원칙 ① 과 어긋나지 않는다.
  */
 @Configuration
 @EnableConfigurationProperties(AdminMediaProperties.class)
@@ -26,7 +27,13 @@ public class AdminMediaConfig {
         return S3Presigner.builder().region(Region.of(region)).build();
     }
 
-    /** 업로드 완료 확인({@code headObject}) 전용 — {@link MediaObjectChecker} 가 쓴다. */
+    /**
+     * HEAD 전용 — {@code getObject}·{@code putObject} 를 부르는 코드는 core-api 에 없다.
+     *
+     * <p>쓰는 곳은 {@link AdminMediaService#requireUploaded} 하나다. 같은 일을 하는
+     * 클래스를 따로 만들지 않는다 — 403 처리(버킷에 {@code s3:ListBucket} 이 없으면
+     * S3 가 없는 키에 404 대신 403 을 준다)와 부재 키 일괄 수집이 거기 들어 있다.
+     */
     @Bean
     public S3Client s3Client(@Value("${motif.media.s3.region}") String region) {
         return S3Client.builder().region(Region.of(region)).build();

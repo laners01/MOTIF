@@ -6,7 +6,7 @@ import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
-import com.ssafy.motif.coreapi.admin.media.MediaObjectChecker;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.domain.core.asset.AssetType;
@@ -42,7 +42,7 @@ import static org.mockito.BDDMockito.given;
  * <p>핵심은 <b>KR 가격 없는 에셋이 만들어질 수 없다</b>는 것 — 같은 트랜잭션이라
  * 가격 INSERT 가 실패하면 에셋도 남지 않는다.
  *
- * <p>{@link MediaObjectChecker} 만 목이다. HEAD 는 실제 S3 왕복이라 CI·로컬에 버킷과
+ * <p>{@link AdminMediaService} 만 목이다. HEAD 는 실제 S3 왕복이라 CI·로컬에 버킷과
  * 자격증명이 필요해지는데, 이 테스트가 보려는 것은 업로드 상태가 아니라 트랜잭션
  * 경계다. 나머지(리포지토리·트랜잭션·제약)는 전부 진짜를 쓴다.
  *
@@ -69,14 +69,14 @@ class AdminAssetServiceLocalDbTest {
     private EntityManager entityManager;
 
     @MockitoBean
-    private MediaObjectChecker mediaObjectChecker;
+    private AdminMediaService adminMediaService;
 
     private AuthenticatedAdmin admin;
     private Integer artistSeq;
 
     @BeforeEach
     void setUp() {
-        given(mediaObjectChecker.exists(anyString())).willReturn(true);
+        given(adminMediaService.exists(anyString())).willReturn(true);
         admin = new AuthenticatedAdmin(1, newUser().getUserSeq(), "운영자");
         artistSeq = newArtist();
     }
@@ -142,7 +142,7 @@ class AdminAssetServiceLocalDbTest {
     @Test
     @DisplayName("업로드되지 않은 영상 키는 409 MEDIA_NOT_UPLOADED")
     void missingUploadIsRejected() {
-        given(mediaObjectChecker.exists(anyString())).willReturn(false);
+        given(adminMediaService.exists(anyString())).willReturn(false);
 
         assertThatThrownBy(() -> adminAssetService.create(admin, request(new BigDecimal("3900.00"))))
                 .isInstanceOf(BusinessException.class)

@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.admin.notice;
 
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.admin.media.MediaObjectChecker;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeDetailResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeImageResponse;
 import com.ssafy.motif.coreapi.admin.notice.dto.NoticeUpdateRequest;
@@ -67,7 +67,7 @@ class AdminNoticeServiceLocalDbTest {
     private EntityManager entityManager;
 
     @MockitoBean
-    private MediaObjectChecker mediaObjectChecker;
+    private AdminMediaService adminMediaService;
     @MockitoSpyBean
     private RabbitTemplate rabbitTemplate;
 
@@ -76,7 +76,7 @@ class AdminNoticeServiceLocalDbTest {
 
     @BeforeEach
     void setUp() {
-        given(mediaObjectChecker.exists(anyString())).willReturn(true);
+        given(adminMediaService.exists(anyString())).willReturn(true);
         admin = new AuthenticatedAdmin(1, newUser().getUserSeq(), "운영자");
         noticeSeq = newNotice(List.of("notices/a.jpg", "notices/b.jpg", "notices/c.jpg"));
     }
@@ -137,7 +137,7 @@ class AdminNoticeServiceLocalDbTest {
     @Test
     @DisplayName("올라오지 않은 이미지 키는 409 — 기존 이미지를 지우기 전에 막는다")
     void missingImageKeepsExistingImages() {
-        given(mediaObjectChecker.exists("notices/x.jpg")).willReturn(false);
+        given(adminMediaService.exists("notices/x.jpg")).willReturn(false);
 
         assertThatThrownBy(() -> adminNoticeService.update(admin, noticeSeq,
                 new NoticeUpdateRequest(null, List.of("notices/x.jpg", "notices/y.jpg"))))
