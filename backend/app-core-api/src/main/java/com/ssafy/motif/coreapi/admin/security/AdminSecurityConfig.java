@@ -11,6 +11,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -60,5 +62,18 @@ public class AdminSecurityConfig {
                 .addFilterBefore(new AdminAuthFilter(adminJwtProvider),
                         UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    /**
+     * 어드민 비밀번호 대조용 (§3.1.1). 시드 해시는 부록 B 가 {@code htpasswd -bnBC 10}
+     * 또는 이 인코더로 만든다 — 두 경로의 cost(10)가 같아야 같은 해시가 나온다.
+     *
+     * <p>팬 앱에는 비밀번호가 없다(구글 OAuth 뿐) — 그래서 전역 설정이 아니라
+     * 유일한 사용처인 어드민 쪽에 둔다. 팬 앱에 비밀번호 로그인이 생기면 그때
+     * 공용 위치로 옮긴다.
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(10);
     }
 }

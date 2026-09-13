@@ -17,6 +17,11 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     default-schema: motif_core
     liquibase-schema: motif_core   # DATABASECHANGELOG도 자기 스키마에
+    parameters:
+      # 어드민 시드 BCrypt 해시 (0015-admin-seed.sql, 부록 B). fallback 을 두지 않는다 —
+      # 기본값을 두면 전 배포가 같은 비밀번호로 뜨고, 그게 리포지토리에 남는다.
+      # 로컬 프로파일이 개발용 더미로 덮는다.
+      adminSeedHash: ${ADMIN_SEED_HASH}
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
@@ -38,6 +43,9 @@ motif:
 
   # 어드민 (어드민 명세 §1.1·§1.2·§1.3·§1.4). 비밀값·허용 IP 는 프로파일별 파일에서 주입한다
   admin:
+    # §1.2 — motif_admin 쿠키의 Secure 플래그. 기본은 켬이고 로컬만 끈다(http 개발 서버).
+    # TLS 를 Traefik 이 끊어 앱이 보는 스킴은 운영에서도 http 라, 요청으로 판단하지 않는다.
+    cookie-secure: true
     jwt:
       # §1.2 — 12시간, refresh 없음(기본안). 만료되면 재로그인
       ttl: 12h

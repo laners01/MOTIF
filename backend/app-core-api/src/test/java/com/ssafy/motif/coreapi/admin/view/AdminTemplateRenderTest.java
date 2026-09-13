@@ -38,6 +38,26 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("로그인 — 인증이 걸린 정적 자원을 부르지 않고 혼자 선다 (§3.1.1 permitAll)")
+    void login() {
+        String html = render("admin/login");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 로그인</title>")
+                .contains("id=\"loginId\"")
+                .contains("id=\"password\"")
+                .contains("/api/v1/admin/auth/login");
+        // 핵심 회귀 방어 — layout.html 을 끼우면 /admin/admin.css·admin.js 를 부르는데
+        // 그 둘은 인증 뒤에 있어 로그인 전에는 401 이다. 스타일이 깨진 화면이 뜬다.
+        assertThat(html)
+                .as("로그인 화면은 스타일·스크립트를 인라인으로 들고 있어야 한다")
+                .doesNotContain("/admin/admin.css")
+                .doesNotContain("/admin/admin.js")
+                .contains("<style>");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("챌린지 등록 — 레이아웃 제목과 매트릭스 표 뼈대가 들어간다")
     void challengeNew() {
         String html = render("admin/challenge-new");

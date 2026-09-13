@@ -76,6 +76,18 @@ class AdminAccessFilterTest {
         }
 
         @Test
+        @DisplayName("로그인 화면도 막는다 — permitAll 은 Security 안쪽 얘기고 IP 필터가 더 바깥이다")
+        void 로그인_화면도_404() throws Exception {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(request("/admin/login", "203.0.113.9"), response, chain);
+
+            assertThat(response.getStatus()).isEqualTo(404);
+            assertThat(chain.getRequest()).as("체인을 타지 않아야 한다").isNull();
+        }
+
+        @Test
         @DisplayName("어드민 경로가 아니면 손대지 않는다")
         void 사용자_경로() throws Exception {
             MockFilterChain chain = new MockFilterChain();
@@ -97,7 +109,7 @@ class AdminAccessFilterTest {
         }
 
         private AdminIpFilter ipFilter(List<String> cidrs) {
-            return new AdminIpFilter(new AdminProperties(cidrs, null));
+            return new AdminIpFilter(new AdminProperties(cidrs, null, true));
         }
 
         private MockHttpServletRequest request(String uri, String forwardedFor) {
@@ -112,7 +124,7 @@ class AdminAccessFilterTest {
     class Auth {
 
         private final AdminJwtProvider provider = new AdminJwtProvider(
-                new AdminProperties(List.of(), new AdminProperties.Jwt(ADMIN_SECRET, Duration.ofHours(12))));
+                new AdminProperties(List.of(), new AdminProperties.Jwt(ADMIN_SECRET, Duration.ofHours(12)), true));
         private final AdminAuthFilter filter = new AdminAuthFilter(provider);
         private final AuthenticatedAdmin admin = new AuthenticatedAdmin(1, 2, "김운영");
 
@@ -164,7 +176,7 @@ class AdminAccessFilterTest {
         @DisplayName("만료된 토큰은 통과하지 못한다")
         void 만료() throws Exception {
             AdminJwtProvider expired = new AdminJwtProvider(new AdminProperties(
-                    List.of(), new AdminProperties.Jwt(ADMIN_SECRET, Duration.ofSeconds(-1))));
+                    List.of(), new AdminProperties.Jwt(ADMIN_SECRET, Duration.ofSeconds(-1)), true));
             MockHttpServletRequest request = new MockHttpServletRequest("GET", ADMIN_API);
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + expired.issue(admin));
 
