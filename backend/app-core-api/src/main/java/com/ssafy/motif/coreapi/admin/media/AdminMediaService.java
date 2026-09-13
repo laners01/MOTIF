@@ -75,8 +75,16 @@ public class AdminMediaService {
      * {@code IMAGE_NOT_UPLOADED} 를 배정했고, 챌린지 등록은 §3.7 실패표대로
      * {@code MEDIA_NOT_UPLOADED} 하나로 모은다({@link #requireUploaded}).
      *
-     * <p>403 도 "없음"으로 본다 — 버킷에 {@code s3:ListBucket} 이 없으면 S3 는 존재하지 않는
-     * 키에 404 대신 403 을 준다. 어느 쪽이든 등록을 진행할 수 없는 상태는 같다.
+     * <p><b>403 을 "없음"으로 삼키지 않는다.</b> 예전에는 삼켰다 — 버킷에
+     * {@code s3:ListBucket} 이 없으면 S3 가 없는 키에 404 대신 403 을 주기 때문이다.
+     * 그런데 그러면 <b>권한 설정이 틀린 것이 "파일이 안 올라왔다"로 위장한다</b>.
+     * 어드민은 멀쩡히 올린 파일을 두고 업로드를 반복하게 되고 로그에도 단서가 없다
+     * (2026-09-14 에 실제로 반나절을 태웠다 — 그때는 PUT 쪽 {@code AccessDenied} 였다).
+     *
+     * <p>그래서 404 만 "없음"이고 나머지는 그대로 던진다 → 500 + S3 메시지가 로그에 남는다.
+     * <b>전제는 자격증명에 버킷 단위 {@code s3:ListBucket} 이 있다는 것</b>이다. 그게 빠지면
+     * 없는 키가 403 으로 와서 정상적인 "미업로드"까지 500 이 된다 — 그 편이 낫다.
+     * 조용히 틀리는 것보다 시끄럽게 틀리는 것이 고칠 수 있다.
      */
     public boolean exists(String key) {
         try {
@@ -85,9 +93,12 @@ public class AdminMediaService {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (S3Exception e) {
-            if (e.statusCode() == 404 || e.statusCode() == 403) {
+            if (e.statusCode() == 404) {
                 return false;
             }
+            // 403 은 여기서 멈춘다 — 권한 문제를 "파일 없음"으로 바꾸지 않는다(위 javadoc)
+            log.error("S3 HEAD 실패 — 권한 설정을 의심해라: key={} status={} code={}",
+                    key, e.statusCode(), e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode());
             throw e;
         }
     }
