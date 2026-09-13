@@ -1,11 +1,16 @@
 package com.ssafy.motif.coreapi.admin.challenge;
 
 import com.ssafy.motif.common.error.AdminErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
+import com.ssafy.motif.common.error.ErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeUpdateRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaKind;
@@ -13,7 +18,9 @@ import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.media.VideoRules;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.domain.core.artist.ArtistName;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
@@ -21,6 +28,7 @@ import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.challenge.EditedChallenge;
 import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
+import com.ssafy.motif.domain.core.song.Song;
 import com.ssafy.motif.domain.core.song.SongRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,8 +36,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * 챌린지 등록 (어드민 명세 §3.7.2, 부록 A) — S15P21D104-559.
@@ -81,6 +94,141 @@ public class AdminChallengeService {
         auditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE",
                 challenge.getChallengeSeq(), AdminAuditLogger.RESULT_OK);
         return slotsResponse(challenge);
+    }
+
+    /**
+     * 등록 전 사전 검증 (§3.7.8) — DB 를 바꾸지 않는다.
+     *
+     * <p>화면이 편집본 매트릭스를 채우는 동안 계속 부르는 dry-run 이라, <b>실패도 200</b>
+     * 으로 돌려준다. 조합이 덜 찬 상태는 오류가 아니라 정상적인 중간 상태다.
+     *
+     * <p><b>등록과 같은 {@link #verify} 를 탄다.</b> 검증 로직을 따로 쓰면 사전 검증은
+     * 통과하는데 등록은 실패하는 조합이 생긴다 — 화면의 "등록" 버튼이 거짓말을 하게 된다.
+     * 그래서 예외를 잡아 결과로 옮기는 모양을 택했다.
+     */
+    public ChallengeValidateResponse validate(ChallengeCreateRequest request) {
+        List<Integer> computedMasks = expectedMasks(request.participants().size());
+        try {
+            verify(request);
+            return new ChallengeValidateResponse(true, computedMasks, List.of());
+        } catch (BusinessException e) {
+            ErrorCode code = e.getErrorCode();
+            log.info("사전 검증 실패: code={} message={}", code.getCode(), e.getMessage());
+            return new ChallengeValidateResponse(false, computedMasks,
+                    List.of(new ChallengeValidateResponse.Issue(
+                            code.getCode(), code.getMessage(), e.getData())));
+        }
+    }
+
+    /** 상세 (§3.7.3). */
+    @Transactional(readOnly = true)
+    public ChallengeDetailResponse detail(Integer challengeSeq) {
+        return detailOf(requireChallenge(challengeSeq));
+    }
+
+    /**
+     * 소개글·곡 수정 (§3.7.4).
+     *
+     * <p>원본 영상·메인 아티스트가 요청에 들어 있으면 <b>바꾸지 않고 거절한다</b> —
+     * 이유는 {@link ChallengeUpdateRequest} 에 적었다.
+     */
+    @Transactional
+    public ChallengeDetailResponse update(AuthenticatedAdmin admin, Integer challengeSeq,
+                                          ChallengeUpdateRequest request) {
+        List<String> immutable = new ArrayList<>();
+        if (request.videoKey() != null) {
+            immutable.add("videoKey");
+        }
+        if (request.artistSeq() != null) {
+            immutable.add("artistSeq");
+        }
+        if (!immutable.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "불변 필드는 수정할 수 없다: " + immutable, Map.of("immutableFields", immutable));
+        }
+
+        Challenge challenge = requireChallenge(challengeSeq);
+        if (request.songSeq() != null && !songRepository.existsById(request.songSeq())) {
+            throw new BusinessException(AdminErrorCode.SONG_NOT_FOUND,
+                    "존재하지 않는 곡: songSeq=" + request.songSeq());
+        }
+        challenge.update(request.description(), request.songSeq());
+
+        auditLogger.write(admin, "UPDATE_CHALLENGE", "CHALLENGE",
+                challengeSeq, AdminAuditLogger.RESULT_OK);
+        return detailOf(challenge);
+    }
+
+    /** 삭제된 챌린지는 어드민에게도 404 다 (§3.7 실패표 "대상 없음·삭제"). */
+    Challenge requireChallenge(Integer challengeSeq) {
+        return challengeRepository.findByChallengeSeqAndDeletedFalse(challengeSeq)
+                .orElseThrow(() -> new BusinessException(ChallengeErrorCode.CHALLENGE_NOT_FOUND,
+                        "존재하지 않는 챌린지: challengeSeq=" + challengeSeq));
+    }
+
+    /** 슬롯 n 개가 요구하는 조합 {@code 1 … 2ⁿ−1} — 화면 매트릭스의 행 목록이다. */
+    static List<Integer> expectedMasks(int slotCount) {
+        return IntStream.rangeClosed(1, (1 << slotCount) - 1).boxed().toList();
+    }
+
+    private ChallengeDetailResponse detailOf(Challenge challenge) {
+        Integer seq = challenge.getChallengeSeq();
+        List<ChallengeParticipant> participants =
+                participantRepository.findByIdChallengeSeqOrderByParticipantMask(seq);
+        List<EditedChallenge> edited =
+                editedChallengeRepository.findByChallengeSeqOrderByParticipantMask(seq);
+
+        List<Integer> artistSeqs = new ArrayList<>();
+        artistSeqs.add(challenge.getArtistSeq());
+        participants.forEach(p -> artistSeqs.add(p.artistSeq()));
+        Map<Integer, String> names = artistRepository.findNames(Set.copyOf(artistSeqs)).stream()
+                .collect(Collectors.toMap(ArtistName::artistSeq, ArtistName::name));
+
+        Map<Integer, Long> jobRefs = jobRefCounts(edited);
+        Song song = songRepository.findById(challenge.getSongSeq()).orElse(null);
+
+        return new ChallengeDetailResponse(
+                seq,
+                new ChallengeDetailResponse.ArtistSummary(
+                        challenge.getArtistSeq(), names.get(challenge.getArtistSeq())),
+                song == null ? null : new ChallengeDetailResponse.SongSummary(
+                        song.getSongSeq(), song.getTitle(), song.getSingerName()),
+                challenge.getDescription(),
+                mediaUrlResolver.resolve(challenge.getVideoKey()),
+                mediaUrlResolver.resolve(challenge.getThumbnailKey()),
+                challenge.getDurationMs(),
+                participants.size(),
+                edited.size(),
+                challenge.getViewCount(),
+                challenge.getParticipantCount(),
+                challenge.getLikeCount(),
+                challenge.getCommentCount(),
+                challenge.isDeleted(),
+                challenge.getRegDttm(),
+                participants.stream().map(p -> new ChallengeDetailResponse.Participant(
+                        new ChallengeDetailResponse.ArtistSummary(p.artistSeq(), names.get(p.artistSeq())),
+                        p.getParticipantMask(),
+                        new ChallengeDetailResponse.BboxResponse(
+                                p.getBbox().getLeftTopX(), p.getBbox().getLeftTopY(),
+                                p.getBbox().getRightBottomX(), p.getBbox().getRightBottomY()))).toList(),
+                edited.stream().map(e -> new ChallengeDetailResponse.Edited(
+                        e.getEditedChallengeSeq(), e.getParticipantMask(),
+                        mediaUrlResolver.resolve(e.getVideoKey()),
+                        mediaUrlResolver.resolve(e.getInitialSceneKey()),
+                        jobRefs.getOrDefault(e.getEditedChallengeSeq(), 0L))).toList(),
+                challengeRepository.countActiveJobs(seq));
+    }
+
+    /** 참조 0 건인 편집본은 group by 결과에 행이 없다 — 호출부가 기본값 0 을 쓴다. */
+    private Map<Integer, Long> jobRefCounts(List<EditedChallenge> edited) {
+        if (edited.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, Long> counts = new HashMap<>();
+        editedChallengeRepository.countJobRefs(
+                        edited.stream().map(EditedChallenge::getEditedChallengeSeq).toList())
+                .forEach(row -> counts.put(row.getEditedChallengeSeq(), row.getJobCount()));
+        return counts;
     }
 
     /** 슬롯·편집본 INSERT — 등록(§3.7.2)과 슬롯 교체(§3.7.5)가 공유한다. */

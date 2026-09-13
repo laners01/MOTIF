@@ -17,9 +17,10 @@ import lombok.NoArgsConstructor;
  * 사용자의 도메인 확장이라({@code uq_artists_user}) 이름은 {@code users.nickname} 이다.
  * 이름·그룹·소속사가 필요한 §5(아티스트 조회·검색)에서는 {@code users} 조인이 전제된다.
  *
- * <p><b>부분 매핑이다.</b> §3.3 온보딩에 필요한 컬럼만 매핑했다 —
- * {@code user_seq}·{@code group_seq}·{@code company_seq}·{@code bio}·
+ * <p><b>부분 매핑이다.</b> {@code group_seq}·{@code company_seq}·{@code bio}·
  * {@code motif_bg_image_key} 등은 §5·§11 티켓에서 연관과 함께 추가한다.
+ * {@code user_seq} 는 표시 이름을 얻기 위해 매핑돼 있다
+ * ({@link ArtistRepository#findNames}) — 연관이 아니라 값이다.
  * 매핑하지 않은 컬럼은 {@code ddl-auto: validate} 대상이 아니라 기동에 영향이 없다.
  *
  * <p>{@code subscriberCount} 는 거울 카운터다. 구독 생성·해제와 <b>같은 트랜잭션</b>에서
@@ -36,6 +37,9 @@ public class Artist {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "artist_seq")
     private Integer artistSeq;
+
+    @Column(name = "user_seq", nullable = false, updatable = false)
+    private Integer userSeq;
 
     @Column(name = "subscriber_count", nullable = false)
     private int subscriberCount;
