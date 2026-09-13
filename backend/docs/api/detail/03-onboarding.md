@@ -4,11 +4,11 @@
 
 원본: [`MOTIF_API_명세서_v0_11.md`](../MOTIF_API_명세서_v0_11.md) §3 · DB 명세서 v0.15 §9·§10.
 
-| # | Method | Path | 인증 | 상태 |
+| # | Method | Path | 인증 | 비고 |
 |---|---|---|---|---|
-| 3.1 | GET | `/api/v1/artists/ranking` | 필요 | §5.1 재사용 — [`05-artist.md`](05-artist.md) 에서 다룬다 |
-| 3.2 | GET | `/api/v1/artists/search` | 필요 | §5.2 재사용 — 〃 |
-| 3.3 | POST | `/api/v1/onboarding` | 필요 | **이 문서** |
+| 3.1 | GET | `/api/v1/artists/ranking` | 필요 | §5.1 과 같은 API — [`05-artist.md`](05-artist.md) 참조 |
+| 3.2 | GET | `/api/v1/artists/search` | 필요 | §5.2 와 같은 API — 〃 |
+| 3.3 | POST | `/api/v1/onboarding` | 필요 | |
 
 §3.1·§3.2 는 별도 엔드포인트가 아니라 아티스트 API 를 온보딩 화면에서 그대로 호출하는 것이다. 온보딩에서 신규 구현하는 API 는 §3.3 하나뿐이다.
 

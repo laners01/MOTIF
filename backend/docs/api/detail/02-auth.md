@@ -4,11 +4,119 @@
 
 원본: [`MOTIF_API_명세서_v0_11.md`](../MOTIF_API_명세서_v0_11.md) §2 · DB 명세서 v0.15 §6.
 
-| # | Method | Path | 인증 | 상태 |
-|---|---|---|---|---|
-| 2.1 | POST | `/api/v1/auth/login/google` | 🔓 | 구현됨 (상세 명세 미작성 — Swagger 참조) |
-| 2.2 | POST | `/api/v1/auth/refresh` | 🔓 | **이 문서** |
-| 2.3 | POST | `/api/v1/auth/logout` | 필요 | **이 문서** |
+| # | Method | Path | 인증 |
+|---|---|---|---|
+| 2.1 | POST | `/api/v1/auth/login/google` | 🔓 |
+| 2.2 | POST | `/api/v1/auth/refresh` | 🔓 |
+| 2.3 | POST | `/api/v1/auth/logout` | 필요 |
+
+---
+
+## 2.1 POST /api/v1/auth/login/google 🔓
+
+구글 ID 토큰을 검증하고, **최초 로그인이면 회원을 자동 생성**한다(`users` + `user_accounts` + `user_oauth_accounts` 3행).
+
+인증이 필요 없다(🔓).
+
+### 요청
+
+```http
+POST /api/v1/auth/login/google
+Content-Type: application/json; charset=utf-8
+```
+
+```json
+{ "idToken": "google-id-token" }
+```
+
+| 필드 | 타입 | 필수 | 제약 |
+|---|---|:---:|---|
+| `idToken` | string | Y | 구글 Sign-In 이 발급한 ID 토큰. 공백 불가 |
+
+### 성공 응답 (200)
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwicm9sZSI6IlVTRVIifQ.xxxxx",
+    "refreshToken": "s7Fq2vXk9pLmNbVcZxAsDfGhJkLqWeRtYuIoP1234567",
+    "tokenType": "Bearer",
+    "expiresIn": 3600,
+    "isNewUser": true,
+    "user": { "userSeq": 1, "nickname": "user_1", "profileImageUrl": null }
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `accessToken` | string | 서비스 access token (JWT, HS256). `Authorization: Bearer {값}` |
+| `refreshToken` | string | 재발급용 **불투명 문자열**(JWT 아님). 해석하지 말고 그대로 보관·재전송한다 |
+| `tokenType` | string | `Bearer` 고정 |
+| `expiresIn` | number | access token 유효 기간(초). 현재 3600 |
+| `isNewUser` | boolean | **이번 요청에서 `users` 행이 새로 생겼는지** — 온보딩 노출 판정의 유일한 근거 |
+| `user.nickname` | string | 최초 가입은 임시값 `user_{userSeq}`. 확정은 §3.3 |
+| `user.profileImageUrl` | string \| null | 공개 CDN URL(§1.7). 미설정이면 `null` — 신규 가입은 항상 이 경우다 |
+
+### 서버 처리 순서
+
+1. 구글 JWKS 로 ID 토큰 서명·만료·`iss`·`aud`(우리 clientId)를 검증하고 `sub` 를 얻는다
+2. `(GOOGLE, sub)` 로 `user_oauth_accounts` 를 조회한다
+3. 없으면 **가입** — `users`(임시 닉네임) → `user_accounts`(ACTIVE) → `user_oauth_accounts` 3행 생성. `isNewUser=true`
+4. 계정 상태를 검증한다 — 삭제·정지면 403(§1.5)
+5. access token 발급 + `refresh_tokens` 새 행 발급(원문이 아니라 SHA-256 해시를 저장)
+
+- 구글 서버 왕복은 **DB 트랜잭션 밖**에서 한다. 같은 구글 계정의 최초 로그인이 동시에 들어와 `uq_user_oauth_subject` 가 충돌하면, 새 트랜잭션에서 재조회해 기존 회원 경로로 흐른다.
+- **로그인할 때마다 refresh token 행이 새로 쌓인다** — 기기별 세션이라 기존 행을 폐기하지 않는다.
+
+### 온보딩 판정과 그 한계
+
+`isNewUser` 가 유일한 근거다(회의 확정 — 구 `needsOnboarding` 필드는 삭제됐다).
+
+**한계**: 온보딩 도중 이탈했다가 재로그인하면 `isNewUser=false` 라 서버는 온보딩을 다시 띄워주지 않는다. 그래서 **클라이언트가 §3.3 성공 전까지 홈 진입을 막아야 한다**(뒤로가기는 앱 종료 확인). 재설치 등으로 복구가 필요해지면 `users` 에 온보딩 완료 플래그를 추가하는 안으로 승격한다(원본 §16 #16).
+
+### 실패 응답
+
+| HTTP | code | 조건 |
+|---|---|---|
+| 401 | `INVALID_GOOGLE_TOKEN` | 구글 ID 토큰 검증 실패 — 만료·위조·`aud` 불일치·`iss` 불일치·`sub` 없음 |
+| 403 | `ACCOUNT_SUSPENDED` / `ACCOUNT_DELETED` | 정지·삭제 계정의 로그인 시도 |
+
+**401 — `INVALID_GOOGLE_TOKEN`**
+
+```json
+{
+  "result": "FAIL",
+  "code": "INVALID_GOOGLE_TOKEN",
+  "message": "구글 인증에 실패했습니다. 다시 로그인해 주세요.",
+  "data": null,
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+**400 — `INVALID_PARAMETER`** (`idToken` 누락·빈 문자열)
+
+```json
+{
+  "result": "FAIL",
+  "code": "INVALID_PARAMETER",
+  "message": "요청 값이 올바르지 않습니다.",
+  "data": [{ "field": "idToken", "message": "idToken은 필수입니다" }],
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+### 기본안
+
+| 항목 | 기본안 | 근거 |
+|---|---|---|
+| 최초 닉네임 | `user_{userSeq}` | `users.nickname` 이 NOT NULL 이라 가입 시점에 값이 필요하다. 확정은 §3.3 |
+| refresh token 형식 | **불투명 랜덤 32바이트**(Base64URL), JWT 아님 | `refresh_tokens` 가 원문 대신 해시만 갖는 구조라 어차피 DB 를 조회해야 한다. JWT 의 자기검증 이점이 없고 클레임 노출·키 회전 문제만 남는다 |
+| refresh token TTL | 14일 | 원본에 값이 없다(`motif.auth.jwt.refresh-token-ttl`) |
 
 ---
 

@@ -4,22 +4,17 @@
 
 원본: [`MOTIF_API_명세서_v0_11.md`](../MOTIF_API_명세서_v0_11.md) §4 · DB 명세서 v0.15.
 
-| # | Method | Path | 인증 | 구현 |
-|---|---|---|---|:---:|
-| 4.1 | GET | `/api/v1/users/me` | 필요 | ⛔ |
-| 4.2 | PATCH | `/api/v1/users/me/nickname` | 필요 | ✅ 가능 |
-| 4.3 | POST | `/api/v1/users/me/profile-image/presign` | 필요 | ⛔ |
-| 4.4 | PATCH | `/api/v1/users/me/profile-image` | 필요 | ⛔ |
-| 4.5 | — | (삭제) 대표 모티프 설정 → §11.8 PATCH 로 통합 | — | — |
-| 4.6 | GET | `/api/v1/users/{userSeq}/profile` | 필요 | ✅ 가능 |
-| 4.7 | GET | `/api/v1/users/me/subscriptions` | 필요 | ✅ 가능 |
-| 4.8 | GET | `/api/v1/users/me/videos` | 필요 | ⚠️ 부분 |
-| 4.9 | GET | `/api/v1/users/me/activities` | 필요 | ✅ 가능 |
-
-> **⛔ / ⚠️ 는 스토리지 미구성 때문이다** — 문서상 계약은 완성돼 있으나 구현은 보류다.
-> - **⛔ 4.1·4.3·4.4**: signed URL 발급(키페어)·presigned PUT(IAM 자격증명)이 필요하다.
-> - **⚠️ 4.8**: PUBLIC 영상 썸네일은 공개 URL 로 되지만, 본인 PRIVATE 영상 썸네일은 signed 라 값이 `null` 이 된다.
-> - 공개 URL 변환 자체는 스토리지 호출이 아니라 문자열 조합이다(`PublicMediaUrlResolver`). CloudFront 도메인(`motif.media.public-base-url`)만 주입되면 동작한다.
+| # | Method | Path | 인증 |
+|---|---|---|---|
+| 4.1 | GET | `/api/v1/users/me` | 필요 |
+| 4.2 | PATCH | `/api/v1/users/me/nickname` | 필요 |
+| 4.3 | POST | `/api/v1/users/me/profile-image/presign` | 필요 |
+| 4.4 | PATCH | `/api/v1/users/me/profile-image` | 필요 |
+| 4.5 | — | (삭제) 대표 모티프 설정 → §11.8 PATCH 로 통합 | — |
+| 4.6 | GET | `/api/v1/users/{userSeq}/profile` | 필요 |
+| 4.7 | GET | `/api/v1/users/me/subscriptions` | 필요 |
+| 4.8 | GET | `/api/v1/users/me/videos` | 필요 |
+| 4.9 | GET | `/api/v1/users/me/activities` | 필요 |
 
 ---
 
