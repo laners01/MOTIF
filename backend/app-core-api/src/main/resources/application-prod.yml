@@ -44,6 +44,16 @@ motif:
   # ADMIN_SEED_HASH 도 core-api-secret 에 추가해야 한다 — 0015 시드 changeSet 이
   # Liquibase property 로 받는다(application.yml, fallback 없음). 미주입이면 기동
   # 실패다. 해시 생성은 어드민 명세 부록 B — `htpasswd -bnBC 10 "" '평문'`, cost 10.
+  # 공개 등급 미디어(프로필·썸네일·챌린지 원본·공지 이미지)의 CDN 앞단 (명세 §1.7).
+  # PoC 에서 만든 배포판이다 — origin 은 s3://motif-media, Range·캐시 확인 완료
+  # (docs/poc/video-delivery-handoff.md §8).
+  #
+  # **fallback 을 둔다.** 이 값이 비면 PublicMediaUrlResolver 가 모든 URL 을 조용히
+  # null 로 돌려준다 — 앱은 정상 기동하고 API 도 200 이며, 안드로이드만 이미지·영상이
+  # 전부 비어 보인다. 실패가 드러나지 않는 종류라 미주입 위험을 기본값으로 막는다.
+  media:
+    public-base-url: ${MOTIF_MEDIA_PUBLIC_BASE_URL:https://d21so2cpi8si9r.cloudfront.net}
+
   admin:
     # 쿠키는 운영에서 항상 Secure 다. Traefik 이 TLS 를 끊어 앱이 보는 스킴은 http 라
     # 요청으로 판단할 수 없다 — 값으로 못박는다(§1.2).
