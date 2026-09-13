@@ -31,6 +31,8 @@ public class AdminViewConfig implements WebMvcConfigurer {
         registry.addViewController(AdminPaths.VIEW + "/login").setViewName("admin/login");
         // 챌린지 등록 — 원본 업로드 → 슬롯 입력 → 편집본 키 매트릭스 (§1.7, 부록 A)
         registry.addViewController(AdminPaths.VIEW + "/challenges/new").setViewName("admin/challenge-new");
+        // 소속사 · 그룹 — 한 화면 두 탭 (§1.7 "아티스트" 줄의 3.3 · 3.4)
+        registry.addViewController(AdminPaths.VIEW + "/orgs").setViewName("admin/orgs");
         // 에셋 가격 · 패스 가격 — 한 화면 두 탭 (§1.7 "모티프 에셋 활성/가격" · "패스 가격")
         registry.addViewController(AdminPaths.VIEW + "/prices").setViewName("admin/prices");
         // 공지 — 목록·수정 (§1.7, §3.10)
