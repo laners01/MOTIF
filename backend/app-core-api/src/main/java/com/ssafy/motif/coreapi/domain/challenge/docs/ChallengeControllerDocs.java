@@ -39,9 +39,13 @@ public interface ChallengeControllerDocs {
                     - `participants` 는 교체 가능한 인물 슬롯이다. `participantMask` 는 **단일 비트**
                       (1·2·4·8)이며 배열은 마스크 오름차순 = 화면 좌→우 순서다.
                       `bbox` 는 **원본 영상 px · 좌상단 원점** 좌표로 촬영 가이드 오버레이용이다.
-                    - **`availableMasks` 는 없다** (회의 확정 R4). 슬롯 조합의 편집본은 어드민이 전부
-                      등록한다는 운영 전제이고, 조합 유효성은 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로만
-                      사후 판별된다.
+                      `profileImageUrl` 은 설명 시트의 참여자 아바타용이며 미등록이면 `null` 이다.
+                    - **편집본이 0개인 챌린지가 있다.** 슬롯은 등록됐지만 AI 편집본이 아직 없는
+                      상태로, 재생·표시는 정상이고 촬영만 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로
+                      막힌다. 어드민 등록이 **0개 또는 정확히 2ⁿ−1개**만 허용하므로 부분 집합은
+                      존재하지 않는다 — 조합 하나만 비는 경우는 없다.
+                    - **`availableMasks` 는 없다** (회의 확정 R4). 조합 유효성은 §13.1 의
+                      `EDITED_CHALLENGE_NOT_FOUND` 로만 사후 판별된다.
                     - 삭제된 챌린지는 **없는 것으로 답한다**(404) — §1.8 공통 비노출.
 
                     댓글은 §9 공통 댓글(`type=challenge`)을 쓴다.
@@ -74,6 +78,7 @@ public interface ChallengeControllerDocs {
                                             "artistSeq": 7,
                                             "name": "윈터",
                                             "participantMask": 1,
+                                            "profileImageUrl": "https://cdn.../profiles/7.jpg",
                                             "bbox": { "leftTopX": 120, "leftTopY": 80, "rightBottomX": 460, "rightBottomY": 940 }
                                           }
                                         ]
