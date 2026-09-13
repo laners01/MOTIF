@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('가격 관리', ~{::main})}">
+<body>
+<!--/* 에셋 가격(§3.8.6) 과 패스 가격(§3.9) 을 탭 하나로 묶은 화면. 로직은 prices.js. */-->
+<main>
+    <nav class="tabs">
+        <button type="button" data-tab="asset" class="active">에셋 가격</button>
+        <button type="button" data-tab="pass">패스 가격</button>
+    </nav>
+
+    <section data-panel="asset">
+        <h2>에셋 가격 <span class="muted">— 국가별 가격(현재 KR 만 사용)</span></h2>
+        <p>
+            <label style="display:inline">아티스트
+                <select id="asset-artist"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline">상태
+                <select id="asset-state">
+                    <option value="">전체</option>
+                    <option value="true">활성</option>
+                    <option value="false">비활성</option>
+                </select>
+            </label>
+            <button type="button" id="asset-reload">조회</button>
+        </p>
+        <p class="err" id="asset-err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>에셋</th><th>아티스트</th><th>타입</th><th>에셋 활성</th>
+                <th>KR 금액</th><th>가격 활성</th><th></th><th>결과</th></tr>
+            </thead>
+            <tbody id="assets"></tbody>
+        </table>
+        <p class="muted">에셋을 활성해도 가격은 자동으로 다시 켜지지 않는다(§3.8.5) — 비활성 가격이 남으면 여기에 경고가 뜬다.</p>
+    </section>
+
+    <section data-panel="pass" hidden>
+        <h2>패스 가격 <span class="muted">— 아티스트별 국가 × 개월. 빈 칸에 금액을 넣고 저장하면 신규 설정된다</span></h2>
+        <p>
+            <label style="display:inline">아티스트
+                <select id="pass-artist"><option value="">선택</option></select>
+            </label>
+        </p>
+        <p class="err" id="pass-err" hidden></p>
+        <table>
+            <thead id="pass-head"></thead>
+            <tbody id="pass-grid"></tbody>
+        </table>
+    </section>
+
+    <template id="asset-row">
+        <tr>
+            <td class="title"></td>
+            <td class="artist"></td>
+            <td class="type"></td>
+            <td><input type="checkbox" class="asset-active"></td>
+            <td><input type="text" class="amount" placeholder="3900.00"></td>
+            <td><input type="checkbox" class="price-active"></td>
+            <td><button type="button" class="save">저장</button></td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+    <template id="pass-cell">
+        <td>
+            <input type="text" class="amount" placeholder="미설정">
+            <label style="display:inline"><input type="checkbox" class="price-active"> 활성</label>
+            <button type="button" class="save">저장</button>
+            <br><span class="msg muted"></span>
+        </td>
+    </template>
+
+    <script src="/admin/prices.js" defer></script>
+</main>
+</body>
+</html>

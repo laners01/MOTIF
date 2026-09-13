@@ -51,4 +51,18 @@ class AdminTemplateRenderTest {
         // 레이아웃이 끼워지지 않고 th:* 가 그대로 남는 실패를 잡는다
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("가격 관리 — 에셋·패스 두 탭이 한 화면에 들어간다")
+    void prices() {
+        String html = render("admin/prices");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 가격 관리</title>")
+                .contains("/admin/prices.js")
+                .contains("data-tab=\"asset\"")
+                .contains("data-tab=\"pass\"")
+                .contains("id=\"pass-grid\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
 }
