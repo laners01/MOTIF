@@ -75,6 +75,19 @@ public class User extends BaseTimeEntity {
         return new User(nickname, UserRole.ARTIST);
     }
 
+    /**
+     * 프로필 이미지 키 교체 — {@code profiles/{uuid}.jpg} (어드민 명세 §1.4).
+     *
+     * <p>바이트는 presign 으로 브라우저 → S3 직행했고 여기 오는 것은 <b>키뿐</b>이다.
+     * {@code null} 은 "그 필드는 그대로" 라는 뜻이라 지우기가 아니다 — 이미지 제거가
+     * 필요해지면 빈 문자열 같은 표식이 아니라 전용 경로를 만든다.
+     */
+    public void changeProfileImageKey(String profileImageKey) {
+        if (profileImageKey != null) {
+            this.profileImageKey = profileImageKey;
+        }
+    }
+
     /** 수정 주체 기록 — {@code users.mod_usr_seq} (어드민 명세 §3.5.4 "name 변경은 … mod_usr_seq"). */
     public void recordModifier(Integer modUsrSeq) {
         this.modUsrSeq = modUsrSeq;

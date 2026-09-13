@@ -25,6 +25,11 @@ public class ArtistUpdateRequest {
 
     private Integer companySeq;
 
+    /** {@code null}(또는 생략) 은 "이미지 그대로" 다 — 교체할 때만 새 키를 보낸다. */
+    private String profileImageKey;
+
+    private String motifBgImageKey;
+
     private Integer groupSeq;
 
     /** JSON 에 {@code groupSeq} 키가 있었는가 — 생략과 명시적 {@code null} 을 가른다. */
@@ -40,6 +45,14 @@ public class ArtistUpdateRequest {
 
     public void setCompanySeq(Integer companySeq) {
         this.companySeq = companySeq;
+    }
+
+    public void setProfileImageKey(String profileImageKey) {
+        this.profileImageKey = profileImageKey;
+    }
+
+    public void setMotifBgImageKey(String motifBgImageKey) {
+        this.motifBgImageKey = motifBgImageKey;
     }
 
     public void setGroupSeq(Integer groupSeq) {

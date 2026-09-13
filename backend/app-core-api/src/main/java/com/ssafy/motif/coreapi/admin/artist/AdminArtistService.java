@@ -9,9 +9,11 @@ import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistSummaryResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistUpdateRequest;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.pass.AdminPassPriceService;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.media.MediaErrorCode;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.PageResponse;
 import com.ssafy.motif.domain.core.artist.Artist;
@@ -38,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 아티스트 목록·등록·상세·수정 (어드민 명세 §3.5.1~§3.5.4) — S15P21D104-385.
@@ -52,6 +55,12 @@ import java.util.stream.Collectors;
  * 소속사와 같아야 하고(불일치 400), 그룹에 속한 아티스트의 소속사만 따로 바꾸는 요청은
  * 409 {@code ARTIST_COMPANY_LOCKED} 다(DB §9). 두 규칙은 같은 불변식의 앞뒤다 —
  * "그룹 소속 아티스트의 소속사 = 그룹 소속사".
+ *
+ * <p><b>이미지는 키만 받는다.</b> 업로드 API 를 따로 두지 않는다 — 화면이 §3.2 presign 으로
+ * 브라우저 → S3 직행 PUT 을 끝내고 그 키를 폼에 실어 보낸다(§1.4 원칙 ①). 서버가 하는 일은
+ * 존재 확인(HEAD)과 칼럼 저장뿐이다. 프로필은 {@code users.profile_image_key},
+ * 모티프 배경은 {@code artists.motif_bg_image_key} 로 <b>테이블이 갈린다</b> —
+ * 프로필은 모든 유저의 것이고 배경은 아티스트 전용이기 때문이다.
  *
  * <p>삭제(§3.5.5)는 여기 없다 — 에셋·가격 연쇄가 붙는 별도 티켓이다(S15P21D104-558).
  */
@@ -71,6 +80,7 @@ public class AdminArtistService {
     private final MotifAssetRepository motifAssetRepository;
     private final NoticeRepository noticeRepository;
     private final AdminPassPriceService adminPassPriceService;
+    private final AdminMediaService adminMediaService;
     private final PublicMediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
 
@@ -91,11 +101,13 @@ public class AdminArtistService {
     @Transactional
     public ArtistCreateResponse create(AuthenticatedAdmin admin, ArtistCreateRequest request) {
         Organization org = resolveForCreate(request.groupSeq(), request.companySeq());
+        requireUploaded(request.profileImageKey(), request.motifBgImageKey());
 
         User user = userRepository.save(User.createArtist(request.name().strip()));
+        user.changeProfileImageKey(request.profileImageKey());
         Artist artist = artistRepository.save(Artist.register(
                 user.getUserSeq(), org.groupSeq(), org.companySeq(),
-                request.bio(), null, admin.userSeq()));
+                request.bio(), request.motifBgImageKey(), admin.userSeq()));
 
         auditLogger.write(admin, "CREATE_ARTIST", "ARTIST", artist.getArtistSeq(), AdminAuditLogger.RESULT_OK);
         return new ArtistCreateResponse(artist.getArtistSeq(), user.getUserSeq());
@@ -125,14 +137,19 @@ public class AdminArtistService {
                 .orElseThrow(() -> new BusinessException(ArtistErrorCode.ARTIST_NOT_FOUND,
                         "미존재·삭제 아티스트: artistSeq=" + artistSeq));
 
-        if (request.getName() != null) {
+        requireUploaded(request.getProfileImageKey(), request.getMotifBgImageKey());
+
+        if (request.getName() != null || request.getProfileImageKey() != null) {
             User user = userRepository.findById(artist.getUserSeq())
                     .orElseThrow(() -> new IllegalStateException(
                             "아티스트에 users 행이 없다 — FK 로 불가능해야 한다: artistSeq=" + artistSeq));
-            user.changeNickname(request.getName().strip());
+            if (request.getName() != null) {
+                user.changeNickname(request.getName().strip());
+            }
+            user.changeProfileImageKey(request.getProfileImageKey());
             user.recordModifier(admin.userSeq());
         }
-        artist.changeProfile(request.getBio(), null);
+        artist.changeProfile(request.getBio(), request.getMotifBgImageKey());
         applyOrganization(artist, request);
 
         auditLogger.write(admin, "UPDATE_ARTIST", "ARTIST", artistSeq, AdminAuditLogger.RESULT_OK);
@@ -257,6 +274,24 @@ public class AdminArtistService {
         return companyRepository.findByCompanySeqAndDeletedFalse(companySeq)
                 .orElseThrow(() -> new BusinessException(AdminErrorCode.COMPANY_NOT_FOUND,
                         "미존재·삭제 소속사: companySeq=" + companySeq));
+    }
+
+    /**
+     * 이미지 키 존재 확인 (§1.4 검증 1항).
+     *
+     * <p>영상의 {@code MEDIA_NOT_UPLOADED} 가 아니라 {@code IMAGE_NOT_UPLOADED} 를 쓴다 —
+     * §3.5 실패표가 그렇게 배정했고, 사용자 프로필 교체(API §4.4)와 같은 코드다.
+     * 빠진 키는 한 건에서 멈추지 않고 <b>전부 모아</b> {@code data} 로 돌려준다.
+     */
+    private void requireUploaded(String... keys) {
+        List<String> missing = Stream.of(keys)
+                .filter(key -> key != null && !key.isBlank())
+                .filter(key -> !adminMediaService.exists(key))
+                .toList();
+        if (!missing.isEmpty()) {
+            throw new BusinessException(MediaErrorCode.IMAGE_NOT_UPLOADED,
+                    "S3 에 없는 이미지 키: " + missing, Map.of("imageKeys", missing));
+        }
     }
 
     private static int clampSize(int size) {

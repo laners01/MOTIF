@@ -8,8 +8,10 @@ import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistSummaryResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistUpdateRequest;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.media.MediaErrorCode;
 import com.ssafy.motif.coreapi.global.response.PageResponse;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.user.User;
@@ -23,12 +25,15 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 
 /**
  * §3.5.1~§3.5.4 를 실제 DB에 대고 검증한다 (S15P21D104-385).
@@ -52,6 +57,10 @@ class AdminArtistServiceLocalDbTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /** HEAD 는 실제 S3 왕복이라 버킷·자격증명이 필요해진다 — 여기서 볼 것은 키의 저장 경로다. */
+    @MockitoBean
+    private AdminMediaService adminMediaService;
+
     private AuthenticatedAdmin admin;
     private Integer companySeq;
     private Integer otherCompanySeq;
@@ -59,6 +68,7 @@ class AdminArtistServiceLocalDbTest {
 
     @BeforeEach
     void setUp() {
+        given(adminMediaService.exists(anyString())).willReturn(true);
         Integer adminUserSeq = newUser().getUserSeq();
         admin = new AuthenticatedAdmin(1, adminUserSeq, "운영자");
         companySeq = newCompany(adminUserSeq);
@@ -70,7 +80,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("등록하면 users(ARTIST) 와 artists 가 같은 트랜잭션에 생긴다")
     void createMakesUserAndArtist() {
         ArtistCreateResponse response = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, companySeq, "aespa의 카리나입니다."));
+                new ArtistCreateRequest("카리나", groupSeq, companySeq, "aespa의 카리나입니다.", null, null));
         entityManager.flush();
 
         User user = userRepository.findById(response.userSeq()).orElseThrow();
@@ -89,7 +99,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("아티스트에게는 user_accounts 를 만들지 않는다 — 로그인하지 않는다")
     void createDoesNotMakeAccount() {
         ArtistCreateResponse response = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, companySeq, null));
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null));
         entityManager.flush();
 
         assertThat(((Number) entityManager.createNativeQuery(
@@ -105,7 +115,7 @@ class AdminArtistServiceLocalDbTest {
         long before = artistRepository.count();
 
         assertThatThrownBy(() -> adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, otherCompanySeq, null)))
+                new ArtistCreateRequest("카리나", groupSeq, otherCompanySeq, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_PARAMETER);
@@ -117,7 +127,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("그룹만 주면 소속사는 그룹을 따라간다")
     void companyFollowsGroupWhenOmitted() {
         ArtistCreateResponse response = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, null, null));
+                new ArtistCreateRequest("카리나", groupSeq, null, null, null, null));
 
         assertThat(artistRepository.findById(response.artistSeq()).orElseThrow().getCompanySeq())
                 .isEqualTo(companySeq);
@@ -127,7 +137,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("솔로인데 companySeq 가 없으면 400")
     void soloNeedsCompany() {
         assertThatThrownBy(() -> adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, null, null)))
+                new ArtistCreateRequest("카리나", null, null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.INVALID_PARAMETER);
@@ -143,13 +153,13 @@ class AdminArtistServiceLocalDbTest {
         entityManager.clear();
 
         assertThatThrownBy(() -> adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, companySeq, null)))
+                new ArtistCreateRequest("카리나", groupSeq, companySeq, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.GROUP_NOT_FOUND);
 
         assertThatThrownBy(() -> adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, 999_999, null)))
+                new ArtistCreateRequest("카리나", null, 999_999, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.COMPANY_NOT_FOUND);
@@ -159,7 +169,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("그룹 소속 아티스트의 소속사 단독 변경은 409 ARTIST_COMPANY_LOCKED")
     void companyOnlyChangeIsLockedWhileInGroup() {
         Integer artistSeq = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, companySeq, null)).artistSeq();
+                new ArtistCreateRequest("카리나", groupSeq, companySeq, null, null, null)).artistSeq();
 
         ArtistUpdateRequest request = new ArtistUpdateRequest();
         request.setCompanySeq(otherCompanySeq);   // groupSeq 키 자체를 보내지 않았다
@@ -174,7 +184,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("groupSeq: null 과 함께 오면 솔로 전환이라 소속사가 바뀐다")
     void explicitNullGroupTurnsSolo() {
         Integer artistSeq = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, companySeq, null)).artistSeq();
+                new ArtistCreateRequest("카리나", groupSeq, companySeq, null, null, null)).artistSeq();
 
         ArtistUpdateRequest request = new ArtistUpdateRequest();
         request.setGroupSeq(null);                // 키는 있고 값이 null — 솔로 전환
@@ -193,7 +203,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("솔로 아티스트의 소속사 변경은 막지 않는다")
     void soloCompanyChangeIsAllowed() {
         Integer artistSeq = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, companySeq, null)).artistSeq();
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null)).artistSeq();
 
         ArtistUpdateRequest request = new ArtistUpdateRequest();
         request.setCompanySeq(otherCompanySeq);
@@ -208,7 +218,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("그룹 이동 시에도 소속사 불일치는 400 이다")
     void groupMoveChecksCompanyToo() {
         Integer artistSeq = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, companySeq, null)).artistSeq();
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null)).artistSeq();
 
         ArtistUpdateRequest request = new ArtistUpdateRequest();
         request.setGroupSeq(groupSeq);
@@ -224,7 +234,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("이름 변경은 users.nickname 과 mod_usr_seq 를 갱신한다")
     void nameChangeUpdatesUser() {
         ArtistCreateResponse created = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, companySeq, null));
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null));
 
         ArtistUpdateRequest request = new ArtistUpdateRequest();
         request.setName("KARINA");
@@ -241,8 +251,8 @@ class AdminArtistServiceLocalDbTest {
     @Test
     @DisplayName("목록은 이름 부분 일치로 걸러지고 그룹·소속사를 함께 준다")
     void listFiltersByName() {
-        adminArtistService.create(admin, new ArtistCreateRequest("카리나", groupSeq, companySeq, null));
-        adminArtistService.create(admin, new ArtistCreateRequest("윈터", groupSeq, companySeq, null));
+        adminArtistService.create(admin, new ArtistCreateRequest("카리나", groupSeq, companySeq, null, null, null));
+        adminArtistService.create(admin, new ArtistCreateRequest("윈터", groupSeq, companySeq, null, null, null));
         entityManager.flush();
 
         PageResponse<ArtistSummaryResponse> page =
@@ -261,7 +271,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("삭제된 아티스트는 기본 목록에서 빠지고 includeDeleted 로만 보인다")
     void deletedAreHiddenByDefault() {
         Integer artistSeq = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", null, companySeq, null)).artistSeq();
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null)).artistSeq();
         entityManager.flush();
         entityManager.createNativeQuery(
                         "update motif_core.artists set is_deleted = true where artist_seq = :seq")
@@ -276,7 +286,7 @@ class AdminArtistServiceLocalDbTest {
     @Test
     @DisplayName("솔로는 목록에서 group 이 null 이다 — left join")
     void soloHasNullGroup() {
-        adminArtistService.create(admin, new ArtistCreateRequest("솔로가수", null, companySeq, null));
+        adminArtistService.create(admin, new ArtistCreateRequest("솔로가수", null, companySeq, null, null, null));
         entityManager.flush();
 
         assertThat(adminArtistService.list("솔로가수", null, null, false, 0, 20).list())
@@ -288,7 +298,7 @@ class AdminArtistServiceLocalDbTest {
     @DisplayName("상세는 패스 가격표와 최신 챌린지를 함께 준다")
     void detailIncludesPassPricesAndChallenges() {
         Integer artistSeq = adminArtistService.create(admin,
-                new ArtistCreateRequest("카리나", groupSeq, companySeq, "소개")).artistSeq();
+                new ArtistCreateRequest("카리나", groupSeq, companySeq, "소개", null, null)).artistSeq();
         entityManager.flush();
 
         ArtistDetailResponse detail = adminArtistService.detail(artistSeq);
@@ -306,6 +316,84 @@ class AdminArtistServiceLocalDbTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ArtistErrorCode.ARTIST_NOT_FOUND);
+    }
+
+    // --- 386 이미지 키 ------------------------------------------------------
+
+    @Test
+    @DisplayName("프로필은 users, 모티프 배경은 artists 에 저장된다 — 업로드 API 는 없다")
+    void imageKeysLandInTheirOwnTables() {
+        ArtistCreateResponse response = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null,
+                        "profiles/3f9c0000-0000-0000-0000-000000000001.jpg",
+                        "artists/a1b20000-0000-0000-0000-000000000002.jpg"));
+        entityManager.flush();
+
+        assertThat(userRepository.findById(response.userSeq()).orElseThrow().getProfileImageKey())
+                .isEqualTo("profiles/3f9c0000-0000-0000-0000-000000000001.jpg");
+        assertThat(artistRepository.findById(response.artistSeq()).orElseThrow().getMotifBgImageKey())
+                .isEqualTo("artists/a1b20000-0000-0000-0000-000000000002.jpg");
+    }
+
+    @Test
+    @DisplayName("이미지 키는 선택이다 — 없으면 둘 다 null")
+    void imageKeysAreOptional() {
+        ArtistCreateResponse response = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null));
+        entityManager.flush();
+
+        assertThat(userRepository.findById(response.userSeq()).orElseThrow().getProfileImageKey()).isNull();
+        assertThat(artistRepository.findById(response.artistSeq()).orElseThrow().getMotifBgImageKey()).isNull();
+    }
+
+    @Test
+    @DisplayName("올라오지 않은 키는 409 IMAGE_NOT_UPLOADED — 아티스트를 만들지 않는다")
+    void missingImageBlocksCreate() {
+        given(adminMediaService.exists("profiles/missing.jpg")).willReturn(false);
+        long before = artistRepository.count();
+
+        assertThatThrownBy(() -> adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null, "profiles/missing.jpg", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(MediaErrorCode.IMAGE_NOT_UPLOADED);
+
+        assertThat(artistRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("수정으로 이미지를 교체하고, 키를 생략하면 기존 이미지가 남는다")
+    void updateReplacesOrKeepsImages() {
+        ArtistCreateResponse created = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null,
+                        "profiles/old.jpg", "artists/old.jpg"));
+
+        ArtistUpdateRequest replace = new ArtistUpdateRequest();
+        replace.setProfileImageKey("profiles/new.jpg");
+        adminArtistService.update(admin, created.artistSeq(), replace);
+        entityManager.flush();
+
+        assertThat(userRepository.findById(created.userSeq()).orElseThrow().getProfileImageKey())
+                .isEqualTo("profiles/new.jpg");
+        // motifBgImageKey 는 보내지 않았으므로 그대로다
+        assertThat(artistRepository.findById(created.artistSeq()).orElseThrow().getMotifBgImageKey())
+                .isEqualTo("artists/old.jpg");
+    }
+
+    @Test
+    @DisplayName("상세·목록은 키가 아니라 CDN URL 로 준다")
+    void responsesExposeUrlsNotKeys() {
+        Integer artistSeq = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null,
+                        "profiles/x.jpg", "artists/x.jpg")).artistSeq();
+        entityManager.flush();
+
+        ArtistDetailResponse detail = adminArtistService.detail(artistSeq);
+
+        // 로컬은 public-base-url 이 비어 있어 resolver 가 null 을 준다(PublicMediaUrlResolver).
+        // 요점은 응답에 S3 키가 그대로 새지 않는다는 것이다
+        assertThat(detail.summary().profileImageUrl()).isNotEqualTo("profiles/x.jpg");
+        assertThat(detail.motifBgImageUrl()).isNotEqualTo("artists/x.jpg");
     }
 
     // --- 픽스처 -------------------------------------------------------------
