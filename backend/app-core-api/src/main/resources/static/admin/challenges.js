@@ -1,7 +1,8 @@
 /*
  * 챌린지 목록 (어드민 명세 v0.5 §3.7.1) — S15P21D104-395.
  *
- * 목록만이다. 등록은 /admin/challenges/new(부록 A), 상세·슬롯 교체·삭제는 별도 티켓이다.
+ * 목록이다. 등록은 /admin/challenges/new(부록 A), # 칸이 상세(§3.7.3)로 간다.
+ * 슬롯 교체·삭제는 별도 티켓이다.
  * 페이지 넘김은 두지 않았다 — size=100 한 장이면 당분간 전량이다(§1.5 offset).
  */
 
@@ -13,7 +14,10 @@ function challengeRow(challenge) {
     const tr = $('challenge-row').content.firstElementChild.cloneNode(true);
     tr.dataset.seq = challenge.challengeSeq;
     tr.classList.toggle('deleted', challenge.isDeleted);
-    set(tr, '.seq', challenge.challengeSeq);
+    const seqLink = document.createElement('a');
+    seqLink.href = `/admin/challenges/${challenge.challengeSeq}`;
+    seqLink.textContent = challenge.challengeSeq;
+    tr.querySelector('.seq').replaceChildren(seqLink);
     set(tr, '.artist', challenge.artist?.name ?? '');
     set(tr, '.song', challenge.song ? `${challenge.song.title} / ${challenge.song.singerName}` : '');
     set(tr, '.duration', `${(challenge.durationMs / 1000).toFixed(1)}초`);

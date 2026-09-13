@@ -180,4 +180,17 @@ class AdminTemplateRenderTest {
                 .contains("id=\"dup\"");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("챌린지 상세 — 레이아웃·슬롯/편집본 행 템플릿")
+    void challengeDetail() {
+        String html = render("admin/challenge-detail");
+
+        assertThat(html)
+                .contains("챌린지 상세")
+                .contains("/admin/challenge-detail.js")
+                .contains("id=\"slot-row\"")
+                .contains("id=\"edited-row\"")
+                .doesNotContain("th:");
+    }
 }
