@@ -118,31 +118,46 @@ function renderMatrix() {
 
 $('matrix').addEventListener('input', refresh);
 
-/** 조합별 입력 완료 표시 + 미완이면 등록 버튼 잠금. */
+/**
+ * 조합별 입력 완료 표시 + 등록 버튼 잠금.
+ *
+ * 서버 규칙은 **0개이거나 정확히 2ⁿ−1개**다(SlotRules). 그래서 화면도 두 상태만 연다 —
+ * 전부 비었거나 전부 찼거나. 부분 입력이 막히는 것이 요점이다: 조합 하나만 비면
+ * 그 조합을 고른 사용자만 촬영 직전에 EDITED_CHALLENGE_NOT_FOUND 를 맞는다.
+ *
+ * 전부 비우면 "표시 전용" 챌린지다 — 영상 재생과 설명 시트의 참여자 아바타는 정상이고
+ * 촬영만 안 된다. AI 편집본이 나오면 PUT /challenges/{seq}/participants 로 얹는다.
+ */
 function refresh() {
     const rows = readMatrix();
-    let missing = 0;
+    let filled = 0;
     for (const tr of $('matrix').rows) {
         const row = rows.find((r) => r.mask === Number(tr.dataset.mask));
         const done = Boolean(row.videoKey && row.initialSceneKey);
-        if (!done) missing++;
+        if (done) filled++;
         const cell = tr.querySelector('.done');
         cell.textContent = done ? '✓' : '–';
         cell.className = done ? 'done ok' : 'done muted';
     }
+    const partial = filled > 0 && filled < rows.length;
 
     const status = $('matrix-status');
-    status.textContent = rows.length === 0
-        ? '슬롯 0개(솔로) — 편집본 없이 등록된다.'
-        : `조합 ${rows.length}개 중 ${rows.length - missing}개 입력 완료`
-        + (missing ? ` — 미완 ${missing}개, 등록할 수 없다` : '');
-    status.className = missing ? 'err' : 'muted';
+    if (rows.length === 0) {
+        status.textContent = '슬롯 0개(솔로) — 편집본 없이 등록된다.';
+    } else if (filled === 0) {
+        status.textContent = `조합 ${rows.length}개 전부 비어 있다 — 편집본 없이 등록된다`
+            + '(촬영 불가, 표시 전용). AI 편집본이 나오면 슬롯 교체로 얹는다.';
+    } else {
+        status.textContent = `조합 ${rows.length}개 중 ${filled}개 입력 완료`
+            + (partial ? ` — 부분 입력은 등록할 수 없다. 전부 채우거나 전부 비워라` : '');
+    }
+    status.className = partial ? 'err' : 'muted';
 
     const slots = readSlots();
     $('submit').disabled = !(videoKey && meta
         && $('artist').value && $('song').value && $('description').value.trim()
         && slots.every((s) => s.artistSeq && Object.values(s.bbox).every((v) => v !== null))
-        && missing === 0);
+        && !partial);
 }
 
 function buildRequest() {
@@ -155,7 +170,8 @@ function buildRequest() {
         width: meta?.width,
         height: meta?.height,
         participants: readSlots(),
-        editedChallenges: readMatrix().map((r) => ({
+        // 키가 하나도 없으면 빈 배열을 보낸다 — 빈 문자열을 실어 보내면 @NotBlank 400 이다
+        editedChallenges: readMatrix().filter((r) => r.videoKey && r.initialSceneKey).map((r) => ({
             removedSlots: r.removedSlots,
             videoKey: r.videoKey,
             initialSceneKey: r.initialSceneKey,
