@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 재생용 영상 산출물을 만든다 — 렌디션 2종 + HLS + 썸네일 (ADR-0010 D1·D2·D4).
+ * 재생용 영상 산출물을 만든다 — 렌디션 + HLS + 썸네일 (ADR-0010 D1·D2·D4).
  *
  * <p><b>여기 파라미터는 취향이 아니라 전제조건이다.</b> GOP 가 화질 간에 어긋나면
  * 에러 없이 <b>ABR 전환만 안 된다</b> — 조각 경계는 키프레임에만 놓이기 때문이다.
@@ -24,9 +24,16 @@ import java.util.List;
  * &lt;outDir&gt;/
  * ├── master.m3u8
  * ├── thumb.jpg
- * ├── 480/index.m3u8   480/data.m4s
- * └── 720/index.m3u8   720/data.m4s
+ * ├── 480p/index.m3u8    480p/data.m4s
+ * ├── 720p/index.m3u8    720p/data.m4s
+ * └── 1080p/index.m3u8   1080p/data.m4s
  * </pre>
+ *
+ * <p>화질 디렉터리는 <b>원본 해상도에 따라 줄어든다</b> — 원본보다 큰 단은 만들지
+ * 않는다({@link #ladderFor}). 720 원본이면 1080p 디렉터리가 없다.
+ *
+ * <p><b>입력은 세로 영상만이다.</b> 가로가 들어오면 사다리의 의미가 뒤집히므로
+ * 처리하지 않고 던진다({@link #requirePortrait}).
  */
 public class HlsPackager {
 
@@ -68,7 +75,7 @@ public class HlsPackager {
         try {
             Files.createDirectories(outDir);
             List<String> variants = new ArrayList<>();
-            for (Rendition r : ladder) {
+            for (Rendition r : ladderFor(source)) {
                 variants.add(encodeAndPackage(source, outDir, r));
             }
             writeMaster(outDir, variants);
@@ -80,6 +87,77 @@ public class HlsPackager {
             deleteQuietly(outDir);
             throw e;
         }
+    }
+
+    /**
+     * 이 원본에 실제로 만들 단을 고른다 — <b>원본보다 큰 단은 만들지 않는다.</b>
+     *
+     * <p>사다리를 원본 해상도와 무관하게 통째로 돌면 <b>없는 화질을 지어낸다.</b>
+     * 406×720 원본에 {@code scale=-2:1080} 을 걸면 608×1080 이 나오는데, 내용은
+     * 720 을 늘린 흐릿한 영상이면서 마스터에는 {@code RESOLUTION=608x1080} 이
+     * 적힌다. ABR 은 그 숫자를 믿고 그것을 최고 화질로 고른다 — 대역폭만 더 쓰고
+     * 화질은 더 나쁘다.
+     *
+     * <p><b>건너뛴 단은 실패가 아니다.</b> 현재 실패 정책은 "전부 성공하거나 아무것도
+     * 남기지 않는다"(ADR-0010 D4)인데, 건너뛴 단을 실패로 처리하면 480p 원본이
+     * 통째로 DLQ 로 간다. 그래서 예외를 던지지 않고 계획에서 빼는 방식으로 가른다.
+     *
+     * <p>판단에 어드민 입력이 필요 없다 — 영상만 보면 된다.
+     */
+    private List<Rendition> ladderFor(Path source) {
+        Size size = sizeOf(source);
+        requirePortrait(source, size);
+
+        List<Rendition> planned = ladder.stream()
+                .filter(r -> r.height() <= size.height())
+                .toList();
+        if (!planned.isEmpty()) {
+            return planned;
+        }
+        // 원본이 사다리 최저단보다도 작다. 한 단도 만들지 않으면 재생할 것이 아예
+        // 없으므로 원본 해상도 그대로 한 단을 만든다. 이때도 업스케일은 하지 않는다.
+        Rendition lowest = ladder.get(0);
+        return List.of(new Rendition(size.height() + "p", size.height(), lowest.maxrateKbps()));
+    }
+
+    /**
+     * 세로 영상만 처리한다 — 피드가 세로 화면이다.
+     *
+     * <p>업로드 쪽 {@code VideoRules.checkChallengeOrigin} 이 이미 {@code PORTRAIT_REQUIRED}
+     * 로 막지만 그것만으로는 부족하다. 그 값은 업로드 <b>화면의 JS</b> 가 읽어 폼에 실은
+     * 것이라 개발자 도구로 조작할 수 있고, 무엇보다 합성 결과({@code COMPOSITE_RESULT})는
+     * 업로드 검증을 아예 타지 않는다. 여기서는 실제 바이트를 ffprobe 로 읽으므로
+     * 조작할 여지가 없다.
+     *
+     * <p>가로 영상을 그냥 통과시키면 사다리 의미가 뒤집힌다 — {@code height} 는
+     * {@code scale=-2:height} 의 높이라, 세로에서는 긴 변이지만 가로에서는 짧은 변이다.
+     * 같은 {@code 720p} 가 전혀 다른 화소 수를 뜻하게 되고 비트레이트 상한도 어긋난다.
+     *
+     * <p>여기서 던지면 정리 후 {@code dlq.job.media} 로 격리된다. 사람이 원본을 고쳐야
+     * 하는 입력 오류라 재시도로 풀릴 성질이 아니다.
+     */
+    private static void requirePortrait(Path source, Size size) {
+        if (size.height() <= size.width()) {
+            throw new MediaEncodingException("세로 영상만 처리한다 — 원본이 "
+                    + size.width() + "x" + size.height() + " 다: " + source);
+        }
+    }
+
+    /** 원본 해상도. {@code height} 는 {@code scale=-2:height} 와 같은 축이라 바로 견줄 수 있다. */
+    private Size sizeOf(Path source) {
+        String resolution = ffmpeg.resolution(source);      // "1080x1920"
+        try {
+            int x = resolution.lastIndexOf('x');
+            return new Size(Integer.parseInt(resolution.substring(0, x)),
+                    Integer.parseInt(resolution.substring(x + 1)));
+        } catch (RuntimeException e) {
+            // 여기서 조용히 전체 사다리로 넘어가면 업스케일이 되살아난다 — 크게 실패한다
+            throw new MediaEncodingException(
+                    "원본 해상도를 읽지 못했다: " + source + " (" + resolution + ")", e);
+        }
+    }
+
+    private record Size(int width, int height) {
     }
 
     /** 렌디션 하나를 인코딩하고 HLS 로 싼다. 마스터 재생목록에 넣을 두 줄을 돌려준다. */
