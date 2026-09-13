@@ -129,6 +129,9 @@ S15P21D104-181
 | `Admin` 엔티티·리포지토리 (가입 경로 없음 — 생성자 없음) | `domain-core/.../admin/` | 608 |
 | `admins.user_seq` NOT NULL UNIQUE FK · 어드민 시드 | `db/changelog/sql/0014`·`0015` | 593 · 608 |
 | `/admin/login` 화면 (스타일·스크립트 인라인 — layout 을 쓰지 않는다) | `templates/admin/login.html` | 608 |
+| **offset 페이지 응답** `PageResponse` (§1.2 고정 구조 — 목록 API 는 이걸 쓴다) | `module-common/.../response/` | S15P21D104-389 |
+| 곡 API `AdminSongController`·`AdminSongService` (§3.6 목록·등록) | `app-core-api/.../admin/song/` | 389 |
+| `Song` 엔티티 전량 매핑 + `SongRepository.search`·`countChallenges` | `domain-core/.../song/` | 389 |
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
@@ -150,6 +153,13 @@ adminMediaService.requireUploaded(keys);                        // HEAD, 부재 
 // 어드민 인증이 필요할 때 — 로그인은 이미 있다. 토큰을 직접 만들지 않는다
 adminJwtProvider.issue(new AuthenticatedAdmin(adminSeq, userSeq, name));   // 발급
 // 감사 컬럼(reg_usr_seq 등)에 넣을 값은 admin.userSeq() 다 — adminSeq 가 아니다 (§1.3)
+```
+
+```java
+// 목록 API 를 만들 때 — 페이지 구조를 새로 짜지 않는다 (§1.2 고정)
+return new PageResponse<>(list, found.getNumber(), found.getSize(),
+        found.getTotalElements(), found.getTotalPages(), found.hasNext(), found.hasPrevious());
+// 어드민 화면 fillSelect 가 data.list 를 꺼내 쓴다 — 배열을 data 에 바로 싣지 않는다
 ```
 
 ```java

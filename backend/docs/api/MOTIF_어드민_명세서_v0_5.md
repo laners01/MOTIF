@@ -1060,7 +1060,7 @@ FROM motif_core.users u WHERE u.nickname = 'admin_kim' AND u.role = 'ADMIN';
 - [x] `AdminMediaController.presign`(kind→prefix·Content-Type·크기 조건) *(588)*
 - [x] 영상 검증 `VideoRules`(방향·길이·편집본 ±500ms, 수치는 `motif.admin.media.rules`) *(589)*
 - [x] §5 어드민 에러 코드 전량 등록 `module-common/.../error/AdminErrorCode` *(588)*
-- [ ] 소속사·그룹·아티스트·곡 CRUD(연쇄 규칙 트랜잭션)
+- [ ] 소속사·그룹·아티스트 CRUD(연쇄 규칙 트랜잭션) — [x] 곡 §3.6 목록·등록 *(389)*
 - [x] `AdminChallengeService` §3.7.2·3·4·5·6·8(마스크 계산·완결성 검증·원자 INSERT·이벤트) + `validate` *(559·560·561)*
 - [ ] 에셋·에셋 가격·패스 가격 upsert(활성 전환 조건)
 - [ ] 공지(+이미지 교체)·배너(재정렬 오프셋)
