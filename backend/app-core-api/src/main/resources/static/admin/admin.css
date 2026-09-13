@@ -1,0 +1,36 @@
+/* 어드민 화면 공통 — 최소 구현(§1.7 "디자인 불요"). 프레임워크 없이 몇 줄로 끝낸다. */
+* { box-sizing: border-box; }
+body { margin: 0 auto; padding: 0 16px 64px; max-width: 1000px;
+       font: 14px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; color: #1a1a1a; }
+nav { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; }
+nav a { color: #0b57d0; }
+h1 { font-size: 20px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+section { margin: 24px 0; padding: 16px; border: 1px solid #ddd; border-radius: 6px; }
+label { display: block; margin: 8px 0; }
+input, select, textarea { font: inherit; padding: 4px 6px; }
+input[type="number"] { width: 84px; }
+textarea, input[type="text"]:not(.key) { width: 100%; }
+input.key { width: 280px; }
+button { font: inherit; padding: 5px 12px; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 5px 6px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
+th { background: #f5f5f5; font-weight: 600; }
+tr.active { background: #fff6d8; }
+tr.deleted { color: #999; background: #f7f7f7; }
+tr.missing { background: #fde8e8; }
+.muted { color: #777; }
+.ok { color: #137333; }
+.err { margin: 8px 0; padding: 8px 10px; border-radius: 4px;
+       background: #fde8e8; color: #a50e0e; white-space: pre-wrap; word-break: break-all; }
+/* 진행 표시 — 업로드 → 검증 → 등록 (부록 A 6단계) */
+ol.progress { display: flex; gap: 24px; margin: 0 0 12px; padding: 0; list-style: none; color: #999; }
+ol.progress li.doing { color: #0b57d0; font-weight: 600; }
+ol.progress li.done { color: #137333; }
+ol.progress li.done::before { content: "✓ "; }
+ol.progress li.fail { color: #a50e0e; }
+/* 첫 프레임 위 bbox 드래그 */
+.frame { position: relative; display: inline-block; max-width: 420px; margin-top: 8px; cursor: crosshair; }
+.frame video { display: block; width: 100%; background: #000; pointer-events: none; }
+.frame .box { position: absolute; border: 2px solid #0b57d0; background: rgba(11, 87, 208, .18); pointer-events: none; }

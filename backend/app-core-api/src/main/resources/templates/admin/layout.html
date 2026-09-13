@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!--/*
+  어드민 공통 껍데기 (어드민 명세 §1.7 — "관리 효율 목적의 최소 구현, 디자인 불요").
+  화면 템플릿은 <html th:replace="~{admin/layout :: page('제목', ~{::main})}"> 로 끼운다.
+*/-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" th:fragment="page(heading, content)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="'MOTIF 어드민 · ' + ${heading}">MOTIF 어드민</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+    <script src="/admin/admin.js" defer></script>
+</head>
+<body>
+<nav>
+    <strong>MOTIF 어드민</strong>
+    <a href="/admin/challenges/new">챌린지 등록</a>
+</nav>
+<h1 th:text="${heading}">제목</h1>
+<main th:replace="${content}">내용</main>
+</body>
+</html>
