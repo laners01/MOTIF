@@ -40,6 +40,7 @@ function artistRow(artist) {
 
 async function load() {
     clearError($('list-err'));
+    $('list-msg').textContent = '';
     const params = new URLSearchParams({size: '100'});
     if ($('q').value.trim()) params.set('q', $('q').value.trim());
     if ($('f-group').value) params.set('groupSeq', $('f-group').value);
@@ -178,6 +179,33 @@ async function save() {
     }
 }
 
+/**
+ * §3.5.5 — 확인 대화상자 뒤 DELETE. 소프트 삭제지만 복구 API 가 없다.
+ *
+ * 아티스트만 사라지는 것이 아니라 users 행과 에셋·에셋 가격·PASS 가격까지 한
+ * 트랜잭션에 꺼진다. 그래서 **누르기 전에** 무엇이 꺼지는지 알리고(목록이 이미 들고
+ * 있는 에셋 수를 그대로 쓴다), **누른 뒤에** 서버가 센 실제 건수를 돌려 보여 준다 —
+ * 가격이 같이 내려간 것을 모르면 운영자가 상점에서 사라진 이유를 찾지 못한다.
+ */
+async function remove(tr) {
+    const seq = tr.dataset.seq;
+    const name = tr.querySelector('.name').textContent;
+    const assets = tr.querySelector('.assets').textContent;
+    if (!confirm(`아티스트 #${seq} ${name} 을(를) 삭제합니다.\n\n`
+        + `연결된 유저 계정이 함께 삭제되고, 에셋 ${assets}건과 그 판매가·PASS 가격이 모두 비활성화됩니다.\n`
+        + '앱·상점에서 즉시 비노출되며 되돌릴 수 없습니다.')) return;
+
+    clearError($('list-err'));
+    try {
+        const r = await api(`/artists/${seq}`, {method: 'DELETE'});
+        await load();                       // load 가 list-msg 를 비우므로 메시지는 그 뒤에 쓴다
+        $('list-msg').textContent = `#${seq} ${name} 삭제 완료 — 에셋 ${r.deactivatedAssets}건 · `
+            + `에셋 가격 ${r.deactivatedAssetPrices}건 · PASS 가격 ${r.deactivatedPassPrices}건 비활성화됨`;
+    } catch (e) {
+        showError($('list-err'), e);        // 이미 삭제된 아티스트는 404 로 온다
+    }
+}
+
 $('reload').addEventListener('click', load);
 $('q').addEventListener('search', load);
 $('f-group').addEventListener('change', load);
@@ -188,7 +216,10 @@ $('save').addEventListener('click', save);
 $('reset').addEventListener('click', toCreateForm);
 
 $('artists').addEventListener('click', (e) => {
-    if (e.target.classList.contains('edit')) toEditForm(e.target.closest('tr').dataset.seq);
+    const tr = e.target.closest('tr');
+    if (!tr) return;
+    if (e.target.classList.contains('edit')) toEditForm(tr.dataset.seq);
+    if (e.target.classList.contains('delete')) remove(tr);
 });
 
 (async () => {

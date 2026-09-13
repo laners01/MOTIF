@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.admin.AdminPaths;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateRequest;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateResponse;
+import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDeleteResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistSummaryResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistUpdateRequest;
@@ -17,6 +18,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 어드민 아티스트 API (어드민 명세 §3.5) — 삭제(§3.5.5)는 연쇄가 붙는 별도 티켓이다. */
+/** 어드민 아티스트 API (어드민 명세 §3.5). 삭제(§3.5.5)는 에셋·가격 연쇄를 함께 돌린다. */
 @Tag(name = "Admin Artist", description = "아티스트 관리 (어드민 명세 §3.5)")
 @ApiController
 @RestController
@@ -74,5 +76,15 @@ public class AdminArtistController {
                                                     @PathVariable int artistSeq,
                                                     @Valid @RequestBody ArtistUpdateRequest request) {
         return ApiResponse.success(adminArtistService.update(admin, artistSeq, request));
+    }
+
+    @Operation(summary = "아티스트 삭제",
+            description = "확인 대화상자 뒤 호출. 소프트 삭제 + 연쇄 — artists·users 의 is_deleted 와 "
+                    + "에셋·에셋 가격·패스 가격의 is_active 를 한 트랜잭션에 내린다. "
+                    + "data 의 세 건수는 이번 삭제로 실제 꺼진 행 수다. 이미 삭제된 아티스트는 404.")
+    @DeleteMapping("/{artistSeq}")
+    public ApiResponse<ArtistDeleteResponse> delete(@AuthenticationPrincipal AuthenticatedAdmin admin,
+                                                    @PathVariable int artistSeq) {
+        return ApiResponse.success(adminArtistService.delete(admin, artistSeq));
     }
 }

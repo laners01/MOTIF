@@ -1,6 +1,7 @@
 package com.ssafy.motif.domain.core.pass;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +17,28 @@ public interface MotifPassPriceRepository extends JpaRepository<MotifPassPrice, 
     /** {@code uq_motif_pass_prices_artist_country_duration} 로 유일하다 — upsert 의 조회 축. */
     Optional<MotifPassPrice> findByArtistSeqAndCountrySeqAndDurationMonths(
             Integer artistSeq, Integer countrySeq, short durationMonths);
+
+    /**
+     * 아티스트 삭제 연쇄 — 그 아티스트의 활성 PASS 가격을 전부 내린다 (어드민 §3.5.5).
+     *
+     * <p>이미 팔린 PASS 는 건드리지 않는다 — 이 행은 "지금 파는 값"이고 취득한 PASS 의
+     * 금액·만료는 {@code orders} 스냅샷이 갖는다({@link MotifPassPrice} javadoc).
+     * 삭제된 아티스트의 PASS 를 <b>새로 팔지 못하게</b> 막는 것이 여기서 하는 일의 전부다.
+     *
+     * <p>벌크 UPDATE 의 두 플래그는 {@code MotifAssetPriceRepository#deactivateAll} 과
+     * 같은 이유로 함께 있어야 한다.
+     *
+     * @return 이번 호출로 꺼진 가격 행 수
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update MotifPassPrice p
+               set p.active = false, p.modUsrSeq = :modUsrSeq, p.modDttm = :now
+             where p.artistSeq = :artistSeq and p.active = true
+            """)
+    int deactivateByArtist(@Param("artistSeq") Integer artistSeq,
+                           @Param("modUsrSeq") Integer modUsrSeq,
+                           @Param("now") Instant now);
 
     /**
      * 이 기간의 유효 PASS 수 — 가격 비활성화 시 돌려줄 <b>경고 카운트</b>(§3.9.1).

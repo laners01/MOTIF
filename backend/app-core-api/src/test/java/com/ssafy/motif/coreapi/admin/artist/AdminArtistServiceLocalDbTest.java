@@ -5,6 +5,7 @@ import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateRequest;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistCreateResponse;
+import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDeleteResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistSummaryResponse;
 import com.ssafy.motif.coreapi.admin.artist.dto.ArtistUpdateRequest;
@@ -15,6 +16,13 @@ import com.ssafy.motif.coreapi.domain.media.MediaErrorCode;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
+import com.ssafy.motif.domain.core.asset.AssetType;
+import com.ssafy.motif.domain.core.asset.MotifAsset;
+import com.ssafy.motif.domain.core.asset.MotifAssetPrice;
+import com.ssafy.motif.domain.core.asset.MotifAssetPriceRepository;
+import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassPrice;
+import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import com.ssafy.motif.domain.core.user.User;
 import com.ssafy.motif.domain.core.user.UserRepository;
 import com.ssafy.motif.domain.core.user.UserRole;
@@ -29,6 +37,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,10 +47,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 /**
- * §3.5.1~§3.5.4 를 실제 DB에 대고 검증한다 (S15P21D104-385).
+ * §3.5 를 실제 DB에 대고 검증한다 (S15P21D104-385·558).
  *
- * <p>핵심 두 가지 — ① {@code users(ARTIST)} + {@code artists} 원자 생성
- * ② "그룹 소속 아티스트의 소속사 = 그룹 소속사" 불변식(등록 시 400, 수정 시 409).
+ * <p>핵심 세 가지 — ① {@code users(ARTIST)} + {@code artists} 원자 생성
+ * ② "그룹 소속 아티스트의 소속사 = 그룹 소속사" 불변식(등록 시 400, 수정 시 409)
+ * ③ 삭제 연쇄(§3.5.5, S15P21D104-558) — 에셋·가격까지 같은 트랜잭션에 꺼진다.
+ *
+ * <p><b>로컬 DB 는 여러 세션이 공유한다.</b> 단언은 이 테스트가 만든 seq 로만 좁힌다 —
+ * 전체 건수에 기대면 남의 데이터로 깨진다.
  *
  * <p>실행 전 {@code backend/local-infra && docker compose up -d --wait}.
  */
@@ -55,6 +69,12 @@ class AdminArtistServiceLocalDbTest {
     private ArtistRepository artistRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private MotifAssetRepository motifAssetRepository;
+    @Autowired
+    private MotifAssetPriceRepository motifAssetPriceRepository;
+    @Autowired
+    private MotifPassPriceRepository motifPassPriceRepository;
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -415,6 +435,114 @@ class AdminArtistServiceLocalDbTest {
         assertThat(detail.motifBgImageUrl()).isNotEqualTo("artists/x.jpg");
     }
 
+    // --- 558 삭제 연쇄 (§3.5.5) ---------------------------------------------
+
+    @Test
+    @DisplayName("삭제는 artists·users 와 에셋·에셋 가격·패스 가격을 한 트랜잭션에 내린다")
+    void deleteCascadesToAssetsAndPrices() {
+        ArtistCreateResponse created = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null));
+        int artistSeq = created.artistSeq();
+        Integer assetA = newAsset(artistSeq, true);
+        Integer assetB = newAsset(artistSeq, true);
+        Integer priceA = newAssetPrice(assetA, true);
+        Integer priceB = newAssetPrice(assetB, true);
+        Integer passA = newPassPrice(artistSeq, (short) 1, true);
+        Integer passB = newPassPrice(artistSeq, (short) 12, true);
+        entityManager.flush();
+
+        ArtistDeleteResponse response = adminArtistService.delete(admin, artistSeq);
+
+        assertThat(response).isEqualTo(new ArtistDeleteResponse(2, 2, 2));
+        // 벌크 UPDATE 가 컨텍스트를 비웠으므로 아래 조회는 전부 DB 를 다시 읽는다
+        assertThat(artistRepository.findById(artistSeq).orElseThrow().isDeleted()).isTrue();
+        assertThat(userRepository.findById(created.userSeq()).orElseThrow())
+                .satisfies(user -> {
+                    assertThat(user.isDeleted()).isTrue();
+                    assertThat(user.getModUsrSeq()).isEqualTo(admin.userSeq());
+                });
+        assertThat(motifAssetRepository.findAllById(List.of(assetA, assetB)))
+                .hasSize(2)
+                .allSatisfy(asset -> assertThat(asset.isActive()).isFalse());
+        assertThat(motifAssetPriceRepository.findAllById(List.of(priceA, priceB)))
+                .hasSize(2)
+                .allSatisfy(price -> {
+                    assertThat(price.isActive()).isFalse();
+                    assertThat(price.getModUsrSeq()).isEqualTo(admin.userSeq());
+                });
+        assertThat(motifPassPriceRepository.findAllById(List.of(passA, passB)))
+                .hasSize(2)
+                .allSatisfy(price -> assertThat(price.isActive()).isFalse());
+    }
+
+    @Test
+    @DisplayName("반환 건수는 이번에 실제 UPDATE 된 행 수다 — 이미 꺼진 행은 세지 않는다")
+    void deleteCountsOnlyRowsItTurnedOff() {
+        int artistSeq = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null)).artistSeq();
+        Integer active = newAsset(artistSeq, true);
+        newAssetPrice(active, true);
+        Integer alreadyOff = newAsset(artistSeq, false);
+        newAssetPrice(alreadyOff, false);           // 가격도 이미 꺼져 있다
+        newPassPrice(artistSeq, (short) 1, false);  // 활성 패스 가격은 하나도 없다
+        entityManager.flush();
+
+        // 총 보유량(에셋 2·가격 2)이 아니라 이번에 꺼진 수(1·1·0)여야 한다
+        assertThat(adminArtistService.delete(admin, artistSeq))
+                .isEqualTo(new ArtistDeleteResponse(1, 1, 0));
+    }
+
+    @Test
+    @DisplayName("다른 아티스트의 에셋·가격은 건드리지 않는다")
+    void deleteIsScopedToItsOwnArtist() {
+        int target = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null)).artistSeq();
+        int bystander = adminArtistService.create(admin,
+                new ArtistCreateRequest("윈터", null, companySeq, null, null, null)).artistSeq();
+        newAssetPrice(newAsset(target, true), true);
+        Integer otherAsset = newAsset(bystander, true);
+        Integer otherPrice = newAssetPrice(otherAsset, true);
+        Integer otherPass = newPassPrice(bystander, (short) 1, true);
+        entityManager.flush();
+
+        adminArtistService.delete(admin, target);
+
+        assertThat(artistRepository.findById(bystander).orElseThrow().isDeleted()).isFalse();
+        assertThat(motifAssetRepository.findById(otherAsset).orElseThrow().isActive()).isTrue();
+        assertThat(motifAssetPriceRepository.findById(otherPrice).orElseThrow().isActive()).isTrue();
+        assertThat(motifPassPriceRepository.findById(otherPass).orElseThrow().isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 아티스트를 다시 삭제하면 404 — 존재를 숨긴다 (티켓 558 멱등 규칙)")
+    void deletingTwiceIsNotFound() {
+        int artistSeq = adminArtistService.create(admin,
+                new ArtistCreateRequest("카리나", null, companySeq, null, null, null)).artistSeq();
+        entityManager.flush();
+        adminArtistService.delete(admin, artistSeq);
+
+        assertThatThrownBy(() -> adminArtistService.delete(admin, artistSeq))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ArtistErrorCode.ARTIST_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("소프트 삭제다 — 행은 남고 includeDeleted 로만 보인다")
+    void deleteIsSoft() {
+        String name = "카리나-" + UUID.randomUUID();
+        int artistSeq = adminArtistService.create(admin,
+                new ArtistCreateRequest(name, null, companySeq, null, null, null)).artistSeq();
+        entityManager.flush();
+
+        adminArtistService.delete(admin, artistSeq);
+
+        // 행이 사라지면 과거 챌린지·주문의 FK 가 끊긴다 — 보존이 목적이다(티켓 558)
+        assertThat(artistRepository.findById(artistSeq)).isPresent();
+        assertThat(adminArtistService.list(name, null, null, false, 0, 20).totalElements()).isZero();
+        assertThat(adminArtistService.list(name, null, null, true, 0, 20).totalElements()).isEqualTo(1);
+    }
+
     // --- 픽스처 -------------------------------------------------------------
 
     private User newUser() {
@@ -433,6 +561,36 @@ class AdminArtistServiceLocalDbTest {
         return ((Number) entityManager.createNativeQuery(
                         "select company_seq from motif_core.companies where company_name = :name")
                 .setParameter("name", name)
+                .getSingleResult()).intValue();
+    }
+
+    /** 삭제 연쇄용 에셋. {@code motif_assets} 에는 삭제 플래그가 없어 활성 여부만 있다. */
+    private Integer newAsset(int artistSeq, boolean active) {
+        MotifAsset asset = MotifAsset.register(artistSeq, "t-" + UUID.randomUUID(), null,
+                "assets/" + UUID.randomUUID() + ".mp4", "assets/" + UUID.randomUUID() + ".jpg",
+                5_000, AssetType.NORMAL);
+        if (!active) {
+            asset.changeActive(false);
+        }
+        return motifAssetRepository.saveAndFlush(asset).getAssetSeq();
+    }
+
+    /** 국가는 KR 한 행뿐이고 (에셋, 국가) 가 UNIQUE 라 에셋당 가격은 하나다. */
+    private Integer newAssetPrice(Integer assetSeq, boolean active) {
+        return motifAssetPriceRepository.saveAndFlush(MotifAssetPrice.of(assetSeq, countrySeq(),
+                new BigDecimal("1900.00"), "KRW", active, admin.userSeq())).getAssetPriceSeq();
+    }
+
+    /** (아티스트, 국가, 개월) 이 UNIQUE 라 국가가 하나여도 개월로 여러 행을 만든다. */
+    private Integer newPassPrice(int artistSeq, short durationMonths, boolean active) {
+        return motifPassPriceRepository.saveAndFlush(MotifPassPrice.of(artistSeq, countrySeq(),
+                durationMonths, new BigDecimal("9900.00"), "KRW", active, admin.userSeq()))
+                .getPassPriceSeq();
+    }
+
+    private Integer countrySeq() {
+        return ((Number) entityManager.createNativeQuery(
+                        "select country_seq from motif_core.countries where country_code = 'KR'")
                 .getSingleResult()).intValue();
     }
 

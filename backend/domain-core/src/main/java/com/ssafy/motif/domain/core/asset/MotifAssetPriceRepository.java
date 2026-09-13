@@ -34,4 +34,28 @@ public interface MotifAssetPriceRepository extends JpaRepository<MotifAssetPrice
     int deactivateAll(@Param("assetSeq") Integer assetSeq,
                       @Param("modUsrSeq") Integer modUsrSeq,
                       @Param("now") Instant now);
+
+    /**
+     * 아티스트 삭제 연쇄 — 그 아티스트 에셋들의 활성 가격을 한 방에 내린다 (어드민 §3.5.5).
+     *
+     * <p>{@link #deactivateAll} 을 에셋마다 부르지 않는 이유는 왕복 수가 에셋 × 국가로
+     * 늘기 때문이다. {@code motif_asset_prices} 에는 아티스트 칸이 없어
+     * ({@code asset_seq} 로만 묶인다) 서브쿼리로 에셋을 건너 짚는다.
+     *
+     * <p><b>에셋 비활성화와 순서가 무관하다</b> — 서브쿼리가 {@code artist_seq} 로만
+     * 고르고 {@code is_active} 를 보지 않는다. 순서에 의존했다면 두 UPDATE 사이에
+     * 끼어드는 순간 가격만 살아남는 창이 생긴다.
+     *
+     * @return 이번 호출로 꺼진 가격 행 수
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update MotifAssetPrice p
+               set p.active = false, p.modUsrSeq = :modUsrSeq, p.modDttm = :now
+             where p.active = true
+               and p.assetSeq in (select a.assetSeq from MotifAsset a where a.artistSeq = :artistSeq)
+            """)
+    int deactivateByArtist(@Param("artistSeq") Integer artistSeq,
+                           @Param("modUsrSeq") Integer modUsrSeq,
+                           @Param("now") Instant now);
 }

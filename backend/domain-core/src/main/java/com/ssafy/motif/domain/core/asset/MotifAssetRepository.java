@@ -4,6 +4,7 @@ import com.ssafy.motif.domain.core.artist.ArtistCount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -27,6 +28,30 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
             group by a.artistSeq
             """)
     List<ArtistCount> countByArtists(@Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /**
+     * 아티스트 삭제 연쇄 — 그 아티스트의 활성 에셋을 전부 내린다 (어드민 §3.5.5).
+     *
+     * <p>{@code motif_assets} 에는 삭제 플래그가 없어({@link MotifAsset} javadoc)
+     * 종료는 {@code is_active} 로만 표현한다. 이미 꺼진 행은 건드리지 않는다 —
+     * 응답의 {@code deactivatedAssets} 는 <b>이번에 실제로 꺼진 수</b>여야 하고,
+     * 그래야 재삭제·부분 실패를 숫자로 구분할 수 있다.
+     *
+     * <p>벌크라 {@code @PreUpdate} 가 돌지 않으므로 {@code modDttm} 을 직접 넣는다.
+     * 두 플래그가 함께 있어야 하는 이유는
+     * {@link MotifAssetPriceRepository#deactivateAll} 과 같다 — {@code flushAutomatically}
+     * 가 없으면 같은 트랜잭션에서 방금 세운 {@code artists.is_deleted} 가 clear 로
+     * 통째로 버려진다.
+     *
+     * @return 이번 호출로 꺼진 에셋 수
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update MotifAsset a
+               set a.active = false, a.modDttm = :now
+             where a.artistSeq = :artistSeq and a.active = true
+            """)
+    int deactivateByArtist(@Param("artistSeq") Integer artistSeq, @Param("now") Instant now);
 
     /**
      * 어드민 목록 (어드민 명세 §3.8.1) — 아티스트·활성·타입 필터, offset 페이지.
