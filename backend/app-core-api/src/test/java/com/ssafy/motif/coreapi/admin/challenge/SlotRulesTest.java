@@ -146,4 +146,29 @@ class SlotRulesTest {
     private static Map<String, Object> data(BusinessException e) {
         return (Map<String, Object>) e.getData();
     }
+
+    /**
+     * 편집본 0개 허용 (2026-09-14 확정).
+     *
+     * <p>AI 산출물(565~567)이 나오기 전에도 "같이 춘 사람"을 슬롯에 넣어 등록할 수 있어야
+     * 한다 — 설명 시트의 참여자 아바타가 슬롯을 그대로 쓴다. 영상 재생에는 편집본이
+     * 쓰이지 않고, 촬영 시도는 §13.1 의 EDITED_CHALLENGE_NOT_FOUND 가 막는다.
+     */
+    @Test
+    @DisplayName("슬롯이 있어도 편집본 0개면 통과한다 — 표시 전용 챌린지")
+    void emptyEditedIsAllowedEvenWithSlots() {
+        assertThat(SlotRules.editedMasks(3, List.of())).isEmpty();
+    }
+
+    /**
+     * 0개를 허용해도 <b>부분 집합은 계속 막는다</b>. 이게 이 완화의 경계다 —
+     * 0개는 "없다"가 명확하고, 부분은 목록에서 "있다"로 보이면서 특정 조합을 고른
+     * 사용자만 촬영 직전에 404 를 맞는다.
+     */
+    @Test
+    @DisplayName("부분 집합은 여전히 막는다 — 3개 중 2개")
+    void partialEditedStillRejected() {
+        assertThatThrownBy(() -> SlotRules.editedMasks(2, List.of(edited(0), edited(1))))
+                .isInstanceOf(BusinessException.class);
+    }
 }

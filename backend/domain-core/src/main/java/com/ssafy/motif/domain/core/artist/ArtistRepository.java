@@ -96,7 +96,7 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
      * {@code @ManyToOne} 을 달면 목록 조회마다 조인이 따라붙는다.
      */
     @Query("""
-            select new com.ssafy.motif.domain.core.artist.ArtistName(a.artistSeq, u.nickname)
+            select new com.ssafy.motif.domain.core.artist.ArtistName(a.artistSeq, u.nickname, u.profileImageKey)
             from Artist a, User u
             where a.userSeq = u.userSeq and a.artistSeq in :artistSeqs
             """)

@@ -828,12 +828,15 @@ DB 에는 **마스터 재생목록 경로 하나만** 저장한다(ADR-0010 D4).
 {
   "participants": [
     { "artistSeq": 7, "name": "윈터", "participantMask": 1,
+      "profileImageUrl": "https://cdn.example/profiles/uuid.jpg",
       "bbox": { "leftTopX": 120, "leftTopY": 80, "rightBottomX": 460, "rightBottomY": 940 } }
   ]
 }
 ```
 
 - `participants` = 교체 가능한 인물 슬롯(추가 참여 아티스트 — `groupName` 제거 **(회의 확정)**). `bbox` 는 원본 영상 px·좌상단 원점 좌표로, 촬영 가이드 오버레이용.
+- `profileImageUrl` 추가 **(2026-09-14)** — 설명 시트(화면 3-2)가 참여자를 아바타로 그린다. 값은 `users.profile_image_key` 를 응답 조립 시점에 CDN URL 로 바꾼 것이며 저장 컬럼이 아니다. 미등록이면 `null`.
+- **편집본이 0개인 챌린지가 있을 수 있다** **(2026-09-14)** — 슬롯은 등록됐지만 AI 편집본이 아직 없는 상태다. 재생·표시는 정상이고 촬영만 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로 막힌다. 어드민 등록이 **0개 또는 정확히 2ⁿ−1개**만 허용하므로 부분 집합은 존재하지 않는다.
 
 - `availableMasks` 삭제 **(회의 확정 R4)** — **운영 전제: 슬롯 조합의 편집본은 어드민이 전부 등록**한다(슬롯 1~2개 = 조합 1~3개 수준이라 현실적). 이 전제가 깨지면 조합 유효성은 13.1 의 404(`EDITED_CHALLENGE_NOT_FOUND`)로만 사후 판별되어 사용자가 촬영 직전에 실패를 겪는다 — 전제 유지 여부는 §16 #28.
 
