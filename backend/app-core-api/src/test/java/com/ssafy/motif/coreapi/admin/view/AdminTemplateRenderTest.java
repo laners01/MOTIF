@@ -167,4 +167,17 @@ class AdminTemplateRenderTest {
                 .contains("id=\"is-active\"");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("곡 관리 — 목록 행 뼈대와 동일 곡명 경고 자리가 들어간다 (§3.6.2)")
+    void songs() {
+        String html = render("admin/songs");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 곡 관리</title>")
+                .contains("/admin/songs.js")
+                .contains("id=\"song-row\"")
+                .contains("id=\"dup\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
 }
