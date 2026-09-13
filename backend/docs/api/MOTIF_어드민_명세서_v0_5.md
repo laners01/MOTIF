@@ -146,8 +146,16 @@ v.onloadedmetadata = () => {
 2. 폼이 보낸 `durationMs`·`width`·`height` 규칙 검증 **(기본안 — 확인 필요, §8 #3)**:
    챌린지 원본 **세로**(h > w)·≤ 60초, 에셋 **가로**(w > h)·≤ 20초, 편집본 길이 = 원본 ±500ms.
    위반 시 400 `MEDIA_INVALID`(`data` 에 사유). 수치는 설정값(`admin.media.*`).
-3. `thumbnail_key` 는 산출물 규약으로 **계산해 넣는다**(`{산출물 프리픽스}/thumb.jpg`).
-   파일은 app-media 가 만든다 — 그때까지 썸네일 URL 은 404 다(§8 #19).
+3. `thumbnail_key` 는 산출물 규약으로 **계산해 넣는다** — 챌린지 원본이면
+   `challenges/{uuid}/thumb.jpg`. 파일은 app-media 가 만든다.
+
+   > **`thumbnails/public/{uuid}.jpg` 가 아니다** *(v0.5 정정)*. v0.4 까지는 core-api 가
+   > 동기로 뽑아 그 프리픽스에 올렸지만, v0.5 에서 썸네일 생성이 app-media 로 옮겨가면서
+   > **원본과 같은 uuid 아래**로 모인다. `thumbnails/public/` 프리픽스는 §1.4 표에서
+   > 서버 생성 항목으로 남지만 **영상 썸네일에는 쓰지 않는다**.
+   >
+   > **등록 직후 ~ app-media 완료 사이에 썸네일 URL 은 404 다**(수 초). 어드민 목록에서
+   > 깨진 이미지로 보인다 — 사용자 노출 경로는 그 시점에 아직 없다(§8 #19).
 
 **값의 출처가 클라이언트인 점** — 개발자 도구로 조작할 수 있다. 다만 어드민은 테일넷
 한정(§1.1) · 시드 계정만(§1.2) · 팀원 수 명이라 위험이 낮고, **app-media 가 실제 영상을
@@ -169,7 +177,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | `ARTIST_MOTIF_BG` | `artists/{uuid}.jpg` | 공개 | **신설**(API §11.4 `bannerImageUrl`) |
 | `NOTICE_IMAGE` | `notices/{uuid}.jpg` | 공개 | 기존 |
 | `BANNER_IMAGE` | `banners/{uuid}.jpg` | 공개 | **신설**(DB §40) |
-| (서버 생성) | `thumbnails/public/{uuid}.jpg` | 공개 | 추출 썸네일 |
+| (서버 생성) | `thumbnails/public/{uuid}.jpg` | 공개 | 영상 외 추출 썸네일. **영상 썸네일은 산출물 프리픽스 아래**(`{프리픽스}/thumb.jpg`) *(v0.5)* |
 
 **산출물 프리픽스** *(v0.4 신설 — app-media 가 만든다, ADR-0010 D4)*
 
@@ -594,7 +602,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 
 ```json
 {
-  "challengeSeq": 11, "durationMs": 15000, "thumbnailUrl": "https://cdn…/thumbnails/public/….jpg",
+  "challengeSeq": 11, "durationMs": 15000, "thumbnailUrl": "https://cdn…/challenges/{uuid}/thumb.jpg",
   "participants": [ { "artistSeq": 7, "participantMask": 1 }, { "artistSeq": 9, "participantMask": 2 } ],
   "editedChallenges": [ { "editedChallengeSeq": 31, "participantMask": 1 }, { "editedChallengeSeq": 32, "participantMask": 2 }, { "editedChallengeSeq": 33, "participantMask": 3 } ]
 }
