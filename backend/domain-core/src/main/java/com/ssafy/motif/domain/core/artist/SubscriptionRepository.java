@@ -16,6 +16,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Subs
      */
     Optional<Subscription> findByIdUserSeqAndIdArtistSeq(Integer userSeq, Integer artistSeq);
 
+    /** 챌린지 상세의 {@code isSubscribed} (명세 §7.2) — 여기는 경과일이 필요 없다. */
+    boolean existsByIdUserSeqAndIdArtistSeq(Integer userSeq, Integer artistSeq);
+
     /**
      * 온보딩 완료 판정 (명세 §3.3) — 구독이 1건이라도 있으면 완료로 본다.
      *

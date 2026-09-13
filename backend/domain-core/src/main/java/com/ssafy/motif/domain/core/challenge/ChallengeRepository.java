@@ -39,6 +39,21 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
      */
     List<Challenge> findByArtistSeqAndDeletedFalseOrderByChallengeSeqDesc(Integer artistSeq);
 
+    /**
+     * 챌린지 상세의 {@code isLiked} (API 명세 §7.2).
+     *
+     * <p><b>네이티브다.</b> {@code challenge_likes} 는 아직 엔티티가 없고 여기서 필요한
+     * 것은 참·거짓 하나뿐이라, 좋아요 토글(§7.3) 티켓이 소유할 테이블을 미리 매핑하지
+     * 않는다 — {@link #countActiveJobs} 와 같은 규칙이다. 그 티켓이 엔티티를 만들면
+     * 이 쿼리는 그리로 옮긴다.
+     */
+    @Query(value = """
+            select exists(
+                select 1 from motif_core.challenge_likes
+                 where challenge_seq = :challengeSeq and user_seq = :userSeq)
+            """, nativeQuery = true)
+    boolean isLikedBy(@Param("challengeSeq") Integer challengeSeq, @Param("userSeq") Integer userSeq);
+
     /** 어드민도 삭제된 챌린지는 수정 대상으로 잡지 않는다 — §3.7 실패표 404 "대상 없음·삭제". */
     Optional<Challenge> findByChallengeSeqAndDeletedFalse(Integer challengeSeq);
 
