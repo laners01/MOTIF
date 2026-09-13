@@ -1,7 +1,10 @@
 package com.ssafy.motif.domain.core.notice;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface NoticeImageRepository extends JpaRepository<NoticeImage, Integer> {
@@ -17,4 +20,27 @@ public interface NoticeImageRepository extends JpaRepository<NoticeImage, Intege
      * 삭제 전 상태가 컨텍스트에 남아 flush 순서가 어긋난다.
      */
     void deleteByNoticeSeq(Integer noticeSeq);
+
+    /**
+     * 목록의 {@code imageCount} (어드민 명세 §3.10.1) — 공지당 장수를 한 번에 센다.
+     *
+     * <p>행을 끌어오지 않는다. 목록 한 페이지(최대 100건)마다 공지별로 이미지를 조회하면
+     * N+1 이 되는데, 목록에 필요한 것은 개수 하나뿐이다.
+     *
+     * <p><b>이미지가 0 장인 공지는 결과에 행이 없다</b> — 호출부가 기본값 0 을 쓴다
+     * ({@code EditedChallengeRepository.countJobRefs} 와 같은 규칙).
+     */
+    @Query(value = """
+            select i.notice_seq as noticeSeq, count(*) as imageCount
+            from motif_core.notice_images i
+            where i.notice_seq in (:noticeSeqs)
+            group by i.notice_seq
+            """, nativeQuery = true)
+    List<ImageCount> countByNoticeSeqs(@Param("noticeSeqs") Collection<Integer> noticeSeqs);
+
+    interface ImageCount {
+        Integer getNoticeSeq();
+
+        long getImageCount();
+    }
 }

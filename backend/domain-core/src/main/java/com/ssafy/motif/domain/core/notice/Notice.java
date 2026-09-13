@@ -47,6 +47,22 @@ public class Notice extends BaseTimeEntity {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 
+    /**
+     * 어드민 작성 (어드민 명세 §3.10.2).
+     *
+     * <p><b>등록자를 행에 남기지 않는다.</b> {@code notices} 에는 {@code reg_usr_seq} 가
+     * 없다(DB §27) — 누가 썼는지는 감사 로그가 갖는다({@code AdminAuditLogger}, §1.3).
+     * 공지의 주체는 어드민이 아니라 {@code artist_seq} 의 아티스트다.
+     *
+     * <p>카운터·삭제 플래그는 DB 기본값(0·FALSE)과 같은 자바 기본값으로 시작한다.
+     */
+    public static Notice register(Integer artistSeq, String content) {
+        Notice notice = new Notice();
+        notice.artistSeq = artistSeq;
+        notice.content = content;
+        return notice;
+    }
+
     public void changeContent(String content) {
         this.content = content;
     }
