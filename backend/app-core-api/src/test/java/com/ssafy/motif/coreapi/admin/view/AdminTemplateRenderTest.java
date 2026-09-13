@@ -65,4 +65,30 @@ class AdminTemplateRenderTest {
                 .contains("id=\"pass-grid\"");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("공지 목록 — 행 뼈대와 삭제분 필터가 들어간다")
+    void noticeList() {
+        String html = render("admin/notice-list");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 공지 목록</title>")
+                .contains("/admin/notice-list.js")
+                .contains("id=\"include-deleted\"")
+                .contains("id=\"notice-row\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
+    @DisplayName("공지 수정 — 이미지 전체 교체 경고와 드래그 목록이 들어간다")
+    void noticeEdit() {
+        String html = render("admin/notice-edit");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 공지 수정</title>")
+                .contains("/admin/notice-edit.js")
+                .contains("통째로 교체")
+                .contains("draggable=\"true\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
 }

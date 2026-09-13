@@ -38,3 +38,8 @@ ol.progress li.fail { color: #a50e0e; }
 .frame { position: relative; display: inline-block; max-width: 420px; margin-top: 8px; cursor: crosshair; }
 .frame video { display: block; width: 100%; background: #000; pointer-events: none; }
 .frame .box { position: absolute; border: 2px solid #0b57d0; background: rgba(11, 87, 208, .18); pointer-events: none; }
+/* 공지 이미지 — 끌어서 순서 변경 */
+ul.images { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+ul.images li { width: 140px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;
+               background: #fff; text-align: center; cursor: grab; }
+ul.images li img { width: 100%; height: 90px; object-fit: cover; background: #eee; }
