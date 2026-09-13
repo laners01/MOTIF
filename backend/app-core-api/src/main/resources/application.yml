@@ -29,8 +29,18 @@ spring:
 motif:
   auth:
     jwt:
-      # 명세 §2.1 응답 expiresIn: 3600
-      access-token-ttl: 1h
+      # 테스트용 30일 (2026-09-14). 명세 §2.1 은 1h(expiresIn: 3600)다.
+      #
+      # 안드로이드 연동 중 재발급 흐름을 아직 안 붙인 상태라 1시간마다 끊겨
+      # 테스트가 막혔다. 그래서 한시적으로 늘린다.
+      #
+      # 시연 전에 1h 로 되돌린다. 액세스 토큰은 stateless JWT 라 폐기 수단이 없다 —
+      # 유출되면 만료까지 그대로 살아 있고, 회원 정지(어드민 §3.14.3)도 refresh
+      # 토큰만 폐기한다. 짧은 수명이 그 유일한 방어선이다.
+      #
+      # 되돌릴 때 재배포가 필요 없도록 환경변수로 뺀다 — configmap 의
+      # MOTIF_ACCESS_TOKEN_TTL 을 1h 로 넣고 롤아웃 재시작하면 된다.
+      access-token-ttl: ${MOTIF_ACCESS_TOKEN_TTL:30d}
       # 명세에 값이 없다 — 기본안. 확정되면 이 줄만 고친다
       refresh-token-ttl: 14d
 
