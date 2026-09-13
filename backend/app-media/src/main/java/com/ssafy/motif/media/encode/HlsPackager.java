@@ -43,7 +43,13 @@ public class HlsPackager {
     /** 프레임레이트를 고정해야 GOP 프레임 수(=fps × 2초)가 결정된다. */
     private static final int FPS = 30;
 
-    /** 썸네일 추출 지점(초). <b>첫 프레임이 아니다</b> — 페이드인·모션블러·인물 프레임 밖이 흔하다. */
+    /**
+     * 썸네일 추출 지점 기본값(초). <b>첫 프레임이 아니다</b> — 페이드인·모션블러·인물
+     * 프레임 밖이 흔하다.
+     *
+     * <p>2026-09-14 부터 어드민이 등록 화면에서 시각을 고를 수 있다
+     * ({@code MediaJobRequestedEvent.thumbnailAtMs}). 이 상수는 그 값이 없을 때만 쓴다.
+     */
     private static final double THUMBNAIL_AT = 1.5;
 
     /**
@@ -78,6 +84,15 @@ public class HlsPackager {
      * 아무것도 남기지 않는다 (ADR-0010 D4 실패 처리).
      */
     public void packageForPlayback(Path source, Path outDir) {
+        packageForPlayback(source, outDir, null);
+    }
+
+    /**
+     * @param thumbnailAtMs 썸네일을 뽑을 시각(ms). null 이면 {@link #THUMBNAIL_AT} 기본값.
+     *                      값이 영상 길이를 넘는지는 core-api 가 이미 막았다 — 여기서
+     *                      다시 검사하지 않는다(길이를 알려면 ffprobe 를 한 번 더 불러야 한다)
+     */
+    public void packageForPlayback(Path source, Path outDir, Long thumbnailAtMs) {
         try {
             Files.createDirectories(outDir);
             List<String> variants = new ArrayList<>();
@@ -85,7 +100,7 @@ public class HlsPackager {
                 variants.add(encodeAndPackage(source, outDir, r));
             }
             writeMaster(outDir, variants);
-            thumbnail(source, outDir.resolve(THUMBNAIL));
+            thumbnail(source, outDir.resolve(THUMBNAIL), thumbnailAtMs);
         } catch (IOException e) {
             deleteQuietly(outDir);
             throw new MediaEncodingException("산출물 디렉터리를 만들지 못했다: " + outDir, e);
@@ -219,10 +234,11 @@ public class HlsPackager {
         }
     }
 
-    private void thumbnail(Path source, Path out) {
+    private void thumbnail(Path source, Path out, Long atMs) {
+        double at = atMs == null ? THUMBNAIL_AT : atMs / 1000.0;
         // -ss 를 -i 앞에 둔다 — 디코딩 없이 건너뛰어 훨씬 빠르다
         ffmpeg.run(List.of(
-                "-v", "error", "-y", "-ss", String.valueOf(THUMBNAIL_AT), "-i", source.toString(),
+                "-v", "error", "-y", "-ss", String.valueOf(at), "-i", source.toString(),
                 "-frames:v", "1", "-vf", "scale=-2:" + THUMBNAIL_HEIGHT, "-q:v", "5",
                 out.toString()));
     }

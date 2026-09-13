@@ -18,6 +18,11 @@ import java.time.Instant;
  * @param sourceSeq    갱신할 행의 PK — sourceType 에 따라 composite_jobs 또는 challenges
  * @param sourceKey    S3 원본 키. 재생용이 아니라 <b>입력</b>이므로 MP4 그대로다
  * @param outputPrefix S3 산출물 프리픽스. 이 아래에 master.m3u8·thumb.jpg·화질별 디렉터리가 깔린다
+ * @param thumbnailAtMs 썸네일을 뽑을 시각(ms). <b>선택 — null 이면 워커 기본값(1.5초)</b>.
+ *                      2026-09-14 추가(계약은 additive-only 라 필드 추가가 허용된다).
+ *                      어드민이 등록 화면에서 원본을 스크럽해 고른 값이고, 영상 길이를
+ *                      넘지 않는지는 core-api 가 durationMs 와 대조해 막는다 — 넘으면
+ *                      ffmpeg 가 빈 프레임을 뱉는다
  */
 public record MediaJobRequestedEvent(
         String eventId,
@@ -26,7 +31,8 @@ public record MediaJobRequestedEvent(
         String sourceType,
         Long sourceSeq,
         String sourceKey,
-        String outputPrefix
+        String outputPrefix,
+        Long thumbnailAtMs
 ) {
     public static final String SOURCE_COMPOSITE_RESULT = "COMPOSITE_RESULT";
     public static final String SOURCE_CHALLENGE_ORIGIN = "CHALLENGE_ORIGIN";

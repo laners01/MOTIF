@@ -27,10 +27,12 @@ public class MediaJobPublisher {
      * @param sourceType   {@code COMPOSITE_RESULT} | {@code CHALLENGE_ORIGIN}
      * @param sourceSeq    갱신할 행의 PK
      * @param sourceKey    S3 원본 키 (재생용이 아니라 입력이므로 MP4 그대로)
-     * @param outputPrefix 산출물 프리픽스 — {@link MediaKeys} 로 만든다
+     * @param outputPrefix  산출물 프리픽스 — {@link MediaKeys} 로 만든다
+     * @param thumbnailAtMs 썸네일을 뽑을 시각(ms). null 이면 워커 기본값(1.5초)
      * @return 이 후처리 잡의 uuid — 멱등 키
      */
-    public String publish(String sourceType, long sourceSeq, String sourceKey, String outputPrefix) {
+    public String publish(String sourceType, long sourceSeq, String sourceKey,
+                          String outputPrefix, Long thumbnailAtMs) {
         String mediaJobUuid = UUID.randomUUID().toString();
         eventPublisher.publishEvent(new MediaJobRequestedEvent(
                 UUID.randomUUID().toString(),
@@ -39,7 +41,8 @@ public class MediaJobPublisher {
                 sourceType,
                 sourceSeq,
                 sourceKey,
-                outputPrefix));
+                outputPrefix,
+                thumbnailAtMs));
         return mediaJobUuid;
     }
 }

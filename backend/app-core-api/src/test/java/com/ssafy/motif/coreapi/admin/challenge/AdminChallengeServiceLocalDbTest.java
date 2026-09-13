@@ -229,7 +229,7 @@ class AdminChallengeServiceLocalDbTest {
     @DisplayName("원본이 가로면 400 MEDIA_INVALID — 챌린지는 세로다")
     void 가로_원본_거부() {
         assertThatThrownBy(() -> adminChallengeService.create(ADMIN, new ChallengeCreateRequest(
-                mainArtist, songSeq, "소개글", videoKey, (long) ORIGIN_DURATION_MS, 1920, 1080,
+                mainArtist, songSeq, "소개글", videoKey, (long) ORIGIN_DURATION_MS, null, 1920, 1080,
                 List.of(), List.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
@@ -373,7 +373,7 @@ class AdminChallengeServiceLocalDbTest {
     private ChallengeCreateRequest request(List<ParticipantRequest> participants,
                                            List<EditedChallengeRequest> edited) {
         return new ChallengeCreateRequest(mainArtist, songSeq, "Supernova 챌린지", videoKey,
-                (long) ORIGIN_DURATION_MS, 1080, 1920, participants, edited);
+                (long) ORIGIN_DURATION_MS, null, 1080, 1920, participants, edited);
     }
 
     private ParticipantRequest slot(Integer artistSeq) {

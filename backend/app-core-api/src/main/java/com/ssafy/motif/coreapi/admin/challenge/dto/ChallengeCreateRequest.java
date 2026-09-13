@@ -15,8 +15,13 @@ import java.util.List;
  * "편집본이 덜 올라간 미공개 챌린지" 상태가 필요 없다 — {@code challenges} 에 상태
  * 컬럼이 없는 근거다(§ADMIN-06).
  *
- * @param durationMs 업로드 화면 JS 가 {@code <video>} 메타데이터에서 읽어 실은 값
- *                   (§1.4). core-api 에는 ffmpeg 가 없다 — 서버는 대조만 한다
+ * @param durationMs    업로드 화면 JS 가 {@code <video>} 메타데이터에서 읽어 실은 값
+ *                      (§1.4). core-api 에는 ffmpeg 가 없다 — 서버는 대조만 한다
+ * @param thumbnailAtMs 썸네일로 쓸 시각(ms). <b>선택 — 없으면 워커 기본값 1500</b>.
+ *                      등록 화면에서 원본을 스크럽해 고른다. 이미지를 따로 올리는
+ *                      방식이 아니라 ffmpeg 가 원본에서 그 프레임을 뽑으므로, 새 S3 키
+ *                      규약도 presign 종류 추가도 없고 화질이 원본 그대로 나온다.
+ *                      폼 값이라 임의의 수가 올 수 있어 {@code durationMs} 와 대조한다
  */
 @Schema(description = "챌린지 등록 (원본 + 슬롯 + 편집본 원자)")
 public record ChallengeCreateRequest(
@@ -25,6 +30,7 @@ public record ChallengeCreateRequest(
         @NotBlank String description,
         @NotBlank String videoKey,
         @NotNull @Positive Long durationMs,
+        Long thumbnailAtMs,
         @NotNull @Positive Integer width,
         @NotNull @Positive Integer height,
         @Valid @NotNull List<ParticipantRequest> participants,

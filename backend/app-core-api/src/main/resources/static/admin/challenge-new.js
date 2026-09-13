@@ -154,6 +154,9 @@ function buildRequest() {
         durationMs: meta?.durationMs,
         width: meta?.width,
         height: meta?.height,
+        // 선택 — 없으면 워커가 1.5초를 쓴다. 서버가 durationMs 와 대조해
+        // 영상 밖이면 THUMBNAIL_AT_OUT_OF_RANGE 로 막는다(§4.8)
+        thumbnailAtMs: thumbnailAtMs(),
         participants: readSlots(),
         editedChallenges: readMatrix().map((r) => ({
             removedSlots: r.removedSlots,
@@ -177,6 +180,7 @@ $('file').addEventListener('change', async () => {
         $('frame-wrap').hidden = false;
         meta = await videoMeta(file, $('frame'));
         $('frame').currentTime = 0.01;      // 첫 프레임을 실제로 그리게 한다(bbox 드래그 배경)
+        initThumbPick();
         $('meta-line').textContent = `${describe()} — 업로드 중…`;
         videoKey = await upload(file, 'CHALLENGE_VIDEO');
         $('meta-line').textContent = `${describe()} · ${videoKey}`;
@@ -189,6 +193,33 @@ $('file').addEventListener('change', async () => {
 });
 
 const describe = () => `${meta.width}×${meta.height} · ${(meta.durationMs / 1000).toFixed(2)}초`;
+
+// ── 썸네일 시각 ────────────────────────────────────────────────────────────
+
+/**
+ * 슬라이더 범위를 이 영상 길이에 맞춘다. 상한을 길이보다 조금 앞에 두는 이유:
+ * 정확히 끝 지점은 마지막 프레임 다음이라 ffmpeg 가 빈 프레임을 뱉는다.
+ */
+function initThumbPick() {
+    const max = Math.max(0, meta.durationMs / 1000 - 0.1);
+    const at = $('thumb-at');
+    at.max = max.toFixed(2);
+    at.value = Math.min(1.5, max).toFixed(2);
+    $('thumb-pick').hidden = false;
+    showThumbAt();
+}
+
+/** 스크럽한 지점을 그대로 보여준다 — 등록 후 나올 썸네일이 이 프레임이다. */
+function showThumbAt() {
+    const v = Number($('thumb-at').value);
+    $('thumb-at-label').textContent = `${v.toFixed(2)}초`;
+    $('frame').currentTime = v;
+}
+
+$('thumb-at').addEventListener('input', showThumbAt);
+
+/** 영상을 아직 안 골랐으면 보내지 않는다 — 선택 필드라 없으면 워커 기본값이다. */
+const thumbnailAtMs = () => (meta ? Math.round(Number($('thumb-at').value) * 1000) : undefined);
 
 // ── 첫 프레임 드래그 → bbox ────────────────────────────────────────────────
 
