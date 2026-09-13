@@ -15,7 +15,8 @@ import java.util.Set;
 /**
  * 슬롯·마스크 규칙 (어드민 명세 §3.7.2 검증 2·3항) — S15P21D104-559.
  *
- * <p><b>챌린지 등록의 핵심 불변식은 하나다 — 슬롯 n 개면 편집본이 정확히 2ⁿ−1 개.</b>
+ * <p><b>챌린지 등록의 핵심 불변식은 하나다 — 편집본은 0개이거나 정확히 2ⁿ−1 개다.</b>
+ * 그 사이(부분 집합)는 없다.
  * 사용자는 촬영 전에 "누구를 뺄지"를 고르고, 서버는 그 조합의 편집본을 꺼내 준다.
  * 조합 하나가 비면 그 사용자는 <b>촬영 직전에</b> {@code EDITED_CHALLENGE_NOT_FOUND} 를
  * 만난다(API 명세 §13.1 주석). 그래서 등록 시점에 전조합을 강제한다.
@@ -87,6 +88,20 @@ public final class SlotRules {
      */
     public static List<Integer> editedMasks(int slotCount, List<EditedChallengeRequest> editedChallenges) {
         int expected = (1 << slotCount) - 1;
+
+        // 편집본 0개는 허용한다 — "아직 촬영은 안 되는, 표시 전용 챌린지"다. 슬롯만 있으면
+        // 설명 시트의 참여자 아바타가 뜨고, 영상 재생에는 편집본이 쓰이지 않는다.
+        // 촬영을 시도하면 API 명세 §13.1 이 정의한 EDITED_CHALLENGE_NOT_FOUND 로 막힌다.
+        //
+        // 막는 것은 여전히 **부분 집합**이다(7개 중 3개). 그쪽이 진짜 위험하다 —
+        // 목록에서는 완성된 것처럼 보이는데 특정 조합을 고른 사용자만 촬영 직전에 404 를
+        // 맞는다. 0개는 "없다"가 명확하고, 부분은 "있다"로 위장한다.
+        //
+        // 편집본은 AI 산출물(565~567)이라 등록 시점에 없을 수 있다. 나온 뒤에
+        // PUT /challenges/{seq}/participants (§3.7.5) 로 슬롯과 함께 얹는다.
+        if (editedChallenges.isEmpty()) {
+            return List.of();
+        }
 
         List<Integer> masks = new ArrayList<>(editedChallenges.size());
         Set<Integer> unknown = new LinkedHashSet<>();

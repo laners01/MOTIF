@@ -84,8 +84,11 @@ public class ChallengeQueryService {
     /**
      * 슬롯 목록 — 마스크 오름차순이 곧 화면 좌→우 순서다.
      *
-     * <p>이름은 {@code ArtistRepository.findNames} 로 <b>한 번에</b> 가져온다. 슬롯은
-     * 최대 4개지만 하나씩 조회하면 그대로 N+1 이고, 그 메서드가 이 용도로 이미 있다.
+     * <p>이름과 프로필 키를 {@code ArtistRepository.findNames} 로 <b>한 번에</b> 가져온다.
+     * 슬롯은 최대 4개지만 하나씩 조회하면 그대로 N+1 이고, 그 메서드가 이 용도로 이미 있다.
+     *
+     * <p>{@code profileImageUrl} 은 저장값이 아니라 <b>응답 조립 시점에 만드는 값</b>이다 —
+     * 메인 아티스트와 같은 방식이다. 설명 시트의 참여자 아바타가 이걸 쓴다.
      */
     private List<ChallengeDetailResponse.Participant> participants(Integer challengeSeq) {
         List<ChallengeParticipant> slots =
@@ -94,17 +97,21 @@ public class ChallengeQueryService {
             return List.of();
         }
 
-        Map<Integer, String> names = artistRepository
+        Map<Integer, ArtistName> artists = artistRepository
                 .findNames(slots.stream().map(ChallengeParticipant::artistSeq).toList())
                 .stream()
-                .collect(Collectors.toMap(ArtistName::artistSeq, ArtistName::name));
+                .collect(Collectors.toMap(ArtistName::artistSeq, a -> a));
 
         return slots.stream()
-                .map(slot -> new ChallengeDetailResponse.Participant(
-                        slot.artistSeq(),
-                        names.get(slot.artistSeq()),
-                        slot.getParticipantMask(),
-                        toBbox(slot.getBbox())))
+                .map(slot -> {
+                    ArtistName artist = artists.get(slot.artistSeq());
+                    return new ChallengeDetailResponse.Participant(
+                            slot.artistSeq(),
+                            artist == null ? null : artist.name(),
+                            slot.getParticipantMask(),
+                            artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey()),
+                            toBbox(slot.getBbox()));
+                })
                 .toList();
     }
 

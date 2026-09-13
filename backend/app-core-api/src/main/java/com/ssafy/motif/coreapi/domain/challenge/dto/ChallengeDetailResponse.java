@@ -95,6 +95,9 @@ public record ChallengeDetailResponse(
             @Schema(description = "단일 비트 마스크 (1·2·4·8)", example = "1")
             int participantMask,
 
+            @Schema(description = "프로필 이미지 URL. 미등록이면 null")
+            String profileImageUrl,
+
             Bbox bbox
     ) {
     }
