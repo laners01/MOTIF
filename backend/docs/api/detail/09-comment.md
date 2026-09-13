@@ -69,7 +69,7 @@ offset 페이지네이션이다.
         "author": {
           "userSeq": 5,
           "nickname": "팬123",
-          "profileImageUrl": "https://cdn.motif.io/profiles/5.jpg",
+          "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg",
           "isArtist": false
         },
         "likeCount": 3,

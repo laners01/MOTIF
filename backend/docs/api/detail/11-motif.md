@@ -71,9 +71,9 @@ Authorization: Bearer {accessToken}
     "list": [
       {
         "assetSeq": 21,
-        "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa" },
+        "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
         "title": "9월 신규 에셋",
-        "thumbnailUrl": "https://cdn.motif.io/assets/21.jpg",
+        "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
         "description": "9월 신규 에셋 소개 문구",
         "durationMs": 9800,
         "assetType": "NORMAL",
@@ -124,10 +124,10 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "assetSeq": 21,
-    "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa" },
+    "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
     "title": "9월 신규 에셋",
-    "previewVideoUrl": "https://cdn.motif.io/assets/21.mp4",
-    "thumbnailUrl": "https://cdn.motif.io/assets/21.jpg",
+    "previewVideoUrl": "https://cdn.motif.io/assets/2b7f1c93.mp4",
+    "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
     "description": "9월 신규 에셋 소개 문구",
     "durationMs": 9800,
     "assetType": "NORMAL",
@@ -179,7 +179,7 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "artistSeq": 3,
-    "bannerImageUrl": "https://cdn.motif.io/artists/3/motif-bg.jpg",
+    "bannerImageUrl": "https://cdn.motif.io/artists/3f9c1a2b/motif-bg.jpg",
     "passActive": false,
     "expiresDttm": null,
     "prices": [
@@ -200,7 +200,7 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "artistSeq": 3,
-    "bannerImageUrl": "https://cdn.motif.io/artists/3/motif-bg.jpg",
+    "bannerImageUrl": "https://cdn.motif.io/artists/3f9c1a2b/motif-bg.jpg",
     "passActive": true,
     "expiresDttm": "2026-10-01T00:00:00.000Z",
     "prices": []
@@ -248,8 +248,8 @@ Authorization: Bearer {accessToken}
     "list": [
       {
         "resultSeq": 10,
-        "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d.jpg?Expires=...&Signature=...",
-        "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg" },
+        "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
+        "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
         "regDttm": "2026-09-01T10:00:00.000Z",
         "isRep": true
       }
@@ -263,7 +263,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-- `thumbnailUrl` 은 **signed URL** 이다 — 모티프 결과물은 보호 등급(§1.7).
+- `thumbnailUrl` 은 **보호 등급**이라 signed 쿠키로 접근한다 — 모티프 결과물 전체가 그렇다(§1.7).
 - `isRep` 은 대표 모티프 여부다(§4.1 의 `repMotif`).
 - **`viewCount` 가 없다** — 모티프 결과물에는 조회수 카운터가 없다(R2 예외 명시).
 - 본인 것만 나온다. 삭제한 결과물은 제외한다.
@@ -285,12 +285,12 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "resultSeq": 10,
-    "videoUrl": "https://cdn.motif.io/results/motif/9c1d.mp4?Expires=...&Signature=...",
-    "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d.jpg?Expires=...&Signature=...",
+    "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
+    "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
     "description": null,
     "durationMs": 9800,
     "asset": { "assetSeq": 21, "title": "9월 신규 에셋" },
-    "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg" },
+    "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
     "isRep": false,
     "regDttm": "2026-09-01T10:00:00.000Z"
   },
@@ -299,7 +299,7 @@ Authorization: Bearer {accessToken}
 ```
 
 - `description` 은 선택 사항이라 **`null` 일 수 있다** — 합성 직후 자동 생성 시 `NULL` 이고, 사용자가 §11.8 로 채운다.
-- signed URL 이 만료(10분)돼 재생이 실패하면 **이 API 를 단건 재조회**해 URL 만 갱신한다 — §5.3 자동재생 목록의 만료 대응 경로다.
+- signed 쿠키가 만료(10분)돼 재생이 실패하면 **이 API 를 단건 재조회**해 쿠키를 다시 받는다 — §5.3 자동재생 목록의 만료 대응 경로다.
 
 ### 실패 응답
 
@@ -347,12 +347,12 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "resultSeq": 10,
-    "videoUrl": "signed-url",
-    "thumbnailUrl": "signed-url",
+    "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
+    "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
     "description": "새 문구",
     "durationMs": 9800,
     "asset": { "assetSeq": 21, "title": "9월 신규 에셋" },
-    "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg" },
+    "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
     "isRep": true,
     "regDttm": "2026-09-01T10:00:00.000Z"
   },
@@ -401,7 +401,7 @@ Authorization: Bearer {accessToken}
     "list": [
       {
         "artistSeq": 3,
-        "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg" },
+        "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
         "status": "ACTIVE",
         "startedDttm": "2026-09-01T00:00:00.000Z",
         "expiresDttm": "2026-10-01T00:00:00.000Z",

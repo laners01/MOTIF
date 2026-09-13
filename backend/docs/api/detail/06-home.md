@@ -39,8 +39,8 @@ Authorization: Bearer {accessToken}
       {
         "rank": 1,
         "videoSeq": 88,
-        "videoUrl": "https://cdn.motif.io/results/challenge/uuid.mp4",
-        "thumbnailUrl": "https://cdn.motif.io/videos/88.jpg",
+        "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+        "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
         "durationMs": 15000,
         "song": { "title": "bailar toda la noche", "singerName": "mochico" },
         "author": { "userSeq": 5, "nickname": "팬123" },
@@ -113,12 +113,12 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
           "artistSeq": 3,
           "name": "카리나",
           "groupName": "aespa",
-          "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg"
+          "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
         },
         "asset": {
           "assetSeq": 21,
           "title": "9월 신규 에셋",
-          "thumbnailUrl": "https://cdn.motif.io/assets/21.jpg",
+          "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
           "durationMs": 9800
         }
       },
@@ -128,13 +128,14 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
         "artist": {
           "artistSeq": 7,
           "name": "윈터",
-          "profileImageUrl": "https://cdn.motif.io/profiles/7.jpg"
+          "groupName": "aespa",
+          "profileImageUrl": "https://cdn.motif.io/profiles/c4a7e9d2.jpg"
         },
         "notice": {
           "noticeSeq": 5,
           "content": "컴백 소식 전체 본문...",
           "images": [
-            { "imageUrl": "https://cdn.motif.io/notices/1.jpg", "displayOrder": 0 }
+            { "imageUrl": "https://cdn.motif.io/notices/9f3b2a71.jpg", "displayOrder": 0 }
           ],
           "likeCount": 200,
           "commentCount": 14,
@@ -157,7 +158,7 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
 
 `type` 으로 분기한다. **두 타입의 필드 구성이 다르다.**
 
-**`MOTIF_ASSET`** — `artist{artistSeq, name, groupName, profileImageUrl}` + `asset{assetSeq, title, thumbnailUrl, durationMs}`
+**`MOTIF_ASSET`** — **공통 아티스트 요약**(README §3.5) + `asset{assetSeq, title, thumbnailUrl, durationMs}`
 
 - **좋아요·댓글 카운트가 없다.** 에셋에는 그 기능 자체가 없다(확정).
 - `title` 은 **전용 컬럼 `motif_assets.title`** 값이다(R6 — DB v0.11 신설). `description`(소개 문구)과 다른 필드다.
@@ -167,7 +168,7 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
 
 - **본문 전체 + 이미지 전체 배열**이다(`displayOrder` 순). 구 `repImageUrl` 은 폐기됐다.
 - `isLiked` 를 함께 내린다 — 공지 상세 API 가 없어서(구 §10.1 삭제) **이 항목이 공지 화면의 진입 데이터**이기 때문이다. §5.5 목록 항목과 같은 필드 구성이다.
-- `artist` 에 **`groupName` 이 없다** — NOTICE 쪽만 빠져 있는 것은 원본 예시 그대로다(아래 반영 대기 참조).
+- `artist` 는 `MOTIF_ASSET` 과 **같은 공통 아티스트 요약**이다 — 원본 예시는 NOTICE 쪽에서 `groupName` 을 빠뜨렸지만 타입을 통일했다.
 
 ### 정렬
 
@@ -183,5 +184,5 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
 
 ## 이 문서에서 발견한 원본 명세 반영 대기
 
-1. **§6.3 의 `artist` 필드 구성이 타입마다 다르다** — `MOTIF_ASSET` 에는 `groupName` 이 있고 `NOTICE` 에는 없다. 원본 예시가 그렇게 적혀 있어 그대로 옮겼지만, 같은 화면의 같은 위치에 쓰이는 값이라 **한쪽으로 통일하는 편이 자연스럽다**. 클라이언트 확인이 필요하다.
+1. **§6.3 의 `artist` 를 두 타입 모두 공통 아티스트 요약으로 통일했다** — 원본 예시는 `MOTIF_ASSET` 에만 `groupName` 이 있고 `NOTICE` 에는 없었다. 같은 화면의 같은 위치에 쓰이는 값이라 응답 타입을 나눌 이유가 없어 맞췄다(README §3.5).
 2. **§6.1·§5.1 의 랭킹 스냅샷 배치**가 명세에 없다 — API 계약만 있고 생성 주체가 정해지지 않았다.

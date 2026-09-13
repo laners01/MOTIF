@@ -36,13 +36,13 @@
     "videoSeq": 88,
     "challengeSeq": 11,
     "description": "재밌었다!",
-    "videoUrl": "https://cdn.motif.io/results/challenge/uuid.mp4",
-    "thumbnailUrl": "https://cdn.motif.io/videos/88.jpg",
+    "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+    "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
     "durationMs": 15000,
     "author": {
       "userSeq": 5,
       "nickname": "팬123",
-      "profileImageUrl": "https://cdn.motif.io/profiles/5.jpg"
+      "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg"
     },
     "viewCount": 3400,
     "likeCount": 120,
@@ -61,7 +61,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `videoUrl` | `PUBLIC` 이면 공개 CDN URL, **본인의 `PRIVATE` 이면 signed URL**(§1.7) |
+| `videoUrl` | **HLS 마스터 재생목록**(`master.m3u8`) 주소. `PUBLIC` 이면 서명 없이 열리고, **본인의 `PRIVATE` 이면 signed 쿠키**가 필요하다(§1.7) |
 | `hasArtistLike` · `hasArtistComment` | 해당 챌린지의 아티스트가 좋아요·댓글을 남겼는지. 화면 뱃지이자 §8.1 추천 정렬의 강가중 요소다 |
 | `isLiked` | 요청자의 좋아요 여부 |
 | `commentEnabled` | `false` 면 댓글이 **동결**된다 — 목록 조회까지 차단이다(§9) |
@@ -114,10 +114,10 @@ Authorization: Bearer {accessToken}
         "videoSeq": 88,
         "challengeSeq": 11,
         "description": "재밌었다!",
-        "videoUrl": "https://cdn.motif.io/results/challenge/uuid.mp4",
-        "thumbnailUrl": "https://cdn.motif.io/videos/88.jpg",
+        "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+        "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
         "durationMs": 15000,
-        "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "https://cdn.motif.io/profiles/5.jpg" },
+        "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg" },
         "viewCount": 3400,
         "likeCount": 120,
         "commentCount": 15,
@@ -357,10 +357,10 @@ HTTP/1.1 204 No Content
     "videoSeq": 88,
     "challengeSeq": 11,
     "description": "수정한 문구",
-    "videoUrl": "signed-url",
-    "thumbnailUrl": "signed-url",
+    "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+    "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
     "durationMs": 15000,
-    "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "https://cdn.motif.io/profiles/5.jpg" },
+    "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg" },
     "viewCount": 3400,
     "likeCount": 120,
     "commentCount": 15,
@@ -376,7 +376,7 @@ HTTP/1.1 204 No Content
 }
 ```
 
-`PUBLIC → PRIVATE` 로 바꾸면 **`videoUrl` 이 signed URL 로 바뀐다** — 같은 영상이라도 공개 여부에 따라 URL 등급이 달라진다(§1.7).
+`PUBLIC → PRIVATE` 로 바꾸면 **URL 은 그대로지만 접근 등급이 보호로 바뀐다** — 이후에는 signed 쿠키 없이 재생할 수 없다(§1.7).
 
 ### 실패 응답
 
