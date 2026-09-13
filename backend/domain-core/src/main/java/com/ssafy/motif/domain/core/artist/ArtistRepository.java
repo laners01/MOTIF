@@ -114,6 +114,31 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
     /** 소속사 삭제 차단 (§3.3.4 {@code COMPANY_IN_USE}) — 비삭제 아티스트가 남아 있으면 막는다. */
     long countByCompanySeqAndDeletedFalse(Integer companySeq);
 
+    /** 그룹 삭제 차단 (§3.4.4 {@code GROUP_IN_USE}) — 비삭제 멤버가 남아 있으면 막는다. */
+    long countByGroupSeqAndDeletedFalse(Integer groupSeq);
+
+    /**
+     * 그룹 소속사 이동에 멤버를 따라 옮긴다 (§3.4.3, DB §8).
+     *
+     * <p>"그룹 소속 아티스트의 소속사 = 그룹 소속사" 불변식 때문에 그룹만 옮기면 멤버가
+     * 어긋난다. 그래서 {@link ArtistGroup#changeCompany} 와 <b>같은 트랜잭션</b>에서 부른다.
+     * 멤버 수만큼 UPDATE 를 날리는 대신 한 방 벌크다 — 그룹 하나에 멤버가 수십이어도 1회다.
+     *
+     * <p><b>두 플래그가 같이 있어야 한다</b>({@link #increaseSubscriberCount} 와 같은 이유).
+     * {@code flushAutomatically} 가 없으면 바로 앞에서 바꾼 {@code ArtistGroup.companySeq}
+     * 가 아직 flush 되지 않은 채 {@code clearAutomatically} 로 <b>버려진다</b> — 멤버만
+     * 옮겨지고 그룹은 옛 소속사에 남는, 정확히 막으려던 어긋남이 된다.
+     *
+     * @return 옮겨진 멤버 수 — 응답 {@code memberCount} 검증용이 아니라 감사 로그용이다
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Artist a set a.companySeq = :companySeq
+            where a.groupSeq = :groupSeq and a.deleted = false
+            """)
+    int moveMembersCompany(@Param("groupSeq") Integer groupSeq,
+                           @Param("companySeq") Integer companySeq);
+
     /**
      * 구독자 수 증가 — <b>원자적 UPDATE</b> (명세 §3.3, §5.6).
      *
