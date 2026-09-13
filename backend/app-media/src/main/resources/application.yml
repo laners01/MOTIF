@@ -4,15 +4,8 @@ spring:
     name: app-media
   profiles:
     default: local          # 프로파일 미지정 = 격리 모드
-  jpa:
-    hibernate:
-      ddl-auto: validate    # 전 프로파일 고정 — DDL은 Liquibase 소유 (ADR-0004)
-    open-in-view: false
-    properties:
-      hibernate:
-        default_schema: motif
-  liquibase:
-    enabled: false          # core 스키마의 소유자는 core-api 다 — 여기서 마이그레이션하지 않는다
+  # JPA·Liquibase 를 쓰지 않는다 — 엔티티가 없고, core 스키마의 마이그레이션은
+  # core-api 소유다. 산출물 키 기록은 JdbcTemplate UPDATE 한 문장이다
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
@@ -37,3 +30,6 @@ motif:
     ffmpeg: ffmpeg          # 컨테이너 이미지에 설치된 경로 (PATH 기준)
     ffprobe: ffprobe
     work-dir: /tmp/motif-media
+    s3:
+      bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
+      region: ${AWS_REGION:ap-northeast-2}

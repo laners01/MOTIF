@@ -5,7 +5,11 @@ plugins {
 }
 
 dependencies {
-    implementation project(':domain-core')   // 산출물 키를 core 스키마에 쓴다
+    implementation project(':module-event')
+
+    // 도메인 엔티티를 쓰지 않는다 — composite_jobs·challenges 는 각 도메인 티켓의
+    // 소유다. 여기서는 산출물 키를 UPDATE 한 문장으로 기록할 뿐이라 JDBC 면 된다
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
 
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -14,6 +18,8 @@ dependencies {
     // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
     implementation libs.jackson2.databind
     implementation libs.jackson2.jsr310
+
+    implementation libs.aws.s3
 
     implementation libs.micrometer.prometheus
 
