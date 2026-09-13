@@ -41,7 +41,13 @@ motif:
   # 통과하게 되고, typ 클레임 하나가 교차 사용을 막는 유일한 방어선으로 남는다.
   # ADMIN_ALLOWED_CIDRS 는 configmap 값이다(팀 IP 변경 시 재배포 없이 갱신 — §1.1).
   # 미주입이면 테일넷만 남고, 빈 값이면 어드민 경로가 전부 404 가 된다(fail-closed).
+  # ADMIN_SEED_HASH 도 core-api-secret 에 추가해야 한다 — 0015 시드 changeSet 이
+  # Liquibase property 로 받는다(application.yml, fallback 없음). 미주입이면 기동
+  # 실패다. 해시 생성은 어드민 명세 부록 B — `htpasswd -bnBC 10 "" '평문'`, cost 10.
   admin:
+    # 쿠키는 운영에서 항상 Secure 다. Traefik 이 TLS 를 끊어 앱이 보는 스킴은 http 라
+    # 요청으로 판단할 수 없다 — 값으로 못박는다(§1.2).
+    cookie-secure: true
     allowed-cidrs: ${ADMIN_ALLOWED_CIDRS:100.64.0.0/10}
     jwt:
       secret: ${ADMIN_JWT_SECRET}

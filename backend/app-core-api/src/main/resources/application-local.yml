@@ -1,6 +1,12 @@
 # 격리 모드 — DB·MQ 모두 backend/local-infra compose (ADR-0003)
 # 자격증명은 로컬 compose 전용 더미(비밀 아님). prod는 비밀 fallback 금지.
 spring:
+  liquibase:
+    parameters:
+      # 어드민 시드 BCrypt 해시 — 로컬 전용 더미(비밀 아님).
+      # 평문 admin1234 / 계정 admin (0015-admin-seed.sql).
+      # 운영은 fallback 없는 ADMIN_SEED_HASH 를 쓴다 — application.yml
+      adminSeedHash: "$2a$10$EFuxihPQUH6gAR2LLyOjVOeLlrg1.H0xp4N0VV7SfthTEsYPtbqRa"
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/motif}
     username: ${DB_USERNAME:core_app}
@@ -27,6 +33,8 @@ motif:
     jwt:
       secret: ${JWT_SECRET:motif-local-dev-only-jwt-secret-not-a-real-key-32bytes+}   # 로컬 전용 더미(비밀 아님, HS256 최소 32바이트)
   admin:
+    # http 개발 서버라 Secure 쿠키는 브라우저가 저장하지 않는다 — 로컬만 끈다
+    cookie-secure: false
     # 로컬은 앞단이 없어 X-Forwarded-For 가 없다 — remoteAddr(루프백)가 대조 대상이다
     allowed-cidrs: 127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
     jwt:

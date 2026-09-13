@@ -25,6 +25,10 @@ public class AdminViewConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
+        // 로그인 — 유일하게 인증 없이 열리는 화면 (§3.1.1, AdminSecurityConfig).
+        // 스타일·스크립트를 인라인으로 들고 있다. static/admin/ 이 인증 뒤에 있어
+        // layout.html 을 끼우면 로그인 전에는 CSS·JS 가 401 이기 때문이다(login.html 주석).
+        registry.addViewController(AdminPaths.VIEW + "/login").setViewName("admin/login");
         // 챌린지 등록 — 원본 업로드 → 슬롯 입력 → 편집본 키 매트릭스 (§1.7, 부록 A)
         registry.addViewController(AdminPaths.VIEW + "/challenges/new").setViewName("admin/challenge-new");
         // 에셋 가격 · 패스 가격 — 한 화면 두 탭 (§1.7 "모티프 에셋 활성/가격" · "패스 가격")

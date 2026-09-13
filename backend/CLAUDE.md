@@ -124,6 +124,11 @@ S15P21D104-181
 | S3 HEAD `AdminMediaService.requireUploaded` (부재 키 모아 409) | `app-core-api/.../admin/media/` | 559 |
 | `CHALLENGE_NOT_FOUND`·`EDITED_CHALLENGE_NOT_FOUND` `ChallengeErrorCode` | `app-core-api/.../domain/challenge/` | 559 |
 | `ChallengeCreatedEvent` · `ChallengeEventRelay`(AFTER_COMMIT) | `module-event/.../contract/` · `app-core-api/.../domain/challenge/` | 562 |
+| 어드민 로그인 `AdminAuthController`(`/auth/login`·`logout`·`me`) · `AdminAuthService` | `app-core-api/.../admin/auth/` | S15P21D104-608 |
+| `motif_admin` 쿠키 조립 `AdminSessionCookie` · `PasswordEncoder`(BCrypt cost 10) 빈 | `app-core-api/.../admin/auth/` · `admin/security/AdminSecurityConfig` | 608 |
+| `Admin` 엔티티·리포지토리 (가입 경로 없음 — 생성자 없음) | `domain-core/.../admin/` | 608 |
+| `admins.user_seq` NOT NULL UNIQUE FK · 어드민 시드 | `db/changelog/sql/0014`·`0015` | 593 · 608 |
+| `/admin/login` 화면 (스타일·스크립트 인라인 — layout 을 쓰지 않는다) | `templates/admin/login.html` | 608 |
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
@@ -139,6 +144,12 @@ mediaJobPublisher.publish(
 SlotRules.checkParticipants(mainArtistSeq, participants);       // 메인 포함·중복·bbox
 List<Integer> masks = SlotRules.editedMasks(n, editedList);     // 2ⁿ−1 완결성 + 마스크
 adminMediaService.requireUploaded(keys);                        // HEAD, 부재 키를 data 에
+```
+
+```java
+// 어드민 인증이 필요할 때 — 로그인은 이미 있다. 토큰을 직접 만들지 않는다
+adminJwtProvider.issue(new AuthenticatedAdmin(adminSeq, userSeq, name));   // 발급
+// 감사 컬럼(reg_usr_seq 등)에 넣을 값은 admin.userSeq() 다 — adminSeq 가 아니다 (§1.3)
 ```
 
 ```java

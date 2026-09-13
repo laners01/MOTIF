@@ -3,6 +3,12 @@
 # placeholder 원문이 비밀번호로 남아 서버 MQ 인증에 실패한다(주입 없이는 동작 불가).
 # 값은 backend/.env.example 참조(팀 비밀 저장소).
 spring:
+  liquibase:
+    parameters:
+      # 어드민 시드 BCrypt 해시 — 로컬 전용 더미(비밀 아님).
+      # 평문 admin1234 / 계정 ops_admin (0015-admin-seed.sql).
+      # 운영은 fallback 없는 ADMIN_SEED_HASH 를 쓴다 — application.yml
+      adminSeedHash: "$2a$10$EFuxihPQUH6gAR2LLyOjVOeLlrg1.H0xp4N0VV7SfthTEsYPtbqRa"
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/motif}
     username: ${DB_USERNAME:core_app}
@@ -30,6 +36,8 @@ motif:
     jwt:
       secret: ${JWT_SECRET:motif-local-dev-only-jwt-secret-not-a-real-key-32bytes+}   # 로컬 전용 더미(비밀 아님)
   admin:
+    # http 개발 서버라 Secure 쿠키는 브라우저가 저장하지 않는다 — 로컬만 끈다
+    cookie-secure: false
     allowed-cidrs: 127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10
     jwt:
       secret: ${ADMIN_JWT_SECRET:motif-local-dev-only-ADMIN-jwt-secret-not-a-real-key+}   # 로컬 전용 더미(비밀 아님)
