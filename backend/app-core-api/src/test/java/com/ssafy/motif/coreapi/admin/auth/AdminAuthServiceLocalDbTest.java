@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>0014(`admins.user_seq` NOT NULL FK)와 0015(시드)가 함께 적용된 스키마가 있어야
  * 의미가 있는 테스트라 {@code local-db} 태그를 단다 — Jenkins 에이전트에는 DB 가 없다.
  *
- * <p>계정은 매번 새로 만든다. 시드 계정({@code ops_admin})에 로그인해 버리면
+ * <p>계정은 매번 새로 만든다. 시드 계정({@code admin})에 로그인해 버리면
  * {@code last_login_dttm} 이 바뀌고, 그 값을 보는 다음 테스트가 순서에 따라 흔들린다.
  */
 @Tag("local-db")
@@ -108,9 +108,9 @@ class AdminAuthServiceLocalDbTest {
     }
 
     @Test
-    @DisplayName("시드 계정(ops_admin)이 들어와 있고 users(ADMIN) 과 이어져 있다 — 부록 B 5항")
+    @DisplayName("시드 계정(admin)이 들어와 있고 users(ADMIN) 과 이어져 있다 — 부록 B 5항")
     void 시드_계정() {
-        Admin seeded = adminRepository.findByLoginId("ops_admin").orElseThrow();
+        Admin seeded = adminRepository.findByLoginId("admin").orElseThrow();
 
         assertThat(seeded.isActive()).isTrue();
         assertThat(seeded.getUserSeq()).isNotNull();

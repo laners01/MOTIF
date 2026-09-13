@@ -46,14 +46,14 @@
 
 --changeset claude:0015-01-seed-admin-user
 --comment 감사 주체가 될 users(ADMIN) 행. 닉네임은 0014 백필과 같은 'admin_' 규칙
-INSERT INTO users (nickname, role) VALUES ('admin_ops', 'ADMIN');
---rollback DELETE FROM users WHERE nickname = 'admin_ops' AND role = 'ADMIN';
+INSERT INTO users (nickname, role) VALUES ('admin_admin', 'ADMIN');
+--rollback DELETE FROM users WHERE nickname = 'admin_admin' AND role = 'ADMIN';
 
 --changeset claude:0015-02-seed-admin
 --comment 부록 B 2항. user_seq 는 방금 만든 ADMIN 행에서 가져온다
 --validCheckSum ANY
 INSERT INTO admins (login_id, password_hash, name, user_seq)
-SELECT 'ops_admin', '${adminSeedHash}', '운영자', u.user_seq
+SELECT 'admin', '${adminSeedHash}', '운영자', u.user_seq
 FROM users u
-WHERE u.nickname = 'admin_ops' AND u.role = 'ADMIN';
---rollback DELETE FROM admins WHERE login_id = 'ops_admin';
+WHERE u.nickname = 'admin_admin' AND u.role = 'ADMIN';
+--rollback DELETE FROM admins WHERE login_id = 'admin';

@@ -4,7 +4,7 @@ spring:
   liquibase:
     parameters:
       # 어드민 시드 BCrypt 해시 — 로컬 전용 더미(비밀 아님).
-      # 평문 admin1234 / 계정 ops_admin (0015-admin-seed.sql).
+      # 평문 admin1234 / 계정 admin (0015-admin-seed.sql).
       # 운영은 fallback 없는 ADMIN_SEED_HASH 를 쓴다 — application.yml
       adminSeedHash: "$2a$10$EFuxihPQUH6gAR2LLyOjVOeLlrg1.H0xp4N0VV7SfthTEsYPtbqRa"
   datasource:
