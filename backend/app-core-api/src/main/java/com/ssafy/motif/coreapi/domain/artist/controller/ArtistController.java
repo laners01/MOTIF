@@ -2,10 +2,12 @@ package com.ssafy.motif.coreapi.domain.artist.controller;
 
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.artist.docs.ArtistControllerDocs;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.domain.artist.service.ArtistQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
@@ -13,14 +15,15 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 팬 앱 아티스트 조회 API (명세 §5.3 · §5.4). Base URL 은 {@code /api/v1}.
+ * 팬 앱 아티스트 조회 API (명세 §5.3 · §5.4 · §5.5). Base URL 은 {@code /api/v1}.
  *
- * <p><b>둘 다 인증이 필요하다</b>(🔓 아님) — §5.3 응답에는 "내" 상태
- * ({@code isSubscribed}·{@code subscribedDays}·{@code pass})가 들어 있고, §5.4 는
- * 항목에 내 상태가 없어도 팬 앱 로그인 뒤 화면이라 공개로 열 이유가 없다.
+ * <p><b>셋 다 인증이 필요하다</b>(🔓 아님) — §5.3 은 {@code isSubscribed}·
+ * {@code subscribedDays}·{@code pass} 를, §5.5 는 {@code isLiked} 를 호출자 기준으로
+ * 채운다. §5.4 만 항목에 내 상태가 없지만 팬 앱 로그인 뒤 화면이라 공개로 열지 않는다.
  *
  * <p>§5.1 랭킹·§5.2 검색·§5.9 자동완성·§5.6·§5.7 구독은 이 티켓 범위가 아니다 —
  * 같은 {@code /artists} 경로라도 별개 티켓이라 여기 매핑이 없다.
@@ -59,5 +62,22 @@ public class ArtistController implements ArtistControllerDocs {
     public ApiResponse<ListResponse<ArtistChallengeResponse>> challenges(
             @PathVariable Integer artistSeq) {
         return ApiResponse.success(artistQueryService.challenges(artistSeq));
+    }
+
+    /**
+     * §5.5 아티스트 공지 목록 — <b>커서</b>(§1.9). 최초 호출은 {@code cursor} 를 생략한다.
+     *
+     * <p>어드민 목록(§1.5 offset)과 달리 {@code page} 파라미터가 없다 — 공지는 실시간
+     * 유입으로 offset 이 밀리는 대상이라 §1.9 가 커서로 지정한 목록이다.
+     */
+    @Override
+    @GetMapping("/{artistSeq}/notices")
+    public ApiResponse<CursorResponse<ArtistNoticeResponse>> notices(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer artistSeq,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                artistQueryService.notices(user.userSeq(), artistSeq, cursor, size));
     }
 }

@@ -57,6 +57,48 @@ public interface NoticeRepository extends JpaRepository<Notice, Integer> {
     Optional<Notice> findByNoticeSeqAndDeletedFalse(Integer noticeSeq);
 
     /**
+     * 팬 앱 공지 목록 <b>첫 페이지</b> (API 명세 §5.5) — 커서 없는 최초 호출.
+     *
+     * <p><b>커서가 있는 경우와 메서드를 나눈 것은 의도다.</b> {@code :cursor is null or
+     * n.noticeSeq < :cursor} 로 한 방에 쓰면 최초 호출에서 타입 없는 {@code null} 이
+     * 파라미터로 들어가고, Postgres 가 그것을 {@code bytea} 로 추론해 비교 연산자를 못
+     * 찾는 500 이 난다 — {@code ArtistRepository.search} 의 {@code q} 가 2026-09-13
+     * 운영에서 정확히 이렇게 죽었다({@code function lower(bytea) does not exist}).
+     * 파생 메서드 두 개면 {@code null} 이 쿼리에 닿는 경로 자체가 없다.
+     *
+     * <p>정렬은 <b>PK 역순 고정</b>이고 이것이 곧 커서 키다(§5.5 "최신순 고정"). 커서
+     * 목록에서 {@code reg_dttm} 을 키로 쓰면 같은 시각의 공지에서 행이 중복되거나
+     * 건너뛰어진다 — PK 는 유일해서 그 일이 없다.
+     *
+     * <p>호출부는 {@code size + 1} 건을 요청해 넘치는지로 {@code hasNext} 를 본다 —
+     * 총 개수를 세지 않는 것이 커서 페이지네이션의 요점이다(§1.9).
+     */
+    List<Notice> findByArtistSeqAndDeletedFalseOrderByNoticeSeqDesc(Integer artistSeq,
+                                                                    Pageable pageable);
+
+    /** 팬 앱 공지 목록 <b>다음 페이지</b> — {@code cursor} 는 직전 페이지 마지막 항목의 PK. */
+    List<Notice> findByArtistSeqAndDeletedFalseAndNoticeSeqLessThanOrderByNoticeSeqDesc(
+            Integer artistSeq, Integer cursor, Pageable pageable);
+
+    /**
+     * 공지 목록 한 페이지의 {@code isLiked} (API 명세 §5.5) — 내가 누른 것만 골라 온다.
+     *
+     * <p><b>네이티브다.</b> {@code notice_likes} 는 아직 엔티티가 없고 좋아요 토글(§10.2)
+     * 티켓이 소유할 테이블이라 미리 매핑하지 않는다
+     * ({@code ChallengeRepository.countActiveJobs} 와 같은 규칙).
+     *
+     * <p>공지마다 한 번씩 물으면 한 페이지(최대 100건)에 100번이다 — 페이지의 seq 를
+     * 통째로 넘겨 <b>내가 누른 것만</b> 받고 호출부가 {@code Set} 으로 대조한다.
+     * 누르지 않은 공지는 결과에 행이 없다.
+     */
+    @Query(value = """
+            select notice_seq from motif_core.notice_likes
+             where user_seq = :userSeq and notice_seq in (:noticeSeqs)
+            """, nativeQuery = true)
+    List<Integer> findLikedNoticeSeqs(@Param("userSeq") Integer userSeq,
+                                      @Param("noticeSeqs") Collection<Integer> noticeSeqs);
+
+    /**
      * {@code mod_dttm} 만 올린다 (§3.10.4 "mod_dttm 갱신").
      *
      * <p>이미지만 교체한 수정은 {@code notices} 의 어떤 칼럼도 바꾸지 않아 더티 체크에

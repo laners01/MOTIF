@@ -1,9 +1,11 @@
 package com.ssafy.motif.coreapi.domain.artist.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.3 · §5.4).
+ * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.3 · §5.4 · §5.5).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -121,4 +123,77 @@ public interface ArtistControllerDocs {
     })
     ApiResponse<ListResponse<ArtistChallengeResponse>> challenges(
             @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(
+            summary = "아티스트 공지 목록 (§5.5) — 커서 페이지네이션",
+            description = """
+                    해당 아티스트의 공지를 **최신순 고정**으로 반환한다 (명세 §5.5).
+
+                    - **인증 필요.** `isLiked` 가 호출자 기준이다.
+                    - **커서 방식이다**(§1.9) — 어드민 목록(§1.5 offset)과 다르다. `page` 파라미터가 없다.
+                      최초 호출은 `cursor` 를 **생략**하고, 이후에는 직전 응답의 `nextCursor` 를 그대로 넣는다.
+                    - `nextCursor: null`(= `hasNext: false`)이면 끝이다.
+                    - **커서는 opaque 토큰이다** — 해석·조작하지 않는다. 망가진 값은 400 이다.
+                    - `prevCursor`/`hasPrevious` 는 자리만 잡아 둔 칸으로 **항상 `null`·`false`** 다.
+                      역방향 조회 제공 여부는 §16 미결 안건이고, 현재 계약은 `nextCursor` 순방향뿐이다.
+                    - **별도의 공지 상세 API 가 없다**(구 §10.1 삭제) — 목록 항목이 본문(`content`)과
+                      이미지 배열을 전부 싣는다. `title` 은 없다.
+                    - `images` 는 `displayOrder` 오름차순 **전체 배열**이며, 대표 이미지 전용 필드는 쓰지 않는다.
+                    - `artist` 는 `{artistSeq, name, profileImageUrl}` 까지다 — `groupName` 은 제외.
+                    - 삭제된 공지는 빠진다 (§1.8).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "공지 한 페이지 (최신순)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "noticeSeq": 5,
+                                            "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.../profiles/3.jpg" },
+                                            "content": "전체 본문...",
+                                            "images": [
+                                              { "imageUrl": "https://cdn.../notices/1.jpg", "displayOrder": 0 },
+                                              { "imageUrl": "https://cdn.../notices/2.jpg", "displayOrder": 1 }
+                                            ],
+                                            "likeCount": 200,
+                                            "commentCount": 14,
+                                            "isLiked": true,
+                                            "regDttm": "2026-09-01T09:00:00.000Z"
+                                          }
+                                        ],
+                                        "prevCursor": null,
+                                        "nextCursor": "NQ",
+                                        "hasPrevious": false,
+                                        "hasNext": true
+                                      },
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "해석할 수 없는 cursor",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<CursorResponse<ArtistNoticeResponse>> notices(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq,
+            @Parameter(description = "직전 응답의 nextCursor. 최초 호출은 생략한다") String cursor,
+            @Parameter(description = "페이지 크기 — 기본 20 · 최대 100", example = "20") int size);
 }
