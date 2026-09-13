@@ -1,16 +1,53 @@
 /* 어드민 화면 공통 — 최소 구현(§1.7 "디자인 불요"). 프레임워크 없이 몇 줄로 끝낸다. */
 * { box-sizing: border-box; }
-/* 밝은 화면 전용이라고 브라우저에 알린다. 없으면 다크 모드 기기에서 캔버스와 폼
-   컨트롤이 어둡게 깔리는데 글자색은 #1a1a1a 고정이라 화면이 거의 안 보인다.
-   색 팔레트를 두 벌 만들 화면이 아니므로(§1.7 "디자인 불요") 한쪽으로 못박는다. */
-:root { color-scheme: light; }
-body { margin: 0 auto; padding: 0 16px 64px; max-width: 1000px; background: #fff;
-       font: 14px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; color: #1a1a1a; }
-nav { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #ddd; }
-nav a { color: #0b57d0; }
+
+/* 색은 전부 변수로 둔다. 예전에는 color-scheme: light 로 밝은 화면에 못박아 뒀는데,
+   어드민을 종일 띄워 두는 사람이 있어 다크를 지원한다. 값을 직접 쓰지 말고 변수를 써라 —
+   리터럴 색이 하나라도 섞이면 그 요소만 반대 테마 배경 위에 남는다. */
+:root {
+    color-scheme: light dark;
+    --bg: #fff;
+    --fg: #1a1a1a;
+    --line: #ddd;
+    --link: #0b57d0;
+    --muted: #777;
+    --surface: #fff;
+    --th-bg: #f5f5f5;
+    --row-active: #fff6d8;
+    --row-deleted-bg: #f7f7f7;
+    --row-deleted-fg: #999;
+    --row-missing: #fde8e8;
+    --ok: #137333;
+    --err-bg: #fde8e8;
+    --err-fg: #a50e0e;
+    --img-bg: #eee;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #16181c;
+        --fg: #e6e8eb;
+        --line: #333940;
+        --link: #7cb0f5;
+        --muted: #9aa1a9;
+        --surface: #1d2025;
+        --th-bg: #23272d;
+        --row-active: #3a3213;
+        --row-deleted-bg: #1b1e22;
+        --row-deleted-fg: #7b828a;
+        --row-missing: #3a1f1f;
+        --ok: #6cc08a;
+        --err-bg: #3a1f1f;
+        --err-fg: #f0938c;
+        --img-bg: #2a2e34;
+    }
+}
+body { margin: 0 auto; padding: 0 16px 64px; max-width: 1000px; background: var(--bg);
+       font: 14px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; color: var(--fg); }
+nav { display: flex; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+nav a { color: var(--link); }
 h1 { font-size: 20px; }
 h2 { font-size: 15px; margin: 0 0 8px; }
-section { margin: 24px 0; padding: 16px; border: 1px solid #ddd; border-radius: 6px; }
+section { margin: 24px 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; }
 label { display: block; margin: 8px 0; }
 input, select, textarea { font: inherit; padding: 4px 6px; }
 input[type="number"] { width: 84px; }
@@ -20,38 +57,41 @@ input.amount { width: 96px; }
 button { font: inherit; padding: 5px 12px; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 table { width: 100%; border-collapse: collapse; }
-th, td { padding: 5px 6px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
-th { background: #f5f5f5; font-weight: 600; }
-tr.active { background: #fff6d8; }
+th, td { padding: 5px 6px; border: 1px solid var(--line); text-align: left; vertical-align: middle; }
+th { background: var(--th-bg); font-weight: 600; }
+tr.active { background: var(--row-active); }
 .tabs { display: flex; gap: 8px; margin: 16px 0 0; }
-.tabs button.active { border-color: #0b57d0; color: #0b57d0; font-weight: 600; }
-tr.deleted { color: #999; background: #f7f7f7; }
-tr.missing { background: #fde8e8; }
-.muted { color: #777; }
+.tabs button.active { border-color: var(--link); color: var(--link); font-weight: 600; }
+tr.deleted { color: var(--row-deleted-fg); background: var(--row-deleted-bg); }
+tr.missing { background: var(--row-missing); }
+.muted { color: var(--muted); }
 .msg { display: inline-block; font-size: 12px; }
-.ok { color: #137333; }
+.ok { color: var(--ok); }
 .err { margin: 8px 0; padding: 8px 10px; border-radius: 4px;
-       background: #fde8e8; color: #a50e0e; white-space: pre-wrap; word-break: break-all; }
+       background: var(--err-bg); color: var(--err-fg); white-space: pre-wrap; word-break: break-all; }
 /* 진행 표시 — 업로드 → 검증 → 등록 (부록 A 6단계) */
-ol.progress { display: flex; gap: 24px; margin: 0 0 12px; padding: 0; list-style: none; color: #999; }
-ol.progress li.doing { color: #0b57d0; font-weight: 600; }
-ol.progress li.done { color: #137333; }
+ol.progress { display: flex; gap: 24px; margin: 0 0 12px; padding: 0; list-style: none; color: var(--muted); }
+ol.progress li.doing { color: var(--link); font-weight: 600; }
+ol.progress li.done { color: var(--ok); }
 ol.progress li.done::before { content: "✓ "; }
-ol.progress li.fail { color: #a50e0e; }
+ol.progress li.fail { color: var(--err-fg); }
 /* 첫 프레임 위 bbox 드래그 */
 .frame { position: relative; display: inline-block; max-width: 420px; margin-top: 8px; cursor: crosshair; }
 .frame video { display: block; width: 100%; background: #000; pointer-events: none; }
-.frame .box { position: absolute; border: 2px solid #0b57d0; background: rgba(11, 87, 208, .18); pointer-events: none; }
+.frame .box { position: absolute; border: 2px solid var(--link); background: rgba(11, 87, 208, .28); pointer-events: none; }
 /* 공지 이미지 — 끌어서 순서 변경 */
 ul.images { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
-ul.images li { width: 140px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;
-               background: #fff; text-align: center; cursor: grab; }
-ul.images li img { width: 100%; height: 90px; object-fit: cover; background: #eee; }
+ul.images li { width: 140px; padding: 6px; border: 1px solid var(--line); border-radius: 4px;
+               background: var(--surface); text-align: center; cursor: grab; }
+ul.images li img { width: 100%; height: 90px; object-fit: cover; background: var(--img-bg); }
 
 /* 챌린지 썸네일. 9:16 세로 영상이라 높이를 기준으로 잡는다 —
    폭을 고정하면 가로 영상이 섞여 들어왔을 때 행 높이가 제각각이 된다.
    아직 산출물이 없으면 img 가 깨진 아이콘을 그리므로 배경색을 깔아 빈 칸으로 보이게 한다. */
-.thumb { display: block; height: 64px; width: auto; background: #eee; border-radius: 3px; }
-.thumb-lg { display: block; height: 240px; width: auto; background: #eee; border-radius: 4px; }
-.thumb-none { color: #999; font-size: 12px; }
+.thumb { display: block; height: 64px; width: auto; background: var(--img-bg); border-radius: 3px; }
+.thumb-lg { display: block; height: 240px; width: auto; background: var(--img-bg); border-radius: 4px; }
+.thumb-none { color: var(--muted); font-size: 12px; }
 
+/* nav 우측 — 로그인한 계정과 로그아웃. layout.html 이 모든 화면에 끼운다. */
+nav .spacer { margin-left: auto; }
+nav .who { color: var(--muted); font-size: 13px; }

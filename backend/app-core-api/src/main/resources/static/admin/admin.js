@@ -118,3 +118,39 @@ function step(name, state) {
     const li = document.querySelector(`.progress [data-step="${name}"]`);
     if (li) li.className = state ?? '';
 }
+
+/*
+ * nav 의 계정 표시와 로그아웃 (§3.1.2·§3.1.3).
+ *
+ * 두 API 는 588·608 에서 만들어졌는데 부르는 화면이 없어 <b>로그아웃할 방법이 없었다</b>.
+ * layout.html 이 이 파일을 모든 화면에 싣고, 로그인 화면은 layout 을 쓰지 않으므로
+ * 여기 요소가 없다 — 그래서 존재 확인 후에만 붙인다.
+ */
+(() => {
+    const who = document.getElementById('who');
+    const button = document.getElementById('logout');
+    if (!who || !button) return;
+
+    api('/auth/me')
+            .then((me) => {
+                who.textContent = me.name;
+            })
+            .catch(() => {
+                // 토큰이 만료됐거나 쿠키가 없다. 화면은 어차피 다음 호출에서 막히므로
+                // 여기서 리다이렉트까지 하지는 않는다 — 로그인 페이지로 튕기는 판단은
+                // 각 화면의 조회 실패가 한다
+                who.textContent = '';
+            });
+
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+            await api('/auth/logout', {method: 'POST'});
+        } catch (e) {
+            // 이미 만료된 세션이면 로그아웃도 실패한다. 그래도 로그인 화면으로 보낸다 —
+            // 사용자가 원한 것은 "나가기" 지 "성공적인 로그아웃" 이 아니다
+        }
+        location.href = '/admin/login';
+    });
+})();
+

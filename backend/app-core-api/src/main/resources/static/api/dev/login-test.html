@@ -2,13 +2,23 @@
 <meta charset="utf-8">
 <title>MOTIF 구글 로그인 테스트</title>
 <style>
-  body { font: 14px/1.6 -apple-system, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 16px; }
+  /* 구글 GSI 버튼이 기기 테마를 따라가므로 페이지도 맞춘다 — 밝은 페이지에 어두운
+     버튼만 얹히면 그 자리만 튄다. color-scheme 이 폼 컨트롤까지 함께 돌린다. */
+  :root {
+    color-scheme: light dark;
+    --bg: #fff; --fg: #1a1a1a; --pre-bg: #f5f5f5; --hint: #666; --err: #b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --fg: #e6e8eb; --pre-bg: #23272d; --hint: #9aa1a9; --err: #f0938c; }
+  }
+  body { font: 14px/1.6 -apple-system, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 16px;
+         background: var(--bg); color: var(--fg); }
   h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 28px; }
   input { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; }
-  pre { background: #f5f5f5; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap;
+  pre { background: var(--pre-bg); padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap;
         word-break: break-all; font-size: 12px; }
-  .hint { color: #666; font-size: 13px; }
-  .err { color: #b00; }
+  .hint { color: var(--hint); font-size: 13px; }
+  .err { color: var(--err); }
 </style>
 
 <h1>MOTIF 구글 로그인 테스트</h1>
