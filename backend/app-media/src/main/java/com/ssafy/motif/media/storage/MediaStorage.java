@@ -34,6 +34,22 @@ public class MediaStorage {
      * {@code dir} 아래 전부를 {@code prefix} 아래로 올린다. 디렉터리 구조를 그대로 옮긴다.
      *
      * <p>마스터 재생목록이 화질별 재생목록을 상대 경로로 참조하므로 구조가 유지돼야 한다.
+     *
+     * <p><b>같은 프리픽스에 다시 쓰면 CDN 무효화가 필수다.</b> 산출물에 1년
+     * {@code immutable} 을 붙이는데, 이는 한 프리픽스에 한 번만 쓴다는 전제 위에 있다.
+     * 정상 등록 흐름은 챌린지마다 새 uuid 프리픽스라 이 전제가 성립한다 — 깨지는 것은
+     * <b>재처리</b>뿐이다.
+     *
+     * <p>부분 무효화로 때우려 들지 마라. 재생목록만 새로 내려보내면 그 안의
+     * {@code EXT-X-BYTERANGE} 가 <b>옛 세그먼트</b>에 적용되어 재생이 깨진다 —
+     * 전부 옛것인 지금 상태(화질만 낮고 재생은 정상)보다 나쁘다.
+     * 2026-09-14 사다리 교체 때 실제로 겪었다: S3 의 480p 는 480×854(약 1.0MB)인데
+     * CDN 은 270×480(507KB)을 계속 줬다.
+     *
+     * <pre>
+     * aws cloudfront create-invalidation --distribution-id &lt;id&gt; \
+     *     --paths '/challenges/&lt;uuid&gt;/*'
+     * </pre>
      */
     public void uploadTree(Path dir, String prefix) {
         try (Stream<Path> files = Files.walk(dir)) {
@@ -44,6 +60,11 @@ public class MediaStorage {
                         .contentType(contentType(key))
                         // 산출물은 불변이다 — 키가 바뀌지 값이 바뀌지 않는다.
                         // CDN 적중률을 위해 길게 잡는다 (ADR-0010)
+                        // ponytail: 프리픽스 아래 트리 전체가 원자적 집합이라는 전제로
+                        // 1년 immutable 이다. 재생목록이 세그먼트를 EXT-X-BYTERANGE 로
+                        // 가리키므로 일부만 갱신될 수 없다 — 재인코딩하면 프리픽스
+                        // 전체를 무효화해야 한다(아래 주석). 재처리가 상시 작업이 되면
+                        // outputPrefix 에 mediaJobUuid 를 넣어 매번 새 트리를 쓴다
                         .cacheControl("public, max-age=31536000, immutable")
                         .build(), RequestBody.fromFile(f));
             });
