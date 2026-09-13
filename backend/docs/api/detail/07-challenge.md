@@ -38,13 +38,14 @@ Authorization: Bearer {accessToken}
     "list": [
       {
         "challengeSeq": 11,
-        "videoUrl": "https://cdn.motif.io/challenges/raw.mp4",
-        "thumbnailUrl": "https://cdn.motif.io/challenges/11.jpg",
+        "videoUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/master.m3u8",
+        "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg",
         "durationMs": 15000,
         "artist": {
           "artistSeq": 3,
           "name": "카리나",
-          "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg"
+          "groupName": "aespa",
+          "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
         },
         "song": { "title": "Supernova", "singerName": "aespa" },
         "viewCount": 120000,
@@ -68,7 +69,7 @@ Authorization: Bearer {accessToken}
 |---|---|
 | `videoUrl` | 챌린지 원본은 **공개 등급** — 일반 CDN URL |
 | `thumbnailUrl` | 첫 프레임이 로드되기 전 **플레이스홀더**용(R2 부활) |
-| `artist` | **`groupName` 없음** |
+| `artist` | **공통 아티스트 요약**(README §3.5) |
 | `isSubscribed` | 피드 오버레이의 구독 버튼 상태 — 이 항목에 속한다 |
 | `participantCount` | **PUBLIC·PRIVATE 를 모두 포함**한 게시 참여 수 |
 
@@ -93,14 +94,15 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "challengeSeq": 11,
-    "videoUrl": "https://cdn.motif.io/challenges/raw.mp4",
-    "thumbnailUrl": "https://cdn.motif.io/challenges/11.jpg",
+    "videoUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/master.m3u8",
+    "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg",
     "durationMs": 15000,
     "description": "이번 주 챌린지입니다. 같이 춰요!",
     "artist": {
       "artistSeq": 3,
       "name": "카리나",
-      "profileImageUrl": "https://cdn.motif.io/profiles/3.jpg"
+      "groupName": "aespa",
+      "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
     },
     "song": { "title": "Supernova", "singerName": "aespa" },
     "viewCount": 120000,
@@ -130,7 +132,7 @@ Authorization: Bearer {accessToken}
 
 ### `participants` — 교체 가능한 인물 슬롯
 
-사용자가 **자기 얼굴로 바꿔 넣을 수 있는 자리**다. 추가 참여 아티스트 목록이며 `groupName` 은 제외한다.
+사용자가 **자기 얼굴로 바꿔 넣을 수 있는 자리**다. 추가 참여 아티스트 목록이며, 슬롯 항목은 아티스트 요약이 아니라 `artistSeq`·`name`·`participantMask`·`bbox` 로 구성된 전용 형태다.
 
 | 필드 | 설명 |
 |---|---|

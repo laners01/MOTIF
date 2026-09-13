@@ -42,12 +42,12 @@ Authorization: Bearer {accessToken}
     "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
     "repMotif": {
       "resultSeq": 10,
-      "videoUrl": "https://cdn.motif.io/results/motif/9c1d.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
-      "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d.jpg?Expires=...&Signature=..."
+      "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
+      "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg"
     },
     "videos": [
-      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/videos/88.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
-      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/videos/87.jpg", "viewCount": 120, "visibility": "PRIVATE" }
+      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
+      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/results/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg", "viewCount": 120, "visibility": "PRIVATE" }
     ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
@@ -58,8 +58,9 @@ Authorization: Bearer {accessToken}
 |---|---|---|
 | `profileImageUrl` | string \| null | 공개 CDN URL. 미설정이면 `null` |
 | `repMotif` | object \| null | 대표 모티프. **미설정이면 `null`** |
-| `repMotif.videoUrl`·`thumbnailUrl` | string | **signed URL**(만료 10분) — 모티프 결과물은 보호 등급(§1.7). 진입 시 자동재생·음소거 |
-| `videos` | array \| **null** | 내 참여 영상 **최신 9개** 경량 프리뷰(3×3). **없으면 `null`** — 빈 배열이 아니다 |
+| `repMotif.videoUrl` | string | **HLS 마스터 재생목록**(`master.m3u8`) 주소. 모티프 결과물은 보호 등급이라 **signed 쿠키**로 접근한다(§1.7). 진입 시 자동재생·음소거 |
+| `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 역시 보호 등급이다 |
+| `videos` | array | 내 참여 영상 **최신 9개** 경량 프리뷰(3×3). **없으면 빈 배열 `[]`** |
 | `videos[].visibility` | string | `PUBLIC` \| `PRIVATE`. 본인 화면이라 둘 다 포함한다 |
 | `videos[].viewCount` | number | 전 영상 그리드 공통 규칙 |
 
@@ -69,9 +70,9 @@ Authorization: Bearer {accessToken}
 ### 서버 처리
 
 1. 인증된 `userSeq` 로 `users` 조회 → 닉네임·`profile_image_key`
-2. `users.rep_motif_result_seq` 가 있으면 `motif_results` 조회 → signed URL 2개 생성
+2. `users.rep_motif_result_seq` 가 있으면 `motif_results` 조회 → 마스터 재생목록·썸네일 URL 생성 + **해당 프리픽스의 signed 쿠키 발급**
 3. `participation_videos` 에서 본인 비삭제 영상을 `reg_dttm DESC` 로 9건 조회
-4. 썸네일을 `visibility` 에 따라 공개 URL / signed URL 로 변환
+4. 썸네일을 `visibility` 에 따라 공개 URL / 보호 URL(+쿠키)로 변환
 
 ### 실패 응답
 
@@ -82,7 +83,7 @@ Authorization: Bearer {accessToken}
 | 항목 | 기본안 | 근거 |
 |---|---|---|
 | 프리뷰 개수 | 9개 (3×3) | 원본 §4.1 기본안. 상수로 두고 조정 가능하게 |
-| 영상 0건 | `"videos": null` | 원본이 "없으면 null" 이라고 명시. 빈 배열과 구분하는 이유는 불명이나 계약을 따른다 |
+| 영상 0건 | `"videos": []` | 원본은 `null` 로 적었지만 **빈 배열로 바꿨다**(2026-09-13 확정). null 과 빈 배열을 구분하면 클라이언트가 같은 "없음"에 분기를 둘로 갖는다 |
 | `rep_motif_result_seq` 가 삭제된 결과물을 가리킬 때 | `repMotif: null` | FK 없는 **논리 참조**(순환 참조 방지)라 방어가 필요하다 |
 
 ---
@@ -242,14 +243,14 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
     "nickname": "팬123",
     "profileImageUrl": "https://cdn.motif.io/profiles/aa11bb22.jpg",
     "subscribedArtists": [
-      { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/artists/3.jpg" }
+      { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" }
     ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
 ```
 
-- `participationCount` 와 `subscribedArtists[].groupName` 은 **제거됐다**(회의 확정 R2).
+- `participationCount` 는 제거됐다(회의 확정 R2). `subscribedArtists[]` 는 **공통 아티스트 요약**(README §3.5)을 그대로 쓴다 — 원본은 여기서 `groupName` 을 뺐지만 타입 통일을 위해 되살렸다.
 - 구독이 0건이면 `subscribedArtists: []`.
 
 ### 실패 응답
@@ -288,7 +289,8 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
       {
         "artistSeq": 3,
         "name": "카리나",
-        "profileImageUrl": "https://cdn.motif.io/artists/3.jpg",
+        "groupName": "aespa",
+        "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
         "passActive": true,
         "passExpiresDttm": "2026-10-01T00:00:00.000Z",
         "subscribedDays": 41,
@@ -312,7 +314,7 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
 | `totalAssetCount` | 그 아티스트의 `is_active=TRUE` 에셋 수. **SECRET 도 동일 집계** |
 
 - 카드의 `n/m` 표기가 `purchasedAssetCount`/`totalAssetCount` 다(2026-09-02 재확정 — v0.7 정의로 회귀).
-- `groupName` 은 제거됐다(회의 확정).
+- 카드 항목은 **공통 아티스트 요약**(README §3.5)에 아래 집계 필드를 더한 형태다. 원본은 `groupName` 을 뺐지만 타입 통일을 위해 되살렸다.
 - 이 API 는 마이페이지 카드뿐 아니라 **숍 화면의 아티스트 섹션**을 구성하는 데 재사용한다. 아티스트별 에셋은 §11.1 의 `artistSeq` 필터로 따로 조회한다(구 §11.3 집계 API 는 삭제됨).
 
 ### 실패 응답
@@ -338,8 +340,8 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
   "message": "요청이 성공했습니다.",
   "data": {
     "list": [
-      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/videos/88.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
-      { "videoSeq": 87, "thumbnailUrl": "signed-url", "viewCount": 120, "visibility": "PRIVATE" }
+      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
+      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/results/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg", "viewCount": 120, "visibility": "PRIVATE" }
     ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
@@ -384,7 +386,7 @@ Authorization: Bearer {accessToken}
       {
         "video": {
           "videoSeq": 88,
-          "thumbnailUrl": "https://cdn.motif.io/videos/88.jpg",
+          "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
           "viewCount": 3400,
           "likeCount": 12000
         },
@@ -400,7 +402,7 @@ Authorization: Bearer {accessToken}
         "replies": [
           {
             "commentSeq": 530,
-            "author": { "userSeq": 9, "nickname": "dancing_mandu", "profileImageUrl": "https://cdn.motif.io/profiles/9.jpg" },
+            "author": { "userSeq": 9, "nickname": "dancing_mandu", "profileImageUrl": "https://cdn.motif.io/profiles/1f6b8c0e.jpg" },
             "content": "😂😂😂",
             "regDttm": "2026-08-28T13:00:00.000Z"
           },
@@ -454,4 +456,4 @@ Authorization: Bearer {accessToken}
 ## 이 문서에서 발견한 원본 명세 반영 대기
 
 1. **아티스트 이름 출처** — `artists` 테이블에 `name` 컬럼이 없다. 이름은 `users.nickname` 이며 `artists.user_seq` 로 조인해야 한다. §4.6·§4.7 을 포함해 아티스트 이름을 내리는 모든 API 가 해당한다.
-2. **§4.1 `videos: null`** — 빈 배열이 아니라 `null` 이라는 규칙은 클라이언트가 분기를 하나 더 갖게 만든다. 빈 배열로 통일할지 확인이 필요하다(현재는 원본대로 `null`).
+2. **§4.1 `videos` 를 빈 배열로 바꿨다** — 원본은 "없으면 null" 이라고 적었지만, 같은 "없음"을 `null` 과 `[]` 로 나누면 클라이언트가 분기를 둘 갖게 된다. 목록 필드는 전부 빈 배열로 통일한다(2026-09-13 확정).

@@ -180,14 +180,14 @@ FCM 을 받고 결과 화면에 진입할 때 **1회** 호출한다. **폴링 �
     "status": "DONE",
     "attempt": 1,
     "failCode": null,
-    "resultVideoUrl": "https://cdn.motif.io/results/challenge/3fa85f64.mp4?Expires=...&Signature=...",
-    "resultThumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64.jpg?Expires=...&Signature=..."
+    "resultVideoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+    "resultThumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg"
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
 ```
 
-**게시 전 프리뷰라 signed URL** 이다(§1.7). 이 화면에서 확인 후 **§8.8 로 게시**한다.
+**게시 전 프리뷰라 보호 등급**이다(§1.7) — `resultVideoUrl` 은 HLS 마스터 재생목록이고 접근에는 signed 쿠키가 필요하다. 이 화면에서 확인 후 **§8.8 로 게시**한다.
 
 ### 성공 응답 (200) — `jobType=MOTIF`
 
@@ -293,7 +293,7 @@ FCM 을 받고 결과 화면에 진입할 때 **1회** 호출한다. **폴링 �
 3. `attempt + 1`
 4. 잡 행에서 큐 메시지를 재구성해 `job.composite` 재발행
 
-결과 키가 `results/{type}/{jobUuid}.mp4` 로 **멱등**하게 정해져 있어, 재합성은 같은 키를 덮어쓴다.
+결과 프리픽스가 `results/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져 있어, 재합성은 같은 경로를 덮어쓴다.
 
 ### 성공 응답 (202)
 
