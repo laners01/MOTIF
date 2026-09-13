@@ -46,5 +46,8 @@ public class AdminViewConfig implements WebMvcConfigurer {
         registry.addViewController(AdminPaths.VIEW + "/assets").setViewName("admin/assets");
         // 곡 — 목록·등록 (§1.7, §3.6). 수정은 API 가 없다(3.6.3 삭제 — 곡은 불변)
         registry.addViewController(AdminPaths.VIEW + "/songs").setViewName("admin/songs");
+        // 챌린지 상세 (§3.7.3) — 읽기 전용. challengeSeq 는 화면 JS 가 pathname 에서 읽는다
+        registry.addViewController(AdminPaths.VIEW + "/challenges/{challengeSeq}")
+                .setViewName("admin/challenge-detail");
     }
 }

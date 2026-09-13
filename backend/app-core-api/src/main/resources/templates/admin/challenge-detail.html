@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('챌린지 상세', ~{::main})}">
+<body>
+<!--/*
+  §3.7.3 상세. 읽기 전용이다 — 슬롯 교체(§3.7.5)·삭제는 별도 티켓이라 버튼을 두지 않는다.
+
+  등록 직후 "무엇이 들어갔나"를 확인하는 용도가 크다. 그래서 원본 영상을 실제로 재생해
+  보여준다 — 키만 맞고 파일이 엉뚱한 경우가 목록 숫자로는 드러나지 않는다.
+  로직은 challenge-detail.js.
+*/-->
+<main>
+    <p class="err" id="err" hidden></p>
+
+    <section>
+        <h2>1. 원본</h2>
+        <div class="frame">
+            <video id="video" controls playsinline width="270"></video>
+        </div>
+        <p class="muted" id="video-note"></p>
+    </section>
+
+    <section>
+        <h2>2. 기본 정보</h2>
+        <table>
+            <tbody>
+            <tr><th>챌린지</th><td id="seq"></td></tr>
+            <tr><th>메인 아티스트</th><td id="artist"></td></tr>
+            <tr><th>곡</th><td id="song"></td></tr>
+            <tr><th>소개글</th><td id="description"></td></tr>
+            <tr><th>길이</th><td id="duration"></td></tr>
+            <tr><th>지표</th><td id="counts"></td></tr>
+            <tr><th>후처리 잡</th><td id="jobs"></td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>3. 슬롯 <span class="muted">— 마스크 오름차순이 화면 좌→우다</span></h2>
+        <table>
+            <thead>
+            <tr><th>마스크</th><th>아티스트</th><th>좌상단</th><th>우하단</th></tr>
+            </thead>
+            <tbody id="slots"></tbody>
+        </table>
+        <p class="muted" id="slot-note"></p>
+    </section>
+
+    <section>
+        <h2>4. 편집본</h2>
+        <table>
+            <thead>
+            <tr><th>#</th><th>지운 슬롯(마스크)</th><th>영상</th><th>첫 장면</th><th>참조 잡</th></tr>
+            </thead>
+            <tbody id="edited"></tbody>
+        </table>
+        <p class="muted" id="edited-note"></p>
+    </section>
+
+    <template id="slot-row">
+        <tr>
+            <td class="mask"></td>
+            <td class="artist"></td>
+            <td class="lt"></td>
+            <td class="rb"></td>
+        </tr>
+    </template>
+
+    <template id="edited-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="mask"></td>
+            <td class="video"></td>
+            <td class="scene"></td>
+            <td class="jobs"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/challenge-detail.js" defer></script>
+</main>
+</body>
+</html>
