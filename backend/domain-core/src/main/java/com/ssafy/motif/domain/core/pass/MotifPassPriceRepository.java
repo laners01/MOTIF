@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,4 +35,25 @@ public interface MotifPassPriceRepository extends JpaRepository<MotifPassPrice, 
             """, nativeQuery = true)
     long countActivePasses(@Param("artistSeq") Integer artistSeq,
                            @Param("durationMonths") short durationMonths);
+
+    /**
+     * 내 유효 PASS 의 만료 시각 — 아티스트 상세의 {@code pass} (API 명세 §5.3).
+     *
+     * <p>{@code uq_motif_passes_user_artist} 가 (사용자, 아티스트)당 한 행을 보장하므로
+     * 결과는 0 또는 1건이다. 값이 있으면 {@code active=true}, 비면 {@code false} 다 —
+     * "유효" 판정({@code status='ACTIVE'} 이고 아직 만료 전)을 <b>DB 쪽에 두는 것이
+     * 요점이다</b>. 행을 꺼내 와 자바에서 시각을 비교하면 앱 서버 시계가 DB 와 어긋난
+     * 만큼 만료 직전·직후 판정이 갈린다.
+     *
+     * <p>{@code motif_passes} 엔티티를 만들지 않고 네이티브로 읽는 근거는
+     * {@link #countActivePasses} 와 같다 — 구매 도메인 티켓이 엔티티를 만들면 두 쿼리를
+     * 함께 그리로 옮긴다.
+     */
+    @Query(value = """
+            select expires_dttm from motif_core.motif_passes
+             where user_seq = :userSeq and artist_seq = :artistSeq
+               and status = 'ACTIVE' and expires_dttm > now()
+            """, nativeQuery = true)
+    Optional<Instant> findActivePassExpiry(@Param("userSeq") Integer userSeq,
+                                           @Param("artistSeq") Integer artistSeq);
 }
