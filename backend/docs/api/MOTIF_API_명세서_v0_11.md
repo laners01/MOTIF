@@ -1,4 +1,4 @@
-# MOTIF API 명세서 — v0.11
+# MOTIF API 명세서 — v0.12
 
 > 원천 문서: 기능 명세서(2026-09-02) · DB 명세서 v0.8 · 아키텍처 설계서 v0.2 · 팀 공통 응답 규약(2026-09-02).
 
@@ -25,6 +25,7 @@
 > - **v0.8 (2026-09-09 · 리뷰 R5): ① 좋아요 POST/DELETE 성공만 `204 No Content` 예외 적용(챌린지·참여영상·공지·댓글) ② 참여영상 좋아요 사용자 목록(구 8.4) 삭제 및 ARTIST 참여영상 게시 금지 ③ 댓글 정렬을 대상 아티스트→내 댓글→일반 댓글, 각 그룹 최신순으로 확정 ④ 5.5 공지 목록을 커서 기반·본문/이미지 전체 응답으로 확장하고 공지 상세(구 10.1) 삭제 ⑤ 모티프 에셋 전체 카탈로그+`artistSeq` 필터+`myAccess`로 개편, 숍 집계 API(구 11.3) 삭제, 아티스트 패스 API REST 경로 변경 ⑥ MOTIF 결과는 잡 완료 시 자동 생성(`description=null`)하고 구 11.7 저장 API 삭제 ⑦ MOTIF 보정 비활성, 업로드 미완료 오류 409, FCM 수신 알림을 Android 로컬 목록으로 저장. 상세는 부록 A R5.**
 > - **v0.9 (2026-09-09 · 리뷰 R6): ① 6.3 공지 항목에 `isLiked` 추가**(공지 상세 삭제로 6.3 이 진입 데이터가 됨) **② `motif_assets.title` 컬럼 신설 확정**(DB v0.11) — 11.1/11.2 응답에 `title` 추가, 6.3 의 description 매핑 주석 해제 ③ SECRET = NORMAL 동일 취급을 **PASS 커버 포함(ⓐ)** 으로 확인, DB 전파. + 원본 파일 마크다운 이스케이프 정규화. 상세는 부록 A R6.
 > - **v0.10 (2026-09-09 · 리뷰 R7 — 팀 회의 결정 반영): ① 커서 응답에 `prevCursor`/`hasPrevious` 추가**(§1.9) **② 재시도 = 동일 잡 재큐 + `attempt` 증가 확정**(§13.4 계약 확정) **③ 숍 공용 배너 테이블·API 신설**(§11.11, DB `shop_banners`) ④ 종결: signed 10분, 토스 현행, §4.7 유지, 온보딩 Android 가드 확정, `participantMask >= 0` 확정(0=미발급 예약값), `recent_search_terms` 컬럼 제거(DB v0.12). 상세는 부록 A R7.
+> - **v0.12 (2026-09-13 · [ADR-0010](../adr/0010-video-delivery.md) 반영): ① 합성 결과 영상의 `videoUrl` 이 단일 MP4 에서 **HLS 마스터 재생목록(`master.m3u8`)** 주소로 바뀐다**(§4.1·§5.8/11.5·§6.1·§8.2·§11.6) — 화질 2종(720p/480p) + 재생 중 자동 전환(ABR). **② §1.7 보호 등급을 signed URL 에서 signed 쿠키로 변경** — HLS 는 재생목록 안에서 조각을 추가 요청하므로 URL 서명이 그 요청에 따라붙지 않는다. ③ 챌린지 원본(§7.1·§7.2)의 HLS 전환 여부는 **미정**(§1.7 하단 메모). 근거 측정은 [인계 문서](../poc/video-delivery-handoff.md).
 > - **v0.11 (2026-09-09 · 리뷰 R8): ① 13.3 응답을 jobType 별로 분기 확정** — CHALLENGE 는 결과 프리뷰 URL, **MOTIF 는 `resultSeq`**(보관함 상세 이동) **② 편집본 전(全)조합 등록 운영 전제 확정**(어드민 필수 등록 + 완결성 검증 — 어드민 명세 반영 대기). NULL(무교체 원본 합성) 정책은 팀 논의 예정. 상세는 부록 A R8.
 ---
 
@@ -176,9 +177,31 @@
 | 등급 | 대상 | 반환 형태 |
 |---|---|---|
 | 공개 | 챌린지 원본·PUBLIC 참여 영상·에셋 **미리보기**·썸네일·프로필·공지 이미지 | CloudFront 일반 URL (캐시 극대화) |
-| 보호 | **모티프 결과물**, PRIVATE 참여 영상(본인), 게시·저장 전 합성 결과 프리뷰 | CloudFront **signed URL** (만료 기본 10분 **(기본안 — 확인 필요)**). 엣지 캐싱 자체는 동작 — "공개 캐시 극대화 대상이 아니다"의 의미. 유료·비공개 콘텐츠라 무기명 장기 URL 을 줄 수 없고, 서명이 만료되므로 클라 측 URL 장기 재사용이 불가할 뿐이다 |
+| 보호 | **모티프 결과물**, PRIVATE 참여 영상(본인), 게시·저장 전 합성 결과 프리뷰 | CloudFront **signed 쿠키** (만료 기본 10분 **(기본안 — 확인 필요)**). 엣지 캐싱 자체는 동작 — "공개 캐시 극대화 대상이 아니다"의 의미. 유료·비공개 콘텐츠라 무기명 장기 URL 을 줄 수 없다 |
 
 - 업로드는 전부 S3 presigned PUT 직행(영상·이미지 바이트는 API 서버 미통과 — 설계 원칙 ①).
+
+**영상은 HLS 다.** `videoUrl` 은 단일 MP4 가 아니라 **마스터 재생목록(`master.m3u8`)** 주소다
+([ADR-0010](../adr/0010-video-delivery.md) D2). 플레이어가 그 재생목록을 읽고 화질별
+재생목록·조각을 **추가로 요청**한다.
+
+```
+master.m3u8                 ← videoUrl 이 가리키는 것
+└── 720/index.m3u8 → 720/data.m4s   ← 플레이어가 이어서 요청
+└── 480/index.m3u8 → 480/data.m4s
+```
+
+- **보호 등급에 signed URL 을 쓸 수 없다.** 재생목록에만 서명해도 그 안에서 참조하는
+  조각 요청에는 서명이 따라붙지 않아 403 이 난다. **경로 프리픽스 단위 signed 쿠키**로
+  발급한다 — 쿠키는 같은 경로 아래 모든 요청에 자동으로 붙는다
+- 공개 등급은 서명이 없으므로 영향 없다
+- S3 presigned 는 어느 등급에도 쓰지 않는다. 서명 쿼리스트링이 사용자·만료마다 달라져
+  **CDN 캐시 적중률을 0% 로 만든다**(ADR-0010 D5)
+
+> **미정 — 챌린지 원본(§7.1·§7.2)의 HLS 전환 여부.** 참여 영상·모티프 결과는 합성
+> 워커를 거치므로 HLS 로 나오지만, 챌린지 원본은 어드민 업로드라 경로가 다르다.
+> 피드에서 같이 스와이프되므로 한쪽만 MP4 면 그 구간에서는 ABR 이 동작하지 않는다.
+> **팀 결정 필요.**
 
 ### 1.8 공통 비노출 규칙 (모든 조회 API 적용)
 
@@ -373,7 +396,7 @@
   "userSeq": 1,
   "nickname": "모티프러버",
   "profileImageUrl": "https://cdn.../profiles/uuid.jpg",
-  "repMotif": { "resultSeq": 10, "videoUrl": "signed-url", "thumbnailUrl": "signed-url" },
+  "repMotif": { "resultSeq": 10, "videoUrl": "signed-cookie 로 접근하는 master.m3u8", "thumbnailUrl": "signed" },
   "videos": [ { "videoSeq": 88, "thumbnailUrl": "...", "viewCount": 3400, "visibility": "PUBLIC" } ]
 }
 ```
@@ -611,7 +634,7 @@
   "isSubscribed": true, "subscribedDays": 492,
   "pass": { "active": true, "expiresDttm": "2026-10-01T00:00:00.000Z" },
   "myMotifVideos": [
-    { "resultSeq": 10, "videoUrl": "signed-url", "thumbnailUrl": "signed-url", "durationMs": 9800 }
+    { "resultSeq": 10, "videoUrl": "signed-cookie 로 접근하는 master.m3u8", "thumbnailUrl": "signed", "durationMs": 9800 }
   ]
 }
 ```
@@ -694,7 +717,7 @@
 
 ```json
 { "list": [ {
-  "rank": 1, "videoSeq": 88, "videoUrl": "https://cdn.../results/challenge/uuid.mp4",
+  "rank": 1, "videoSeq": 88, "videoUrl": "https://cdn.../results/challenge/uuid/master.m3u8",
   "thumbnailUrl": "...", "durationMs": 15000,
   "song": { "title": "bailar toda la noche", "singerName": "mochico" },
   "author": { "userSeq": 5, "nickname": "팬123" },
@@ -840,7 +863,7 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 ```json
 {
   "videoSeq": 88, "challengeSeq": 11, "description": "재밌었다!",
-  "videoUrl": "https://cdn.../results/challenge/uuid.mp4", "thumbnailUrl": "...", "durationMs": 15000,
+  "videoUrl": "https://cdn.../results/challenge/uuid/master.m3u8", "thumbnailUrl": "...", "durationMs": 15000,
   "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "..." },
   "viewCount": 3400, "likeCount": 120, "commentCount": 15,
   "hasArtistLike": true, "hasArtistComment": false,
@@ -849,7 +872,8 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 }
 ```
 
-- `videoUrl`: PUBLIC=공개 CDN, 본인 PRIVATE=signed. `isMine=true` 면 클라가 Bottom Sheet 에 수정·삭제 노출.
+- `videoUrl`: **HLS 마스터 재생목록**(`master.m3u8`) 주소다 — 단일 MP4 가 아니다(§1.7).
+  PUBLIC=공개 CDN, 본인 PRIVATE=경로 프리픽스 signed 쿠키. `isMine=true` 면 클라가 Bottom Sheet 에 수정·삭제 노출.
 
 **실패 분기**
 
@@ -1163,7 +1187,7 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 
 - 11.5: **커서** `?cursor&size&artistSeq=` — **최신순만 지원**하며 정렬 파라미터를 받지 않는다. §5.8 은 `artistSeq` 필터를 재사용한다. `data.list[]`: `{ "resultSeq": 10, "thumbnailUrl": "signed", "artist": {요약}, "regDttm": "...", "isRep": true }`.
 
-- 11.6 **성공 (200)** `data`: `{ "resultSeq": 10, "videoUrl": "signed", "thumbnailUrl": "signed", "description": null, "durationMs": 9800, "asset": {요약}, "artist": {요약}, "isRep": false, "regDttm": "..." }`
+- 11.6 **성공 (200)** `data`: `{ "resultSeq": 10, "videoUrl": "signed-cookie 로 접근하는 master.m3u8", "thumbnailUrl": "signed", "description": null, "durationMs": 9800, "asset": {요약}, "artist": {요약}, "isRep": false, "regDttm": "..." }`
 
 - `description` 은 선택 사항이며 `null` 일 수 있다. `resultSeq` 로 결과물을 직접 조회하는 단건 API가 11.6이다.
 
