@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('모티프 에셋 목록', ~{::main})}">
+<body>
+<!--/*
+  §3.8.1 목록. 활성 전환·가격 수정은 이미 /admin/prices 에 있으므로 여기 겹쳐 놓지
+  않는다 — 같은 값을 두 화면에서 고치게 하면 어느 쪽이 최신인지 알 수 없다.
+  로직은 assets.js.
+*/-->
+<main>
+    <section>
+        <p>
+            <label style="display:inline">아티스트
+                <select id="artist"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline">타입
+                <select id="asset-type">
+                    <option value="">전체</option>
+                    <option value="NORMAL">NORMAL</option>
+                    <option value="PREMIUM">PREMIUM</option>
+                    <option value="SECRET">SECRET</option>
+                </select>
+            </label>
+            <label style="display:inline">활성
+                <select id="is-active">
+                    <option value="">전체</option>
+                    <option value="true">활성</option>
+                    <option value="false">비활성</option>
+                </select>
+            </label>
+            <button type="button" id="reload">조회</button>
+            <a href="/admin/prices">가격 관리</a>
+        </p>
+        <p class="err" id="err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>#</th><th>아티스트</th><th>제목</th><th>길이</th><th>타입</th><th>활성</th>
+                <th>KR 가격</th><th>구매</th><th>결과물</th><th>등록</th></tr>
+            </thead>
+            <tbody id="assets"></tbody>
+        </table>
+        <p class="muted" id="count"></p>
+    </section>
+
+    <template id="asset-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="artist"></td>
+            <td class="title"></td>
+            <td class="duration"></td>
+            <td class="type"></td>
+            <td class="active"></td>
+            <td class="price"></td>
+            <td class="purchases"></td>
+            <td class="results"></td>
+            <td class="reg"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/assets.js" defer></script>
+</main>
+</body>
+</html>
