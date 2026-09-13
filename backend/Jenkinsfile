@@ -1,6 +1,6 @@
-// MOTIF core-api CI/CD (ADR-0007 / ADR-0008)
+// MOTIF CI/CD (ADR-0007 / ADR-0008)
 //
-// 커밋 1번 -> 빌드 -> containerd 직접 임포트 -> 롤링 배포 -> health 검증.
+// 커밋 1번 -> 빌드 -> containerd 직접 임포트 -> 롤링 배포 -> 검증.
 // 레지스트리를 쓰지 않는다. 단일 노드라 노드 간 이미지 배포 문제가 없고,
 // GitLab Container Registry가 인스턴스 레벨에서 꺼져 있다(ADR-0007).
 //
@@ -11,6 +11,56 @@
 // 트리거는 GitLab 웹훅이다. 브랜치 필터(develop/backend)와 Secret Token은
 // job 설정에 있다 — 토큰을 여기 적으면 비밀값을 커밋하는 셈이라 UI에 둔다.
 // 폴링으로 되돌리는 절차는 infra/setup/webhook-migration.md §8.
+//
+// ── 2026-09-14: 모듈 여러 개를 다룬다 ────────────────────────────────────────
+// 예전에는 IMAGE_REPO·DEPLOYMENT·CONTAINER 가 core-api 로 하드코딩돼 있어
+// app-media 는 사람이 손으로 배포했다(scp → docker build → ctr import →
+// set image). 이제 MODULES 목록을 돌면서 **바뀐 모듈만** 배포한다.
+//
+// 모듈을 추가할 때 손댈 곳은 MODULES 한 곳이다. 아래 단계들은 목록을 돈다.
+
+// ── 배포 대상 ────────────────────────────────────────────────────────────────
+//
+// gradle   : bootJar·test 를 돌릴 Gradle 프로젝트 경로
+// context  : docker build 컨텍스트(해당 모듈의 Dockerfile 위치)
+// paths    : 이 모듈만 건드리는 경로 접두사. 여기가 바뀌면 이 모듈을 배포한다
+// health   : 배포 후 HTTP 스모크 URL. null 이면 rollout status 로 갈음한다
+//
+// image/deployment/container 이름은 전부 모듈 이름에서 파생한다 —
+// registry.local/motif/<name>:<빌드번호>, Deployment 와 컨테이너 이름도 <name>.
+// 지금 두 모듈 다 이 규약을 지킨다. 어긋나는 모듈이 생기면 그때 필드를 판다.
+MODULES = [
+    [name: 'core-api',
+     gradle: ':app-core-api',
+     context: 'backend/app-core-api',
+     paths: ['backend/app-core-api/'],
+     health: 'https://j15d104.p.ssafy.io/api/health'],
+
+    // app-media 에는 HTTP 스모크가 없다 — Service·Ingress 가 없는 큐 소비자다.
+    // 대신 readiness 그룹이 db·rabbit 을 본다(app-media/application-prod.yml).
+    // 그래서 rollout status 가 성공했다는 것 자체가 "DB·MQ 에 실제로 붙었다"는
+    // 뜻이고, 이 모듈에는 그게 스모크보다 강한 검증이다.
+    [name: 'app-media',
+     gradle: ':app-media',
+     context: 'backend/app-media',
+     paths: ['backend/app-media/'],
+     health: null],
+]
+
+// 여기가 바뀌면 **모든 모듈**을 배포한다. 공용 모듈·빌드 스크립트라
+// 어느 앱이 영향을 받는지 경로만으로 가릴 수 없다.
+SHARED_PATHS = [
+    'backend/module-',
+    'backend/domain-',
+    'backend/build.gradle',
+    'backend/settings.gradle',
+    'backend/gradle/',
+    'backend/gradlew',
+]
+
+// 이번 빌드에서 배포할 모듈. 'Select modules' 가 채우고 뒤 단계들이 읽는다.
+targets = []
+
 pipeline {
     agent any
 
@@ -18,8 +68,9 @@ pipeline {
         // 아래에서 checkout scm 을 명시적으로 부른다. 기본 체크아웃을 끄지 않으면
         // 같은 커밋을 두 번 받아 changeSets 기록이 어긋난다.
         skipDefaultCheckout()
-        // 파이프라인 전체 상한. Deploy 단계의 180s 타임아웃과는 별개다.
-        timeout(time: 30, unit: 'MINUTES')
+        // 파이프라인 전체 상한. 모듈이 둘이 되며 빌드 시간이 늘어 45분으로 올린다.
+        // app-media 인코딩 테스트가 무겁다(사다리 3단).
+        timeout(time: 45, unit: 'MINUTES')
         // 배포는 직렬이어야 한다. 두 빌드가 동시에 set image 하면 어느 태그가
         // 남는지 보장되지 않는다.
         disableConcurrentBuilds()
@@ -39,23 +90,18 @@ pipeline {
         // 변경 감지와 무관하게 강제로 배포하고 싶을 때. 롤백 이후 재배포나
         // 매니페스트만 고친 뒤 파드를 새로 띄울 때 쓴다.
         booleanParam(name: 'FORCE_DEPLOY', defaultValue: false,
-                     description: 'backend 변경이 없어도 빌드·배포한다')
+                     description: 'backend 변경이 없어도 빌드·배포한다 (대상은 DEPLOY_MODULES)')
+        // 배포할 모듈을 손으로 지정한다. 비우면 변경 경로로 자동 판정한다.
+        // 예: `app-media` — 한 모듈만 재배포할 때.
+        string(name: 'DEPLOY_MODULES', defaultValue: '',
+               description: '쉼표로 구분한 모듈 이름(core-api, app-media). 비우면 자동 판정')
     }
 
     environment {
-        // 가짜 레지스트리 프리픽스. 실재하지 않는 호스트라 어딘가에서 pull을
-        // 시도하면 조용히 성공하는 대신 즉시 실패한다(ADR-0007 D2).
-        IMAGE_REPO = 'registry.local/motif/core-api'
-        // 빌드번호 태그만 운영 참조로 쓴다. latest 는 어느 커밋인지 알 수 없어
-        // 롤백 대상을 특정할 수 없으므로 Deployment 에서 참조하지 않는다.
-        IMAGE      = "registry.local/motif/core-api:${env.BUILD_NUMBER}"
-        DEPLOYMENT = 'core-api'
-        CONTAINER  = 'core-api'
-        HEALTH_URL = 'https://j15d104.p.ssafy.io/api/health'
         // k3s 는 /usr/local/bin 에 깔린다. sudoers 항목과 경로가 정확히 같아야
         // NOPASSWD 가 걸린다.
         K3S        = '/usr/local/bin/k3s'
-        // 이미지 보관 개수. 초과분은 Cleanup 에서 지운다.
+        // 이미지 보관 개수. 초과분은 Cleanup 에서 지운다. 모듈별로 센다.
         KEEP_IMAGES = '5'
     }
 
@@ -80,111 +126,105 @@ pipeline {
                     changeset 'backend/**'
                     expression { return currentBuild.previousBuild == null }
                     expression { return params.FORCE_DEPLOY }
+                    expression { return (params.DEPLOY_MODULES?.trim()) as Boolean }
                 }
                 beforeAgent true
             }
 
             stages {
 
-                stage('Build & Test') {
+                stage('Select modules') {
                     steps {
-                        // Gradle 데몬을 끄지 않는다. executor 1 이라 빌드가 직렬이고,
-                        // 데몬을 재사용해야 매 빌드 JVM 기동·설정 단계를 다시 하지 않는다.
-                        // 데몬 힙은 호스트 gradle.properties 에서 잡는다(jenkins-setup.md §3).
-                        dir('backend') {
-                            sh './gradlew :app-core-api:bootJar :app-core-api:test'
+                        script {
+                            targets = selectModules()
+                            if (targets.isEmpty()) {
+                                // backend/** 는 바뀌었는데 어느 모듈에도 안 걸리는 경우
+                                // (backend/docs/**, backend/CLAUDE.md 등). 배포할 것이 없다.
+                                echo '배포 대상 모듈이 없다 — backend 안이지만 앱 코드가 아니다'
+                            } else {
+                                echo "배포 대상: ${targets.collect { it.name }.join(', ')}"
+                            }
                         }
                     }
                 }
 
-                stage('Docker Build') {
+                stage('Build & Test') {
+                    when { expression { return !targets.isEmpty() } }
                     steps {
-                        // 컨텍스트는 app-core-api 디렉터리다. Dockerfile 은 호스트가 만든
-                        // bootJar 를 레이어로 펼치기만 한다(ADR-0008, D5).
-                        sh 'docker build -t "$IMAGE" backend/app-core-api'
+                        script {
+                            // Gradle 데몬을 끄지 않는다. executor 1 이라 빌드가 직렬이고,
+                            // 데몬을 재사용해야 매 빌드 JVM 기동·설정 단계를 다시 하지 않는다.
+                            // 데몬 힙은 호스트 gradle.properties 에서 잡는다(jenkins-setup.md §3).
+                            //
+                            // 모듈이 여럿이면 한 번의 gradle 호출로 묶는다 — 설정 단계가
+                            // 한 번만 돈다.
+                            String tasks = targets.collect { "${it.gradle}:bootJar ${it.gradle}:test" }
+                                                  .join(' ')
+                            dir('backend') {
+                                sh "./gradlew ${tasks}"
+                            }
+                        }
                     }
                 }
 
-                stage('Import to k3s') {
+                stage('Docker Build & Import') {
+                    when { expression { return !targets.isEmpty() } }
                     steps {
-                        // k3s 는 도커가 아니라 containerd 를 쓴다. 호스트 도커에 이미지가
-                        // 있어도 k3s 는 보지 못하므로 명시적으로 넘겨야 한다.
-                        // 이 명령 하나만 NOPASSWD 로 열려 있다(jenkins-setup.md §6).
-                        sh 'docker save "$IMAGE" | sudo "$K3S" ctr images import -'
-                        // 임포트가 실제로 됐는지 확인한다. imagePullPolicy: Never 라
-                        // 여기서 빠뜨리면 다음 단계가 ErrImageNeverPull 로 죽는다.
-                        sh 'sudo "$K3S" ctr images ls -q | grep -qx "$IMAGE"'
+                        script {
+                            for (m in targets) {
+                                String image = imageOf(m)
+                                // 컨텍스트는 각 모듈 디렉터리다. Dockerfile 은 호스트가 만든
+                                // bootJar 를 레이어로 펼치기만 한다(ADR-0008, D5).
+                                sh "docker build -t '${image}' ${m.context}"
+                                // k3s 는 도커가 아니라 containerd 를 쓴다. 호스트 도커에
+                                // 이미지가 있어도 k3s 는 보지 못하므로 명시적으로 넘긴다.
+                                // 이 명령 하나만 NOPASSWD 로 열려 있다(jenkins-setup.md §6).
+                                sh "docker save '${image}' | sudo \"\$K3S\" ctr images import -"
+                                // 임포트가 실제로 됐는지 확인한다. imagePullPolicy: Never 라
+                                // 여기서 빠뜨리면 다음 단계가 ErrImageNeverPull 로 죽는다.
+                                sh "sudo \"\$K3S\" ctr images ls -q | grep -qx '${image}'"
+                            }
+                        }
                     }
                 }
 
                 stage('Deploy') {
+                    when { expression { return !targets.isEmpty() } }
                     steps {
                         script {
-                            // 롤백 목표를 태그 하나로 고정해 둔다.
-                            //
-                            // `rollout undo` 를 쓰면 안 되는 이유: undo 는 "직전 리비전"
-                            // 으로 되짚는데, 연속 실패하면 되짚을 때마다 한 칸씩 더
-                            // 내려간다. 2026-09-13 에 빌드 29~33 이 같은 이유로 연달아
-                            // 깨지면서 운영 이미지가 33 -> 28 까지 후퇴했다.
-                            // 되돌릴 곳은 직전 리비전이 아니라 이 빌드가 건드리기 전의
-                            // 태그, 딱 하나다.
-                            env.PREV_IMAGE = sh(returnStdout: true, script:
-                                'kubectl get deployment/"$DEPLOYMENT" -o jsonpath=\'{.spec.template.spec.containers[0].image}\'').trim()
-                            echo "배포 전 이미지: ${env.PREV_IMAGE}"
-                        }
-                        sh 'kubectl set image deployment/"$DEPLOYMENT" "$CONTAINER"="$IMAGE"'
-                        script {
-                            // maxUnavailable: 0 이라 새 파드가 Ready 가 되기 전에는
-                            // 기존 파드가 죽지 않는다. 타임아웃이 나도 서비스는 살아 있다.
-                            def rc = sh(returnStatus: true,
-                                        script: 'kubectl rollout status deployment/"$DEPLOYMENT" --timeout=180s')
-                            if (rc != 0) {
-                                rollbackAndFail('rollout status 실패 — 180s 안에 새 파드가 Ready 되지 못했다')
+                            for (m in targets) {
+                                deployModule(m)
                             }
-                        }
-                    }
-                }
-
-                stage('Verify') {
-                    steps {
-                        script {
-                            // Ingress 를 통과하는 실제 경로로 때린다. 파드가 Ready 여도
-                            // Traefik 라우팅이 어긋나면 사용자에게는 장애다.
-                            def ok = false
-                            for (int i = 1; i <= 3; i++) {
-                                def rc = sh(returnStatus: true,
-                                            script: 'curl -sf --max-time 10 "$HEALTH_URL"')
-                                if (rc == 0) { ok = true; break }
-                                echo "health 시도 ${i}/3 실패 — 10초 후 재시도"
-                                sleep time: 10, unit: 'SECONDS'
-                            }
-                            if (!ok) {
-                                rollbackAndFail("health 스모크 3회 실패 — ${env.HEALTH_URL}")
-                            }
-                            echo "health 200 확인 — ${env.HEALTH_URL}"
                         }
                     }
                 }
 
                 // 디스크 보호용. 실패해도 배포는 이미 끝났으므로 빌드를 깨지 않는다.
                 stage('Cleanup old images') {
+                    when { expression { return !targets.isEmpty() } }
                     steps {
-                        // 빌드번호 태그를 숫자로 정렬해 최신 KEEP_IMAGES 개만 남긴다.
-                        // 롤백 대상이 남아 있어야 하므로 1개만 남기지 않는다.
-                        sh '''
-                            set +e
-                            sudo "$K3S" ctr images ls -q \
-                              | grep "^${IMAGE_REPO}:[0-9]\\+$" \
-                              | sort -t: -k2 -n -r \
-                              | tail -n +$((KEEP_IMAGES + 1)) \
-                              | xargs -r -n1 sudo "$K3S" ctr images rm
-                            docker images "$IMAGE_REPO" --format '{{.Repository}}:{{.Tag}}' \
-                              | grep "^${IMAGE_REPO}:[0-9]\\+$" \
-                              | sort -t: -k2 -n -r \
-                              | tail -n +$((KEEP_IMAGES + 1)) \
-                              | xargs -r -n1 docker image rm
-                            exit 0
-                        '''
+                        script {
+                            for (m in targets) {
+                                // 빌드번호 태그를 숫자로 정렬해 최신 KEEP_IMAGES 개만 남긴다.
+                                // 롤백 대상이 남아 있어야 하므로 1개만 남기지 않는다.
+                                withEnv(["IMAGE_REPO=${repoOf(m)}"]) {
+                                    sh '''
+                                        set +e
+                                        sudo "$K3S" ctr images ls -q \
+                                          | grep "^${IMAGE_REPO}:[0-9]\\+$" \
+                                          | sort -t: -k2 -n -r \
+                                          | tail -n +$((KEEP_IMAGES + 1)) \
+                                          | xargs -r -n1 sudo "$K3S" ctr images rm
+                                        docker images "$IMAGE_REPO" --format '{{.Repository}}:{{.Tag}}' \
+                                          | grep "^${IMAGE_REPO}:[0-9]\\+$" \
+                                          | sort -t: -k2 -n -r \
+                                          | tail -n +$((KEEP_IMAGES + 1)) \
+                                          | xargs -r -n1 docker image rm
+                                        exit 0
+                                    '''
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -193,19 +233,22 @@ pipeline {
 
     post {
         success {
-            echo "성공 — 배포 이미지 ${env.IMAGE}"
+            echo "성공 — 배포: ${env.DEPLOYED ?: '(없음)'}"
             gitlabStatus('success')
         }
         failure {
             gitlabStatus('failed')
             echo "실패 — 빌드 #${env.BUILD_NUMBER}"
             // 실패 원인 파악용 최소 정보. 롤백이 돌았다면 REVISION 이 되돌아가 있다.
+            // DEPLOYMENT 는 실패한 모듈이 남겨 둔 값이다(deployModule 이 설정한다).
             sh '''
                 set +e
-                echo "--- deployment ---"
-                kubectl get deployment "$DEPLOYMENT" -o wide
-                echo "--- pods ---"
-                kubectl get pods -l app="$DEPLOYMENT" -o wide
+                if [ -n "$DEPLOYMENT" ]; then
+                    echo "--- deployment ($DEPLOYMENT) ---"
+                    kubectl get deployment "$DEPLOYMENT" -o wide
+                    echo "--- pods ---"
+                    kubectl get pods -l app="$DEPLOYMENT" -o wide
+                fi
                 echo "--- 최근 이벤트 ---"
                 kubectl get events --sort-by=.lastTimestamp | tail -20
                 exit 0
@@ -216,6 +259,125 @@ pipeline {
             gitlabStatus('canceled')
         }
     }
+}
+
+// ── 헬퍼 ─────────────────────────────────────────────────────────────────────
+
+String repoOf(Map m) { return "registry.local/motif/${m.name}" }
+
+// 빌드번호 태그만 운영 참조로 쓴다. latest 는 어느 커밋인지 알 수 없어
+// 롤백 대상을 특정할 수 없으므로 Deployment 에서 참조하지 않는다.
+String imageOf(Map m) { return "${repoOf(m)}:${env.BUILD_NUMBER}" }
+
+// 이번 빌드에서 배포할 모듈을 고른다.
+//
+// 우선순위: DEPLOY_MODULES 파라미터 > 변경 경로 자동 판정.
+// 자동 판정이 불가능한 상황(최초 빌드·FORCE_DEPLOY·changeSet 비어 있음)에서는
+// 전부 배포한다 — 기존 파이프라인의 탈출구와 같은 규율이다.
+List selectModules() {
+    String forced = params.DEPLOY_MODULES?.trim()
+    if (forced) {
+        List names = forced.split(',').collect { it.trim() }.findAll { it }
+        List picked = MODULES.findAll { names.contains(it.name) }
+        List unknown = names.findAll { n -> !MODULES.any { it.name == n } }
+        if (unknown) {
+            // 오타를 조용히 넘기면 "배포했다고 믿었는데 안 된" 상태가 된다.
+            error("DEPLOY_MODULES 에 모르는 모듈이 있다: ${unknown.join(', ')} " +
+                  "(가능: ${MODULES.collect { it.name }.join(', ')})")
+        }
+        echo "DEPLOY_MODULES 지정 — 자동 판정을 건너뛴다"
+        return picked
+    }
+
+    List changed = changedPaths()
+    if (changed.isEmpty() || params.FORCE_DEPLOY || currentBuild.previousBuild == null) {
+        echo '변경 경로를 판정할 수 없다(최초 빌드·강제·빈 changeSet) — 전 모듈을 배포한다'
+        return MODULES
+    }
+    if (changed.any { p -> SHARED_PATHS.any { p.startsWith(it) } }) {
+        echo '공용 모듈·빌드 스크립트가 바뀌었다 — 전 모듈을 배포한다'
+        return MODULES
+    }
+    return MODULES.findAll { m -> changed.any { p -> m.paths.any { p.startsWith(it) } } }
+}
+
+/**
+ * 이번 빌드에 포함된 커밋들이 건드린 파일 경로.
+ *
+ * <p>{@code @NonCPS} 다 — changeSets 순회는 직렬화되지 않는 이터레이터를 타서
+ * CPS 변환 아래에서 깨진다. 이 함수는 스텝을 부르지 않으므로 안전하다.
+ */
+@NonCPS
+List changedPaths() {
+    List paths = []
+    for (set in currentBuild.changeSets) {
+        for (entry in set.items) {
+            for (file in entry.affectedFiles) {
+                paths.add(file.path)
+            }
+        }
+    }
+    return paths
+}
+
+// 모듈 하나를 배포한다. 실패하면 그 모듈만 되돌리고 빌드를 FAIL 시킨다.
+//
+// env 에 DEPLOYMENT·CONTAINER·PREV_IMAGE 를 남기는 이유: rollbackAndFail 과
+// post{failure} 진단이 그 값을 읽는다. 여러 모듈을 돌 때는 **지금 처리 중인**
+// 모듈의 값이 남아 있어야 실패 진단이 맞는 대상을 가리킨다.
+void deployModule(Map m) {
+    String image = imageOf(m)
+    env.DEPLOYMENT = m.name
+    env.CONTAINER = m.name
+    env.IMAGE = image
+
+    // 롤백 목표를 태그 하나로 고정해 둔다.
+    //
+    // `rollout undo` 를 쓰면 안 되는 이유: undo 는 "직전 리비전" 으로 되짚는데,
+    // 연속 실패하면 되짚을 때마다 한 칸씩 더 내려간다. 2026-09-13 에 빌드 29~33 이
+    // 같은 이유로 연달아 깨지면서 운영 이미지가 33 -> 28 까지 후퇴했다.
+    // 되돌릴 곳은 직전 리비전이 아니라 이 빌드가 건드리기 전의 태그, 딱 하나다.
+    env.PREV_IMAGE = sh(returnStdout: true, script:
+        "kubectl get deployment/${m.name} -o jsonpath='{.spec.template.spec.containers[0].image}'").trim()
+    echo "[${m.name}] 배포 전 이미지: ${env.PREV_IMAGE}"
+
+    sh "kubectl set image deployment/${m.name} ${m.name}='${image}'"
+
+    // maxUnavailable: 0 이라 새 파드가 Ready 가 되기 전에는 기존 파드가 죽지 않는다.
+    // 타임아웃이 나도 서비스는 살아 있다.
+    //
+    // app-media 는 Recreate 라 이 성질이 없다 — 대신 큐가 메시지를 들고 기다리므로
+    // 잠깐 소비자가 없어도 유실되지 않는다(45-app-media/deployment.yaml).
+    int rc = sh(returnStatus: true,
+                script: "kubectl rollout status deployment/${m.name} --timeout=180s")
+    if (rc != 0) {
+        rollbackAndFail("[${m.name}] rollout status 실패 — 180s 안에 새 파드가 Ready 되지 못했다")
+    }
+
+    if (m.health) {
+        // Ingress 를 통과하는 실제 경로로 때린다. 파드가 Ready 여도 Traefik
+        // 라우팅이 어긋나면 사용자에게는 장애다.
+        boolean ok = false
+        for (int i = 1; i <= 3; i++) {
+            if (sh(returnStatus: true, script: "curl -sf --max-time 10 '${m.health}'") == 0) {
+                ok = true
+                break
+            }
+            echo "[${m.name}] health 시도 ${i}/3 실패 — 10초 후 재시도"
+            sleep time: 10, unit: 'SECONDS'
+        }
+        if (!ok) {
+            rollbackAndFail("[${m.name}] health 스모크 3회 실패 — ${m.health}")
+        }
+        echo "[${m.name}] health 200 확인 — ${m.health}"
+    } else {
+        // HTTP 스모크가 없는 모듈. readiness 그룹이 의존성을 보므로 rollout
+        // 성공이 곧 "DB·MQ 에 붙었다"는 뜻이다 — MODULES 주석 참조.
+        echo "[${m.name}] HTTP 스모크 없음 — rollout 성공으로 갈음한다(readiness 가 db·rabbit 을 본다)"
+    }
+
+    env.DEPLOYED = (env.DEPLOYED ? "${env.DEPLOYED}, " : '') + image
+    echo "[${m.name}] 배포 완료 — ${image}"
 }
 
 // GitLab 에 커밋 상태를 올린다.
@@ -232,9 +394,13 @@ void gitlabStatus(String state) {
     }
 }
 
-// 배포 게이트 실패 시 Deploy 단계가 기록해 둔 PREV_IMAGE 로 되돌리고 빌드를
+// 배포 게이트 실패 시 deployModule 이 기록해 둔 PREV_IMAGE 로 되돌리고 빌드를
 // FAIL 시킨다. 되돌리기가 실패해도(PREV_IMAGE 가 비는 최초 배포 등) 원래 실패
 // 사유를 잃지 않도록 error() 는 반드시 던진다.
+//
+// 앞선 모듈이 이미 배포됐다면 그건 **되돌리지 않는다.** 성공한 배포를 뒤 모듈의
+// 실패 때문에 되돌리면 멀쩡한 것까지 흔든다. env.DEPLOYED 에 남으므로 사람이
+// 판단한다.
 void rollbackAndFail(String reason) {
     echo "배포 게이트 실패: ${reason} — ${env.PREV_IMAGE} 로 되돌린다"
     // maxUnavailable: 0 이라 새 파드가 Ready 를 못 얻은 경우엔 구 파드가 그대로
@@ -246,5 +412,8 @@ void rollbackAndFail(String reason) {
         kubectl rollout status deployment/"$DEPLOYMENT" --timeout=120s
         exit 0
     '''
+    if (env.DEPLOYED) {
+        echo "주의 — 이번 빌드에서 이미 배포된 모듈이 있다(되돌리지 않음): ${env.DEPLOYED}"
+    }
     error(reason)
 }

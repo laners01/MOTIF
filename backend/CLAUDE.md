@@ -156,7 +156,8 @@ mediaJobPublisher.publish(
     MediaJobRequestedEvent.SOURCE_CHALLENGE_ORIGIN,
     challengeSeq,
     videoKey,                                    // challenges/{uuid}.mp4
-    MediaKeys.forChallengeOrigin(uuid));
+    MediaKeys.forChallengeOrigin(uuid),
+    thumbnailAtMs);                              // 선택 — null 이면 워커 기본 1.5초 (§4.8)
 ```
 
 ```java
