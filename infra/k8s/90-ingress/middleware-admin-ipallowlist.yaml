@@ -16,9 +16,15 @@
 #   curl -s https://j15d104.p.ssafy.io/ | grep -iE 'RemoteAddr|X-Forwarded-For'
 #   curl -s https://ifconfig.me; echo        # 내 공인 IP
 #
-# 두 값이 같으면 아래 sourceRange 가 의도대로 동작한다. 앞쪽에 10.42.x.x 가
-# 보이면 IP 로는 막을 수 없으므로 **경로 자체를 공인 도메인에서 내린다** —
-# `40-core-api/ingress-admin.yaml` 을 지우고 테일넷으로만 접근한다
+# 두 값이 같으면 아래 sourceRange 가 의도대로 동작한다.
+#
+# 앞쪽에 10.42.x.x 가 보이면 SNAT 된 것이다. 2026-09-13 에 실제로 그랬고,
+# 해결은 `90-ingress/helmchartconfig-traefik.yaml` 의
+# `service.spec.externalTrafficPolicy: Local` 이다 — klipper-lb 가 MASQUERADE 를
+# 걸지 않아 출발지가 보존된다. 그 파일 헤더에 검증 절차가 있다.
+#
+# 그래도 원 IP 가 안 오면 IP 로는 막을 수 없으므로 **경로 자체를 공인 도메인에서
+# 내린다** — `40-core-api/ingress-admin.yaml` 을 지우고 테일넷으로만 접근한다
 # (`kubectl port-forward svc/core-api 8081:8081` 또는 노드 테일넷 IP 직접
 # 호출). 그것이 ADR-0009 가 예고한 "어드민 테일넷 전용" 방향이기도 하다.
 #

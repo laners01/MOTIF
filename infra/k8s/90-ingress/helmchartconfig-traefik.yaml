@@ -6,8 +6,33 @@
 #
 # name/namespace 는 k3s 가 만든 HelmChart 와 정확히 일치해야 한다(traefik/kube-system).
 #
-# 여기서는 로그 시각만 KST 로 바꾼다. Traefik 은 시각을 저장하지 않고 로그에
-# 표시만 하므로 안전하다. 저장 계층인 PostgreSQL 은 UTC 를 유지한다.
+# ── 1) 로그 시각 KST ────────────────────────────────────────────────────────
+# Traefik 은 시각을 저장하지 않고 로그에 표시만 하므로 안전하다. 저장 계층인
+# PostgreSQL 은 UTC 를 유지한다.
+#
+# ── 2) externalTrafficPolicy: Local — 클라이언트 IP 보존 ────────────────────
+# 기본값 Cluster 에서는 k3s servicelb(klipper-lb)가 MASQUERADE 로 출발지를
+# 덮어써, Traefik 이 보는 IP 가 실제 클라이언트가 아니라 클러스터 내부
+# IP(10.42.x.x)가 된다. 그러면 IP 기반 접근 제한이 두 군데에서 동시에 무너진다:
+#
+#   · Traefik ipAllowList (90-ingress/middleware-admin-ipallowlist.yaml)
+#   · 앱 AdminIpFilter (X-Forwarded-For 첫 값으로 판정, 어드민 명세 §1.1)
+#
+# 2026-09-13 실측: 외부에서 /api/v1/admin/* 을 때리면 앱 로그에
+# `비허용 IP — 404: ip=10.42.0.8` 이 찍혔다. 공인망에서든 테일넷에서든 같은
+# 값이라 어드민이 아무에게도 열리지 않는 상태였다(fail-closed 라 사고는 아니나
+# 기능은 죽어 있었다). 여기서 위험한 것은 "안 열리네" 하고 10.42.0.0/16 을
+# 허용 목록에 넣는 것이다 — SNAT 된 모든 외부 요청을 허용하는 것과 같다.
+#
+# Local 로 두면 klipper-lb 가 MASQUERADE 를 걸지 않아 출발지가 보존된다.
+# 엔드포인트가 있는 노드만 트래픽을 받는다는 제약이 따라오지만 단일 노드라
+# 무관하다. 적용하면 Service 가 재생성되며 수 초간 순단이 있다.
+#
+# 검증 (값을 바꾼 뒤 반드시 한다 — 조용히 실패하는 종류의 설정이다):
+#   curl -s https://j15d104.p.ssafy.io/api/v1/admin/notices >/dev/null
+#   kubectl logs deploy/core-api --tail=20 | grep '비허용 IP'
+#   curl -s https://ifconfig.me; echo
+# 로그의 ip= 와 내 공인 IP 가 같아야 한다. 10.42.x.x 가 보이면 아직 안 된 것이다.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -18,3 +43,6 @@ spec:
     env:
       - name: TZ
         value: Asia/Seoul
+    service:
+      spec:
+        externalTrafficPolicy: Local

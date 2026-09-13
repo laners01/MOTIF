@@ -6,7 +6,11 @@
 # `/admin` 은 40-core-api/ingress-admin.yaml(IP 제한 포함), `/project/` 는
 # 50-jenkins-webhook/. **애플리케이션 게이트웨이(SCG)는 두지 않는다** — Traefik 이
 # core-api 로 직결하고 인증은 앱의 Spring Security 가 한다(ADR-0009).
-# 여기 남은 whoami 는 Walking Skeleton 검증용으로 아직 `/` 를 받고 있다.
+# `/` 를 받는 캐치올은 두지 않는다. Walking Skeleton 검증용 whoami(hello)가
+# 2026-09-13 까지 `/` 를 잡고 있었는데, 그 탓에 요청 헤더를 그대로 되돌려주는
+# 디버그 서비스가 공인 도메인에 열려 있었고 /admin 도 앱이 아니라 그쪽으로
+# 갔다(ingress-admin.yaml 이 apply 되지 않은 상태였다). 경로는 각 앱 Ingress 가
+# 명시적으로만 가져간다.
 #
 # 인증서는 cert-manager가 letsencrypt-prod로 발급해 motif-tls Secret에 저장하며,
 # 만료 30일 전 자동 갱신한다.
@@ -18,66 +22,3 @@ spec:
   redirectScheme:
     scheme: https
     permanent: true
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hello
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hello
-  template:
-    metadata:
-      labels:
-        app: hello
-    spec:
-      containers:
-        - name: hello
-          image: traefik/whoami:v1.10
-          ports:
-            - containerPort: 80
-          resources:
-            requests:
-              memory: "16Mi"
-              cpu: "10m"
-            limits:
-              memory: "64Mi"
-              cpu: "100m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hello
-spec:
-  selector:
-    app: hello
-  ports:
-    - port: 80
-      targetPort: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: hello
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - j15d104.p.ssafy.io
-      secretName: motif-tls
-  rules:
-    - host: j15d104.p.ssafy.io
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: hello
-                port:
-                  number: 80
