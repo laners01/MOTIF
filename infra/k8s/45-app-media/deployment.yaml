@@ -1,0 +1,159 @@
+# app-media — job.media 를 소비해 재생용 산출물(HLS·썸네일)을 만드는 워커
+# (backend/app-media, ADR-0010).
+#
+# core-api 와 다른 점이 셋이다.
+#   1) Service·Ingress 가 없다. HTTP 엔드포인트를 서비스하지 않는 큐 소비자다.
+#      8083 은 열려 있지만 아무도 부르지 않고, 9083 은 프로브 전용이다.
+#   2) 쓰기 가능한 작업 디렉터리가 필요하다 — 원본과 렌디션이 동시에 올라간다.
+#   3) 롤링이 아니라 Recreate 다. 아래 strategy 주석 참조.
+#
+# 이미지는 레지스트리에서 받지 않는다. 호스트에서 빌드한 뒤
+# `docker save | k3s ctr images import` 로 containerd 에 직접 넣는다(ADR-0007).
+#
+# ── image 줄 주의 ────────────────────────────────────────────────────────────
+# 40-core-api/deployment.yaml 과 같은 규율이다. 아래 태그는 `REPLACE_ME`
+# 자리표시자이고 **최초 apply 전에 사람이 실제 빌드번호로 치환해야 한다.**
+# 치환하지 않으면 파드가 ErrImageNeverPull 로 영원히 기동하지 않는다.
+# 배포 이후에는 이 파일을 그대로 다시 apply 하지 않는다 — 현재 태그를 먼저
+# 읽어 반영하고 apply 한다.
+#
+#   kubectl get deployment app-media -o jsonpath='{.spec.template.spec.containers[0].image}'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-media
+  labels:
+    app: app-media
+spec:
+  replicas: 1
+  # Recreate 다 — core-api 의 RollingUpdate 와 다르다.
+  #
+  # 무중단이 목적이 아니다. 받는 것이 HTTP 요청이 아니라 큐 메시지라서, 배포
+  # 중 워커가 잠깐 없어도 job.media 가 메시지를 들고 기다린다(durable 큐).
+  # 반대로 RollingUpdate 면 교체 순간 소비자가 둘이 되는데, 그때 같은 잡이
+  # 두 파드에서 동시에 인코딩될 수 있다. 1코어를 갈아 쓰는 작업이 겹치면
+  # 같은 노드의 core-api 응답까지 같이 느려진다(함정 5와 같은 이유).
+  #
+  # 진행 중이던 잡은 ack 되지 않은 채 파드가 죽으므로 재전달된다. 새 파드가
+  # 멱등 가드(MediaJobProcessor.alreadyDone)로 거르거나 다시 돌린다.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: app-media
+  template:
+    metadata:
+      labels:
+        app: app-media
+    spec:
+      # graceful shutdown 예산: application.yml 의
+      # timeout-per-shutdown-phase=30s 가 끝날 시간을 준다. 기본 30s 로 두면
+      # 종료 단계가 끝나기 전에 SIGKILL 이 들어온다.
+      # preStop 은 두지 않는다 — core-api 가 10초를 버는 것은 Traefik 이
+      # 엔드포인트에서 파드를 지우기를 기다리기 위해서인데, 여기는 Service 가
+      # 없어 기다릴 대상이 없다.
+      terminationGracePeriodSeconds: 45
+      # 이미지가 uid/gid 1001(app) 비루트로 돈다(Dockerfile). fsGroup 이 없으면
+      # kubelet 이 마운트한 emptyDir 이 root:root 로 잡혀 작업 디렉터리에 쓰지
+      # 못한다 — 기동은 멀쩡히 되고 **첫 잡에서** 터진다.
+      # (core-api 가 감사 로그 PVC 로 같은 것을 겪었다.)
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: app-media
+          image: registry.local/motif/app-media:REPLACE_ME
+          # 로컬 containerd 에 이미지가 없으면 즉시 실패시킨다. registry.local 은
+          # 실재하지 않는 호스트다 — IfNotPresent 로 두면 임포트 누락이
+          # ImagePullBackOff 로 나타나 네트워크 문제처럼 보인다(ADR-0007 D2/D3).
+          imagePullPolicy: Never
+          ports:
+            - name: management
+              containerPort: 9083
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: TZ
+              value: "Asia/Seoul"
+            # 컨테이너 메모리 인식 기본 상한이 25% 라 너무 낮다. 50% 로 올리되
+            # 그 이상은 두지 않는다 — 나머지는 메타스페이스·스레드 스택·다이렉트
+            # 버퍼 몫이고, 넘기면 힙이 아니라 컨테이너가 OOMKilled 된다.
+            #
+            # 영상 바이트는 힙에 올라오지 않는다. MediaStorage 가 S3 를 파일로
+            # 주고받고 인코딩은 ffmpeg 자식 프로세스가 한다 — 그래서 25MB 짜리
+            # 영상을 다뤄도 힙 요구는 core-api 와 비슷하다.
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=50.0"
+          # DB_PASSWORD·MQ_PASSWORD·AWS 키 — secret.example.yaml.txt 참조.
+          # 나머지 접속 정보는 application-prod.yml 의 기본값이 클러스터 Service
+          # 이름과 이미 일치해 주입하지 않는다. ConfigMap 은 두지 않는다 —
+          # 비밀 아닌 값 중 환경마다 달라지는 것이 아직 없다.
+          envFrom:
+            - secretRef:
+                name: app-media-secret
+          # 인코딩 작업 디렉터리. application.yml 의 motif.media.work-dir 과
+          # 같아야 한다 — 어긋나면 컨테이너 레이어(읽기 전용이 아니라 그냥
+          # 비영속)에 쓰게 되고 Dockerfile 이 chown 해둔 경로도 비껴간다.
+          #
+          # emptyDir 인 이유: 잡이 끝나면 지운다(MediaJobProcessor 의 finally).
+          # 파드를 넘겨 살아남아야 할 것이 없다. 산출물은 S3 로 간다.
+          #
+          # 크기: 실측으로 60초 1080p 원본 25.8MB + 산출물 12.4MB 다. 1080p 단을
+          # 더해도(§4.7) 한 잡이 100MB 를 넘기 어렵다. 2Gi 는 ffmpeg 가 중간
+          # 파일을 남기고 죽는 경우까지 덮는 여유값이고, 노드 디스크 309G 에
+          # 견주면 무시할 수 있다. sizeLimit 을 두는 것은 폭주한 잡이 노드
+          # 디스크를 채워 다른 파드까지 evict 시키는 것을 막기 위해서다.
+          volumeMounts:
+            - name: work
+              mountPath: /var/tmp/motif-media
+          resources:
+            requests:
+              memory: "640Mi"
+              cpu: "250m"
+            limits:
+              # cpu 1000m 은 app-media/README 권장이다. 상한을 두면 인코딩이
+              # 길어질 뿐 같은 노드의 core-api 는 살아 있다 — 큐가 밀리는 편이
+              # API 가 느린 것보다 낫다(함정 5). 1코어 제한에서 처리 배속은
+              # 영상 길이의 약 0.3배다.
+              memory: "1Gi"
+              cpu: "1000m"
+          # 프로브는 전부 관리 포트 9083 이다(core-api 는 9081).
+          #
+          # /actuator/health 는 전체 그룹이라 db·rabbit 을 포함한다. 그래서
+          # DB 비밀번호나 MQ 계정이 틀리면 startupProbe 가 실패해 배포가
+          # 그 자리에서 멈춘다. 이게 중요한 이유: 워커는 설정이 틀려도
+          # "Started" 를 찍고 멀쩡히 뜬다(실측). 프로브가 없으면 1/1 Ready 인
+          # 파드가 job.media 를 하나도 소비하지 않는 상태로 방치된다(함정 4).
+          #
+          # 5s * 24 = 120s 예산. Liquibase 가 없어 core-api(150s)보다 짧다.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 9083
+            periodSeconds: 5
+            failureThreshold: 24
+          # readiness 그룹에 db·rabbit 을 넣어뒀다(application-prod.yml).
+          # Service 가 없으니 엔드포인트에서 빠지는 효과는 없고, 순수하게
+          # `kubectl get pods` 가 사실을 말하게 하는 신호다.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9083
+            periodSeconds: 10
+            failureThreshold: 3
+          # liveness 는 livenessState 만 본다. MQ 나 DB 가 잠깐 끊겼다고
+          # 파드를 재시작하면 인코딩 중이던 잡만 날아간다.
+          #
+          # timeoutSeconds 를 기본 1s 에서 올린다: cpu limit 1000m 을 ffmpeg 가
+          # 다 쓰는 동안 액추에이터 스레드가 밀려 응답이 늦을 수 있다. 기본값이면
+          # 인코딩이 한창일 때 파드가 재시작되는 사고가 난다.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9083
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: work
+          emptyDir:
+            sizeLimit: 2Gi
