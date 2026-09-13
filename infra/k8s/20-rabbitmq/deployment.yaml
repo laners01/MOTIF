@@ -99,13 +99,14 @@ spec:
                     #    load_definitions 사용 시 RABBITMQ_DEFAULT_USER 가 무시되기 때문.
                     #    add_user 는 이미 있으면 실패하므로 || true, 비밀번호는
                     #    change_password 로 항상 Secret 값에 맞춘다(멱등).
-                    for u in admin core-api notification gpu-worker; do
+                    for u in admin core-api notification gpu-worker media; do
                       rabbitmqctl add_user "$u" placeholder 2>/dev/null || true
                     done
                     rabbitmqctl change_password admin        "$RABBITMQ_ADMIN_PASSWORD"
                     rabbitmqctl change_password core-api     "$RABBITMQ_CORE_PASSWORD"
                     rabbitmqctl change_password notification "$RABBITMQ_NOTIF_PASSWORD"
                     rabbitmqctl change_password gpu-worker   "$RABBITMQ_GPU_PASSWORD"
+                    rabbitmqctl change_password media        "$RABBITMQ_MEDIA_PASSWORD"
 
                     rabbitmqctl set_user_tags admin administrator
                     rabbitmqctl set_permissions -p /motif admin ".*" ".*" ".*"
@@ -115,6 +116,14 @@ spec:
                     rabbitmqctl set_permissions -p /motif core-api     "^$" "^motif\.(topic|dlx)$" "^evt\.core$"
                     rabbitmqctl set_permissions -p /motif notification "^$" "^$"                   "^evt\.notification$"
                     rabbitmqctl set_permissions -p /motif gpu-worker   "^$" "^motif\.topic$"       "^job\.composite$"
+                    # media 는 순수 소비자다 — job.media 만 읽는다. write 에 motif.dlx 를
+                    # 두는 것은 실패 메시지가 dlq.job.media 로 나가는 경로 때문인데,
+                    # dead-letter 재발행은 브로커가 하므로 실제로 이 권한이 쓰이는지는
+                    # 확실하지 않다(같은 순수 소비자인 notification 은 write 가 "^$" 인데
+                    # evt.notification 에도 DLX 가 걸려 있다). 명세 §4.2 가 지정한 모양을
+                    # 따르되, 최소권한 관점에서 "^$" 로 줄일 수 있는지는 DLQ 가 실제로
+                    # 차는 것을 한 번 본 뒤에 판단한다.
+                    rabbitmqctl set_permissions -p /motif media        "^$" "^motif\.dlx$"         "^job\.media$"
 
                     rabbitmqctl set_topic_permissions -p /motif core-api   motif.topic ".*"                          ".*"
                     rabbitmqctl set_topic_permissions -p /motif gpu-worker motif.topic "^composite\.(done|failed)$" "^job\.composite$"
