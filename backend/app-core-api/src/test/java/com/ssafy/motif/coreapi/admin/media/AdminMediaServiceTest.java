@@ -35,6 +35,7 @@ class AdminMediaServiceTest {
                     .credentialsProvider(StaticCredentialsProvider.create(
                             AwsBasicCredentials.create("test-access-key", "test-secret-key")))
                     .build(),
+            null,   // S3Client — presign 은 HEAD 를 쓰지 않는다
             new AdminMediaProperties(
                     new AdminMediaProperties.Upload(
                             List.of("video/mp4", "video/quicktime"),
