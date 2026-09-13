@@ -24,12 +24,13 @@ import java.util.List;
 @RestControllerAdvice(annotations = ApiController.class)
 public class GlobalExceptionHandler {
 
-    /** 도메인 규칙 위반 — ErrorCode대로 응답. */
+    /** 도메인 규칙 위반 — ErrorCode대로 응답. 상세가 있으면 {@code data} 에 싣는다. */
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
+    public ResponseEntity<ApiResponse<Object>> handleBusiness(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode();
         log.warn("BusinessException: code={} message={}", errorCode.getCode(), e.getMessage());
-        return ResponseEntity.status(errorCode.getStatus()).body(ApiResponse.fail(errorCode));
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(ApiResponse.fail(errorCode, e.getData()));
     }
 
     /** {@code @Valid} 검증 실패 — 필드 오류 리스트를 data에 싣는다. */

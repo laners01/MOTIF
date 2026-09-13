@@ -30,6 +30,10 @@ dependencies {
     runtimeOnly libs.jjwt.impl
     runtimeOnly libs.jjwt.jackson    // 직렬화는 Jackson 2 — 아래 MQ 선언과 같은 트레인을 공유한다
 
+    // S3 presigned PUT 서명 전용 (어드민 명세 §3.2). S3Client 는 만들지 않는다 —
+    // 바이트는 브라우저 → S3 로 직행하고 core-api 는 서명만 한다(원칙 ①)
+    implementation libs.aws.s3
+
     implementation libs.springdoc.webmvc.ui
 
     // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
