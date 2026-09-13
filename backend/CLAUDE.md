@@ -189,6 +189,27 @@ return PageResponses.of(repository.search(q, PageResponses.pageable(page, size))
 **core-api 에는 ffmpeg 가 아예 없다** — 길이·해상도는 업로드 화면 JS 가 읽어 보내고
 서버는 `VideoRules` 로 대조만 한다(어드민 명세 v0.5 §1.4).
 
+### S3 자격증명 — IMDS 를 믿지 마라
+
+**운영 서버(Lightsail)의 인스턴스 역할은 SSAFY 계정 것이고, `motif-media` 버킷은 우리
+계정에 있다.** AWS SDK 기본 자격증명 체인은 환경변수가 없으면 IMDS 로 내려가
+`AmazonLightsailInstanceRole` 의 임시 자격증명(`ASIA…`)을 주워 서명한다 — 크로스 계정이라
+서명은 멀쩡히 되고 S3 가 `AccessDenied` 를 준다.
+
+- **presign 이 로그에 찍혔다고 권한이 있는 것이 아니다.** 서명은 권한을 검사하지 않는다.
+  권한이 0이어도 URL 은 정상 발급되고 로그도 정상으로 보인다.
+- 그 역할은 우리가 고칠 수 없다(남의 계정이고, Lightsail 인스턴스 역할은 편집 불가).
+  **우리 계정의 IAM 사용자 키를 `core-api-secret` 에 넣어 IMDS 를 이겨야 한다** —
+  체인에서 환경변수가 IMDS 보다 앞이다. 코드 변경은 없다.
+- 필요한 권한 3개: `s3:PutObject`·`s3:GetObject` on `arn:aws:s3:::motif-media/*`,
+  `s3:ListBucket` on `arn:aws:s3:::motif-media`(**뒤에 `/*` 를 붙이면 조용히 무효다**).
+  `GetObject` 가 빠지면 업로드는 되는데 등록이 막히고, `ListBucket` 이 빠지면 없는 키가
+  404 대신 403 으로 온다.
+- `envFrom` 은 **파드 생성 시점에 한 번** 해석된다. Secret 을 patch 했으면
+  `kubectl rollout restart deployment/core-api` 까지 해야 반영된다.
+  넣었다고 믿지 말고 `kubectl exec deploy/core-api -- printenv AWS_ACCESS_KEY_ID` 로 확인해라
+  (함정 "설정값이 필수라고 믿지 마라" 와 같은 모양이다 — 설정이 없어도 앱은 멀쩡히 뜬다).
+
 ## ADR
 
 규칙·스택·구조를 바꾸거나 대안을 검토했다면 `docs/adr/`에 ADR을 추가한다
