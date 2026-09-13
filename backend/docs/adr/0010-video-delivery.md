@@ -222,7 +222,8 @@ D3(프리페치 N·T)와 D1(사다리 구성)은 다음 조건에서 다시 본�
 
 ## 영향 문서
 
-- [ ] 티켓 6 안드로이드 인계 문서 — 프리페치 N·T, HLS 재생, 화질 사다리
+- [x] **인계 문서** — [video-delivery-handoff.md](../poc/video-delivery-handoff.md).
+      Android·BE 파트가 각자 구현 방향을 읽을 수 있게 정리했다 (티켓 6 입력)
 - [ ] 합성 워커 명세 — 렌디션 2종 인코딩 + fMP4 패키징 단계 (별도 티켓)
 - [ ] API 명세서 — 영상 URL 필드가 단일 MP4 에서 HLS 재생목록으로 바뀐다
 - [ ] `docs/poc/video-delivery.md` — 트래픽 모델 계수를 실측 3.35Mbps 로,
