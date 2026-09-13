@@ -1,7 +1,9 @@
 package com.ssafy.motif.coreapi.domain.artist.service;
 
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.domain.core.artist.ArtistCount;
@@ -9,6 +11,7 @@ import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.artist.Subscription;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
+import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +23,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * 팬 앱 아티스트 조회 (명세 §5.3) — S15P21D104-67.
+ * 팬 앱 아티스트 조회 (명세 §5.3 · §5.4) — S15P21D104-67 · 76.
  *
  * <p><b>어드민 §3.5 와 나란한 별개 서비스다.</b> 같은 테이블을 읽지만 계약이 다르다 —
  * 어드민은 삭제분 포함 여부를 고르고 운영 칼럼(소속사·{@code motifBgImageKey})까지
@@ -71,8 +74,26 @@ public class ArtistQueryService {
                 List.of());
     }
 
+    /** §5.4 아티스트 챌린지 그리드 — 비페이지 전량, 최신순. */
+    public ListResponse<ArtistChallengeResponse> challenges(Integer artistSeq) {
+        requireArtist(artistSeq);
+
+        return ListResponse.of(
+                challengeRepository.findByArtistSeqAndDeletedFalseOrderByChallengeSeqDesc(artistSeq)
+                        .stream()
+                        .map(this::toChallengeItem)
+                        .toList());
+    }
+
+    private ArtistChallengeResponse toChallengeItem(Challenge challenge) {
+        return new ArtistChallengeResponse(
+                challenge.getChallengeSeq(),
+                mediaUrlResolver.resolve(challenge.getThumbnailKey()),
+                challenge.getViewCount());
+    }
+
     /**
-     * §5.3 404 — 미존재·삭제 아티스트는 {@code ARTIST_NOT_FOUND} 다.
+     * §5.3·§5.4 공통 404 — 미존재·삭제 아티스트는 {@code ARTIST_NOT_FOUND} 다.
      *
      * <p>{@code findRow} 는 <b>삭제분도 준다</b>(어드민 상세가 그것을 필요로 한다) —
      * 팬 앱에서는 §1.8 대로 없는 것으로 답해야 하므로 여기서 한 번 더 거른다.
