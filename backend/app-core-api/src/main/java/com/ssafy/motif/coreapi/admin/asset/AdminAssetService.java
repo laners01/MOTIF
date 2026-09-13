@@ -1,0 +1,165 @@
+package com.ssafy.motif.coreapi.admin.asset;
+
+import com.ssafy.motif.common.error.AdminErrorCode;
+import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateRequest;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceResponse;
+import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
+import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
+import com.ssafy.motif.coreapi.admin.media.VideoRules;
+import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.asset.AssetErrorCode;
+import com.ssafy.motif.coreapi.domain.media.MediaKeys;
+import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.domain.core.artist.ArtistRepository;
+import com.ssafy.motif.domain.core.asset.MotifAsset;
+import com.ssafy.motif.domain.core.asset.MotifAssetPrice;
+import com.ssafy.motif.domain.core.asset.MotifAssetPriceRepository;
+import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
+import com.ssafy.motif.domain.core.country.Country;
+import com.ssafy.motif.domain.core.country.CountryRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 에셋 등록·활성 전환·국가 가격 upsert (어드민 명세 §3.8.2·§3.8.5·§3.8.6) — S15P21D104-568.
+ *
+ * <p><b>가격 없는 에셋을 만들지 않는다.</b> 등록은 {@code motif_assets} INSERT 와 KR
+ * {@code motif_asset_prices} INSERT 를 <b>한 트랜잭션</b>에 넣는다 — 가격 INSERT 가 실패하면
+ * 에셋도 남지 않으므로 "활성인데 팔 수 없는" 상태가 구조적으로 생기지 않는다.
+ *
+ * <p>이벤트를 발행하지 않는다. 에셋 등록은 푸시 대상이 아니고(§1.6 — 홈 활동 피드에
+ * 자연 노출), 미리보기는 MP4 그대로 서빙하므로 {@code job.media} 후처리도 없다(§8 #17).
+ *
+ * <p><b>활성 전환과 가격 활성의 방향</b> — 에셋 비활성화는 가격을 전부 내리고(DB §30),
+ * 가격 활성화는 에셋이 활성일 때만 허용한다(DB §31). 그래서 순서는 언제나
+ * <b>에셋 활성 → 가격 활성</b>이다. 티켓 568 이 적은 "에셋 활성 전환 시 활성 가격이
+ * 없으면 409" 를 그대로 넣으면 이 방향과 맞물려 <b>영영 되살릴 수 없는 에셋</b>이
+ * 된다(가격은 에셋이 활성이어야 켜지고, 에셋은 가격이 켜져야 활성이 되므로). 의도인
+ * "가격 없이 팔리는 상태 금지"는 ① 등록 시 KR 가격 원자 생성 ② 가격 활성 조건 검사
+ * ({@code PRICE_ACTIVATION_BLOCKED}) 두 곳이 지키고, 재활성화는 명세 §3.8.5 대로
+ * 경고 카운트({@code inactivePriceCount})만 돌려준다.
+ */
+@Service
+@RequiredArgsConstructor
+public class AdminAssetService {
+
+    /**
+     * 등록 시 가격을 다는 국가 (§3.8.2 — "KR 가격 원자 생성").
+     *
+     * <p>현재 {@code countries} 시드가 KR 한 행이고 사용자 국가 판정도 상수 KR 이다
+     * ({@code 0013-seed.sql}). 다국가가 열리면 요청 필드로 올린다.
+     */
+    private static final String DEFAULT_COUNTRY_CODE = "KR";
+
+    private final MotifAssetRepository assetRepository;
+    private final MotifAssetPriceRepository priceRepository;
+    private final ArtistRepository artistRepository;
+    private final CountryRepository countryRepository;
+    private final AdminMediaService adminMediaService;
+    private final VideoRules videoRules;
+    private final PublicMediaUrlResolver mediaUrlResolver;
+    private final AdminAuditLogger auditLogger;
+
+    /** §3.8.2 — 에셋과 KR 가격을 한 트랜잭션에 만든다. */
+    @Transactional
+    public AssetCreateResponse create(AuthenticatedAdmin admin, AssetCreateRequest request) {
+        if (artistRepository.countByArtistSeqInAndDeletedFalse(List.of(request.artistSeq())) != 1) {
+            throw new BusinessException(ArtistErrorCode.ARTIST_NOT_FOUND,
+                    "미존재·삭제 아티스트: artistSeq=" + request.artistSeq());
+        }
+        // 트랜잭션 진입 전 검증 2종 (§1.4) — 규격 먼저 보고 HEAD 는 마지막에, 왕복이 제일 비싸다
+        videoRules.checkAsset(new VideoRules.Meta(request.durationMs(), request.width(), request.height()));
+        requireUploaded(request.videoKey());
+        Country country = country(DEFAULT_COUNTRY_CODE);
+
+        MotifAsset asset = assetRepository.save(MotifAsset.register(
+                request.artistSeq(), request.title(), request.description(),
+                request.videoKey(), MediaKeys.forAssetThumbnail(request.videoKey()),
+                (int) request.durationMs(), request.assetType()));
+        priceRepository.save(MotifAssetPrice.of(asset.getAssetSeq(), country.getCountrySeq(),
+                request.price().amount(), request.price().currency(), true, admin.userSeq()));
+
+        auditLogger.write(admin, "CREATE_ASSET", "ASSET", asset.getAssetSeq(), AdminAuditLogger.RESULT_OK);
+        return new AssetCreateResponse(asset.getAssetSeq(), asset.getDurationMs(),
+                mediaUrlResolver.resolve(asset.getThumbnailKey()));
+    }
+
+    /** §3.8.5 — 비활성화는 가격까지 내리고(DB §30), 재활성화는 가격을 되살리지 않는다. */
+    @Transactional
+    public AssetActiveResponse changeActive(AuthenticatedAdmin admin, int assetSeq, boolean active) {
+        MotifAsset asset = asset(assetSeq);
+        if (asset.isActive() == active) {
+            throw new BusinessException(AdminErrorCode.ASSET_STATE_UNCHANGED,
+                    "이미 같은 상태: assetSeq=%d isActive=%s".formatted(assetSeq, active));
+        }
+        asset.changeActive(active);
+        if (!active) {
+            priceRepository.deactivateAll(assetSeq, admin.userSeq(), Instant.now());
+        }
+
+        auditLogger.write(admin, active ? "ACTIVATE_ASSET" : "DEACTIVATE_ASSET",
+                "ASSET", assetSeq, AdminAuditLogger.RESULT_OK);
+        return new AssetActiveResponse(assetSeq, active,
+                priceRepository.countByAssetSeqAndActiveFalse(assetSeq));
+    }
+
+    /** §3.8.6 — {@code (asset_seq, country_seq)} UNIQUE 기준 upsert. */
+    @Transactional
+    public AssetPriceResponse upsertPrice(AuthenticatedAdmin admin, int assetSeq,
+                                          String countryCode, AssetPriceRequest request) {
+        MotifAsset asset = asset(assetSeq);
+        Country country = country(countryCode);
+        boolean active = request.isActive() == null || request.isActive();
+        if (active && !(asset.isActive() && country.isActive())) {
+            throw new BusinessException(AdminErrorCode.PRICE_ACTIVATION_BLOCKED,
+                    "가격 활성 조건 미충족: assetSeq=%d assetActive=%s country=%s countryActive=%s"
+                            .formatted(assetSeq, asset.isActive(), countryCode, country.isActive()),
+                    Map.of("assetActive", asset.isActive(), "countryActive", country.isActive()));
+        }
+
+        // ponytail: 조회 후 분기라 동시 upsert 는 UNIQUE 위반(500)이 된다. 어드민은 테일넷
+        // 한정·팀원 수 명이라 실질 위험이 없다. 다중 운영자가 붙으면 네이티브
+        // INSERT ... ON CONFLICT DO UPDATE 한 문장으로 바꾼다
+        MotifAssetPrice price = priceRepository
+                .findByAssetSeqAndCountrySeq(assetSeq, country.getCountrySeq())
+                .orElse(null);
+        if (price == null) {
+            price = priceRepository.save(MotifAssetPrice.of(assetSeq, country.getCountrySeq(),
+                    request.amount(), request.currency(), active, admin.userSeq()));
+        } else {
+            price.update(request.amount(), request.currency(), active, admin.userSeq());
+        }
+
+        auditLogger.write(admin, "UPSERT_ASSET_PRICE", "ASSET", assetSeq, AdminAuditLogger.RESULT_OK);
+        return AssetPriceResponse.of(price, countryCode);
+    }
+
+    private MotifAsset asset(int assetSeq) {
+        return assetRepository.findById(assetSeq)
+                .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND,
+                        "미존재 에셋: assetSeq=" + assetSeq));
+    }
+
+    private Country country(String countryCode) {
+        return countryRepository.findByCountryCode(countryCode)
+                .orElseThrow(() -> new BusinessException(AdminErrorCode.COUNTRY_NOT_FOUND,
+                        "미존재 국가: countryCode=" + countryCode));
+    }
+
+    private void requireUploaded(String videoKey) {
+        if (!adminMediaService.exists(videoKey)) {
+            throw new BusinessException(AdminErrorCode.MEDIA_NOT_UPLOADED,
+                    "S3 에 없는 영상 키: " + videoKey, Map.of("videoKey", videoKey));
+        }
+    }
+}

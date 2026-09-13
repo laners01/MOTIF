@@ -27,7 +27,13 @@ public class AdminMediaConfig {
         return S3Presigner.builder().region(Region.of(region)).build();
     }
 
-    /** HEAD 전용 — {@code getObject}·{@code putObject} 를 부르는 코드는 core-api 에 없다. */
+    /**
+     * HEAD 전용 — {@code getObject}·{@code putObject} 를 부르는 코드는 core-api 에 없다.
+     *
+     * <p>쓰는 곳은 {@link AdminMediaService#requireUploaded} 하나다. 같은 일을 하는
+     * 클래스를 따로 만들지 않는다 — 403 처리(버킷에 {@code s3:ListBucket} 이 없으면
+     * S3 가 없는 키에 404 대신 403 을 준다)와 부재 키 일괄 수집이 거기 들어 있다.
+     */
     @Bean
     public S3Client s3Client(@Value("${motif.media.s3.region}") String region) {
         return S3Client.builder().region(Region.of(region)).build();

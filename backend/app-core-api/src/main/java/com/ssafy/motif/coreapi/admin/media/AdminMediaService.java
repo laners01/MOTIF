@@ -71,10 +71,14 @@ public class AdminMediaService {
     }
 
     /**
-     * 403 도 "없음"으로 본다 — 버킷에 {@code s3:ListBucket} 이 없으면 S3 는 존재하지 않는
+     * 키 하나의 존재 여부. 실패 코드가 경로마다 다를 때 쓴다 — 공지 이미지는 §5 가
+     * {@code IMAGE_NOT_UPLOADED} 를 배정했고, 챌린지 등록은 §3.7 실패표대로
+     * {@code MEDIA_NOT_UPLOADED} 하나로 모은다({@link #requireUploaded}).
+     *
+     * <p>403 도 "없음"으로 본다 — 버킷에 {@code s3:ListBucket} 이 없으면 S3 는 존재하지 않는
      * 키에 404 대신 403 을 준다. 어느 쪽이든 등록을 진행할 수 없는 상태는 같다.
      */
-    private boolean exists(String key) {
+    public boolean exists(String key) {
         try {
             s3Client.headObject(request -> request.bucket(bucket).key(key));
             return true;
