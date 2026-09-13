@@ -47,3 +47,11 @@ ul.images { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; li
 ul.images li { width: 140px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;
                background: #fff; text-align: center; cursor: grab; }
 ul.images li img { width: 100%; height: 90px; object-fit: cover; background: #eee; }
+
+/* 챌린지 썸네일. 9:16 세로 영상이라 높이를 기준으로 잡는다 —
+   폭을 고정하면 가로 영상이 섞여 들어왔을 때 행 높이가 제각각이 된다.
+   아직 산출물이 없으면 img 가 깨진 아이콘을 그리므로 배경색을 깔아 빈 칸으로 보이게 한다. */
+.thumb { display: block; height: 64px; width: auto; background: #eee; border-radius: 3px; }
+.thumb-lg { display: block; height: 240px; width: auto; background: #eee; border-radius: 4px; }
+.thumb-none { color: #999; font-size: 12px; }
+
