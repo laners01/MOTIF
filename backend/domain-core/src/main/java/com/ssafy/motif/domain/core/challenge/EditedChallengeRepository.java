@@ -1,7 +1,6 @@
 package com.ssafy.motif.domain.core.challenge;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,8 +11,7 @@ public interface EditedChallengeRepository extends JpaRepository<EditedChallenge
 
     List<EditedChallenge> findByChallengeSeqOrderByParticipantMask(Integer challengeSeq);
 
-    /** 슬롯 구성 전체 교체의 하드 삭제 (§3.7.5) — {@link ChallengeParticipantRepository} 와 같은 이유로 flush 먼저. */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    /** 슬롯 구성 전체 교체의 하드 삭제 (§3.7.5) — 호출부의 {@code flush()} 필요 이유는 {@link ChallengeParticipantRepository} 참고. */
     void deleteByChallengeSeq(Integer challengeSeq);
 
     /**

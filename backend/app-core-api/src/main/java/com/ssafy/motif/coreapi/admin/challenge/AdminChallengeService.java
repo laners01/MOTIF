@@ -12,6 +12,8 @@ import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaKind;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
@@ -39,10 +41,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * 챌린지 등록 (어드민 명세 §3.7.2, 부록 A) — S15P21D104-559.
@@ -248,6 +252,79 @@ public class AdminChallengeService {
             editedChallengeRepository.save(EditedChallenge.of(challengeSeq, masks.get(i),
                     edited.get(i).videoKey(), edited.get(i).initialSceneKey()));
         }
+    }
+
+    /**
+     * 슬롯 구성 전체 교체 (§3.7.5) — 기존 슬롯·편집본을 하드 삭제하고 재생성한다.
+     *
+     * <p><b>합성 이력이 있으면 거절한다.</b> {@code composite_jobs.edited_challenge_seq} 의
+     * FK 가 {@code ON DELETE RESTRICT} 라 지울 수도 없거니와, 지울 수 있다 해도 지워서는
+     * 안 된다 — 이미 그 편집본 위에 합성된 참여 영상들이 근거를 잃는다. 결국
+     * <b>참여가 시작된 챌린지의 슬롯 구성은 사실상 고정</b>이고, 화면은 이 응답으로
+     * 버튼을 잠근다.
+     *
+     * <p>원본은 건드리지 않는다 — 길이·해상도 재검증도, 원본 키 HEAD 도 하지 않는다.
+     */
+    @Transactional
+    public ChallengeSlotsResponse replaceSlots(AuthenticatedAdmin admin, Integer challengeSeq,
+                                               ChallengeSlotsRequest slots) {
+        Challenge challenge = requireChallenge(challengeSeq);
+
+        List<Integer> inUse = editedChallengeRepository.findSeqsReferencedByJobs(challengeSeq);
+        if (!inUse.isEmpty()) {
+            throw new BusinessException(AdminErrorCode.EDITED_IN_USE,
+                    "합성 잡이 참조 중인 편집본: " + inUse, Map.of("editedChallengeSeqs", inUse));
+        }
+
+        verifySlots(challenge.getArtistSeq(), challenge.getDurationMs(), slots, List.of());
+
+        editedChallengeRepository.deleteByChallengeSeq(challengeSeq);
+        participantRepository.deleteByIdChallengeSeq(challengeSeq);
+        // DELETE 를 INSERT 보다 먼저 DB 에 내보낸다 — 이유는 리포지토리 javadoc
+        editedChallengeRepository.flush();
+        participantRepository.flush();
+
+        saveSlots(challengeSeq, slots);
+
+        auditLogger.write(admin, "REPLACE_CHALLENGE_SLOTS", "CHALLENGE",
+                challengeSeq, AdminAuditLogger.RESULT_OK);
+        return slotsResponse(challenge);
+    }
+
+    /**
+     * 편집본 키 교체 (§3.7.6) — 같은 행 UPDATE 라 조합이 유지된다.
+     *
+     * <p>{@link #replaceSlots} 와 달리 <b>사용 중이어도 허용</b>한다. 결과물은 별도
+     * 오브젝트라 이미 합성된 참여 영상이 바뀌지 않고, 이미 발급된 잡은 큐 메시지를
+     * 잡 행에서 재구성하므로 다음 합성부터 새 키를 쓴다.
+     */
+    @Transactional
+    public EditedChallengeResponse replaceEditedKeys(AuthenticatedAdmin admin, Integer editedChallengeSeq,
+                                                     EditedChallengeUpdateRequest request) {
+        EditedChallenge edited = editedChallengeRepository.findById(editedChallengeSeq)
+                .orElseThrow(() -> new BusinessException(ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND,
+                        "존재하지 않는 편집본: editedChallengeSeq=" + editedChallengeSeq));
+        Challenge challenge = requireChallenge(edited.getChallengeSeq());
+
+        List<String> keys = Stream.of(request.videoKey(), request.initialSceneKey())
+                .filter(Objects::nonNull)
+                .toList();
+        if (keys.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "videoKey·initialSceneKey 중 하나는 있어야 한다");
+        }
+        adminMediaService.requireUploaded(keys);
+        if (request.durationMs() != null) {
+            videoRules.checkEditedDuration(request.durationMs(), challenge.getDurationMs());
+        }
+
+        edited.replaceKeys(request.videoKey(), request.initialSceneKey());
+
+        auditLogger.write(admin, "REPLACE_EDITED_KEYS", "EDITED_CHALLENGE",
+                editedChallengeSeq, AdminAuditLogger.RESULT_OK);
+        return new EditedChallengeResponse(editedChallengeSeq, edited.getParticipantMask(),
+                mediaUrlResolver.resolve(edited.getVideoKey()),
+                mediaUrlResolver.resolve(edited.getInitialSceneKey()));
     }
 
     /** 등록 전 검증 전체 (§3.7.2 검증 1~5항) — 순서는 명세 그대로다. */

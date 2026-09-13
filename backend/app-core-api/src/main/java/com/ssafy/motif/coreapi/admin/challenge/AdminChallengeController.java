@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.admin.AdminPaths;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -68,5 +70,16 @@ public class AdminChallengeController {
                                                        @PathVariable Integer challengeSeq,
                                                        @Valid @RequestBody ChallengeUpdateRequest request) {
         return ApiResponse.success(adminChallengeService.update(admin, challengeSeq, request));
+    }
+
+    @Operation(summary = "슬롯 구성 전체 교체",
+            description = "기존 슬롯·편집본을 하드 삭제하고 새 전조합으로 재생성한다. "
+                    + "합성 잡이 참조하는 편집본이 하나라도 있으면 409 EDITED_IN_USE 다.")
+    @PutMapping("/{challengeSeq}/participants")
+    public ApiResponse<ChallengeSlotsResponse> replaceSlots(
+            @AuthenticationPrincipal AuthenticatedAdmin admin,
+            @PathVariable Integer challengeSeq,
+            @Valid @RequestBody ChallengeSlotsRequest request) {
+        return ApiResponse.success(adminChallengeService.replaceSlots(admin, challengeSeq, request));
     }
 }
