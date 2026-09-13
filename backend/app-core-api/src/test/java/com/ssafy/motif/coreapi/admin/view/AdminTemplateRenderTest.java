@@ -125,4 +125,17 @@ class AdminTemplateRenderTest {
                 .contains("id=\"group\"");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
+
+    @Test
+    @DisplayName("챌린지 목록 — 행 뼈대와 등록 화면 링크가 들어간다 (§3.7.1)")
+    void challenges() {
+        String html = render("admin/challenges");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 챌린지 목록</title>")
+                .contains("/admin/challenges.js")
+                .contains("id=\"challenge-row\"")
+                .contains("/admin/challenges/new");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
 }
