@@ -109,27 +109,40 @@ class HlsPackagerTest {
 
     @Test
     void 원본보다_큰_단은_건너뛴다() throws IOException {
-        // 406x720 세로 원본 — 1080p 단은 업스케일이 되므로 만들어선 안 된다
-        Path out = packSource(406, 720, "src720.mp4", "out720");
+        // 가로 720 원본 — 1080p 단(가로 1080)은 업스케일이라 만들어선 안 된다
+        Path out = packSource(720, 1280, "src720.mp4", "out720");
 
         String master = Files.readString(out.resolve(HlsPackager.MASTER));
         assertThat(master).contains("480p/index.m3u8", "720p/index.m3u8");
-        // 만들었다면 마스터에 RESOLUTION=608x1080 이 적히고 ABR 이 그걸 최고 화질로 믿는다
+        // 만들었다면 마스터에 RESOLUTION=1080x1920 이 적히고 ABR 이 그걸 최고 화질로 믿는다.
+        // 실제 내용은 720 을 늘린 흐릿한 영상이다
         assertThat(master).doesNotContain("1080p/index.m3u8");
         assertThat(out.resolve("1080p")).doesNotExist();
+        // 남은 최상단은 원본 그대로여야 한다
+        assertThat(master).contains("RESOLUTION=720x1280");
     }
 
     @Test
     void 모든_단이_스킵되면_원본_해상도로_한_단을_만든다() throws IOException {
-        // 180x320 — 사다리 최저단(480)보다도 작다. 한 단도 안 만들면 재생할 것이 없다
-        Path out = packSource(180, 320, "src320.mp4", "out320");
+        // 가로 320 — 사다리 최저단(480)보다도 작다. 한 단도 안 만들면 재생할 것이 없다
+        Path out = packSource(320, 568, "src320.mp4", "out320");
 
         String master = Files.readString(out.resolve(HlsPackager.MASTER));
         assertThat(master).contains("320p/index.m3u8");
         assertThat(out.resolve("320p")).exists();
         // 업스케일한 단이 끼어들지 않았는지
         assertThat(master).doesNotContain("480p/", "720p/", "1080p/");
-        assertThat(master).contains("RESOLUTION=180x320");
+        assertThat(master).contains("RESOLUTION=320x568");
+    }
+
+    @Test
+    void 최상단이_원본_해상도를_그대로_담는다() throws IOException {
+        // 2026-09-14 이전에는 1080x1920 원본의 최상단이 608x1080 이었다 —
+        // 최고 화질을 틀어도 폰에서 1.8배 확대돼 보였다
+        Path out = pack();
+
+        String master = Files.readString(out.resolve(HlsPackager.MASTER));
+        assertThat(master).contains("RESOLUTION=1080x1920");
     }
 
     @Test

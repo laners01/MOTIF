@@ -46,7 +46,13 @@ public class HlsPackager {
     /** 썸네일 추출 지점(초). <b>첫 프레임이 아니다</b> — 페이드인·모션블러·인물 프레임 밖이 흔하다. */
     private static final double THUMBNAIL_AT = 1.5;
 
-    /** 썸네일 짧은 변. 원본 해상도로 뽑으면 120KB 로 피드에 과하다. */
+    /**
+     * 썸네일 세로 픽셀(긴 변) — {@code scale=-2:1280} 이라 세로 영상에서 720×1280 이
+     * 된다. 원본 해상도로 뽑으면 120KB 로 피드에 과하다.
+     *
+     * <p>사다리와 달리 여기는 긴 변 기준을 그대로 둔다. 피드 목록의 작은 카드라
+     * 가로 720 이면 충분하고, 올리면 목록 30개에 그대로 곱해진다.
+     */
     private static final int THUMBNAIL_HEIGHT = 1280;
 
     public static final String MASTER = "master.m3u8";
@@ -93,8 +99,8 @@ public class HlsPackager {
      * 이 원본에 실제로 만들 단을 고른다 — <b>원본보다 큰 단은 만들지 않는다.</b>
      *
      * <p>사다리를 원본 해상도와 무관하게 통째로 돌면 <b>없는 화질을 지어낸다.</b>
-     * 406×720 원본에 {@code scale=-2:1080} 을 걸면 608×1080 이 나오는데, 내용은
-     * 720 을 늘린 흐릿한 영상이면서 마스터에는 {@code RESOLUTION=608x1080} 이
+     * 720×1280 원본에 {@code scale=1080:-2} 를 걸면 1080×1920 이 나오는데, 내용은
+     * 720 을 늘린 흐릿한 영상이면서 마스터에는 {@code RESOLUTION=1080x1920} 이
      * 적힌다. ABR 은 그 숫자를 믿고 그것을 최고 화질로 고른다 — 대역폭만 더 쓰고
      * 화질은 더 나쁘다.
      *
@@ -108,8 +114,9 @@ public class HlsPackager {
         Size size = sizeOf(source);
         requirePortrait(source, size);
 
+        // 세로가 보장돼 있으므로 가로가 짧은 변이다. 사다리 값과 같은 축이다
         List<Rendition> planned = ladder.stream()
-                .filter(r -> r.height() <= size.height())
+                .filter(r -> r.width() <= size.width())
                 .toList();
         if (!planned.isEmpty()) {
             return planned;
@@ -117,7 +124,7 @@ public class HlsPackager {
         // 원본이 사다리 최저단보다도 작다. 한 단도 만들지 않으면 재생할 것이 아예
         // 없으므로 원본 해상도 그대로 한 단을 만든다. 이때도 업스케일은 하지 않는다.
         Rendition lowest = ladder.get(0);
-        return List.of(new Rendition(size.height() + "p", size.height(), lowest.maxrateKbps()));
+        return List.of(new Rendition(size.width() + "p", size.width(), lowest.maxrateKbps()));
     }
 
     /**
@@ -129,9 +136,9 @@ public class HlsPackager {
      * 업로드 검증을 아예 타지 않는다. 여기서는 실제 바이트를 ffprobe 로 읽으므로
      * 조작할 여지가 없다.
      *
-     * <p>가로 영상을 그냥 통과시키면 사다리 의미가 뒤집힌다 — {@code height} 는
-     * {@code scale=-2:height} 의 높이라, 세로에서는 긴 변이지만 가로에서는 짧은 변이다.
-     * 같은 {@code 720p} 가 전혀 다른 화소 수를 뜻하게 되고 비트레이트 상한도 어긋난다.
+     * <p>가로 영상을 그냥 통과시키면 사다리 의미가 뒤집힌다 — {@code width} 는
+     * 짧은 변이라는 전제로 고른 값인데, 가로 영상에서는 긴 변이 된다. 같은
+     * {@code 720p} 가 전혀 다른 화소 수를 뜻하게 되고 비트레이트 상한도 어긋난다.
      *
      * <p>여기서 던지면 정리 후 {@code dlq.job.media} 로 격리된다. 사람이 원본을 고쳐야
      * 하는 입력 오류라 재시도로 풀릴 성질이 아니다.
@@ -167,7 +174,7 @@ public class HlsPackager {
 
         ffmpeg.run(List.of(
                 "-v", "error", "-y", "-i", source.toString(),
-                "-vf", "scale=-2:" + r.height() + ",fps=" + FPS,
+                "-vf", "scale=" + r.width() + ":-2,fps=" + FPS,
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
                 "-maxrate", r.maxrateKbps() + "k", "-bufsize", r.bufsizeKbps() + "k",
                 // 2초마다 강제 키프레임. sc_threshold=0 이 장면 전환 감지로 인한
