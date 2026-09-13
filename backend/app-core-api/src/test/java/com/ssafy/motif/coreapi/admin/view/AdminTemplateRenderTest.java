@@ -193,4 +193,16 @@ class AdminTemplateRenderTest {
                 .contains("id=\"edited-row\"")
                 .doesNotContain("th:");
     }
+
+    @Test
+    @DisplayName("공지 작성 — 레이아웃·이미지 항목 템플릿")
+    void noticeNew() {
+        String html = render("admin/notice-new");
+
+        assertThat(html)
+                .contains("공지 작성")
+                .contains("/admin/notice-new.js")
+                .contains("id=\"image-item\"")
+                .doesNotContain("th:");
+    }
 }
