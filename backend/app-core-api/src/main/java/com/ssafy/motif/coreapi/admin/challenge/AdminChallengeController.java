@@ -5,11 +5,13 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.admin.AdminPaths;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.global.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -53,6 +56,20 @@ public class AdminChallengeController {
     public ApiResponse<ChallengeValidateResponse> validate(
             @Valid @RequestBody ChallengeCreateRequest request) {
         return ApiResponse.success(adminChallengeService.validate(request));
+    }
+
+    @Operation(summary = "챌린지 목록",
+            description = "아티스트·곡으로 거르고 offset 페이지로 준다(§1.5 — size 기본 20·최대 100). "
+                    + "삭제된 챌린지는 기본으로 빠지며 includeDeleted=true 로만 보인다.")
+    @GetMapping
+    public ApiResponse<PageResponse<ChallengeListItem>> list(
+            @RequestParam(required = false) Integer artistSeq,
+            @RequestParam(required = false) Integer songSeq,
+            @RequestParam(defaultValue = "false") boolean includeDeleted,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(adminChallengeService.list(
+                artistSeq, songSeq, includeDeleted, PageResponse.pageable(page, size)));
     }
 
     @Operation(summary = "챌린지 상세",

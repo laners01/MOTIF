@@ -129,6 +129,9 @@ S15P21D104-181
 | `Admin` 엔티티·리포지토리 (가입 경로 없음 — 생성자 없음) | `domain-core/.../admin/` | 608 |
 | `admins.user_seq` NOT NULL UNIQUE FK · 어드민 시드 | `db/changelog/sql/0014`·`0015` | 593 · 608 |
 | `/admin/login` 화면 (스타일·스크립트 인라인 — layout 을 쓰지 않는다) | `templates/admin/login.html` | 608 |
+| 목록 페이지 봉투 `PageResponse` (§1.5 — `list/page/size/…`, `pageable()` 이 size 를 100 으로 자른다) | `app-core-api/.../global/response/` | S15P21D104-609 |
+| 챌린지 §3.7.1 목록 `AdminChallengeService.list` · `ChallengeRepository.search`(JPQL, 슬롯·편집본 수 서브쿼리) | `app-core-api/.../admin/challenge/` · `domain-core/.../challenge/` | 609 |
+| 에셋 §3.8.1 목록 `AdminAssetService.list` · `MotifAssetRepository.search`(네이티브 — 그룹·구매·결과물이 엔티티 없는 테이블) | `app-core-api/.../admin/asset/` · `domain-core/.../asset/` | S15P21D104-610 |
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
@@ -158,6 +161,11 @@ adminJwtProvider.issue(new AuthenticatedAdmin(adminSeq, userSeq, name));   // �
 throw new BusinessException(AdminErrorCode.COMPANY_IN_USE, msg, Map.of("refs", n));  // §5 코드 + data
 videoRules.checkChallengeOrigin(new VideoRules.Meta(durationMs, width, height));     // 폼 값 검증
 adminAuditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE", seq, AdminAuditLogger.RESULT_OK);
+```
+
+```java
+// 목록 API 를 새로 만들 때 — 페이지 봉투·상한은 이미 있다. size 를 직접 자르지 않는다
+PageResponse.of(repository.search(filter, PageResponse.pageable(page, size)).map(this::item));
 ```
 
 **`AdminErrorCode` 에 코드를 새로 추가하지 않는다** — 명세 §5 표는 전량 등록돼 있다.

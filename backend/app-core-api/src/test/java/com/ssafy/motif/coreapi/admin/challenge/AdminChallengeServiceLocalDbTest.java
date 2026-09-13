@@ -4,6 +4,7 @@ import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.BboxRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
@@ -12,6 +13,7 @@ import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.global.response.PageResponse;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
 import com.ssafy.motif.event.contract.MediaJobRequestedEvent;
 import com.ssafy.motif.event.topology.Exchanges;
@@ -301,6 +303,61 @@ class AdminChallengeServiceLocalDbTest {
         assertThat(scalar("select 1 from motif_core.edited_challenges "
                 + "where edited_challenge_seq = ?1 and video_key = '" + newKey + "'", editedSeq))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("목록은 아티스트·곡·슬롯 수·편집본 수를 쿼리 한 번에 준다 — 필터는 아티스트·곡 (§3.7.1)")
+    void 목록_필터와_집계() {
+        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
+
+        PageResponse<ChallengeListItem> page =
+                adminChallengeService.list(mainArtist, null, false, PageResponse.pageable(0, 20));
+
+        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(page.page()).isZero();
+        assertThat(page.size()).isEqualTo(20);
+        assertThat(page.hasNext()).isFalse();
+        assertThat(page.list()).singleElement().satisfies(item -> {
+            assertThat(item.challengeSeq()).isEqualTo(created.challengeSeq());
+            assertThat(item.artist().artistSeq()).isEqualTo(mainArtist);
+            assertThat(item.artist().name()).isNotBlank();
+            assertThat(item.song().songSeq()).isEqualTo(songSeq);
+            assertThat(item.song().singerName()).isEqualTo("aespa");
+            assertThat(item.slotCount()).isEqualTo(1);       // 서브쿼리 집계 — 행마다 다시 읽지 않는다
+            assertThat(item.editedCount()).isEqualTo(1);
+            assertThat(item.durationMs()).isEqualTo(ORIGIN_DURATION_MS);
+            assertThat(item.isDeleted()).isFalse();
+            assertThat(item.regDttm()).isNotNull();
+        });
+
+        // 다른 곡으로 거르면 걸리지 않는다 — 필터가 실제로 SQL 에 실리는지 본다
+        assertThat(adminChallengeService.list(mainArtist, newSong(), false, PageResponse.pageable(0, 20))
+                .list()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("소프트 삭제된 챌린지는 기본으로 빠지고 includeDeleted=true 로만 보인다")
+    void 목록_삭제_포함() {
+        ChallengeSlotsResponse created = create(List.of(), List.of());
+        inTransaction(() -> {
+            execute("update motif_core.challenges set is_deleted = true where challenge_seq = ?1",
+                    created.challengeSeq());
+            return null;
+        });
+
+        assertThat(adminChallengeService.list(mainArtist, null, false, PageResponse.pageable(0, 20)).list())
+                .isEmpty();
+        assertThat(adminChallengeService.list(mainArtist, null, true, PageResponse.pageable(0, 20)).list())
+                .singleElement()
+                .satisfies(item -> assertThat(item.isDeleted()).isTrue());
+    }
+
+    @Test
+    @DisplayName("size 는 §1.5 상한 100 으로 잘린다 — 운영 화면이 큰 수를 보내도 표가 비지 않는다")
+    void 페이지_크기_상한() {
+        assertThat(PageResponse.pageable(0, 500).getPageSize()).isEqualTo(PageResponse.MAX_SIZE);
+        assertThat(PageResponse.pageable(-3, 0).getPageNumber()).isZero();
+        assertThat(PageResponse.pageable(-3, 0).getPageSize()).isEqualTo(1);
     }
 
     // --- 픽스처 -------------------------------------------------------------
