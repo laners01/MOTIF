@@ -1,11 +1,14 @@
 package com.ssafy.motif.coreapi.domain.artist.service;
 
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
@@ -13,23 +16,31 @@ import com.ssafy.motif.domain.core.artist.Subscription;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
+import com.ssafy.motif.domain.core.notice.Notice;
+import com.ssafy.motif.domain.core.notice.NoticeImage;
+import com.ssafy.motif.domain.core.notice.NoticeImageRepository;
+import com.ssafy.motif.domain.core.notice.NoticeRepository;
 import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * 팬 앱 아티스트 조회 (명세 §5.3 · §5.4) — S15P21D104-67 · 76.
+ * 팬 앱 아티스트 조회 (명세 §5.3 · §5.4 · §5.5) — S15P21D104-67 · 76 · 79.
  *
  * <p><b>어드민 §3.5 와 나란한 별개 서비스다.</b> 같은 테이블을 읽지만 계약이 다르다 —
- * 어드민은 삭제분 포함 여부를 고르고 운영 칼럼(소속사·{@code motifBgImageKey})까지
- * 보여 주는 반면, 여기는 §1.8 비노출이 무조건 걸리고 "내" 상태
- * ({@code isSubscribed}·{@code pass})가 응답에 붙는다. 한 서비스에 {@code isAdmin} 같은
- * 분기를 두면 비노출 규칙이 플래그 하나로 꺼진다.
+ * 어드민은 offset 페이지(§1.5)에 삭제분 포함 여부를 고르고 운영 칼럼(소속사·
+ * {@code motifBgImageKey})까지 보여 주는 반면, 여기는 커서(§1.9)에 §1.8 비노출이
+ * 무조건 걸리고 "내" 상태({@code isSubscribed}·{@code pass}·{@code isLiked})가 붙는다.
+ * 한 서비스에 {@code isAdmin} 같은 분기를 두면 비노출 규칙이 플래그 하나로 꺼진다.
  *
  * <p>읽기 전용 트랜잭션이다 — 쓰기 경로가 없다.
  */
@@ -38,9 +49,14 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class ArtistQueryService {
 
+    /** §1.9 — {@code size} 기본 20·최대 100. 기본값은 컨트롤러가 갖는다. */
+    public static final int MAX_SIZE = 100;
+
     private final ArtistRepository artistRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final ChallengeRepository challengeRepository;
+    private final NoticeRepository noticeRepository;
+    private final NoticeImageRepository noticeImageRepository;
     private final MotifPassPriceRepository motifPassPriceRepository;
     private final PublicMediaUrlResolver mediaUrlResolver;
 
@@ -93,7 +109,70 @@ public class ArtistQueryService {
     }
 
     /**
-     * §5.3·§5.4 공통 404 — 미존재·삭제 아티스트는 {@code ARTIST_NOT_FOUND} 다.
+     * §5.5 아티스트 공지 목록 — 커서, 최신순 고정.
+     *
+     * <p>{@code size + 1} 건을 읽어 넘치면 잘라내고 그 사실을 {@code hasNext} 로 쓴다 —
+     * 총 개수를 세지 않는 것이 커서 방식의 요점이다(§1.9). 딱 {@code size} 건으로
+     * 끊고 "다음이 있는지" 를 따로 세면 매 페이지마다 count 쿼리가 붙는다.
+     */
+    public CursorResponse<ArtistNoticeResponse> notices(Integer userSeq, Integer artistSeq,
+                                                        String cursor, int size) {
+        ArtistListRow artist = requireArtist(artistSeq);
+        int limit = Math.clamp(size, 1, MAX_SIZE);
+        Integer after = Cursors.decode(cursor);
+
+        // 커서 유무로 메서드를 가른다 — null 을 쿼리 파라미터로 흘리지 않기 위해서다
+        // (NoticeRepository javadoc: 타입 없는 null → bytea 추론 → 운영 500)
+        PageRequest page = PageRequest.of(0, limit + 1);
+        List<Notice> rows = after == null
+                ? noticeRepository.findByArtistSeqAndDeletedFalseOrderByNoticeSeqDesc(artistSeq, page)
+                : noticeRepository.findByArtistSeqAndDeletedFalseAndNoticeSeqLessThanOrderByNoticeSeqDesc(
+                        artistSeq, after, page);
+
+        boolean hasNext = rows.size() > limit;
+        List<Notice> notices = hasNext ? rows.subList(0, limit) : rows;
+        if (notices.isEmpty()) {
+            return CursorResponse.forward(List.of(), null);
+        }
+
+        ArtistNoticeResponse.Artist writer = new ArtistNoticeResponse.Artist(
+                artist.artistSeq(), artist.name(), mediaUrlResolver.resolve(artist.profileImageKey()));
+        List<Integer> noticeSeqs = notices.stream().map(Notice::getNoticeSeq).toList();
+        Map<Integer, List<ArtistNoticeResponse.Image>> images = imagesByNotice(noticeSeqs);
+        Set<Integer> liked = Set.copyOf(noticeRepository.findLikedNoticeSeqs(userSeq, noticeSeqs));
+
+        List<ArtistNoticeResponse> list = notices.stream()
+                .map(notice -> new ArtistNoticeResponse(
+                        notice.getNoticeSeq(),
+                        writer,
+                        notice.getContent(),
+                        images.getOrDefault(notice.getNoticeSeq(), List.of()),
+                        notice.getLikeCount(),
+                        notice.getCommentCount(),
+                        liked.contains(notice.getNoticeSeq()),
+                        notice.getRegDttm()))
+                .toList();
+
+        String nextCursor = hasNext ? Cursors.encode(noticeSeqs.getLast()) : null;
+        return CursorResponse.forward(list, nextCursor);
+    }
+
+    /** 한 페이지 분 이미지를 한 번에 읽어 {@code noticeSeq} 로 묶는다 — 항목마다 읽으면 N+1. */
+    private Map<Integer, List<ArtistNoticeResponse.Image>> imagesByNotice(List<Integer> noticeSeqs) {
+        return noticeImageRepository.findByNoticeSeqInOrderByNoticeSeqAscDisplayOrderAsc(noticeSeqs)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        NoticeImage::getNoticeSeq,
+                        Collectors.mapping(this::toImage, Collectors.toList())));
+    }
+
+    private ArtistNoticeResponse.Image toImage(NoticeImage image) {
+        return new ArtistNoticeResponse.Image(
+                mediaUrlResolver.resolve(image.getImageKey()), image.getDisplayOrder());
+    }
+
+    /**
+     * §5.3·§5.4·§5.5 공통 404 — 미존재·삭제 아티스트는 {@code ARTIST_NOT_FOUND} 다.
      *
      * <p>{@code findRow} 는 <b>삭제분도 준다</b>(어드민 상세가 그것을 필요로 한다) —
      * 팬 앱에서는 §1.8 대로 없는 것으로 답해야 하므로 여기서 한 번 더 거른다.
