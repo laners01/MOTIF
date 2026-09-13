@@ -22,7 +22,8 @@ import java.util.Map;
  * 로컬 전용 미디어 후처리 트리거 (격리 모드 — ADR-0003).
  *
  * <pre>
- * POST /api/dev/media {"sourceType":"CHALLENGE_ORIGIN","sourceSeq":1,"sourceKey":"raw/x.mp4"}
+ * POST /api/dev/media {"sourceType":"CHALLENGE_ORIGIN","sourceSeq":1,
+ *                      "sourceKey":"challenges/{uuid}.mp4","outputPrefix":"challenges/{uuid}"}
  *   → job.media 발행(AFTER_COMMIT) → app-media 가 렌디션·HLS·썸네일 생성
  *   → S3 업로드 → challenges.video_key 갱신
  * </pre>
@@ -44,15 +45,16 @@ public class DevMediaController {
 
     @PostMapping
     public ApiResponse<Map<String, String>> requestMediaJob(@Valid @RequestBody Request request) {
-        String uuid = devMediaService.request(
-                request.sourceType(), request.sourceSeq(), request.sourceKey());
+        String uuid = devMediaService.request(request.sourceType(), request.sourceSeq(),
+                request.sourceKey(), request.outputPrefix());
         return ApiResponse.success(Map.of("mediaJobUuid", uuid));
     }
 
     public record Request(
             @NotBlank String sourceType,
             @Positive long sourceSeq,
-            @NotBlank String sourceKey) {
+            @NotBlank String sourceKey,
+            @NotBlank String outputPrefix) {
     }
 
     /** 발행은 커밋 후에 일어난다 — 트랜잭션 경계가 있어야 relay 가 동작한다. */
@@ -63,8 +65,8 @@ public class DevMediaController {
         private final MediaJobPublisher publisher;
 
         @Transactional
-        String request(String sourceType, long sourceSeq, String sourceKey) {
-            return publisher.publish(sourceType, sourceSeq, sourceKey);
+        String request(String sourceType, long sourceSeq, String sourceKey, String outputPrefix) {
+            return publisher.publish(sourceType, sourceSeq, sourceKey, outputPrefix);
         }
     }
 }

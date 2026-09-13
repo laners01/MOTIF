@@ -208,6 +208,18 @@ master.m3u8                 ← videoUrl 이 가리키는 것
 | 사용자 원본 업로드 (`raw_video_key`) | MP4 | 재생하지 않는다. 합성 워커의 **입력**이다 |
 | 편집본 소스 (`edited_challenges.video_key`) | MP4 | 같음 — 워커 입력 |
 
+**산출물 키 규약**
+
+| 대상 | 원본(입력) | 산출물 |
+|---|---|---|
+| 합성 결과 | `raw/{uuid}.mp4` | `results/{challenge\|motif}/{jobUuid}/` |
+| 챌린지 원본 | `challenges/{uuid}.mp4` (어드민 명세 §1.4) | `challenges/{uuid}/` |
+
+산출물 프리픽스 아래에 `master.m3u8`·`thumb.jpg`·화질별 디렉터리가 깔린다.
+DB 에는 **마스터 재생목록 경로 하나만** 저장한다(ADR-0010 D4).
+**seq 가 아니라 uuid 다** — 공개 CDN 경로에 순차 번호를 쓰면 열거가 가능해
+콘텐츠의 존재와 개수가 드러난다.
+
 챌린지 원본은 어드민 업로드라 합성 워커를 거치지 않는다. **인코딩·패키징 컴포넌트를
 두 경로가 공유하도록** 만든다 — 같은 파라미터를 두 곳에 복사하면 GOP 정렬이 어긋나는
 순간 조용히 ABR 이 깨진다.
@@ -726,7 +738,7 @@ master.m3u8                 ← videoUrl 이 가리키는 것
 
 ```json
 { "list": [ {
-  "rank": 1, "videoSeq": 88, "videoUrl": "https://cdn.../results/challenge/uuid/master.m3u8",
+  "rank": 1, "videoSeq": 88, "videoUrl": "https://cdn.../results/challenge/{jobUuid}/master.m3u8",
   "thumbnailUrl": "...", "durationMs": 15000,
   "song": { "title": "bailar toda la noche", "singerName": "mochico" },
   "author": { "userSeq": 5, "nickname": "팬123" },
@@ -793,7 +805,7 @@ master.m3u8                 ← videoUrl 이 가리키는 것
 
 ```json
 {
-  "challengeSeq": 11, "videoUrl": "https://cdn.../challenges/uuid/master.m3u8",
+  "challengeSeq": 11, "videoUrl": "https://cdn.../challenges/{uuid}/master.m3u8",
   "thumbnailUrl": "...", "durationMs": 15000,
   "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "..." },
   "song": { "title": "Supernova", "singerName": "aespa" },
@@ -872,7 +884,7 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 ```json
 {
   "videoSeq": 88, "challengeSeq": 11, "description": "재밌었다!",
-  "videoUrl": "https://cdn.../results/challenge/uuid/master.m3u8", "thumbnailUrl": "...", "durationMs": 15000,
+  "videoUrl": "https://cdn.../results/challenge/{jobUuid}/master.m3u8", "thumbnailUrl": "...", "durationMs": 15000,
   "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "..." },
   "viewCount": 3400, "likeCount": 120, "commentCount": 15,
   "hasArtistLike": true, "hasArtistComment": false,
