@@ -29,7 +29,7 @@ internal fun OnstageCarousel(
         },
         modifier = modifier,
         itemWidthFraction = 0.8f,
-        aspectRatio = 320f / 456f,
+        aspectRatio = 9f / 16f,
         muted = true,
         repeat = true,
         captureBackdrop = true,
