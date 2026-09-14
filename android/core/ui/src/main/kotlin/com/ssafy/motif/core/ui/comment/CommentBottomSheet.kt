@@ -40,6 +40,7 @@ import com.ssafy.motif.core.designsystem.component.bottomsheet.ModalBottomSheet
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberModalBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.comment.Comment
+import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.comment.Reply
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
@@ -97,10 +98,16 @@ private fun CommentSheetContent(
     formatCreatedAt: (Long) -> String,
     modifier: Modifier = Modifier,
 ) {
+    val prioritizedComments =
+        remember(comments) {
+            prioritizeComments(
+                comments = comments,
+            )
+        }
+
     Column(
         modifier = modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.92f),
+            .fillMaxWidth(),
     ) {
         CommentSheetHeader(
             commentCount = commentCount,
@@ -108,7 +115,9 @@ private fun CommentSheetContent(
         )
 
         HorizontalDivider(
-            color = Color.White.copy(alpha = 0.35f),
+            color = Color.White.copy(
+                alpha = 0.35f,
+            ),
         )
 
         LazyColumn(
@@ -116,17 +125,21 @@ private fun CommentSheetContent(
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            comments.forEach { comment ->
+            prioritizedComments.forEach { comment ->
                 item(
                     key = "comment_${comment.id}",
                 ) {
                     CommentItem(
                         comment = comment,
                         onLikeClick = {
-                            onCommentLikeClick(comment.id)
+                            onCommentLikeClick(
+                                comment.id,
+                            )
                         },
                         onReplyClick = {
-                            onReplyClick(comment.id)
+                            onReplyClick(
+                                comment.id,
+                            )
                         },
                         formatCreatedAt = formatCreatedAt,
                     )
@@ -134,8 +147,9 @@ private fun CommentSheetContent(
 
                 if (comment.id in expandedCommentIds) {
                     val replies =
-                        repliesByCommentId[comment.id]
-                            .orEmpty()
+                        repliesByCommentId[
+                            comment.id
+                        ].orEmpty()
 
                     items(
                         items = replies,
@@ -146,7 +160,9 @@ private fun CommentSheetContent(
                         ReplyItem(
                             reply = reply,
                             onLikeClick = {
-                                onReplyLikeClick(reply.id)
+                                onReplyLikeClick(
+                                    reply.id,
+                                )
                             },
                             formatCreatedAt = formatCreatedAt,
                         )
@@ -167,7 +183,9 @@ private fun CommentSheetHeader(
         modifier = modifier
             .fillMaxWidth()
             .height(64.dp)
-            .padding(horizontal = 20.dp),
+            .padding(
+                horizontal = 20.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -181,7 +199,9 @@ private fun CommentSheetHeader(
         )
 
         Text(
-            text = formatCount(commentCount),
+            text = formatCount(
+                commentCount,
+            ),
             color = MotifTheme.colors.typo,
             style = MotifTheme.typography.bodySB16,
         )
@@ -199,9 +219,10 @@ private fun CommentSheetHeader(
             modifier = Modifier
                 .size(28.dp)
                 .clickable(
-                    interactionSource = remember {
-                        MutableInteractionSource()
-                    },
+                    interactionSource =
+                        remember {
+                            MutableInteractionSource()
+                        },
                     indication = null,
                     onClick = onDismissClick,
                 ),
@@ -249,6 +270,7 @@ private fun CommentItem(
                 createdAt = formatCreatedAt(
                     comment.createdAt,
                 ),
+                authorType = comment.authorType,
             )
 
             Spacer(
@@ -269,17 +291,19 @@ private fun CommentItem(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CommentAction(
-                    iconRes = if (comment.isLiked) {
-                        DesignSystemR.drawable.ic_filled_heart_24
-                    } else {
-                        DesignSystemR.drawable.ic_heart_24
-                    },
+                    iconRes =
+                        if (comment.isLiked) {
+                            DesignSystemR.drawable.ic_filled_heart_24
+                        } else {
+                            DesignSystemR.drawable.ic_heart_24
+                        },
                     count = comment.likeCount,
-                    tint = if (comment.isLiked) {
-                        MotifTheme.colors.pink
-                    } else {
-                        MotifTheme.colors.typo
-                    },
+                    tint =
+                        if (comment.isLiked) {
+                            MotifTheme.colors.pink
+                        } else {
+                            MotifTheme.colors.typo
+                        },
                     onClick = onLikeClick,
                 )
 
@@ -354,17 +378,19 @@ private fun ReplyItem(
             )
 
             CommentAction(
-                iconRes = if (reply.isLiked) {
-                    DesignSystemR.drawable.ic_filled_heart_24
-                } else {
-                    DesignSystemR.drawable.ic_heart_24
-                },
+                iconRes =
+                    if (reply.isLiked) {
+                        DesignSystemR.drawable.ic_filled_heart_24
+                    } else {
+                        DesignSystemR.drawable.ic_heart_24
+                    },
                 count = reply.likeCount,
-                tint = if (reply.isLiked) {
-                    MotifTheme.colors.pink
-                } else {
-                    MotifTheme.colors.typo
-                },
+                tint =
+                    if (reply.isLiked) {
+                        MotifTheme.colors.pink
+                    } else {
+                        MotifTheme.colors.typo
+                    },
                 onClick = onLikeClick,
             )
         }
@@ -376,6 +402,7 @@ private fun CommentAuthor(
     nickname: String,
     createdAt: String,
     modifier: Modifier = Modifier,
+    authorType: CommentAuthorType = CommentAuthorType.USER,
 ) {
     Row(
         modifier = modifier,
@@ -388,6 +415,21 @@ private fun CommentAuthor(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+
+        if (authorType == CommentAuthorType.ARTIST) {
+            Spacer(
+                modifier = Modifier.width(4.dp),
+            )
+
+            Icon(
+                painter = painterResource(
+                    DesignSystemR.drawable.ic_artist_check_24,
+                ),
+                contentDescription = "아티스트",
+                modifier = Modifier.size(16.dp),
+                tint = Color.Unspecified,
+            )
+        }
 
         Spacer(
             modifier = Modifier.width(12.dp),
@@ -410,52 +452,93 @@ private fun CommentAction(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.clickable(
-            interactionSource = remember {
-                MutableInteractionSource()
-            },
-            indication = null,
-            onClick = onClick,
-        ),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .clickable(
+                interactionSource =
+                    remember {
+                        MutableInteractionSource()
+                    },
+                indication = null,
+                onClick = onClick,
+            ),
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                6.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(iconRes),
+            painter = painterResource(
+                iconRes,
+            ),
             contentDescription = null,
             modifier = Modifier.size(24.dp),
             tint = tint,
         )
 
         Text(
-            text = formatCount(count),
+            text = formatCount(
+                count,
+            ),
             color = MotifTheme.colors.typo,
             style = MotifTheme.typography.bodyR14,
         )
     }
 }
 
+private fun prioritizeComments(
+    comments: List<Comment>,
+): List<Comment> =
+    buildList {
+        addAll(
+            comments.filter { comment ->
+                comment.authorType ==
+                        CommentAuthorType.ARTIST
+            },
+        )
+
+        addAll(
+            comments.filter { comment ->
+                comment.authorType ==
+                        CommentAuthorType.CURRENT_USER
+            },
+        )
+
+        addAll(
+            comments.filter { comment ->
+                comment.authorType ==
+                        CommentAuthorType.USER
+            },
+        )
+    }
+
 private fun formatCount(
     count: Long,
 ): String =
     when {
         count >= 1_000_000 -> {
-            val value = count / 1_000_000f
+            val value =
+                count / 1_000_000f
 
             if (value % 1f == 0f) {
                 "${value.toInt()}m"
             } else {
-                "%.1fm".format(value)
+                "%.1fm".format(
+                    value,
+                )
             }
         }
 
         count >= 1_000 -> {
-            val value = count / 1_000f
+            val value =
+                count / 1_000f
 
             if (value % 1f == 0f) {
                 "${value.toInt()}k"
             } else {
-                "%.1fk".format(value)
+                "%.1fk".format(
+                    value,
+                )
             }
         }
 
@@ -470,7 +553,8 @@ private fun formatCount(
 )
 @Composable
 private fun CommentSheetContentPreview() {
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     val profileUrl =
         "android.resource://${context.packageName}/${DesignSystemR.drawable.img_profile}"
@@ -479,37 +563,47 @@ private fun CommentSheetContentPreview() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MotifTheme.colors.black),
+                .background(
+                    MotifTheme.colors.black,
+                ),
         ) {
             Surface(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(
+                        Alignment.BottomCenter,
+                    )
                     .fillMaxWidth()
                     .fillMaxHeight(0.6f),
-                shape = RoundedCornerShape(
-                    topStart = 28.dp,
-                    topEnd = 28.dp,
-                ),
-                color = MotifTheme.colors.background,
-                contentColor = MotifTheme.colors.typo,
+                shape =
+                    RoundedCornerShape(
+                        topStart = 28.dp,
+                        topEnd = 28.dp,
+                    ),
+                color =
+                    MotifTheme.colors.background,
+                contentColor =
+                    MotifTheme.colors.typo,
             ) {
                 CommentSheetContent(
-                    commentCount = 633L,
-                    comments = previewComments(
-                        profileUrl = profileUrl,
-                    ),
-                    repliesByCommentId = mapOf(
-                        1L to previewReplies(
+                    commentCount = 328L,
+                    comments =
+                        previewComments(
                             profileUrl = profileUrl,
                         ),
-                    ),
-                    expandedCommentIds = emptySet(),
+                    repliesByCommentId =
+                        mapOf(
+                            30L to previewReplies(
+                                profileUrl = profileUrl,
+                            ),
+                        ),
+                    expandedCommentIds =
+                        emptySet(),
                     onDismissClick = {},
                     onCommentLikeClick = {},
                     onReplyClick = {},
                     onReplyLikeClick = {},
                     formatCreatedAt = {
-                        "5일"
+                        "3시간"
                     },
                 )
             }
@@ -518,72 +612,101 @@ private fun CommentSheetContentPreview() {
 }
 
 @Preview(
-    name = "Comment Bottom Sheet",
+    name = "Comment Bottom Sheet - Reply Expanded",
     showBackground = true,
 )
 @Composable
 private fun CommentBottomSheetPreview() {
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     val profileUrl =
         "android.resource://${context.packageName}/${DesignSystemR.drawable.img_profile}"
 
     MotifTheme {
         CommentBottomSheet(
-            commentCount = 633L,
-            comments = previewComments(
-                profileUrl = profileUrl,
-            ),
-            repliesByCommentId = mapOf(
-                1L to previewReplies(
+            commentCount = 328L,
+            comments =
+                previewComments(
                     profileUrl = profileUrl,
                 ),
-            ),
-            expandedCommentIds = emptySet(),
+            repliesByCommentId =
+                mapOf(
+                    30L to previewReplies(
+                        profileUrl = profileUrl,
+                    ),
+                ),
+            expandedCommentIds =
+                setOf(30L),
             onDismissRequest = {},
             onCommentLikeClick = {},
             onReplyClick = {},
             onReplyLikeClick = {},
             formatCreatedAt = {
-                "5일"
+                "3시간"
             },
         )
     }
 }
 
+/*
+ * 일부러 USER -> CURRENT_USER -> ARTIST 순서로 넣는다.
+ *
+ * 실제 화면에서는 prioritizeComments()에 의해
+ * ARTIST -> CURRENT_USER -> USER 순서로 표시되는지
+ * Preview에서 확인할 수 있다.
+ */
 private fun previewComments(
     profileUrl: String,
 ): List<Comment> =
     listOf(
         Comment(
-            id = 1L,
+            id = 10L,
             profileImageUrl = profileUrl,
-            nickname = "yeji_lover",
-            content = "이 챌린지 예지랑 너무 잘 어울린다 🔥",
+            nickname = "dance_with_me",
+            content = "이 부분 안무 진짜 중독성 있다 ㅋㅋ",
             createdAt = 0L,
-            likeCount = 742L,
-            replyCount = 8L,
+            likeCount = 84L,
+            replyCount = 2L,
             isLiked = false,
+            authorType =
+                CommentAuthorType.USER,
         ),
         Comment(
-            id = 2L,
+            id = 20L,
             profileImageUrl = profileUrl,
-            nickname = "kkongdance",
-            content = "이거 보고 바로 챌린지 찍으러 갑니다",
+            nickname = "motif_me",
+            content = "나도 방금 찍어봤는데 생각보다 어렵네 😂",
             createdAt = 0L,
-            likeCount = 742L,
-            replyCount = 8L,
-            isLiked = false,
-        ),
-        Comment(
-            id = 3L,
-            profileImageUrl = profileUrl,
-            nickname = "dancing_mandu",
-            content = "😂😂😂",
-            createdAt = 0L,
-            likeCount = 742L,
-            replyCount = 8L,
+            likeCount = 16L,
+            replyCount = 1L,
             isLiked = true,
+            authorType =
+                CommentAuthorType.CURRENT_USER,
+        ),
+        Comment(
+            id = 30L,
+            profileImageUrl = profileUrl,
+            nickname = "KARINA",
+            content = "다들 너무 잘 따라 해줘서 고마워요 🖤",
+            createdAt = 0L,
+            likeCount = 2_841L,
+            replyCount = 32L,
+            isLiked = false,
+            authorType =
+                CommentAuthorType.ARTIST,
+        ),
+        Comment(
+            id = 40L,
+            profileImageUrl = profileUrl,
+            nickname = "winterluv",
+            content = "영상 보자마자 바로 참여하러 갑니다",
+            createdAt = 0L,
+            likeCount = 53L,
+            replyCount = 0L,
+            isLiked = false,
+            authorType =
+                CommentAuthorType.USER,
         ),
     )
 
@@ -592,23 +715,23 @@ private fun previewReplies(
 ): List<Reply> =
     listOf(
         Reply(
-            id = 101L,
-            commentId = 1L,
+            id = 301L,
+            commentId = 30L,
             profileImageUrl = profileUrl,
-            nickname = "midzy_01",
-            content = "진짜 너무 잘 어울려요 ㅋㅋ",
+            nickname = "my_karina",
+            content = "직접 댓글 남겨준 거 실화인가요 😭",
             createdAt = 0L,
-            likeCount = 12L,
-            isLiked = false,
+            likeCount = 127L,
+            isLiked = true,
         ),
         Reply(
-            id = 102L,
-            commentId = 1L,
+            id = 302L,
+            commentId = 30L,
             profileImageUrl = profileUrl,
-            nickname = "yeji_best",
-            content = "저도 이거 보고 찍으려고요 🔥",
+            nickname = "ae_motif",
+            content = "다음 챌린지도 기다릴게요!",
             createdAt = 0L,
-            likeCount = 4L,
+            likeCount = 38L,
             isLiked = false,
         ),
     )

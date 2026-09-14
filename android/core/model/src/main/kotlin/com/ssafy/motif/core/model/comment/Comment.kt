@@ -9,4 +9,5 @@ data class Comment(
     val likeCount: Long,
     val replyCount: Long,
     val isLiked: Boolean,
+    val authorType: CommentAuthorType,
 )
