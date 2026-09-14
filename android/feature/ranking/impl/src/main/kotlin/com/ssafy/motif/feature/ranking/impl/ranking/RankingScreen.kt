@@ -43,10 +43,11 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
+import com.ssafy.motif.core.model.ranking.ChallengeRankCard
 
 
 @Composable
-fun RankingRoute(
+fun RankingScreen(
     modifier: Modifier = Modifier,
     viewModel: RankingViewModel = hiltViewModel(),
 ) {
@@ -129,7 +130,7 @@ internal fun RankingScreen(
 
 @Composable
 fun ArtistRankCard(
-    challenge: ChallengeUiModel,
+    challenge: ChallengeRankCard,
     onPlayClick: () -> Unit,
     onArtistClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -327,8 +328,8 @@ private fun ArtistSearchBar(
 internal object RankingMokData {
 
     /** rankingChanged: 양수는 순위 상승, 음수는 하락, 0은 유지를 뜻한다. */
-    val ranking: List<ChallengeUiModel> = listOf(
-        ChallengeUiModel(
+    val ranking: List<ChallengeRankCard> = listOf(
+        ChallengeRankCard(
             id = 1L,
             name = "이채영",
             groupName = "프로미스나인",
@@ -337,7 +338,7 @@ internal object RankingMokData {
             challengeName = "Supersonic 챌린지",
             rankingChanged = 20L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 2L,
             name = "박지원",
             groupName = "프로미스나인",
@@ -346,7 +347,7 @@ internal object RankingMokData {
             challengeName = "Supersonic 챌린지",
             rankingChanged = -1L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 3L,
             name = "김민주",
             groupName = "아이브",
@@ -355,7 +356,7 @@ internal object RankingMokData {
             challengeName = "Rebel Heart 챌린지",
             rankingChanged = 0L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 4L,
             name = "정하윤",
             groupName = "르세라핌",
@@ -364,7 +365,7 @@ internal object RankingMokData {
             challengeName = "Crazy 챌린지",
             rankingChanged = 5L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 5L,
             name = "최서연",
             groupName = "뉴진스",
@@ -373,7 +374,7 @@ internal object RankingMokData {
             challengeName = "How Sweet 챌린지",
             rankingChanged = -3L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 6L,
             name = "한소희",
             groupName = "아이들",
@@ -382,7 +383,7 @@ internal object RankingMokData {
             challengeName = "Klaxon 챌린지",
             rankingChanged = 1L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 7L,
             name = "윤가은",
             groupName = "에스파",
@@ -391,7 +392,7 @@ internal object RankingMokData {
             challengeName = "Whiplash 챌린지",
             rankingChanged = 0L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 8L,
             name = "오예린",
             groupName = "트와이스",
@@ -400,7 +401,7 @@ internal object RankingMokData {
             challengeName = "Strategy 챌린지",
             rankingChanged = -2L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 9L,
             name = "강나연",
             groupName = "엔믹스",
@@ -409,7 +410,7 @@ internal object RankingMokData {
             challengeName = "Dash 챌린지",
             rankingChanged = 4L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 10L,
             name = "임수아",
             groupName = "스테이씨",
@@ -418,7 +419,7 @@ internal object RankingMokData {
             challengeName = "Bebe 챌린지",
             rankingChanged = -6L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 11L,
             name = "서다인",
             groupName = "있지",
@@ -427,7 +428,7 @@ internal object RankingMokData {
             challengeName = "Born to Be 챌린지",
             rankingChanged = 3L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 12L,
             name = "노유정",
             groupName = "케플러",
@@ -436,7 +437,7 @@ internal object RankingMokData {
             challengeName = "Galileo 챌린지",
             rankingChanged = 0L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 13L,
             name = "백지호",
             groupName = "라이즈",
@@ -445,7 +446,7 @@ internal object RankingMokData {
             challengeName = "Boom Boom Bass 챌린지",
             rankingChanged = -4L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 14L,
             name = "송하늘",
             groupName = "투어스",
@@ -454,7 +455,7 @@ internal object RankingMokData {
             challengeName = "Last Bell 챌린지",
             rankingChanged = 7L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 15L,
             name = "문채원",
             groupName = "베이비몬스터",
@@ -463,7 +464,7 @@ internal object RankingMokData {
             challengeName = "Drip 챌린지",
             rankingChanged = -2L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 16L,
             name = "구예린",
             groupName = "아일릿",
@@ -472,7 +473,7 @@ internal object RankingMokData {
             challengeName = "Magnetic 챌린지",
             rankingChanged = 1L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 17L,
             name = "장미르",
             groupName = "제로베이스원",
@@ -481,7 +482,7 @@ internal object RankingMokData {
             challengeName = "Feel the Pop 챌린지",
             rankingChanged = 0L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 18L,
             name = "홍시아",
             groupName = "우주소녀",
@@ -490,7 +491,7 @@ internal object RankingMokData {
             challengeName = "Last Sequence 챌린지",
             rankingChanged = -5L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 19L,
             name = "차은비",
             groupName = "프로미스나인",
@@ -499,7 +500,7 @@ internal object RankingMokData {
             challengeName = "Supersonic 챌린지",
             rankingChanged = 9L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 20L,
             name = "권도희",
             groupName = "아이브",
@@ -508,7 +509,7 @@ internal object RankingMokData {
             challengeName = "Accendio 챌린지",
             rankingChanged = -1L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 21L,
             name = "신라온",
             groupName = "엔하이픈",
@@ -517,7 +518,7 @@ internal object RankingMokData {
             challengeName = "Bite Me 챌린지",
             rankingChanged = 2L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 22L,
             name = "유하람",
             groupName = "르세라핌",
@@ -526,7 +527,7 @@ internal object RankingMokData {
             challengeName = "Smart 챌린지",
             rankingChanged = 0L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 23L,
             name = "명지우",
             groupName = "뉴진스",
@@ -535,7 +536,7 @@ internal object RankingMokData {
             challengeName = "Supernatural 챌린지",
             rankingChanged = -8L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 24L,
             name = "안소울",
             groupName = "에스파",
@@ -544,7 +545,7 @@ internal object RankingMokData {
             challengeName = "Supernova 챌린지",
             rankingChanged = 6L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 25L,
             name = "표하은",
             groupName = "트와이스",
@@ -553,7 +554,7 @@ internal object RankingMokData {
             challengeName = "One Spark 챌린지",
             rankingChanged = -3L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 26L,
             name = "남기쁨",
             groupName = "엔믹스",
@@ -562,7 +563,7 @@ internal object RankingMokData {
             challengeName = "Love Me Like This 챌린지",
             rankingChanged = 0L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 27L,
             name = "도새롬",
             groupName = "스테이씨",
@@ -571,7 +572,7 @@ internal object RankingMokData {
             challengeName = "Teddy Bear 챌린지",
             rankingChanged = 4L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 28L,
             name = "황시윤",
             groupName = "투모로우바이투게더",
@@ -580,7 +581,7 @@ internal object RankingMokData {
             challengeName = "Deja Vu 챌린지",
             rankingChanged = -7L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 29L,
             name = "배로아",
             groupName = "있지",
@@ -589,7 +590,7 @@ internal object RankingMokData {
             challengeName = "Cake 챌린지",
             rankingChanged = 1L,
         ),
-        ChallengeUiModel(
+        ChallengeRankCard(
             id = 30L,
             name = "천보름",
             groupName = "케플러",

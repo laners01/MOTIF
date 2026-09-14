@@ -13,4 +13,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtimeCompose)
     implementation(libs.coil.kt.compose)
     implementation(projects.feature.onboarding.api)
+    implementation(projects.feature.home.api)
+    implementation(libs.androidx.activity.compose)
 }

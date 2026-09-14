@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.onboarding.impl.artistselect
+package com.ssafy.motif.feature.onboarding.impl.onboarding
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -33,8 +32,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.Icon
@@ -45,29 +42,11 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-
-@Composable
-fun ArtistSelectRoute(
-    onNextClick: (List<Long>) -> Unit,
-    modifier: Modifier = Modifier,
-    viewModel: ArtistSelectViewModel = hiltViewModel(),
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    ArtistSelectScreen(
-        uiState = uiState,
-        onArtistClick = viewModel::toggleArtist,
-        onQueryChange = viewModel::updateQuery,
-        onRemoveClick = viewModel::removeQuery,
-        onNextClick = {onNextClick(uiState.selectedArtists.toList())},
-        modifier = modifier,
-    )
-}
-
+import com.ssafy.motif.core.model.onboarding.OnboardingArtist
 
 @Composable
 internal fun ArtistSelectScreen(
-    uiState: ArtistSelectUiState,
+    uiState: OnboardingUiState,
     onArtistClick: (Long) -> Unit,   //아티스트 클릭시
     onQueryChange: (String) -> Unit,
     onRemoveClick: () -> Unit,
@@ -169,8 +148,8 @@ internal object ArtistMokData {
         "채령" to "ITZY",
         "유나" to "ITZY",
     )
-    val artists: List<ArtistUiModel> = samples.mapIndexed { index, (name, groupName) ->
-        ArtistUiModel(
+    val artists: List<OnboardingArtist> = samples.mapIndexed { index, (name, groupName) ->
+        OnboardingArtist(
             id = index.toLong(),
             name = name,
             groupName = groupName,
@@ -239,7 +218,7 @@ private fun ArtistSearchBar(
 
 @Composable
 fun ArtistCard(
-    artist: ArtistUiModel,
+    artist: OnboardingArtist,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
