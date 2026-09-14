@@ -3,7 +3,6 @@ package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -67,6 +66,7 @@ internal fun ArtistDetailScreen(
             ArtistDetailCard(
                 artistDetail = artistDetail,
                 isAlarmOn = uiState.isAlarmOn,
+                isSubscribed = uiState.isSubscribed,
                 onSubscribeClick = onSubscribeClick,
                 onAlarmClick = onAlarmClick,
                 onBackClick = onBackClick,
@@ -85,6 +85,7 @@ internal fun ArtistDetailScreen(
 fun ArtistDetailCard(
     artistDetail: ArtistDetail,
     isAlarmOn: Boolean,
+    isSubscribed:Boolean,
     onSubscribeClick: () -> Unit,    //구독버튼 클릭시
     onAlarmClick:() -> Unit,        //알람버튼 클릭시
     onBackClick:() -> Unit,         //뒤로가기 클릭시
@@ -95,13 +96,14 @@ fun ArtistDetailCard(
         .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.height(IntrinsicSize.Min)) {
+            modifier = Modifier
+                .fillMaxWidth().aspectRatio(358f/168f)) {
 
 
             Box(
                 modifier = Modifier
                     .weight(168f)
-                    .aspectRatio(1f),
+                    .fillMaxHeight(),
             ) {
                 AsyncImage(
                     model = artistDetail.profileImageUrl,
@@ -120,13 +122,13 @@ fun ArtistDetailCard(
                 IconButton(
                     painter = painterResource(MotifIcons.BarArrowLeft),
                     onClick = onBackClick,
-                    size = 18.dp,
+                    size = 48.dp,
                     colors = ModifIconButtonDefaults.iconButtonColors(
                         contentColor = MotifTheme.colors.typo
                     ),
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(8.dp),
+                        .padding(15.dp),
                 )
             }
             Column(
@@ -213,10 +215,17 @@ fun ArtistDetailCard(
                     Button(
                         onClick = onAlarmClick,
                         shape = RoundedCornerShape(4.dp),
-                        colors = MotifButtonDefaults.buttonColors(
-                            contentColor = MotifTheme.colors.typo,
-                            containerColor = MotifTheme.colors.pink
-                        ),
+                        colors = if (isAlarmOn){
+                            MotifButtonDefaults.buttonColors(
+                                contentColor = MotifTheme.colors.typo,
+                                containerColor = MotifTheme.colors.pink
+                            )
+                        }else {
+                            MotifButtonDefaults.buttonColors(
+                                contentColor = MotifTheme.colors.typo,
+                                containerColor = MotifTheme.colors.gray700
+                            )
+                        },
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.size(32.dp),
                     ) {
@@ -232,17 +241,23 @@ fun ArtistDetailCard(
                     Button(
                         onClick = onSubscribeClick,
                         shape = RoundedCornerShape(4.dp),
-                        colors = MotifButtonDefaults.buttonColors(
-                            containerColor = MotifTheme.colors.pink,
-                            contentColor = MotifTheme.colors.typo,
-                        ),
+                        colors = if(isSubscribed){
+                            MotifButtonDefaults.buttonColors(
+                                containerColor = MotifTheme.colors.gray700,
+                                contentColor = MotifTheme.colors.typo,)
+                        }else {
+                            MotifButtonDefaults.buttonColors(
+                                containerColor = MotifTheme.colors.pink,
+                                contentColor = MotifTheme.colors.typo,
+                            )
+                        },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
                     ) {
                         Text(
-                            text = "With ${artistDetail.name}",
+                            text = "WITH ${artistDetail.name}",
                             style = MotifTheme.typography.bodySB16,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
