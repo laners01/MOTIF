@@ -7,6 +7,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.ssafy.motif.core.data.util.NetworkMonitor
 import com.ssafy.motif.core.navigation.NavigationState
 import com.ssafy.motif.core.navigation.rememberNavigationState
+import com.ssafy.motif.feature.artistdetail.api.navigation.ArtistDetailNavKey
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.onboarding.api.navigation.OnboardingNavKey
 import com.ssafy.motif.feature.ranking.api.navigation.RankingNavKey
@@ -22,8 +23,8 @@ fun rememberMotifAppState(
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
 ): MotifAppState {
     val navigationState = rememberNavigationState(
-        startKey = RankingNavKey,
-        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys+ RankingNavKey,
+        startKey = HomeNavKey,
+        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys,
     )
 
     return remember(
