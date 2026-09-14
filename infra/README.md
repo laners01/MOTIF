@@ -46,6 +46,40 @@ sudo tailscale up --hostname=motif-server
 
 팀원도 각자 기기를 같은 계정으로 조인해야 DB·큐 접근이 가능하다.
 
+#### 어드민(`/admin`) 접근 — 기기마다 hosts 한 줄
+
+`j15d104.p.ssafy.io` 는 **공인 IP 로 풀린다**. 테일스케일에 붙어 있어도 이 도메인으로
+가면 트래픽이 공인망으로 나가 출발지가 각자의 공인 IP 가 되고, 앱의 `AdminIpFilter`
+가 404 를 낸다(`k8s/40-core-api/configmap.yaml` 의 `ADMIN_ALLOWED_CIDRS`). 테일넷에
+조인한 것만으로는 아무것도 달라지지 않는다.
+
+그래서 도메인을 노드의 테일넷 IP 로 덮어쓴다. Ingress 규칙이 `host: j15d104.p.ssafy.io`
+라 **IP 로 직접 치면 라우터가 안 잡혀 404 다** — Host·SNI 가 맞아야 하므로 hosts 여야 한다.
+TLS 는 공인 도메인과 같은 인증서를 그대로 쓴다(경고 없음).
+
+Windows — **관리자 권한** 터미널에서:
+
+```powershell
+Add-Content C:\Windows\System32\drivers\etc\hosts "`n100.106.64.43 j15d104.p.ssafy.io"
+ipconfig /flushdns
+```
+
+macOS / Linux:
+
+```bash
+echo '100.106.64.43 j15d104.p.ssafy.io' | sudo tee -a /etc/hosts
+sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder   # macOS 만
+```
+
+확인: `curl -s -o /dev/null -w '%{http_code}\n' https://j15d104.p.ssafy.io/admin/login`
+→ `200`. 공인망에서는 같은 주소가 `404` 다(정상).
+
+**curl 은 되는데 브라우저만 안 되면** Chrome 의 보안 DNS(DoH)다 — 켜져 있으면 시스템
+리졸버를 건너뛰어 hosts 를 무시한다. `chrome://settings/security` 에서 끄고
+`chrome://net-internals/#dns` 에서 Clear host cache.
+
+**테일넷에서 나가기 전에 이 줄을 지운다** — 남아 있으면 사이트 전체가 안 열린다.
+
 ### 2. k3s
 
 ```bash
@@ -124,9 +158,10 @@ kubectl exec -it deploy/postgres -- psql -U notif_app -d motif -c "CREATE TABLE 
 ## 미완 / 후속
 
 - [ ] 팀원 Tailscale 조인, key expiry 해제
-- [ ] `/admin` ipAllowList 실효 검증 — Traefik 이 보는 출발지 IP 가 실제
-      클라이언트 IP 인지 관측하고(klipper-lb SNAT 여부), 팀 공인 IP 를
-      `90-ingress/middleware-admin-ipallowlist.yaml` 에 채운다
+- [x] `/admin` 접근 제한 — klipper-lb SNAT 확인 후 Traefik hostPort 직결로 원 IP 를
+      보존하고, 제한은 앱 `AdminIpFilter` 가 404 로 낸다(403 은 어드민 존재를 드러내
+      §1.1 위반). `ipAllowList` 미들웨어는 어느 라우터에도 걸지 않는다 — 파일 헤더 참조.
+      팀원 접근은 위 1절의 hosts 한 줄
 - [ ] Postgres 테일넷 노출 (팀원 DB 툴 접속용)
 - [ ] `pg_dump` → S3 백업 크론 (RDS 미사용에 따른 대체)
 - [x] RabbitMQ + Redis 배포
