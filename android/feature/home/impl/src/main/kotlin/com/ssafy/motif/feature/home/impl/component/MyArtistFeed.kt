@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -50,7 +51,7 @@ internal fun LazyListScope.myArtistFeed(
                     onArtistClick = onArtistClick,
                     onLikeClick = onNoticeLikeClick,
                     onCommentClick = onNoticeCommentClick,
-                    modifier = Modifier,
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
 
@@ -59,7 +60,6 @@ internal fun LazyListScope.myArtistFeed(
                     motif = item.motif,
                     onMotifClick = onMotifClick,
                     onArtistClick = onArtistClick,
-                    modifier = Modifier,
                 )
             }
         }
