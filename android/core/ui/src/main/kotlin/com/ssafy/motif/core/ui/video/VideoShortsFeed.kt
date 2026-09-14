@@ -104,8 +104,8 @@ private fun VideoShortsFeedPreview() {
 }
 
 private val previewVideoUrls = listOf(
-    "https://res.cloudinary.com/demo/video/upload/w_540,h_960,c_fill/kitten_fighting.mp4",
-    "https://res.cloudinary.com/demo/video/upload/w_540,h_960,c_fill/dog.mp4",
+    "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
+    "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
     "https://res.cloudinary.com/demo/video/upload/w_540,h_960,c_fill/pencil_sketch.mp4",
     "https://res.cloudinary.com/demo/video/upload/w_540,h_960,c_fill/turtle.mp4",
     "https://res.cloudinary.com/demo/video/upload/w_540,h_960,c_fill/elephants.mp4",
