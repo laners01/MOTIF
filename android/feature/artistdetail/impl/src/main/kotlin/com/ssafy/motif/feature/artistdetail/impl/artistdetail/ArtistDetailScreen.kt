@@ -159,7 +159,6 @@ fun ArtistDetailCard(
                     Icon(
                         painter = painterResource(MotifIcons.MotifPass),
                         contentDescription = null,
-                        tint = MotifTheme.colors.pink,
                         modifier = Modifier
                             .size(13.dp),
                     )
