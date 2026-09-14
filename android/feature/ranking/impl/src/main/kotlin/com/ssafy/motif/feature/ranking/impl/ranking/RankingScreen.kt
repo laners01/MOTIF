@@ -106,22 +106,34 @@ internal fun RankingScreen(
                 .padding(start = 20.dp, end = 20.dp),
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(1),
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)       //사이 상하간격
-        )
+        Box(modifier = Modifier.weight(1f)){
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(1),
+                contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),       //사이 상하간격
+                modifier = Modifier.fillMaxSize()
+                )
 
-        {
-            items(items = uiState.ranking, key = { it.id }) { challenge ->
-                ArtistRankCard(challenge = challenge,
-                    onPlayClick = {onPlayClick(challenge.id)},
-                    onArtistClick = {onArtistClick(challenge.id)},
+            {
+                items(items = uiState.filteredChallengeCard, key = { it.id }) { challenge ->
+                    ArtistRankCard(challenge = challenge,
+                        onPlayClick = {onPlayClick(challenge.id)},
+                        onArtistClick = {onArtistClick(challenge.id)},
+                    )
+                }
+
+            }
+            if(uiState.query.isNotBlank() && uiState.filteredChallengeCard.isEmpty()){
+                Text(
+                    text = "검색 결과가 없습니다",
+                    style = MotifTheme.typography.bodyR14,
+                    color = MotifTheme.colors.gray400,
+                    modifier = Modifier
+                        .align(Alignment.Center),
                 )
             }
-
         }
+
     }
 
 
