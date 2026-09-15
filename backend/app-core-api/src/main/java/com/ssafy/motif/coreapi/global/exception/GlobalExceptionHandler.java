@@ -39,6 +39,8 @@ public class GlobalExceptionHandler {
         List<FieldErrorResponse> fieldErrors = e.getBindingResult().getFieldErrors().stream()
                 .map(error -> new FieldErrorResponse(error.getField(), error.getDefaultMessage()))
                 .toList();
+        // 필드명만 남긴다 — 거부된 값(rejectedValue)에는 비밀번호·토큰이 실려 온다
+        log.warn("검증 실패: {}", fieldErrors.stream().map(FieldErrorResponse::field).toList());
         return ResponseEntity.status(CommonErrorCode.INVALID_PARAMETER.getStatus())
                 .body(ApiResponse.fail(CommonErrorCode.INVALID_PARAMETER, fieldErrors));
     }

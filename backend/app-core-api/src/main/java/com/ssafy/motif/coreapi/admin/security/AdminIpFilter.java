@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.admin.security;
 
 import com.ssafy.motif.coreapi.admin.AdminPaths;
+import com.ssafy.motif.coreapi.global.filter.ClientIp;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,8 +41,6 @@ import java.util.List;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)   // RequestIdFilter 다음 — 거부 로그에도 requestId 가 붙는다
 public class AdminIpFilter extends OncePerRequestFilter {
 
-    private static final String HEADER_FORWARDED_FOR = "X-Forwarded-For";
-
     private final List<IpAddressMatcher> allowed;
 
     public AdminIpFilter(AdminProperties properties) {
@@ -60,7 +59,7 @@ public class AdminIpFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        String clientIp = clientIp(request);
+        String clientIp = ClientIp.of(request);
         if (allowed.stream().noneMatch(m -> m.matches(clientIp))) {
             log.warn("어드민 경로 비허용 IP — 404: ip={} uri={}", clientIp, request.getRequestURI());
             // sendError 로 /error 재디스패치 — 존재하지 않는 경로의 404 와 응답이 같아진다
@@ -68,14 +67,5 @@ public class AdminIpFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
-    }
-
-    private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader(HEADER_FORWARDED_FOR);
-        if (forwarded == null || forwarded.isBlank()) {
-            return request.getRemoteAddr();   // 앞단 없는 로컬·테스트 경로
-        }
-        int comma = forwarded.indexOf(',');
-        return (comma < 0 ? forwarded : forwarded.substring(0, comma)).trim();
     }
 }
