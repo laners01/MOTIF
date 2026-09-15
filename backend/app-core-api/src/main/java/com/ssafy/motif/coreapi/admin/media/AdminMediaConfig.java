@@ -9,13 +9,12 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
- * 어드민 S3 구성 — 서명 발급({@link S3Presigner})과 존재 확인({@link S3Client}) 둘뿐이다.
+ * 어드민 S3 구성 — 서명 발급({@link S3Presigner})과 오브젝트 접근({@link S3Client}).
  *
  * <p>core-api 는 <b>바이트를 다루지 않는다</b>(원칙 ① — 브라우저 → S3 직행). 오브젝트
- * 입출력·인코딩은 전부 app-media 다. {@code S3Client} 를 둔 이유는 하나 —
- * {@code HEAD} 다. 명세 §1.4 가 "서버는 키만 받고(Claim-Check) 존재를 HEAD 로 확인한다"
- * 고 정했고 §3.7.2 검증 4항이 등록 트랜잭션 진입 전 모든 키를 HEAD 하게 한다.
- * HEAD 는 메타데이터만 읽으므로 원칙 ① 과 어긋나지 않는다.
+ * 입출력·인코딩은 전부 app-media 다. {@code S3Client} 가 하는 일은 둘로 한정된다 —
+ * 명세 §1.4 의 {@code HEAD}(키만 받고 존재 확인, §3.7.2 검증 4항)와, 보호 등급 HLS
+ * 재생목록 읽기(§1.7 — 수 KB 텍스트). 둘 다 영상 바이트를 옮기지 않아 원칙 ① 과 어긋나지 않는다.
  */
 @Configuration
 @EnableConfigurationProperties(AdminMediaProperties.class)
@@ -28,9 +27,13 @@ public class AdminMediaConfig {
     }
 
     /**
-     * HEAD 전용 — {@code getObject}·{@code putObject} 를 부르는 코드는 core-api 에 없다.
+     * HEAD 와 재생목록 읽기 — {@code putObject} 를 부르는 코드는 core-api 에 없다.
      *
-     * <p>쓰는 곳은 {@link AdminMediaService#requireUploaded} 하나다. 같은 일을 하는
+     * <p>2026-09-15 부터 읽기가 하나 붙었다 — {@code MediaPlaylistService} 가 보호 등급 재생목록을
+     * {@code getObject} 로 읽는다. 재생목록은 수 KB 의 텍스트이고 조각({@code data.m4s})은
+     * 여전히 CDN 이 내므로 원칙 ① 의 경계(영상 바이트가 API 서버를 통과하지 않는다)는 유지된다.
+     *
+     * <p>HEAD 로 쓰는 곳은 {@link AdminMediaService#requireUploaded} 하나다. 같은 일을 하는
      * 클래스를 따로 만들지 않는다 — 403 처리(버킷에 {@code s3:ListBucket} 이 없으면
      * S3 가 없는 키에 404 대신 403 을 준다)와 부재 키 일괄 수집이 거기 들어 있다.
      */

@@ -62,9 +62,10 @@ public final class MediaKeys {
      * {@code composite_jobs.result_video_key} 가 가리키는 값을 바꾸는 순간 재생 중인
      * 클라이언트가 404 를 만나기 때문이다.
      *
-     * <p><b>반대 방향(PUBLIC → PRIVATE)은 비싸다.</b> 산출물에 1년 {@code immutable} 이
-     * 붙어 있어 S3 에서 지워도 엣지가 계속 서빙한다 — CloudFront 무효화가 따로 필요하다.
-     * {@code visibility} 를 단방향으로 제한하는 근거다(어드민·API 명세 §8.2 참조).
+     * <p><b>반대 방향(PUBLIC → PRIVATE)은 삭제만으로 끝나지 않는다.</b> 산출물에 1년
+     * {@code immutable} 이 붙어 있어 S3 에서 지워도 엣지가 계속 서빙한다 — 삭제와 함께
+     * CloudFront 무효화를 호출해야 실제로 닫힌다(API 명세 §8.2). 비동기라 즉시 차단은
+     * 약속하지 않는다.
      *
      * @param jobUuid {@code composite_jobs.job_uuid} — {@code CHALLENGE} 잡만 해당한다
      */
