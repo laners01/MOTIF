@@ -117,6 +117,62 @@ aws s3 sync ./videos s3://<버킷>/videos/ --exclude "*" --include "*.mp4"
 
 로컬 스윕과 같은 파일이어야 두 경로의 수치를 비교할 수 있다. 파일명도 같게 둔다.
 
+## 6. 보호 등급 서명 설정 (2026-09-15 완료)
+
+§결론의 원칙이 실제 설정이 된 부분이다. **signed URL 로 확정**했다 — 쿠키를 접은
+이유는 CDN 도메인이 API 도메인과 달라 `Set-Cookie` 가 CDN 요청에 실리지 않고,
+쿠키는 도메인당 한 벌이라 영상 단위 권한을 못 내기 때문이다(API 명세 §1.7).
+
+콘솔 작업이라 매니페스트가 없다. 배포를 다시 만들면 이 절차를 반복한다.
+
+**1) 키페어 (로컬)**
+
+```bash
+openssl genrsa -out cf_private.pem 2048
+openssl rsa -pubout -in cf_private.pem -out cf_public.pem
+```
+
+`cf_private.pem` 은 팀 비밀 저장소 + `core-api-secret` 에만 둔다
+(`k8s/40-core-api/secret.example.yaml.txt` 의 주입 절차 참조).
+
+**2) CloudFront → Key management → Public keys** — `cf_public.pem` 등록.
+생성된 **Public key ID** 가 앱 설정 `motif.media.signing.key-pair-id` 다
+(현재 `K27QE85H6DLYDD`). 비밀이 아니라 서명 URL 쿼리에 실려 나간다.
+
+**3) Key groups** — 위 공개키로 키 그룹 생성.
+
+**4) 배포 → Behaviors → Create behavior**
+
+| 항목 | 값 |
+|---|---|
+| Path pattern | `private/*` |
+| Restrict viewer access | **Yes** → 3) 키 그룹 |
+| Cache policy | `CachingOptimized` |
+| Viewer protocol policy | Redirect HTTP to HTTPS |
+
+> **`Default (*)` 를 고치는 것이 아니다.** 기본 동작은 path pattern 을 바꿀 수 없고,
+> 거기에 Restrict viewer access 를 켜면 `challenges/`·`public/`·`assets/` 까지 전부
+> 서명을 요구해 지금 돌아가는 영상·썸네일이 통째로 403 이 된다.
+
+> **캐시 정책에 쿠키·헤더·쿼리스트링을 추가하지 마라.** 넣으면 서명 파라미터가
+> 캐시 키에 들어가 적중률이 0 이 된다. 오리진에 전달할 것이 생기면 캐시 정책이
+> 아니라 **오리진 요청 정책**에 넣는다.
+
+**검증** — 둘 다 403 이지만 본문이 다르다. 그게 구분점이다.
+
+```bash
+CDN=https://d21so2cpi8si9r.cloudfront.net
+curl -s "$CDN/private/motif/none/master.m3u8"          # MissingKey  ← 서명 요구 중
+curl -s "$CDN/public/challenge/none/master.m3u8"       # AccessDenied ← 기본 동작
+curl -s -o /dev/null -w '%{http_code}\n' "$CDN/challenges/<uuid>/master.m3u8"  # 200
+```
+
+`MissingKey` 는 CloudFront 가 엣지에서 직접 내는 응답이다 — S3 까지 가지 않았다는
+뜻이라 behavior 가 붙은 증거다. `AccessDenied` 는 S3/OAC 가 낸 것이다.
+
+**아직 안 한 것**: `cloudfront:CreateInvalidation` 권한. §8.2 의 `PUBLIC → PRIVATE`
+전환을 구현할 때 필요하다(ADR-0010 "남은 배선" 9번).
+
 ## 결론에 적을 원칙 — 비공개 영상 URL
 
 ADR-0010 에 들어갈 내용이다.
@@ -132,9 +188,14 @@ S3 presigned 는 두 가지를 동시에 깬다.
 2. **원본 egress 를 그대로 물린다** — 캐시가 안 먹으니 모든 요청이 S3 를
    때린다. CDN 을 붙인 이유가 사라지고, S3 데이터 전송 비용이 그대로 나온다.
 
-CloudFront 서명 URL/쿠키는 엣지에서 검증하므로 캐시가 유지된다. 쿠키 방식은
-피드처럼 여러 파일을 연속으로 받는 화면에 특히 맞는다 — URL 마다 서명하지
-않고 한 번 받은 쿠키로 다음 영상들을 받는다.
+CloudFront 서명은 엣지에서 검증하므로 캐시가 유지된다 — 서명 파라미터가 예약값이라
+캐시 키에 들어가지 않는다.
+
+> **2026-09-15 확정: URL 서명이다(쿠키 아님).** 이 문서를 쓸 당시에는 쿠키가 피드에
+> 맞아 보였으나, CDN 도메인이 API 도메인과 달라 `Set-Cookie` 가 CDN 요청에 실리지
+> 않는다. 쿠키는 도메인당 한 벌이라 여러 사람의 영상이 섞인 피드에서 영상 단위
+> 권한도 못 낸다. 재생목록은 core-api 가 다시 써서 조각 주소마다 서명을 박는다
+> (API 명세 §1.7). 설정 절차는 위 §6.
 
 ## 막혔을 때
 
