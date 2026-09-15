@@ -8,6 +8,6 @@ import com.ssafy.motif.feature.home.impl.HomeScreen
 
 fun EntryProviderScope<NavKey>.homeEntry(navigator: Navigator) {
     entry<HomeNavKey> {
-        HomeScreen()
+//        HomeScreen()
     }
 }
