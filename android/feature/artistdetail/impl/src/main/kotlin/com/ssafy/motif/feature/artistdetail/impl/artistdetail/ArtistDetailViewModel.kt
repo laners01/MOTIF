@@ -11,7 +11,13 @@ import javax.inject.Inject
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor() : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ArtistDetailUiState(artistDetail = ArtistDetailMokData.artist))
+    fun selectTab(tab: ArtistDetailTab){
+        _uiState.update { state -> state.copy(selectedTab = tab) }
+    }
+    private val _uiState = MutableStateFlow(
+        ArtistDetailUiState(
+            artistDetail = ArtistDetailMockData.artist,
+            notices = ArtistDetailMockData.notices))
     val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
 
     fun toggleSubscribe() {
@@ -24,6 +30,14 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
                 ),
             )
         }
+    }
+
+    fun toggleNoticeLike(noticeId: Long) {
+
+    }
+
+    fun onNoticeCommentClick(noticeId: Long) {
+
     }
 
     fun toggleAlarm(){

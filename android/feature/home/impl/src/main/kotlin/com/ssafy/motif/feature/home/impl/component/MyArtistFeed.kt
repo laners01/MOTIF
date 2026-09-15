@@ -18,7 +18,7 @@ import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.home.Motif
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.ui.motif.MotifCard
-import com.ssafy.motif.feature.home.impl.component.notice.NoticeCard
+import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedItem
 import com.ssafy.motif.core.designsystem.R as designSystemR
 

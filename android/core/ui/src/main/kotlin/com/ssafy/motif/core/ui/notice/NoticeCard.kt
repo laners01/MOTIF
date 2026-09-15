@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.home.impl.component.notice
+package com.ssafy.motif.core.ui.notice
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,7 +39,7 @@ import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
-internal fun NoticeCard(
+fun NoticeCard(
     notice: Notice,
     onArtistClick: (Long) -> Unit,
     onLikeClick: (Long) -> Unit,
