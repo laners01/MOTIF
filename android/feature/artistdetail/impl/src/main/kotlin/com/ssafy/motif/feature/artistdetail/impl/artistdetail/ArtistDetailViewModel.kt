@@ -11,7 +11,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor() : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ArtistDetailUiState(artistDetail = ArtistDetailMokData.artist))
+    private val _uiState = MutableStateFlow(ArtistDetailUiState(artistDetail = ArtistDetailMockData.artist))
     val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
 
     fun toggleSubscribe() {
