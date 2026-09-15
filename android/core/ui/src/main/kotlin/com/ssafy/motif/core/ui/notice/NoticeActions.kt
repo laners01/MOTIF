@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.home.impl.component.notice
+package com.ssafy.motif.core.ui.notice
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
