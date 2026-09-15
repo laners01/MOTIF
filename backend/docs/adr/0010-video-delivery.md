@@ -296,6 +296,37 @@ D3(프리페치 N·T)와 D1(사다리 구성)은 다음 조건에서 다시 본�
   해상도(1080×1920)와 같아졌다(D1 갱신 참조). 업스케일 금지와 세로 전용 가드를
   같이 넣었다
 
+## 남은 배선 — §8 참여영상 · §13 합성 잡 구현 시 (2026-09-15)
+
+서명·리라이팅은 붙었다(`global/media/`). **컨트롤러를 안 만든 이유는 조회할 것이
+없기 때문이다** — `composite_jobs` 엔티티가 core-api 에 없어 `jobUuid` 로 타입도
+소유자도 못 찾고, `private/` 아래 객체도 0건이다. 도메인이 생길 때 아래를 붙인다.
+
+| # | 항목 | 왜 |
+|---|---|---|
+| 1 | **`composite_jobs(job_uuid) → (job_type, user_seq)` 조회** | 프리픽스 조립(`private/{challenge\|motif}/`)과 인가에 둘 다 필요하다. `MediaPlaylistService` 는 프리픽스를 **인자로** 받으므로 이것만 생기면 된다 |
+| 2 | **컨트롤러 2개** — `GET /api/v1/media/{jobUuid}/master.m3u8`, `.../{rendition}/index.m3u8` | `MediaPlaylistService.master(prefix, apiBasePath)` · `variant(prefix, rendition)` 를 그대로 부른다 |
+| 3 | **응답 봉투 예외** | 명세 §1.5 는 `{result, code, data…}` 봉투인데 **재생목록은 플레이어가 먹는 텍스트**라 봉투를 씌우면 못 읽는다. `Content-Type` 은 `MediaPlaylistService.contentType()`. §1.5 에 예외를 명시해야 한다 |
+| 4 | **`SecurityConfig` 에 `/api/v1/media/**` 인증 필요 경로 추가** | 지금은 어느 체인에도 없다. 빠뜨리면 미인증이 통과한다 |
+| 5 | **인가 — 타인 것은 404** | 본인 것만 통과. 403 은 "있는데 못 본다"를 알려줘 존재가 드러난다(§1.8·§8.2 존재 은닉). `MediaPlaylistNotFoundException` 도 같은 404 로 옮긴다 |
+| 6 | **응답 DTO 의 `videoUrl` 을 core-api 경로로** | 보호 등급(§6.1·§8.2·§11.5·§11.6·§13.3)은 CDN 주소가 아니라 `/api/v1/media/{jobUuid}/master.m3u8` 이다. `PublicMediaUrlResolver` 를 쓰면 안 된다 |
+| 7 | **썸네일은 `ProtectedMediaUrlResolver`** | 단일 파일이라 리라이팅이 필요 없다. 보관함 목록처럼 썸네일만 그리는 화면은 이것만으로 끝난다 |
+| 8 | **PUBLIC 게시 시 `public/` 복사** | `MediaKeys.forPublishedChallenge(jobUuid)` 가 대상 프리픽스다. S3 `CopyObject` 6~8개. 옮기지 않고 **복사**한다 |
+| 9 | **PUBLIC → PRIVATE 시 CloudFront 무효화** | `public/` 삭제만으로는 1년 `immutable` 탓에 엣지가 계속 서빙한다. `cloudfront:CreateInvalidation` IAM 권한이 필요하고, 비동기라 즉시 차단은 약속하지 않는다(§8.2) |
+| 10 | **인프라 — `CLOUDFRONT_PRIVATE_KEY` Secret 주입** | 없으면 파드는 뜨고 보호 URL 발급만 실패한다(fail-closed). `40-core-api/secret.example.yaml.txt` 도 함께(`develop/infra`) |
+| 11 | **안드로이드 — 403 재시도 규약** | 서명 만료(10분)가 재생 중에 오면 조각이 403 이다. **재생목록을 다시 받으면** core-api 가 새 서명으로 내려준다. Media3 의 어느 계층에서 잡을지는 미정(`docs/api/detail/README.md` 미결) |
+
+**먼저 읽을 것**: `global/media/` 의 `MediaPlaylistService` · `HlsPlaylistRewriter`
+javadoc. 왜 쿠키가 아니라 URL 인지, 왜 재생목록을 다시 쓰는지가 거기 있다.
+
+**건드릴 때 조심할 것 둘**
+
+- `MediaPlaylistService.RENDITIONS` 는 app-media 의 `Rendition.LADDER` 와 **같은 값**
+  이어야 한다. 화이트리스트라 여기가 뒤처지면 새 화질이 404 가 된다. 반대로 검증을
+  풀면 경로 인자가 S3 키에 그대로 붙어 프리픽스를 벗어난다
+- `EXT-X-MAP` 을 리라이팅에서 빼면 **재생이 시작조차 안 된다**. fMP4 는 init 세그먼트에
+  디코더 설정이 있어 조각만 서명하면 첫 요청이 403 이다
+
 ## 영향 문서
 
 - [x] **인계 문서** — [video-delivery-handoff.md](../poc/video-delivery-handoff.md).

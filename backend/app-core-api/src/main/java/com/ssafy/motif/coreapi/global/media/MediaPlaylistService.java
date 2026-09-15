@@ -7,6 +7,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
+import java.util.Set;
+
 /**
  * 보호 등급 HLS 재생목록을 서명해 다시 쓴다 (API 명세 §1.7).
  *
@@ -21,6 +23,9 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
  * <p><b>오가는 것은 텍스트뿐이다.</b> 재생목록은 수백 바이트~수 KB 이고 영상 바이트는
  * 여전히 CDN 이 낸다 — 설계 원칙 ①(바이트가 API 서버를 통과하지 않는다)은 유지된다.
  *
+ * <p><b>컨트롤러는 아직 없다</b> — `composite_jobs` 가 core-api 에 없어 {@code jobUuid} 로
+ * 타입도 소유자도 못 찾는다. 붙일 것의 목록은 ADR-0010 "남은 배선" 에 있다.
+ *
  * <p><b>인가는 여기 없다.</b> 이 서비스는 "이 프리픽스를 서명해 달라"만 받는다. 누가
  * 볼 수 있는지는 프리픽스를 정하는 쪽(호출자)이 판단한다 — 그래야 소유자 조회 방식이
  * 바뀌어도 여기를 안 고친다.
@@ -32,6 +37,9 @@ public class MediaPlaylistService {
     public static final String MASTER = "master.m3u8";
     public static final String VARIANT = "index.m3u8";
     private static final String SEGMENT_CONTENT_TYPE = "application/vnd.apple.mpegurl";
+
+    /** app-media 의 {@code Rendition.LADDER} 와 같은 값이다. 여기가 뒤처지면 새 화질이 404 가 된다. */
+    private static final Set<String> RENDITIONS = Set.of("480p", "720p", "1080p");
 
     private final S3Client s3;
     private final CloudFrontUrlSigner signer;
@@ -71,6 +79,7 @@ public class MediaPlaylistService {
      * @param rendition 화질 디렉터리 (예 {@code 720p})
      */
     public String variant(String prefix, String rendition) {
+        requireKnownRendition(rendition);
         String body = read(prefix + "/" + rendition + "/" + VARIANT);
         String renditionPrefix = prefix + "/" + rendition + "/";
         // uri -> signed 를 캐시한다. 값이 하나뿐인 것이 보통이라 Map 을 쓸 필요가 없다
@@ -82,6 +91,20 @@ public class MediaPlaylistService {
             }
             return lastUri[1];
         });
+    }
+
+    /**
+     * 화질 디렉터리는 <b>화이트리스트로만</b> 받는다.
+     *
+     * <p>이 값은 URL 경로에서 와서 S3 키에 그대로 이어붙는다. 검증하지 않으면
+     * {@code ../../../private/motif/남의uuid} 같은 값으로 <b>프리픽스를 벗어나
+     * 임의의 오브젝트에 서명을 받아낼 수 있다</b> — 인가를 통과한 뒤라 더 위험하다.
+     * 사다리는 {@code Rendition.LADDER} 고정이라 목록으로 막는 것이 가장 싸다.
+     */
+    private static void requireKnownRendition(String rendition) {
+        if (!RENDITIONS.contains(rendition)) {
+            throw new IllegalArgumentException("알 수 없는 화질: " + rendition);
+        }
     }
 
     private String cdn(String key) {
