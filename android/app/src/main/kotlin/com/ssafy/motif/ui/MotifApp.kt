@@ -14,9 +14,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
+import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
 import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
+
 
 @Composable
 fun MotifApp(
@@ -31,6 +33,7 @@ fun MotifApp(
         homeEntry(navigator)
         onboardingEntry(navigator)
         rankingEntry(navigator)
+        artistDetailEntry(navigator)
     }
 
     Box(modifier.fillMaxSize()) {

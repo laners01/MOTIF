@@ -21,6 +21,8 @@ dependencies {
     implementation(projects.feature.onboarding.impl)
     implementation(projects.feature.ranking.api)
     implementation(projects.feature.ranking.impl)
+    implementation(projects.feature.artistdetail.api)
+    implementation(projects.feature.artistdetail.impl)
 
     implementation(projects.core.data)
     implementation(projects.core.designsystem)
