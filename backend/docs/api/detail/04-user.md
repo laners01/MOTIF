@@ -58,7 +58,7 @@ Authorization: Bearer {accessToken}
 |---|---|---|
 | `profileImageUrl` | string \| null | 공개 CDN URL. 미설정이면 `null` |
 | `repMotif` | object \| null | 대표 모티프. **미설정이면 `null`** |
-| `repMotif.videoUrl` | string | **HLS 마스터 재생목록**(`master.m3u8`) 주소. 모티프 결과물은 보호 등급이라 **signed 쿠키**로 접근한다(§1.7). 진입 시 자동재생·음소거 |
+| `repMotif.videoUrl` | string | **HLS 마스터 재생목록**(`master.m3u8`) 주소. 모티프 결과물은 보호 등급이라 **core-api 가 서명해 다시 쓴 재생목록**을 받는다(§1.7). 진입 시 자동재생·음소거 |
 | `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 역시 보호 등급이다 |
 | `videos` | array | 내 참여 영상 **최신 9개** 경량 프리뷰(3×3). **없으면 빈 배열 `[]`** |
 | `videos[].visibility` | string | `PUBLIC` \| `PRIVATE`. 본인 화면이라 둘 다 포함한다 |
@@ -70,7 +70,7 @@ Authorization: Bearer {accessToken}
 ### 서버 처리
 
 1. 인증된 `userSeq` 로 `users` 조회 → 닉네임·`profile_image_key`
-2. `users.rep_motif_result_seq` 가 있으면 `motif_results` 조회 → 마스터 재생목록·썸네일 URL 생성 + **해당 프리픽스의 signed 쿠키 발급**
+2. `users.rep_motif_result_seq` 가 있으면 `motif_results` 조회 → 마스터 재생목록은 core-api 경로로, 썸네일은 signed URL 로 생성
 3. `participation_videos` 에서 본인 비삭제 영상을 `reg_dttm DESC` 로 9건 조회
 4. 썸네일을 `visibility` 에 따라 공개 URL / 보호 URL(+쿠키)로 변환
 

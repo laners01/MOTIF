@@ -112,7 +112,7 @@ class ArtistDetailLocalDbTest {
     }
 
     @Test
-    @DisplayName("myMotifVideos 는 빈 배열이다 — signed 쿠키가 없어 보호 등급 URL 을 만들 수 없다")
+    @DisplayName("myMotifVideos 는 빈 배열이다 — 서명 설정이 없어 보호 등급 URL 을 만들 수 없다")
     void myMotifVideosIsEmptyUntilSignedCookiesExist() {
         assertThat(artistQueryService.detail(fanSeq, artistSeq).myMotifVideos()).isEmpty();
     }

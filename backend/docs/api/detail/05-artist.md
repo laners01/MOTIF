@@ -265,14 +265,14 @@ Authorization: Bearer {accessToken}
 | `subscribedDays` | 구독 경과일 — 화면의 "WITH n days". **미구독이면 `null`** |
 | `pass.active` | `motif_passes.status='ACTIVE' AND expires_dttm > now` |
 | `pass.expiresDttm` | 위가 참일 때만 값. 아니면 `null` |
-| `myMotifVideos` | **내가 이 아티스트와 만든 모티프 결과물 최신 5개**. `videoUrl` 은 HLS 마스터 재생목록이고 보호 등급이라 **signed 쿠키**가 함께 발급된다. 없으면 **빈 배열**(상단 영역 미노출) |
+| `myMotifVideos` | **내가 이 아티스트와 만든 모티프 결과물 최신 5개**. `videoUrl` 은 HLS 마스터 재생목록이고 보호 등급이라 core-api 가 서명해 다시 쓴 재생목록을 가리킨다. 없으면 **빈 배열**(상단 영역 미노출) |
 
 - `myMotifVideos` 는 화면 상단 **자동재생**용이다. 구 `hasMyMotifResults` 를 대체했다. 전체 목록·더보기는 §5.8(= §11.5 의 `artistSeq` 필터).
 - `pass.active=false` 면 클라이언트는 "모티프 패스 알아보기"를 노출한다(→ §11.4).
 
 ### 연속 재생 (클라이언트 제안)
 
-배열 순서대로 플레이어 재생목록(ExoPlayer `ConcatenatingMediaSource`)에 넣어 하나가 끝나면 다음으로 넘어간다. 보호 등급 접근은 **경로 프리픽스 단위 signed 쿠키**라, 이 응답을 받을 때 발급된 쿠키가 목록 전체의 재생에 함께 쓰인다. 쿠키가 만료(10분)돼 로드에 실패하면 **§11.6 단건 재조회**로 쿠키를 다시 받는다 — 서버에 추가 API 가 필요 없다.
+배열 순서대로 플레이어 재생목록(ExoPlayer `ConcatenatingMediaSource`)에 넣어 하나가 끝나면 다음으로 넘어간다. 보호 등급이라 각 `videoUrl` 은 core-api 가 서명해 다시 쓴 재생목록을 가리킨다. 서명이 만료(10분)돼 조각 로드가 403 이면 **그 재생목록을 다시 받으면 된다** — core-api 가 새 서명으로 내려주므로 서버에 추가 API 가 필요 없다.
 
 ### 실패 응답
 

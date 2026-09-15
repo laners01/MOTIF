@@ -971,7 +971,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | **인프라(지침 §5·§6)** | S3 프리픽스 신설 `challenges/`·`edited/`·`artists/`·`banners/` · IAM `motif-gpu-worker` GET 에 `challenges/*`·`edited/*` 추가 · `motif-ai-editor`(PUT/GET `edited/*`) 신설 · Traefik `forwardedHeaders.trustedIPs`·`rateLimit` 미들웨어(SCG 역할 이관) · 어드민 허용 CIDR configmap · 감사 로그 **PVC(local-path)** 마운트 · EC2 워커 노드 조인 단계(§6 9번) 삭제 · k8s core-api 메모리 limit 에 ffmpeg 피크 반영 |
 | **API 명세 v0.11 §16.1** | 어드민 반영 대기 3건 종결 — ① 전조합 편집본(3.7.2) ② `shop_banners` 관리(3.11) ③ 에셋 `title/description` 분리(3.8.2). §12.3 "환불은 어드민 범위" → 3.15.3. **§1.1 정정**: "Traefik → SCG → Core API" → "Traefik → Core API"(JWT 검증·레이트리밋 주체 변경), `RATE_LIMITED` 429 발원지 = Traefik |
 | **ADR-0010 (영상 전달)** *(v0.4 신설)* | 렌디션 2종(720p/480p)·HLS·재생 중 화질 전환 채택. 워커 인코딩 요구사항(GOP 2초 고정·화질 간 정렬, 비트레이트 상한 `-maxrate`/`-bufsize` 필수, faststart 유지). 비공개 영상 URL = CloudFront **서명 쿠키**(서명 URL 은 HLS 조각 요청에 서명이 따라붙지 않아 403) |
-| **API 명세 v0.11 → v0.12** *(v0.4 신설)* | `videoUrl` 이 단일 MP4 → HLS 마스터 재생목록. §1.7 보호 등급을 signed URL → **signed 쿠키**. 산출물 키 규약 표 신설 |
+| **API 명세 v0.11 → v0.12** *(v0.4 신설)* | `videoUrl` 이 단일 MP4 → HLS 마스터 재생목록. §1.7 보호 등급을 **signed URL + core-api 재생목록 리라이팅** 으로 확정. 산출물 키 규약 표 신설 |
 | **모듈 구성** *(v0.4 신설 · v0.5 갱신)* | `app-media` 신설(`job.media` 소비, 포트 8083/관리 9083). Jenkinsfile 빌드·이미지 추가, k8s 매니페스트 신설 필요. **core-api Dockerfile 은 그대로 — ffmpeg 를 넣지 않는다**. 배치는 GPU 서버 대여 전까지 SSAFY 노드 — `resources.limits.cpu: 1` 권장 |
 | **DB 명세 v0.15 → v0.16** | §6 표 1~3 |
 | **기능 명세서** | 어드민 대행의 좋아요는 알림 미발송(기존 규칙 재확인), 챌린지 숨김 개념 없음(삭제만) |

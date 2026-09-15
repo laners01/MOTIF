@@ -83,7 +83,7 @@ public class ArtistQueryService {
                 subscribedDays(subscription),
                 ArtistDetailResponse.MotifPass.of(passExpiry),
                 // ponytail: §1.7 보호 등급 URL 을 만들 수단이 아직 없어 빈 배열로 둔다.
-                // CloudFront signed 쿠키 발급(키페어·만료)이 붙으면 여기서
+                // ProtectedMediaUrlResolver(썸네일)·재생목록 리라이터(videoUrl)가 붙으면 여기서
                 // motif_results 최신 5건을 읽어 채운다 — 만료·개수는 명세 §16 #23 미결.
                 // 공개 URL 로 대신 내보내지 않는다: 유료·비공개 결과물이 무기명 링크로
                 // 새는 쪽이 기능이 비는 쪽보다 훨씬 나쁘다.
