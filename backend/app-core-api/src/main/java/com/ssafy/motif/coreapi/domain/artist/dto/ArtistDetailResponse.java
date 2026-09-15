@@ -70,16 +70,16 @@ public record ArtistDetailResponse(
     /**
      * §5.3 {@code myMotifVideos[]} — 보관함 결과물 한 건.
      *
-     * <p><b>보호 등급이다</b>(§1.7) — 이 두 URL 은 CloudFront signed 쿠키로만 접근하며
+     * <p><b>보호 등급이다</b>(§1.7) — 이 두 URL 은 CloudFront signed URL 로만 접근하며(재생목록은 core-api 리라이팅)
      * {@code PublicMediaUrlResolver} 가 만드는 무기명 URL 을 쓰면 안 된다.
      */
     public record MyMotifVideo(
             Long resultSeq,
 
-            @Schema(description = "master.m3u8 (HLS). signed 쿠키로 접근 — §1.7 보호 등급")
+            @Schema(description = "master.m3u8 (HLS). core-api 가 서명해 다시 쓴 재생목록 — §1.7 보호 등급")
             String videoUrl,
 
-            @Schema(description = "썸네일. signed 쿠키로 접근 — §1.7 보호 등급")
+            @Schema(description = "썸네일. signed URL — §1.7 보호 등급")
             String thumbnailUrl,
 
             int durationMs

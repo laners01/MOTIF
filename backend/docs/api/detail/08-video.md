@@ -61,7 +61,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `videoUrl` | **HLS 마스터 재생목록**(`master.m3u8`) 주소. `PUBLIC` 이면 서명 없이 열리고, **본인의 `PRIVATE` 이면 signed 쿠키**가 필요하다(§1.7) |
+| `videoUrl` | **HLS 마스터 재생목록**(`master.m3u8`) 주소. `PUBLIC` 이면 서명 없이 열리고, **본인의 `PRIVATE` 이면 core-api 가 서명해 다시 쓴 재생목록**을 받는다(§1.7) |
 | `hasArtistLike` · `hasArtistComment` | 해당 챌린지의 아티스트가 좋아요·댓글을 남겼는지. 화면 뱃지이자 §8.1 추천 정렬의 강가중 요소다 |
 | `isLiked` | 요청자의 좋아요 여부 |
 | `commentEnabled` | `false` 면 댓글이 **동결**된다 — 목록 조회까지 차단이다(§9) |
@@ -376,7 +376,22 @@ HTTP/1.1 204 No Content
 }
 ```
 
-`PUBLIC → PRIVATE` 로 바꾸면 **URL 은 그대로지만 접근 등급이 보호로 바뀐다** — 이후에는 signed 쿠키 없이 재생할 수 없다(§1.7).
+**`visibility` 는 양방향으로 바꿀 수 있다. `PUBLIC → PRIVATE` 은 CDN 무효화를 동반한다.**
+
+산출물이 `private/` 와 `public/` 으로 갈려 있어(§1.7) 방향마다 비용이 다르다.
+
+| 방향 | 처리 | 반영 |
+|---|---|---|
+| `PRIVATE → PUBLIC` | `private/` 트리를 `public/` 으로 복사 | 즉시 |
+| `PUBLIC → PRIVATE` | `public/` 트리 삭제 + **CloudFront 무효화** | 수십 초~수 분 |
+
+산출물에 1년 `immutable` 이 붙어 있어 **S3 에서 지우는 것만으로는 엣지가 계속 서빙한다**.
+무효화(`create-invalidation /public/challenge/{jobUuid}/*`)를 함께 호출해야 실제로 닫힌다.
+비동기라 응답은 즉시 돌려주되, 그 사이 이미 URL 을 쥔 클라이언트는 잠시 더 볼 수 있다 —
+**"즉시 차단"을 약속하지 않는다**(월 1,000 path 까지 무료라 비용은 실질 0).
+
+`result_video_key` 는 방향과 무관하게 `private/` 를 계속 가리킨다. 재생 중인
+클라이언트가 404 를 만나지 않게 하기 위해서다 — 공개 트리는 사본이고 정본이 아니다.
 
 ### 실패 응답
 
