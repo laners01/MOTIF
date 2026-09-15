@@ -47,6 +47,14 @@ motif:
   # 미디어 — 버킷은 app-media 와 같은 곳을 본다. core-api 는 presign 서명만 하고
   # 바이트는 다루지 않는다(원칙 ① — 브라우저 → S3 직행)
   media:
+    # 보호 등급 signed URL (§1.7). key-pair-id 는 서명 URL 에 실려 나가는 공개
+    # 식별자라 기본값을 둔다. private-key 는 비밀이라 fallback 이 없다 —
+    # 없으면 기동은 되고 보호 URL 발급만 실패한다(CloudFrontUrlSigner).
+    signing:
+      key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:K27QE85H6DLYDD}
+      private-key: ${CLOUDFRONT_PRIVATE_KEY:}
+      # §1.7 기본안 10분. 만료된 조각을 만나면 앱이 재생목록을 다시 받는다
+      ttl: 10m
     s3:
       bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
       region: ${AWS_REGION:ap-northeast-2}

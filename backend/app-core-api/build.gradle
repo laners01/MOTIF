@@ -36,6 +36,10 @@ dependencies {
     // 바이트는 브라우저 → S3 로 직행하고 core-api 는 서명만 한다(원칙 ①)
     implementation libs.aws.s3
 
+    // CloudFront signed URL 발급 (API 명세 §1.7 보호 등급). 서명만 하고 바이트는
+    // 여전히 CDN 이 낸다 — 원칙 ① 유지
+    implementation libs.aws.cloudfront
+
     implementation libs.springdoc.webmvc.ui
 
     // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
