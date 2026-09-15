@@ -7,6 +7,4 @@ import com.ssafy.motif.core.model.artistdetail.ArtistDetail
 data class ArtistDetailUiState(
     val artistId: Long = 0L,
     val artistDetail: ArtistDetail? = null,
-    val isSubscribed: Boolean = false,
-    val isAlarmOn: Boolean = true,
 )

@@ -9,8 +9,6 @@ import com.ssafy.motif.core.navigation.NavigationState
 import com.ssafy.motif.core.navigation.rememberNavigationState
 import com.ssafy.motif.feature.artistdetail.api.navigation.ArtistDetailNavKey
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
-import com.ssafy.motif.feature.onboarding.api.navigation.OnboardingNavKey
-import com.ssafy.motif.feature.ranking.api.navigation.RankingNavKey
 import com.ssafy.motif.navigation.TOP_LEVEL_NAV_ITEMS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted

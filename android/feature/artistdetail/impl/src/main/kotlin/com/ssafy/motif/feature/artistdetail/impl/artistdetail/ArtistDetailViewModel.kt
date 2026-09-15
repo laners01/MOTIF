@@ -15,20 +15,32 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
     val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
 
     fun toggleSubscribe() {
-        _uiState.update { state -> state.copy(isSubscribed = !state.isSubscribed) }
+        _uiState.update { state ->
+            val detail = state.artistDetail ?: return@update state
+            state.copy(
+                artistDetail = detail.copy(
+                    isSubscribed = !detail.isSubscribed,
+                    subscribeNum = detail.subscribeNum + if (detail.isSubscribed) -1 else 1,
+                ),
+            )
+        }
     }
 
     fun toggleAlarm(){
-        _uiState.update { state -> state.copy(isAlarmOn = !state.isAlarmOn) }
+        _uiState.update { state ->
+            val detail = state.artistDetail ?: return@update state
+            state.copy(
+                artistDetail = detail.copy(
+                    isAlarmOn = !detail.isAlarmOn,
+                ),
+            )
+        }
     }
 
     fun goBackScreen(){
 
     }
 
-    fun calcSubscriber(){
-
-    }
 
 
 }

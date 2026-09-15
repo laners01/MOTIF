@@ -65,8 +65,8 @@ internal fun ArtistDetailScreen(
         uiState.artistDetail?.let{ artistDetail ->
             ArtistDetailCard(
                 artistDetail = artistDetail,
-                isAlarmOn = uiState.isAlarmOn,
-                isSubscribed = uiState.isSubscribed,
+                isAlarmOn = artistDetail.isAlarmOn,
+                isSubscribed = artistDetail.isSubscribed,
                 onSubscribeClick = onSubscribeClick,
                 onAlarmClick = onAlarmClick,
                 onBackClick = onBackClick,
@@ -290,6 +290,7 @@ internal object ArtistDetailMokData {
         introducing = "요즘 시간이 진짜 빨리 가는 것 같아요.\n그래도 곧 재밌는 거 보여줄 수 있을 것 같아요 :)",
         subscribeNum = 2_100_000L,
         challengeNum = 121L,
+        isAlarmOn = true,
         isSubscribed = false,
     )
 }
