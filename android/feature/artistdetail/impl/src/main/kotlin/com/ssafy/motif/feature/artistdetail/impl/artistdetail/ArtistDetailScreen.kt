@@ -160,7 +160,7 @@ fun ArtistDetailCard(
                         painter = painterResource(MotifIcons.MotifPass),
                         contentDescription = null,
                         modifier = Modifier
-                            .size(13.dp),
+                            .size(16.dp),
                     )
                 }
 
@@ -178,7 +178,7 @@ fun ArtistDetailCard(
                         )
                         Text(
                             text = "Challenges",
-                            style = MotifTheme.typography.bodySB16.copy(lineHeight = 19.sp),
+                            style = MotifTheme.typography.captionR12.copy(lineHeight = 19.sp),
                             color = MotifTheme.colors.typo,
                             maxLines = 1,
                         )
@@ -189,14 +189,14 @@ fun ArtistDetailCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = "${artistDetail.subscribeNum}",
+                            text = formatSubscriberCount(artistDetail.subscribeNum),
                             style = MotifTheme.typography.bodySB16.copy(lineHeight = 19.sp),
                             color = MotifTheme.colors.typo,
                             maxLines = 1,
                         )
                         Text(
                             text = "Followers",
-                            style = MotifTheme.typography.bodySB16.copy(lineHeight = 19.sp),
+                            style = MotifTheme.typography.captionR12.copy(lineHeight = 19.sp),
                             color = MotifTheme.colors.typo,
                             maxLines = 1,
                         )
@@ -292,4 +292,13 @@ internal object ArtistDetailMokData {
         challengeNum = 121L,
         isSubscribed = false,
     )
+}
+
+private fun formatSubscriberCount(count: Long): String = when {
+    count < 10_000 -> "%,d명".format(count)
+    else -> {
+        val man = count / 10_000.0
+        if (man % 1.0 == 0.0) "%,.0f만명".format(man)
+        else "%,.1f만명".format(man)
+    }
 }

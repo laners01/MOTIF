@@ -9,5 +9,4 @@ data class ArtistDetailUiState(
     val artistDetail: ArtistDetail? = null,
     val isSubscribed: Boolean = false,
     val isAlarmOn: Boolean = true,
-
 )
