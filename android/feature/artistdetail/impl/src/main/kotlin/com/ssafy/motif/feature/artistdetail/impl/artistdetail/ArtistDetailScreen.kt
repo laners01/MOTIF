@@ -85,7 +85,7 @@ internal fun ArtistDetailScreen(
                                 modifier = Modifier
                                     .tabIndicatorOffset(tabPositions[uiState.selectedTab.ordinal],)
                                     .height(2.dp)
-                                    .width(60.dp),
+                                    .width(50.dp),
                                 color = MotifTheme.colors.pink
                             )
                         }
@@ -101,7 +101,7 @@ internal fun ArtistDetailScreen(
                             Text(
                                 text = tab.label,
                                 style = MotifTheme.typography.bodyR16,
-                                modifier = Modifier.padding(vertical = 30.dp)
+                                modifier = Modifier.padding(top = 24.dp,bottom = 26.dp)
                             )
                         }
                     }

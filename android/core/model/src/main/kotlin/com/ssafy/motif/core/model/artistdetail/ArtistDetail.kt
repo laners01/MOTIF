@@ -8,5 +8,6 @@ data class ArtistDetail(
     val subscribeNum: Long,
     val challengeNum: Long,
     val isSubscribed: Boolean,
-    val isAlarmOn: Boolean
+    val isAlarmOn: Boolean,
+    val hasMotifPass: Boolean
 )

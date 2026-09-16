@@ -107,12 +107,15 @@ internal fun ArtistDetailCard(
                         color = MotifTheme.colors.gray400,
                         maxLines = 1,
                     )
-                    Icon(
-                        painter = painterResource(MotifIcons.MotifPass),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(16.dp),
-                    )
+                    if(artistDetail.hasMotifPass){
+                        Icon(
+                            painter = painterResource(MotifIcons.MotifPass),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(16.dp),
+                        )
+                    }
+
                 }
 
                 Row(modifier = Modifier.fillMaxWidth()) {
