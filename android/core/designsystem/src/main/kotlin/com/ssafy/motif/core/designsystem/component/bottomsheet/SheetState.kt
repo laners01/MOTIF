@@ -41,11 +41,31 @@ class SheetState internal constructor(
             currentValue != SheetValue.Hidden ||
                     targetValue != SheetValue.Hidden
 
+    /**
+     * 현재 Sheet의 상단 Y 위치.
+     *
+     * Hidden            -> 화면 높이
+     * PartiallyExpanded -> 중간 위치
+     * Expanded          -> 0f
+     */
+    fun offsetOrNull(): Float? {
+        val offset =
+            anchoredDraggableState.offset
+
+        return if (offset.isNaN()) {
+            null
+        } else {
+            offset
+        }
+    }
+
     suspend fun show() {
         val partiallyExpandedPosition =
             anchoredDraggableState
                 .anchors
-                .positionOf(SheetValue.PartiallyExpanded)
+                .positionOf(
+                    SheetValue.PartiallyExpanded,
+                )
 
         val target =
             if (
@@ -61,11 +81,15 @@ class SheetState internal constructor(
     }
 
     suspend fun hide() {
-        animateTo(SheetValue.Hidden)
+        animateTo(
+            SheetValue.Hidden,
+        )
     }
 
     suspend fun expand() {
-        animateTo(SheetValue.Expanded)
+        animateTo(
+            SheetValue.Expanded,
+        )
     }
 
     suspend fun partialExpand() {
@@ -76,10 +100,14 @@ class SheetState internal constructor(
         val position =
             anchoredDraggableState
                 .anchors
-                .positionOf(SheetValue.PartiallyExpanded)
+                .positionOf(
+                    SheetValue.PartiallyExpanded,
+                )
 
         if (!position.isNaN()) {
-            animateTo(SheetValue.PartiallyExpanded)
+            animateTo(
+                SheetValue.PartiallyExpanded,
+            )
         }
     }
 
@@ -89,7 +117,9 @@ class SheetState internal constructor(
         val targetPosition =
             anchoredDraggableState
                 .anchors
-                .positionOf(targetValue)
+                .positionOf(
+                    targetValue,
+                )
 
         if (targetPosition.isNaN()) {
             return
@@ -97,15 +127,19 @@ class SheetState internal constructor(
 
         anchoredDraggableState.animateTo(
             targetValue = targetValue,
-            animationSpec = BottomSheetDefaults.AnimationSpec,
+            animationSpec =
+                BottomSheetDefaults.AnimationSpec,
         )
     }
 
     internal suspend fun settle(
         velocity: Float,
     ) {
-        val state = anchoredDraggableState
-        val offset = state.offset
+        val state =
+            anchoredDraggableState
+
+        val offset =
+            state.offset
 
         if (offset.isNaN()) {
             return
@@ -113,7 +147,9 @@ class SheetState internal constructor(
 
         val partialPosition =
             state.anchors
-                .positionOf(SheetValue.PartiallyExpanded)
+                .positionOf(
+                    SheetValue.PartiallyExpanded,
+                )
 
         val hasPartialState =
             !skipPartiallyExpanded &&
@@ -121,7 +157,6 @@ class SheetState internal constructor(
 
         val target =
             when {
-                // 위로 fling
                 velocity < 0f -> {
                     if (
                         hasPartialState &&
@@ -133,7 +168,6 @@ class SheetState internal constructor(
                     }
                 }
 
-                // 아래로 fling
                 velocity > 0f -> {
                     if (
                         hasPartialState &&
@@ -146,7 +180,10 @@ class SheetState internal constructor(
                 }
 
                 else -> {
-                    state.anchors.closestAnchor(offset)
+                    state.anchors
+                        .closestAnchor(
+                            offset,
+                        )
                         ?: currentValue
                 }
             }
@@ -166,7 +203,9 @@ fun rememberModalBottomSheetState(
         partiallyExpandedFraction,
     ) {
         SheetState(
-            skipPartiallyExpanded = skipPartiallyExpanded,
-            partiallyExpandedFraction = partiallyExpandedFraction,
+            skipPartiallyExpanded =
+                skipPartiallyExpanded,
+            partiallyExpandedFraction =
+                partiallyExpandedFraction,
         )
     }
