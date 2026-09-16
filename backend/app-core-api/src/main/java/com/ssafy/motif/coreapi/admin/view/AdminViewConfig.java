@@ -58,5 +58,8 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 챌린지 상세 (§3.7.3) — 읽기 전용. challengeSeq 는 화면 JS 가 pathname 에서 읽는다
         registry.addViewController(AdminPaths.VIEW + "/challenges/{challengeSeq}")
                 .setViewName("admin/challenge-detail");
+        // 숍 배너 — 목록·등록·순서·활성 한 화면 (§1.7, §3.11). 재정렬이 전량 교체라
+        // 목록과 편집을 갈라 둘 이유가 없다
+        registry.addViewController(AdminPaths.VIEW + "/banners").setViewName("admin/banners");
     }
 }
