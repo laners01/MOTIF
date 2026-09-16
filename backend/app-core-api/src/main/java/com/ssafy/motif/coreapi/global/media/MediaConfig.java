@@ -11,6 +11,6 @@ import org.springframework.context.annotation.Configuration;
  * 살아 있는지 파일을 열어 보면 알 수 있게 하기 위해서다.
  */
 @Configuration
-@EnableConfigurationProperties(MediaSigningProperties.class)
+@EnableConfigurationProperties({MediaSigningProperties.class, MediaUploadProperties.class})
 public class MediaConfig {
 }

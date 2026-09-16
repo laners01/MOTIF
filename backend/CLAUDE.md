@@ -151,6 +151,8 @@ S15P21D104-181
 | 마이페이지 원콜 `UserController`·`UserQueryService` (§4.1) | `app-core-api/.../domain/user/` | 278 |
 | **닉네임 제약 `@Nickname`** (§3.3·§4.2 공용 — 패턴·메시지를 각자 두지 않는다) | `app-core-api/.../global/validation/` | S15P21D104-282 |
 | 닉네임 수정 `UserCommandService` (§4.2) | `app-core-api/.../domain/user/` | 282 |
+| **S3 presign·HEAD `MediaObjectStore`** · 이미지 업로드 한도 `MediaUploadProperties`(`motif.media.upload`) | `app-core-api/.../global/media/` | S15P21D104-280 |
+| 프로필 이미지 §4.3·§4.4 `UserProfileImageService` · `ProfileImagePresignRegistry`(Redis, ADR-0011) | `app-core-api/.../domain/user/` | 280 |
 
 **§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed
 쿠키가 필요한데 레포에 서명 발급 수단이 없다(키페어·만료 설정 전무). 공개 URL 로 대신
@@ -185,6 +187,17 @@ adminJwtProvider.issue(new AuthenticatedAdmin(adminSeq, userSeq, name));   // �
 throw new BusinessException(AdminErrorCode.COMPANY_IN_USE, msg, Map.of("refs", n));  // §5 코드 + data
 videoRules.checkChallengeOrigin(new VideoRules.Meta(durationMs, width, height));     // 폼 값 검증
 adminAuditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE", seq, AdminAuditLogger.RESULT_OK);
+```
+
+```java
+// S3 를 만질 때 — presign·HEAD 는 여기 하나뿐이다. S3Client 를 직접 주입받지 않는다
+objectStore.presignPut(key, contentType, contentLength, ttl);   // 조건이 서명에 박힌다
+objectStore.exists(key);                                        // 403 을 "없음" 으로 삼키지 않는다
+// 한도(타입·크기·TTL)는 motif.media.upload.image — 어드민 아티스트 프로필과 사용자
+// 프로필이 같은 profiles/ 프리픽스에 쓰므로 한 곳에 있다. 각자 두지 말 것
+
+// 300초짜리 상태가 필요할 때 — Redis 다 (ADR-0011). 만료가 데이터의 본질이면 Redis,
+// 남겨야 할 이력이면 DB. 거의 NULL 인 칼럼을 새로 만들지 않는다
 ```
 
 ```java

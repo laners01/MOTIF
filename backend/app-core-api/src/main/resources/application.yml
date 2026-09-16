@@ -58,6 +58,15 @@ motif:
       # 이미지(썸네일·프로필)는 그 복구 경로가 없다 — <img> 가 403 이면 깨진 채로
       # 남는다. 마이페이지를 열어둔 채 돌아왔을 때 3×3 이 통째로 깨지지 않을 만큼
       image-ttl: 6h
+    # 업로드 presign 조건 중 경로를 공유하는 것. 이미지는 어드민 아티스트 프로필과
+    # 사용자 프로필(§4.3)이 같은 profiles/ 에 쓰므로 한 곳에 둔다 — 영상은 어드민만
+    # 올리므로 motif.admin.media 에 남아 있다
+    upload:
+      image:
+        content-types: image/jpeg,image/png,image/webp
+        max-size: 10MB
+        # 어드민 §1.4 이미지 300초 · API 명세 §4.3 expiresIn 300 — 같은 값이다
+        presign-ttl: 300s
     s3:
       bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
       region: ${AWS_REGION:ap-northeast-2}
@@ -79,10 +88,6 @@ motif:
         content-types: video/mp4,video/quicktime
         max-size: 300MB
         presign-ttl: 600s
-      image:
-        content-types: image/jpeg,image/png,image/webp
-        max-size: 10MB
-        presign-ttl: 300s
       # 업로드 화면이 보낸 길이·해상도를 대조하는 규칙 (§1.4 2항, §8 #3 미결 — 값만 고친다)
       rules:
         challenge-max-duration: 60s

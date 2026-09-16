@@ -26,7 +26,7 @@ class VideoRulesTest {
     private static final long ASSET_MAX_MS = 20_000;
 
     private final VideoRules rules = new VideoRules(new AdminMediaProperties(
-            null, null,
+            null,
             new AdminMediaProperties.Rules(
                     Duration.ofSeconds(60), Duration.ofSeconds(20), Duration.ofMillis(500))));
 

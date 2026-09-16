@@ -3,6 +3,10 @@ package com.ssafy.motif.coreapi.domain.user.docs;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -169,4 +173,129 @@ public interface UserControllerDocs {
     ApiResponse<NicknameUpdateResponse> updateNickname(
             @Parameter(hidden = true) AuthenticatedUser user,
             NicknameUpdateRequest request);
+
+    @Operation(
+            summary = "프로필 이미지 업로드 URL 발급 (§4.3)",
+            description = """
+                    이미지를 **S3 에 직접 올리기 위한** presigned PUT URL 을 받는다.
+                    이미지 바이트는 **API 서버를 통과하지 않는다**(설계 원칙 ①).
+
+                    ### 순서
+                    1. 이 API 로 `uploadUrl`·`imageKey` 수령
+                    2. `PUT {uploadUrl}` — 본문은 이미지 바이너리,
+                       `Content-Type`·`Content-Length` 는 **이 요청에 보낸 값과 같아야 한다**
+                    3. **§4.4** 로 `imageKey` 를 보내 반영
+
+                    ### 왜 요청 본문이 있나 (원본 명세는 본문 없음)
+                    보낸 `contentType`·`contentLength` 가 **서명에 박힌다.** 다른 값으로
+                    PUT 하면 S3 가 거부한다. 이게 없으면 발급된 URL 로 **아무 타입이든
+                    아무 크기든 올릴 수 있고**, 바이트가 서버를 지나가지 않으므로 사후에
+                    확인할 방법도 없다. 어드민 §1.4 가 같은 근거로 이미 그렇게 한다.
+
+                    허용: `image/jpeg` · `image/png` · `image/webp`, 최대 10MB.
+
+                    ### 만료
+                    `expiresIn` 초가 지나면 URL 과 함께 **발급 기록도 사라져 §4.4 가 403**
+                    이다. 그때는 이 API 부터 다시 부른다.
+
+                    ### 참고 — MY-08 모티프 프레임 프로필
+                    "모티프 영상의 한 프레임을 프로필로" 는 **클라이언트가 재생 중 프레임을
+                    캡처해 같은 흐름으로 업로드**한다. 서버가 영상에서 프레임을 뽑지 않는다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "업로드 URL",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "uploadUrl": "https://motif-media.s3.ap-northeast-2.amazonaws.com/profiles/3f9c1a2b.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=...",
+                                        "imageKey": "profiles/3f9c1a2b.jpg",
+                                        "expiresIn": 300
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "허용되지 않는 `contentType` · 크기 상한 초과",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": { "allowedContentTypes": ["image/jpeg", "image/png", "image/webp"] },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ProfileImagePresignResponse> presignProfileImage(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            ProfileImagePresignRequest request);
+
+    @Operation(
+            summary = "프로필 이미지 반영 (§4.4)",
+            description = """
+                    §4.3 → `PUT` 업로드를 **마친 뒤** 호출한다. 서버가 S3 에 오브젝트가
+                    실제로 있는지 확인(HEAD)하고 `users.profile_image_key` 를 갱신한다.
+
+                    응답의 `profileImageUrl` 은 **무서명 공개 CDN URL** 이다. 프로필은 공개
+                    등급이라 서명이 붙지 않는다 — S3 presigned 로 내보내지 않는 이유는 서명
+                    쿼리스트링이 오리진까지 전달돼 **CDN 캐시 적중률을 0% 로 만들기** 때문이다
+                    (§1.7 · ADR-0010 D5).
+
+                    설정이 아니라 **수정**이므로 `users.mod_usr_seq` 에 본인 seq 가 기록된다.
+
+                    **이전 이미지는 지우지 않는다.** 1년 `immutable` 로 서빙 중이라 S3 에서
+                    지워도 엣지가 계속 내보내고, 무효화까지 걸면 이 API 가 무거워진다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "반영된 프로필 이미지",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = """
+                            본인에게 발급된 키가 아니다 — **발급 기록 만료도 여기로 떨어진다**
+                            (§4.3 의 `expiresIn` 경과). 남의 `imageKey` 를 보낸 경우도 같다.
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "FORBIDDEN",
+                                      "message": "권한이 없습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = """
+                            발급은 받았지만 **S3 에 오브젝트가 없다** — 업로드를 하지 않았거나
+                            PUT 이 실패했다. `PUT` 부터 다시 한다(URL 이 아직 살아 있으면
+                            §4.3 을 다시 부를 필요는 없다).
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "IMAGE_NOT_UPLOADED",
+                                      "message": "업로드되지 않은 이미지입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ProfileImageUpdateResponse> updateProfileImage(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            ProfileImageUpdateRequest request);
 }
