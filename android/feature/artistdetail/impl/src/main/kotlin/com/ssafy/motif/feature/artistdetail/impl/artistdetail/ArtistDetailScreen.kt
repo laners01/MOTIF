@@ -40,6 +40,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
+import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifEmptyContent
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifVideoSection
 
 @Composable
@@ -64,6 +65,7 @@ fun ArtistDetailScreen(
         onReplyLikeClick = viewModel::onReplyLikeClick,
         onChallengeClick = viewModel::onChallengeClick,
         onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
+        onCreateMotifClick = viewModel::onCreateMotifClick,
         formatCreatedAt = { "방금 전" },
         modifier = modifier,
     )
@@ -85,6 +87,7 @@ internal fun ArtistDetailScreen(
     formatCreatedAt: (Long) -> String,
     onChallengeClick:(Long) -> Unit,
     onLoadMoreChallenges:() -> Unit,
+    onCreateMotifClick:() ->Unit,
     modifier: Modifier = Modifier,
 
 
@@ -123,17 +126,29 @@ internal fun ArtistDetailScreen(
                 contentPadding = PaddingValues(bottom = 12.dp),
             ) {
                 uiState.artistDetail?.let{ artistDetail ->
-                    val motif = uiState.representativeMotif
-                        ?.takeIf { artistDetail.hasMotifPass }
+                    if(artistDetail.hasMotifPass){
+                        val motif = uiState.representativeMotif
 
-                    if(motif != null){
-                        item{
-                            MotifVideoSection(
-                                motif = motif,
-                                modifier = Modifier.padding(bottom = 12.dp),
-                            )
+                        if(motif !=null){
+                            item{
+                                MotifVideoSection(
+                                    motif = motif,
+                                    modifier = Modifier.padding(bottom = 12.dp),
+                                )
+                            }
+                        }
+                        else{
+                            item{
+                                MotifEmptyContent(
+                                    artistName = artistDetail.name,
+                                    onCreateClick = onCreateMotifClick,
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+
+                            }
                         }
                     }
+
                     item{
                         ArtistDetailCard(
                             artistDetail = artistDetail,
@@ -141,10 +156,10 @@ internal fun ArtistDetailScreen(
                             isSubscribed = artistDetail.isSubscribed,
                             onSubscribeClick = onSubscribeClick,
                             onAlarmClick = onAlarmClick,
-                            modifier = if (motif == null) {
-                                Modifier.padding(top = 12.dp)
-                            } else {
+                            modifier = if (artistDetail.hasMotifPass) {
                                 Modifier
+                            } else {
+                                Modifier.padding(top = 12.dp)
                             },
                         )
                     }
