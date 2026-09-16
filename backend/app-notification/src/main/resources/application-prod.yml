@@ -13,9 +13,27 @@ spring:
     username: ${MQ_USERNAME:notification}
     password: ${MQ_PASSWORD}
     virtual-host: /motif
+  # 멱등 가드(SETNX evt:{eventId}) 전용. 없으면 StringRedisTemplate 이 localhost 를
+  # 보고, 연결 실패가 리스너 안에서 터져 모든 알림이 DLQ 로 간다
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      password: ${REDIS_PASSWORD}
 
 motif:
   notification:
     # app-notification-secret 을 파일로 마운트한 경로. 값이 없으면 기동에 실패한다 —
     # 조용히 뜨면 배포는 성공으로 보이고 알림만 전부 안 간다
     fcm-credentials-path: ${FCM_CREDENTIALS_PATH:/etc/fcm/service-account.json}
+
+# 워커는 설정이 틀려도 "Started" 를 찍고 멀쩡히 뜬다 — 1/1 Ready 인데 메시지를
+# 하나도 소비하지 않는 상태가 된다(app-media 가 같은 함정을 겪었다).
+# readiness 에 의존성을 넣어 그 거짓 초록을 없앤다. redis 도 넣는다 —
+# 멱등 가드가 죽으면 중복 푸시가 나가거나 전량 DLQ 로 간다.
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db,rabbit,redis

@@ -46,6 +46,19 @@ List modules() {
      context: 'backend/app-media',
      paths: ['backend/app-media/'],
      health: null],
+
+    // app-media 와 같은 이유로 스모크가 없다. readiness 그룹이 db·rabbit·redis 를
+    // 본다(app-notification/application-prod.yml) — rollout status 성공이 곧
+    // "세 의존성에 실제로 붙었고 Liquibase 도 통과했다" 는 뜻이다.
+    //
+    // ** 이 모듈이 motif_notif 스키마의 유일한 생성자다. ** device_tokens 와
+    // core_app 용 GRANT 가 이 배포의 Liquibase 로만 만들어진다 — 배포가 밀리면
+    // core-api 의 §14.1 토큰 등록까지 같이 죽는다.
+    [name: 'app-notification',
+     gradle: ':app-notification',
+     context: 'backend/app-notification',
+     paths: ['backend/app-notification/'],
+     health: null],
 ]
 }
 

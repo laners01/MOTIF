@@ -15,3 +15,8 @@ spring:
 logging:
   level:
     org.hibernate.SQL: debug   # SQL debug는 local만
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      password: ${REDIS_PASSWORD:}
