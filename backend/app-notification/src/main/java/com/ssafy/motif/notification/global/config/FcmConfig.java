@@ -1,6 +1,7 @@
 package com.ssafy.motif.notification.global.config;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -32,9 +33,15 @@ public class FcmConfig {
     @Bean
     public FirebaseMessaging firebaseMessaging(NotificationProperties properties) throws IOException {
         Path path = credentialsPath(properties);
-        try (InputStream credentials = Files.newInputStream(path)) {
+        try (InputStream in = Files.newInputStream(path)) {
+            GoogleCredentials credentials = GoogleCredentials.fromStream(in);
             FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(credentials))
+                    .setCredentials(credentials)
+                    // projectId 를 명시한다. 빼면 FirebaseOptions.getProjectId() 가 null 이고
+                    // 발송 경로(/v1/projects/{projectId}/messages:send)는 자격증명에서 다시
+                    // 유추한다 — 동작은 하지만 로그에 project=null 이 찍혀, 발송이 실패했을 때
+                    // "자격증명을 못 읽었나" 로 헛다리를 짚게 된다
+                    .setProjectId(projectId(credentials, path))
                     .build();
             // 같은 이름으로 두 번 초기화하면 던진다. 컨텍스트가 두 번 뜨는 테스트를
             // 위해 이미 있으면 재사용한다
@@ -44,6 +51,22 @@ public class FcmConfig {
             log.info("FCM 자격증명 로드: project={}", app.getOptions().getProjectId());
             return FirebaseMessaging.getInstance(app);
         }
+    }
+
+    /**
+     * 서비스 계정 JSON 의 {@code project_id}.
+     *
+     * <p>파일이 서비스 계정이 아니면(사용자 자격증명·ADC 등) 여기서 막는다. 그런 파일로도
+     * {@code FirebaseApp} 은 만들어지지만 <b>첫 발송에서</b> 실패한다 — 기동 때 크게
+     * 실패하는 편이 낫다.
+     */
+    private static String projectId(GoogleCredentials credentials, Path path) {
+        if (credentials instanceof ServiceAccountCredentials serviceAccount
+                && serviceAccount.getProjectId() != null) {
+            return serviceAccount.getProjectId();
+        }
+        throw new IllegalStateException(
+                "서비스 계정 JSON 이 아니다 — project_id 를 읽지 못했다: " + path.toAbsolutePath());
     }
 
     private static Path credentialsPath(NotificationProperties properties) {
