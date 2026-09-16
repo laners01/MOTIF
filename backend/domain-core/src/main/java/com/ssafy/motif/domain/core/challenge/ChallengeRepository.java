@@ -26,6 +26,26 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
     List<Challenge> findTop5ByArtistSeqAndDeletedFalseOrderByChallengeSeqDesc(Integer artistSeq);
 
     /**
+     * 아티스트 랭킹 점수의 원자료 (API 명세 §5.1) — 비삭제 챌린지 전량.
+     *
+     * <p><b>점수를 SQL 에서 계산하지 않는다.</b> 감쇠는 {@code power()}·{@code extract(epoch …)}
+     * 로 DB 에서도 되지만, 그러면 공식이 쿼리 문자열 안에 갇혀 단위 테스트로 묶이지
+     * 않는다 — 가중치·반감기가 설정으로 빠지는데 정작 그 계산을 검증할 수 없게 된다.
+     * 계산은 {@code RankingScore}(순수)가 하고 여기는 재료만 꺼낸다.
+     *
+     * <p><b>집계 없이 전량을 준다.</b> 아티스트별로 {@code sum} 해서 주면 챌린지마다 다른
+     * 나이를 잃어버린다 — 감쇠는 <b>챌린지 하나하나</b>에 걸려야 의미가 있다.
+     * 운영 규모가 수백 건이고 5분에 한 번이라 전량 스캔이 부담되지 않는다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.challenge.ChallengeScoreRow(
+                       c.artistSeq, c.viewCount, c.participantCount, c.regDttm)
+            from Challenge c
+            where c.deleted = false
+            """)
+    List<ChallengeScoreRow> findRankingInputs();
+
+    /**
      * 팬 앱 아티스트 챌린지 그리드 (API 명세 §5.4) — <b>비페이지 전량</b>, 최신순.
      *
      * <p>페이지를 두지 않는 것은 회의 확정(R2)이다. 어드민 목록(§3.7.1)과 달리 필터가

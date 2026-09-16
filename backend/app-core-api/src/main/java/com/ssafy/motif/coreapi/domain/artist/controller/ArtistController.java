@@ -4,11 +4,15 @@ import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.artist.docs.ArtistControllerDocs;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
 import com.ssafy.motif.coreapi.domain.artist.service.ArtistQueryService;
+import com.ssafy.motif.coreapi.domain.artist.service.ArtistRankingQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,8 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code subscribedDays}·{@code pass} 를, §5.5 는 {@code isLiked} 를 호출자 기준으로
  * 채운다. §5.4 만 항목에 내 상태가 없지만 팬 앱 로그인 뒤 화면이라 공개로 열지 않는다.
  *
- * <p>§5.1 랭킹·§5.2 검색·§5.9 자동완성·§5.6·§5.7 구독은 이 티켓 범위가 아니다 —
- * 같은 {@code /artists} 경로라도 별개 티켓이라 여기 매핑이 없다.
+ * <p>§5.1 랭킹은 인증이 필요하지만 성격이 다르다 — 1차 출처가 DB 가 아니라 배치가 만든
+ * Redis 스냅샷이라 {@link ArtistRankingQueryService} 가 따로 맡는다. 매핑만 여기 모은다.
+ *
+ * <p>§5.2 검색·§5.9 자동완성·§5.6·§5.7 구독은 아직 없다 — 같은 {@code /artists} 경로라도
+ * 별개 티켓이라 여기 매핑이 없다.
  *
  * <p>경로가 {@code /api/v1/**} 이고 {@code /api/v1/admin/**} 이 아니므로 springdoc
  * {@code user} 그룹 문서에 자동으로 잡힌다({@code OpenApiConfig}).
@@ -40,6 +47,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class ArtistController implements ArtistControllerDocs {
 
     private final ArtistQueryService artistQueryService;
+    private final ArtistRankingQueryService artistRankingQueryService;
+
+    /**
+     * §5.1 아티스트 랭킹 — <b>offset 페이지</b>(§1.2).
+     *
+     * <p>§5.5 공지와 달리 커서가 아니다. 랭킹은 배치가 만든 <b>고정 스냅샷</b>을 읽으므로
+     * 페이지를 넘기는 동안 항목이 밀려들지 않는다 — 커서가 막으려는 문제가 없다.
+     *
+     * <p>{@code sort} 를 받지 않는다. 서버 고정 정렬이고, 열면 화이트리스트가 필요해진다.
+     */
+    @Override
+    @GetMapping("/ranking")
+    public ApiResponse<PageResponse<ArtistRankingResponse>> ranking(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(defaultValue = "ALL") RankingFilter filter,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                artistRankingQueryService.ranking(user.userSeq(), filter, page, size));
+    }
 
     /** §5.3 아티스트 상세. */
     @Override
