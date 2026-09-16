@@ -179,7 +179,11 @@ class AdminTemplateRenderTest {
                 .contains("/admin/assets.js")
                 .contains("id=\"asset-row\"")
                 .contains("id=\"asset-type\"")
-                .contains("id=\"is-active\"");
+                .contains("id=\"is-active\"")
+                .contains("class=\"toggle\"");
+        // 활성 전환 버튼이 행 템플릿에 있어야 한다(§3.8.5) — 없으면 목록이 다시
+        // 읽기 전용으로 돌아가는데 화면은 멀쩡해 보인다
+        assertThat(html).contains("<th>관리</th>");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
 
