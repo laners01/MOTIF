@@ -151,7 +151,8 @@ S15P21D104-181
 | 마이페이지 원콜 `UserController`·`UserQueryService` (§4.1) · 내 챌린지 그리드(§4.8) · 그리드 항목 `VideoPreviewItem`(§4.1·§4.8 공용) · `ParticipationVideoRepository.findMine`(건수는 `Pageable` 로) | `app-core-api/.../domain/user/` · `domain-core/.../video/` | 278 |
 | **닉네임 제약 `@Nickname`** (§3.3·§4.2 공용 — 패턴·메시지를 각자 두지 않는다) | `app-core-api/.../global/validation/` | S15P21D104-282 |
 | 닉네임 수정 `UserCommandService` (§4.2) | `app-core-api/.../domain/user/` | 282 |
-| 타 사용자 프로필 §4.6 `UserQueryService.profile` · `UserErrorCode`(`USER_NOT_FOUND`) · `SubscriptionRepository.findSubscribed`(삭제 아티스트 제외·구독 최신순) | `app-core-api/.../domain/user/` · `domain-core/.../artist/` | S15P21D104-158 |
+| 타 사용자 프로필 §4.6 `UserQueryService.profile` · `UserErrorCode`(`USER_NOT_FOUND`) · `SubscriptionRepository.findSubscribed`(삭제 아티스트 제외·구독 최신순 — §4.6·§4.7 공용) | `app-core-api/.../domain/user/` · `domain-core/.../artist/` | S15P21D104-158 |
+| 구독 카드 §4.7 `UserQueryService.subscriptions` · 집계 batch 4종(`countMineByArtists`·`countActiveByArtists`·`countPurchasedByArtists`·`findActivePasses`) | `app-core-api/.../domain/user/` · `domain-core/.../video/`·`asset/`·`pass/` | S15P21D104-284 |
 | **S3 presign·HEAD `MediaObjectStore`** · 이미지 업로드 한도 `MediaUploadProperties`(`motif.media.upload`) | `app-core-api/.../global/media/` | S15P21D104-280 |
 | 프로필 이미지 §4.3·§4.4 `UserProfileImageService` · `ProfileImagePresignRegistry`(Redis, ADR-0011) | `app-core-api/.../domain/user/` | 280 |
 

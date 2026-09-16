@@ -377,7 +377,7 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
 | `passActive` | `motif_passes.status='ACTIVE' AND expires_dttm > now` |
 | `passExpiresDttm` | 위가 참일 때의 만료 시각. 아니면 `null` |
 | `subscribedDays` | `now − subscriptions.reg_dttm` (일) |
-| `challengeCount` | 그 아티스트에 올린 **내 비삭제 참여 영상 수** (`idx_pv_user_artist`) |
+| `challengeCount` | 그 아티스트에 올린 **내 비삭제 참여 영상 수**. **§4.8 그리드와 같은 필터** — 삭제된 챌린지에 속한 영상도 뺀다(아래 기본안) |
 | `purchasedAssetCount` | 그 아티스트 에셋 중 **개별 구매(`asset_purchases.status='ACTIVE'`) 수만**. **패스로 열린 것은 제외** — 패스만 있으면 `0/m` |
 | `totalAssetCount` | 그 아티스트의 `is_active=TRUE` 에셋 수. **SECRET 도 동일 집계** |
 
@@ -389,9 +389,30 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
 
 **도메인 분기 없음.** 구독 0건이면 `"list": []` 로 200.
 
+### 서버 처리
+
+1. §4.6 과 **같은 구독 조회**로 아티스트 목록을 얻는다(구독 최신순, 삭제 아티스트 제외)
+2. 아티스트 seq 를 모아 집계 4종을 **각 한 번씩** 돌린다
+3. 조립해 내린다
+
+**집계를 카드마다 부르지 않는다.** 구독이 n 건이면 카드별 조회는 그대로 4n 쿼리가 된다.
+구독 수와 무관하게 **쿼리는 5개로 고정**이다(구독 1 + 집계 4). 구독이 0건이면 집계를
+아예 돌리지 않는다.
+
+`group by` 결과에는 건수 0 인 아티스트가 아예 없다 — **없으면 0 으로 읽는다.**
+
+### 기본안
+
+| 항목 | 기본안 | 근거 |
+|---|---|---|
+| **`challengeCount` 에 §1.8 적용** | **삭제된 챌린지에 속한 영상은 뺀다** | 명세는 "내 비삭제 참여 영상 수"라고만 적었다. 안 빼면 **§4.8 그리드에는 안 보이는 영상이 이 숫자에는 잡힌다** — "5개라는데 4개만 보인다"가 되고 사용자는 어느 쪽이 맞는지 알 수 없다. 대신 명세가 언급한 `idx_pv_user_artist` 만으로는 안 되고 챌린지 확인이 붙는다 |
+| `motif_passes`·`asset_purchases` | **엔티티 없이 네이티브로 센다** | 필요한 건 숫자·시각뿐이고 그 테이블들의 상태 규칙(환불·취소)은 구매 도메인(§12)이 소유한다. `MotifPassPriceRepository.countActivePasses`·`findActivePassExpiry` 가 같은 판단을 했다 — 그쪽 티켓이 엔티티를 만들면 함께 옮긴다 |
+| 패스 유효 판정 위치 | **DB 쪽**(`expires_dttm > now()`) | 행을 꺼내 자바에서 비교하면 앱 서버 시계가 DB 와 어긋난 만큼 만료 직전·직후 판정이 갈린다 |
+| `totalAssetCount` 분모 | `is_active=TRUE` 만 | 내려간 에셋을 분모에 넣으면 "12개 중 2개"가 영원히 채워지지 않는다. 어드민 지표용 `countByArtists`(비활성 포함)와 **일부러 다른 쿼리**다 |
+
 ### 미결
 
-- `purchasedAssetCount > totalAssetCount` 가 될 수 있다 — **판매 중단된 에셋을 구매한 경우**(구매는 남고 `is_active=FALSE` 라 분모에서 빠진다). 표시 방법은 클라 협의 대상(원본 §16 #6).
+- `purchasedAssetCount > totalAssetCount` 가 될 수 있다 — **판매 중단된 에셋을 구매한 경우**(구매는 남고 `is_active=FALSE` 라 분모에서 빠진다). **산 것은 판매가 중단돼도 산 것이라 서버는 보정하지 않는다.** 표시 방법은 클라 협의 대상(원본 §16 #6).
 
 ---
 

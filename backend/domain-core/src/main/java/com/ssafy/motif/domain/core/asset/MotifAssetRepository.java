@@ -30,6 +30,64 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
     List<ArtistCount> countByArtists(@Param("artistSeqs") Collection<Integer> artistSeqs);
 
     /**
+     * 구독 카드의 {@code totalAssetCount} (API 명세 §4.7) — <b>판매 중인</b> 에셋만.
+     *
+     * <p>{@link #countByArtists} 와 나란히 두는 이유는 <b>세는 대상이 다르기 때문</b>이다.
+     * 그쪽은 어드민 지표라 비활성까지 세고(§3.5.1), 여기는 팬 화면의 분모라
+     * {@code is_active=TRUE} 만이다 — 내려간 에셋을 분모에 넣으면 "12개 중 2개"가
+     * 영원히 채워지지 않는다.
+     *
+     * <p><b>{@code SECRET} 도 함께 센다</b>(명세 §4.7). 숨은 에셋이 있다는 사실 자체는
+     * 숍에서 드러나는 정보다.
+     *
+     * <p>이 값이 {@code purchasedAssetCount} 보다 <b>작아질 수 있다</b> — 판매 중단된
+     * 에셋을 이미 구매한 경우다. 서버는 보정하지 않는다(원본 §16 #6 — 표시 방법이 클라
+     * 협의 대상).
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistCount(a.artistSeq, count(a))
+            from MotifAsset a
+            where a.artistSeq in :artistSeqs and a.active = true
+            group by a.artistSeq
+            """)
+    List<ArtistCount> countActiveByArtists(@Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /**
+     * 구독 카드의 {@code purchasedAssetCount} (API 명세 §4.7) — <b>개별 구매만</b>.
+     *
+     * <p><b>패스로 열린 에셋은 세지 않는다.</b> 패스만 있는 사용자는 모든 에셋을 쓸 수
+     * 있어도 {@code 0/m} 이다(명세 §4.7). 카드의 {@code n/m} 은 "몇 개를 샀나"이지
+     * "몇 개를 쓸 수 있나"가 아니다 — 패스 상태는 같은 카드의 {@code passActive} 가
+     * 따로 답한다.
+     *
+     * <p><b>분모({@link #countActiveByArtists})와 달리 {@code is_active} 를 보지 않는다.</b>
+     * 산 것은 판매가 중단돼도 산 것이다. 그래서 분자가 분모를 넘을 수 있다.
+     *
+     * <p>{@code asset_purchases} 엔티티를 만들지 않고 네이티브로 센다 — 여기서 필요한
+     * 것은 숫자뿐이고 그 테이블의 상태 규칙(환불 처리)은 구매 도메인(§12)이 소유한다.
+     * {@code MotifPassPriceRepository.countActivePasses} 가 같은 판단을 했다. 그쪽
+     * 티켓이 엔티티를 만들면 이 쿼리는 그리로 옮긴다.
+     */
+    @Query(value = """
+            select a.artist_seq as artistSeq, count(*) as count
+              from motif_core.asset_purchases p
+              join motif_core.motif_assets a on a.asset_seq = p.asset_seq
+             where p.user_seq = :userSeq
+               and a.artist_seq in (:artistSeqs)
+               and p.status = 'ACTIVE'
+             group by a.artist_seq
+            """, nativeQuery = true)
+    List<ArtistCountProjection> countPurchasedByArtists(@Param("userSeq") Integer userSeq,
+                                                        @Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /** 네이티브 결과 투영 — JPQL 의 {@code ArtistCount} 와 같은 모양이다. */
+    interface ArtistCountProjection {
+        Integer getArtistSeq();
+
+        long getCount();
+    }
+
+    /**
      * 아티스트 삭제 연쇄 — 그 아티스트의 활성 에셋을 전부 내린다 (어드민 §3.5.5).
      *
      * <p>{@code motif_assets} 에는 삭제 플래그가 없어({@link MotifAsset} javadoc)

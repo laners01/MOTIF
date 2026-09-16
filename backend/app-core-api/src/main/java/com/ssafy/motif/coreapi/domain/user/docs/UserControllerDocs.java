@@ -8,6 +8,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
@@ -242,6 +243,71 @@ public interface UserControllerDocs {
     })
     ApiResponse<UserProfileResponse> profile(
             @Parameter(description = "조회할 사용자 seq", example = "5") Integer userSeq);
+
+    @Operation(
+            summary = "구독 아티스트 카드 (§4.7)",
+            description = """
+                    구독 중인 아티스트를 **전량** 내린다(회의 확정 — 규모상 페이지 불요).
+                    정렬은 **구독 최신순**. **카드 앞면·뒷면 데이터를 한 번에** 담으므로
+                    뒤집을 때 다시 부르지 않는다.
+
+                    **마이페이지뿐 아니라 숍 화면의 아티스트 섹션도 이 API 로 구성한다**
+                    (구 §11.3 집계 API 는 삭제됐다). 아티스트별 에셋은 **§11.1** 의
+                    `artistSeq` 필터로 따로 조회한다.
+
+                    ### 집계 필드
+                    | 필드 | 규칙 |
+                    |---|---|
+                    | `passActive` | 유효 패스 보유 여부. **거짓이면** 클라이언트가 "모티프 패스 알아보기"(→ §11.4)를 노출한다 |
+                    | `passExpiresDttm` | 유효할 때의 만료 시각. 아니면 `null` |
+                    | `subscribedDays` | 구독 경과일 |
+                    | `challengeCount` | **이름과 달리 참여 영상 수**다. 그 아티스트에 올린 내 영상 |
+                    | `purchasedAssetCount` | **개별 구매한** 수만. **패스로 열린 것은 제외** — 패스만 있으면 `0/m` |
+                    | `totalAssetCount` | **판매 중**(`is_active=TRUE`)인 에셋 수. `SECRET` 포함 |
+
+                    카드의 `n/m` 표기가 `purchasedAssetCount`/`totalAssetCount` 다.
+
+                    ### `n` 이 `m` 보다 클 수 있다
+                    **판매 중단된 에셋을 이미 구매한 경우다** — 구매는 남고
+                    `is_active=FALSE` 라 분모에서 빠진다. 산 것은 판매가 중단돼도 산 것이라
+                    서버가 보정하지 않는다. **표시 방법은 클라 협의 대상**이다(원본 §16 #6).
+
+                    ### `challengeCount` 와 §4.8 그리드는 같은 것을 센다
+                    삭제된 챌린지에 속한 영상은 **양쪽 다** 빠진다. 숫자와 목록이 어긋나면
+                    "5개라는데 4개만 보인다"가 되고 사용자는 어느 쪽이 맞는지 알 수 없다.
+
+                    구독이 0건이면 `"list": []` 로 200 이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "구독 아티스트 카드 전량",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "passActive": true,
+                                            "passExpiresDttm": "2026-10-01T00:00:00.000Z",
+                                            "subscribedDays": 41,
+                                            "challengeCount": 5,
+                                            "purchasedAssetCount": 2,
+                                            "totalAssetCount": 12
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<SubscriptionCardItem>> mySubscriptions(
+            @Parameter(hidden = true) AuthenticatedUser user);
 
     @Operation(
             summary = "닉네임 수정 (§4.2)",

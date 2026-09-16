@@ -10,6 +10,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
@@ -31,8 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 사용자·마이페이지 API (명세 §4). Base URL 은 {@code /api/v1}.
  *
- * <p>지금은 §4.1·§4.2·§4.3·§4.4·§4.6·§4.8 이다 — §4.7 구독 카드·§4.9 활동은 각각 별개
- * 티켓이라 여기 매핑이 없다.
+ * <p>§4.9 활동만 남았다 — 별개 티켓이라 여기 매핑이 없다.
  *
  * <p>{@code /me} 와 {@code /{userSeq}} 가 한 컨트롤러에 있다. 경로 세그먼트가 갈리므로
  * 충돌하지 않고, 응답도 전혀 다르다 — §4.1 은 대표 모티프·영상 그리드를, §4.6 은 구독
@@ -55,6 +55,14 @@ public class UserController implements UserControllerDocs {
     @GetMapping("/me")
     public ApiResponse<UserMeResponse> me(@AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.success(userQueryService.me(user.userSeq()));
+    }
+
+    /** §4.7 구독 아티스트 카드 — 비페이지 전량. 숍 화면의 아티스트 섹션도 이걸 쓴다. */
+    @Override
+    @GetMapping("/me/subscriptions")
+    public ApiResponse<ListResponse<SubscriptionCardItem>> mySubscriptions(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.success(userQueryService.subscriptions(user.userSeq()));
     }
 
     /** §4.6 타 사용자 프로필 — 뷰어에서 작성자를 눌렀을 때의 Bottom Sheet. */

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,4 +80,32 @@ public interface MotifPassPriceRepository extends JpaRepository<MotifPassPrice, 
             """, nativeQuery = true)
     Optional<Instant> findActivePassExpiry(@Param("userSeq") Integer userSeq,
                                            @Param("artistSeq") Integer artistSeq);
+
+    /**
+     * 구독 카드의 {@code passActive}·{@code passExpiresDttm} (API 명세 §4.7) —
+     * 아티스트 여러 명을 한 번에.
+     *
+     * <p>{@link #findActivePassExpiry} 를 카드마다 부르면 그대로 N+1 이다. 판정 기준과
+     * "유효 판정을 DB 에 둔다"는 근거는 그쪽과 같다 — 앱 서버 시계가 DB 와 어긋나면
+     * 만료 직전·직후가 갈린다.
+     *
+     * <p>결과에 없는 아티스트는 유효 패스가 없는 것이다({@code passActive=false},
+     * {@code passExpiresDttm=null}).
+     */
+    @Query(value = """
+            select artist_seq as artistSeq, expires_dttm as expiresDttm
+              from motif_core.motif_passes
+             where user_seq = :userSeq
+               and artist_seq in (:artistSeqs)
+               and status = 'ACTIVE' and expires_dttm > now()
+            """, nativeQuery = true)
+    List<ActivePassProjection> findActivePasses(@Param("userSeq") Integer userSeq,
+                                                @Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /** 아티스트별 유효 패스 만료 — {@link #findActivePasses} 투영. */
+    interface ActivePassProjection {
+        Integer getArtistSeq();
+
+        Instant getExpiresDttm();
+    }
 }
