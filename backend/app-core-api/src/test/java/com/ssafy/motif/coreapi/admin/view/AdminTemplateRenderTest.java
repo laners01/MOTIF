@@ -73,6 +73,21 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("에셋 등록 — 가로·20초 제약과 가격 칸이 폼에 있다 (§3.8.2)")
+    void assetNew() {
+        String html = render("admin/asset-new");
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 모티프 에셋 등록</title>")
+                .contains("/admin/asset-new.js")
+                .contains("id=\"file\"")
+                .contains("id=\"preview\"")
+                .contains("id=\"amount\"");
+        // 에셋은 가로다 — 챌린지(세로)와 반대라 화면 문구가 뒤바뀌면 운영자가 헛업로드한다
+        assertThat(html).contains("가로").contains("20초");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("소속사 · 그룹 — 두 탭과 행 뼈대가 한 화면에 들어간다")
     void orgs() {
         String html = render("admin/orgs");
