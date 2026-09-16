@@ -148,7 +148,7 @@ S15P21D104-181
 | **보호 등급 재생목록 API** `MediaController`(`/api/v1/media/{jobUuid}/master.m3u8`·`/{rendition}/index.m3u8`) · `MediaPlaylistQueryService`(인가) | `app-core-api/.../domain/media/` | S15P21D104-278 |
 | **등급 판정 단일 지점** `MediaUrlResolver` · `MediaKeys.isProtected`·`prefixOf` | `app-core-api/.../global/media/` · `domain/media/` | 278 |
 | `CompositeJob`·`JobType`·`JobStatus` · `ParticipationVideo`·`Visibility` · `MotifResult` 엔티티·리포지토리 (전부 **읽기 전용 — 생성자 없음**) | `domain-core/.../job/` · `video/` · `motif/` | 278 |
-| 마이페이지 원콜 `UserController`·`UserQueryService` (§4.1) | `app-core-api/.../domain/user/` | 278 |
+| 마이페이지 원콜 `UserController`·`UserQueryService` (§4.1) · 내 챌린지 그리드(§4.8) · 그리드 항목 `VideoPreviewItem`(§4.1·§4.8 공용) · `ParticipationVideoRepository.findMine`(건수는 `Pageable` 로) | `app-core-api/.../domain/user/` · `domain-core/.../video/` | 278 |
 | **닉네임 제약 `@Nickname`** (§3.3·§4.2 공용 — 패턴·메시지를 각자 두지 않는다) | `app-core-api/.../global/validation/` | S15P21D104-282 |
 | 닉네임 수정 `UserCommandService` (§4.2) | `app-core-api/.../domain/user/` | 282 |
 | **S3 presign·HEAD `MediaObjectStore`** · 이미지 업로드 한도 `MediaUploadProperties`(`motif.media.upload`) | `app-core-api/.../global/media/` | S15P21D104-280 |

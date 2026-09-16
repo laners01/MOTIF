@@ -11,7 +11,7 @@ import java.util.Optional;
 public interface ParticipationVideoRepository extends JpaRepository<ParticipationVideo, Long> {
 
     /**
-     * 마이페이지 3×3 프리뷰 (API 명세 §4.1) — 본인 영상 최신순.
+     * 내 참여 영상 최신순 — 마이페이지 프리뷰(§4.1)와 전체 그리드(§4.8)가 함께 쓴다.
      *
      * <p><b>{@code PRIVATE} 도 포함한다.</b> 본인 화면이라 둘 다 보여 주고 항목에
      * {@code visibility} 를 실어 클라이언트가 자물쇠를 그린다.
@@ -25,8 +25,9 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      * 최신순과 결과가 같은데, 같은 초에 올라온 영상들이 호출마다 순서를 바꿔 가며
      * 나오는 일이 없다({@code ChallengeRepository} 와 같은 근거).
      *
-     * <p>건수 상한은 {@link Pageable} 로 받는다 — 9 라는 값은 화면 사정(3×3)이라
-     * 리포지토리가 아니라 서비스가 갖는다.
+     * <p><b>건수는 {@link Pageable} 로 부르는 쪽이 정한다.</b> §4.1 은 9건(3×3 화면
+     * 사정), §4.8 은 {@code Pageable#unpaged()} 로 전량이다 — 둘 다 같은 필터를 써야
+     * 하므로 쿼리를 나누지 않는다. 나누면 §1.8 비노출이 한쪽에서만 고쳐질 수 있다.
      */
     @Query("""
             select v from ParticipationVideo v
@@ -36,7 +37,7 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
                            where c.challengeSeq = v.challengeSeq and c.deleted = false)
             order by v.videoSeq desc
             """)
-    List<ParticipationVideo> findMyPreview(@Param("userSeq") Integer userSeq, Pageable pageable);
+    List<ParticipationVideo> findMine(@Param("userSeq") Integer userSeq, Pageable pageable);
 
     /**
      * 보호 등급 인가 — 이 잡이 게시됐는지, 됐다면 공개 범위가 무엇인지 (API 명세 §1.7).

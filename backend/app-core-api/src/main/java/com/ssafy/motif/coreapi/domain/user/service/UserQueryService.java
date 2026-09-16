@@ -1,7 +1,9 @@
 package com.ssafy.motif.coreapi.domain.user.service;
 
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
@@ -12,14 +14,16 @@ import com.ssafy.motif.domain.core.user.UserRepository;
 import com.ssafy.motif.domain.core.video.ParticipationVideo;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * 마이페이지 조회 (API 명세 §4.1) — S15P21D104-278.
+ * 마이페이지 조회 (API 명세 §4.1 · §4.8).
  *
  * <p><b>원콜이다.</b> 프로필·대표 모티프·영상 프리뷰를 한 번에 내려준다(회의 확정
  * 2026-09-02 개편). 첫 화면에 필요한 것이 셋뿐이라 화면 하나에 왕복 세 번을 쓸 이유가
@@ -38,6 +42,7 @@ import java.util.List;
  *
  * <p>읽기 전용 트랜잭션이다 — 쓰기 경로가 없다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -49,6 +54,17 @@ public class UserQueryService {
      * <p>화면 사정이라 리포지토리가 아니라 여기 둔다. 더보기·전체 그리드는 §4.8 이다.
      */
     public static final int PREVIEW_SIZE = 9;
+
+    /**
+     * §4.8 이 이 건수를 넘기면 {@code warn} 이다. <b>자르지는 않는다.</b>
+     *
+     * <p>명세가 "전량 반환의 전제는 본인 영상 수가 크지 않다 — 수백 건이 쌓이면 재검토
+     * 대상"이라고 적어 뒀는데, <b>재검토할 시점을 알 방법이 없다.</b> 상한을 조용히 걸면
+     * 사용자에게는 영상이 사라진 것으로 보이고(자를 거면 커서를 다시 넣는 게 맞다 —
+     * 그건 R4 에서 뒤집은 결정이다), 아무것도 안 하면 느려진 뒤에야 안다. 그래서
+     * 자르지 않고 시끄럽게만 만든다.
+     */
+    private static final int MY_VIDEOS_WARN_THRESHOLD = 200;
 
     private final UserRepository userRepository;
     private final MotifResultRepository motifResultRepository;
@@ -105,17 +121,45 @@ public class UserQueryService {
     }
 
     /**
+     * §4.8 내 챌린지 그리드 — <b>비페이지 전량</b>(회의 확정 R4, 커서에서 전환).
+     *
+     * <p>§4.1 이 첫 화면에 최신 9개를 그리고, "더보기/전체" 진입 시 이 API 가 1회
+     * 호출된다. 항목의 모양은 §4.1 과 같다 — 같은 그리드다.
+     *
+     * <p><b>상한을 두지 않는다.</b> 조용히 자르면 사용자에게는 영상이 사라진 것으로
+     * 보인다. 대신 {@link #MY_VIDEOS_WARN_THRESHOLD} 를 넘으면 로그로 알린다.
+     */
+    public ListResponse<VideoPreviewItem> myVideos(Integer userSeq) {
+        List<VideoPreviewItem> videos = items(userSeq, Pageable.unpaged());
+        if (videos.size() > MY_VIDEOS_WARN_THRESHOLD) {
+            log.warn("§4.8 전량 반환이 커지고 있다 — userSeq={} count={} (커서 전환 재검토)",
+                    userSeq, videos.size());
+        }
+        return ListResponse.of(videos);
+    }
+
+    /**
      * 내 영상 3×3 프리뷰.
      *
      * <p><b>0건이면 빈 배열이다</b>(2026-09-13 확정). 원본 명세는 {@code null} 로
      * 적었는데, {@code null} 과 빈 배열을 구분하면 클라이언트가 같은 "없음"에 분기를
      * 둘 갖게 된다.
      */
-    private List<UserMeResponse.VideoPreview> previews(Integer userSeq) {
-        List<ParticipationVideo> videos = participationVideoRepository
-                .findMyPreview(userSeq, PageRequest.of(0, PREVIEW_SIZE));
+    private List<VideoPreviewItem> previews(Integer userSeq) {
+        return items(userSeq, PageRequest.of(0, PREVIEW_SIZE));
+    }
+
+    /**
+     * §4.1·§4.8 공통 — 같은 필터·같은 항목이고 건수만 다르다.
+     *
+     * <p>둘을 나누면 §1.8 비노출(삭제 챌린지 제외)이나 썸네일 등급 판정이 한쪽에서만
+     * 고쳐질 수 있다. 그때 증상은 "첫 화면과 더보기가 다른 목록을 보여 준다" 인데,
+     * 어느 쪽이 맞는지 화면만 봐서는 알 수 없다.
+     */
+    private List<VideoPreviewItem> items(Integer userSeq, Pageable pageable) {
+        List<ParticipationVideo> videos = participationVideoRepository.findMine(userSeq, pageable);
         return videos.stream()
-                .map(video -> new UserMeResponse.VideoPreview(
+                .map(video -> new VideoPreviewItem(
                         video.getVideoSeq(),
                         mediaUrlResolver.resolve(video.getThumbnailKey()),
                         video.getViewCount(),

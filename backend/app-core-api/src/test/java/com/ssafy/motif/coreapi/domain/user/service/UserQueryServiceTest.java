@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.domain.user.service;
 
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.media.CloudFrontUrlSigner;
 import com.ssafy.motif.coreapi.global.media.MediaSigningProperties;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
@@ -17,6 +18,7 @@ import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import com.ssafy.motif.domain.core.video.Visibility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Pageable;
@@ -38,7 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * 마이페이지 원콜 (S15P21D104-278 · 명세 §4.1).
+ * 마이페이지 조회 (명세 §4.1 원콜 · §4.8 전체 그리드).
  *
  * <p><b>URL 변환은 목으로 세우지 않는다.</b> 진짜 {@link MediaUrlResolver} 에 진짜
  * 서명기를 물리고(키는 테스트에서 만든다) 나오는 URL 을 본다 — 이 티켓에서 가장
@@ -75,7 +77,7 @@ class UserQueryServiceTest {
                 compositeJobRepository, participationVideoRepository, resolver);
 
         givenUser(user(null, null));
-        given(participationVideoRepository.findMyPreview(anyInt(), any())).willReturn(List.of());
+        given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of());
     }
 
     @Test
@@ -135,14 +137,14 @@ class UserQueryServiceTest {
     @Test
     @DisplayName("썸네일 등급은 키 프리픽스가 정한다 — visibility 가 아니다")
     void thumbnailGradeFollowsKeyPrefixNotVisibility() {
-        given(participationVideoRepository.findMyPreview(anyInt(), any())).willReturn(List.of(
+        given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
                 // PUBLIC 인데 키는 아직 private/ — 게시는 복사일 뿐 키를 바꾸지 않는다(§1.7).
                 // visibility 로 판정했다면 여기서 무서명 URL 이 나가 403 이 된다
                 video(88L, "private/challenge/aaa/thumb.jpg", Visibility.PUBLIC, 3400L),
                 video(87L, "public/challenge/bbb/thumb.jpg", Visibility.PUBLIC, 120L),
                 video(86L, "private/challenge/ccc/thumb.jpg", Visibility.PRIVATE, 7L)));
 
-        List<UserMeResponse.VideoPreview> videos = service.me(ME).videos();
+        List<VideoPreviewItem> videos = service.me(ME).videos();
 
         assertThat(videos).hasSize(3);
         assertThat(videos.get(0).thumbnailUrl()).contains("Signature=");
@@ -155,7 +157,7 @@ class UserQueryServiceTest {
     @Test
     @DisplayName("본인 화면이라 PRIVATE 도 내려보내고 visibility 를 그대로 싣는다")
     void privateVideosAreIncluded() {
-        given(participationVideoRepository.findMyPreview(anyInt(), any())).willReturn(List.of(
+        given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
                 video(86L, "private/challenge/ccc/thumb.jpg", Visibility.PRIVATE, 7L)));
 
         assertThat(service.me(ME).videos())
@@ -173,9 +175,67 @@ class UserQueryServiceTest {
         service.me(ME);
 
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(participationVideoRepository).findMyPreview(any(), pageable.capture());
+        verify(participationVideoRepository).findMine(any(), pageable.capture());
         assertThat(pageable.getValue().getPageSize()).isEqualTo(UserQueryService.PREVIEW_SIZE);
         assertThat(UserQueryService.PREVIEW_SIZE).isEqualTo(9);
+    }
+
+    @Nested
+    @DisplayName("§4.8 내 챌린지 그리드")
+    class MyVideos {
+
+        @Test
+        @DisplayName("건수를 제한하지 않는다 — 전량 반환이다")
+        void requestsEverything() {
+            service.myVideos(ME);
+
+            ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+            verify(participationVideoRepository).findMine(any(), pageable.capture());
+            assertThat(pageable.getValue().isUnpaged()).isTrue();
+        }
+
+        @Test
+        @DisplayName("0건이면 빈 배열이다 — 봉투는 유지한다")
+        void emptyListKeepsEnvelope() {
+            assertThat(service.myVideos(ME).list()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("§4.1 과 같은 항목을 만든다 — 같은 그리드라 한쪽만 달라지면 안 된다")
+        void producesSameItemsAsMyPage() {
+            given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
+                    video(88L, "private/challenge/aaa/thumb.jpg", Visibility.PUBLIC, 3400L),
+                    video(87L, "public/challenge/bbb/thumb.jpg", Visibility.PUBLIC, 120L),
+                    video(86L, "private/challenge/ccc/thumb.jpg", Visibility.PRIVATE, 7L)));
+
+            List<VideoPreviewItem> fromGrid = service.myVideos(ME).list();
+            List<VideoPreviewItem> fromMyPage = service.me(ME).videos();
+
+            // 서명에 만료 시각이 들어가 URL 문자열은 호출마다 다를 수 있다 — 등급 판정과
+            // 나머지 칸이 같은지를 본다
+            assertThat(fromGrid).hasSize(3);
+            assertThat(fromGrid).zipSatisfy(fromMyPage, (grid, myPage) -> {
+                assertThat(grid.videoSeq()).isEqualTo(myPage.videoSeq());
+                assertThat(grid.viewCount()).isEqualTo(myPage.viewCount());
+                assertThat(grid.visibility()).isEqualTo(myPage.visibility());
+                assertThat(grid.thumbnailUrl().contains("Signature="))
+                        .isEqualTo(myPage.thumbnailUrl().contains("Signature="));
+            });
+        }
+
+        @Test
+        @DisplayName("PRIVATE 도 내려보내고 보호 썸네일은 서명된다")
+        void includesPrivateWithSignedThumbnail() {
+            given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
+                    video(86L, "private/challenge/ccc/thumb.jpg", Visibility.PRIVATE, 7L)));
+
+            assertThat(service.myVideos(ME).list())
+                    .singleElement()
+                    .satisfies(item -> {
+                        assertThat(item.visibility()).isEqualTo(Visibility.PRIVATE);
+                        assertThat(item.thumbnailUrl()).contains("Signature=");
+                    });
+        }
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────
