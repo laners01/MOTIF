@@ -4,16 +4,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
+import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ChallengeThumbnail
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,6 +31,10 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.ui.comment.CommentBottomSheet
 import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDetailCard
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import com.ssafy.motif.core.designsystem.component.LoadingWheel
 
 @Composable
 fun ArtistDetailScreen(
@@ -48,6 +56,8 @@ fun ArtistDetailScreen(
         onCommentLikeClick = viewModel::onCommentLikeClick,
         onReplyClick = viewModel::onReplyClick,
         onReplyLikeClick = viewModel::onReplyLikeClick,
+        onChallengeClick = viewModel::onChallengeClick,
+        onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
         formatCreatedAt = { "방금 전" },
         modifier = modifier,
     )
@@ -67,14 +77,44 @@ internal fun ArtistDetailScreen(
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
     formatCreatedAt: (Long) -> String,
+    onChallengeClick:(Long) -> Unit,
+    onLoadMoreChallenges:() -> Unit,
     modifier: Modifier = Modifier,
+
+
 ) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(uiState.selectedTab){
+        listState.scrollToItem(0)
+    }
+    val challengeSuccess = uiState.challengeState as? ChallengeUiState.Success
+    val canLoadMore = challengeSuccess != null &&
+            uiState.selectedTab == ArtistDetailTab.Challenge &&
+            challengeSuccess.hasNext &&
+            challengeSuccess.appendState is ChallengeAppendUiState.Idle
+    val shouldLoadMore by remember(listState, canLoadMore) {
+        derivedStateOf {
+            if (!canLoadMore) return@derivedStateOf false
+
+            val layoutInfo = listState.layoutInfo
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                ?: return@derivedStateOf false
+
+            layoutInfo.totalItemsCount > 0 &&
+                    lastVisible >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            onLoadMoreChallenges()
+        }
+    }
     Surface(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()){
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 uiState.artistDetail?.let{ artistDetail ->
                     item{
@@ -88,8 +128,9 @@ internal fun ArtistDetailScreen(
                         )
                     }
                 }
-                item{
+                stickyHeader{
                     TabRow(selectedTabIndex = uiState.selectedTab.ordinal,
+                        containerColor = MotifTheme.colors.background,
                         divider = {},
                         indicator = {tabPositions ->
                             if(uiState.selectedTab.ordinal < tabPositions.size){
@@ -133,13 +174,61 @@ internal fun ArtistDetailScreen(
                                 onArtistClick = {},
                                 onLikeClick = onNoticeLikeClick,
                                 onCommentClick = onNoticeCommentClick,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    bottom = 12.dp,
+                                )
                             )
                         }
                     }
                     ArtistDetailTab.Challenge -> {
-                        item {
+                        when(val state = uiState.challengeState){
+                            ChallengeUiState.Loading ->{
+                                item{
+                                        ChallengeLoadingContent()
+                                }
+                            }
+                            is ChallengeUiState.Success ->{
+                                if(state.challenges.isEmpty()){
+                                    item{
+                                        ChallengeEmptyContent()
+                                    }
+                                }else{
+                                    items(
+                                        items = state.challenges.chunked(3),
+                                        key = {row -> row.first().id},
+                                    ){row ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 2.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        ){
+                                            row.forEach { challenge ->
+                                                ChallengeThumbnail(
+                                                    challenge = challenge,
+                                                    onClick = onChallengeClick,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                            }
+                                            repeat(3 - row.size){
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
+                                    if(state.appendState is ChallengeAppendUiState.Loading){
+                                        item{
+                                            ChallengeLoadingMore()
+                                        }
+                                    }
+                                }
 
+
+                            }
+                            is ChallengeUiState.Error ->{
+                                item{}
+                            }
                         }
                     }
                 }
@@ -166,3 +255,48 @@ internal fun ArtistDetailScreen(
 
     }
 }
+@Composable
+private fun ChallengeLoadingMore(
+    modifier: Modifier = Modifier,
+){
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        contentAlignment = Alignment.Center,
+    ){
+        LoadingWheel(contentDescription = "불러오는 중...")
+    }
+}
+
+@Composable
+private fun ChallengeEmptyContent(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 80.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "등록된 챌린지가 없습니다",
+            style = MotifTheme.typography.bodyR14,
+            color = MotifTheme.colors.gray400,
+        )
+    }
+}
+
+@Composable
+private fun ChallengeLoadingContent(
+    modifier: Modifier = Modifier,
+){
+    Box(modifier = modifier
+        .fillMaxWidth()
+        .padding(vertical = 80.dp),
+        contentAlignment = Alignment.Center,){
+        LoadingWheel(contentDescription = "불러오는 중...")
+    }
+}
+
+private const val LOAD_MORE_THRESHOLD = 3

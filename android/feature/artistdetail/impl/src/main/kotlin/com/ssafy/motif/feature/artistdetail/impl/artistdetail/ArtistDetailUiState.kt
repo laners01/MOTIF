@@ -10,10 +10,11 @@ enum class ArtistDetailTab(val label: String){
     Post("Posts"),
 }
 @Immutable
-data class ArtistDetailUiState(
+internal data class ArtistDetailUiState(
     val artistId: Long = 0L,
     val artistDetail: ArtistDetail? = null,
     val notices: List<Notice> = emptyList(),
     val selectedTab: ArtistDetailTab = ArtistDetailTab.Challenge,
     val commentSheet: CommentSheetUiState = CommentSheetUiState.Hidden,
+    val challengeState: ChallengeUiState = ChallengeUiState.Loading,
 )
