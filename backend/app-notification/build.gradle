@@ -12,6 +12,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'  // Boot 4 신설 스타터
 
+    // 멱등 가드 — notifications 테이블을 두지 않기로 해(§14) "이미 보냈다" 를 적을
+    // DB 행이 없다. ADR-0005 의 두 방식 중 DB 유니크가 사라져 Redis SETNX 만 남는다
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // FCM HTTP v1. 레거시 서버 키는 2024 에 종료돼 서비스 계정 자격증명만 쓴다
+    implementation libs.firebase.admin
+
     // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
     implementation libs.jackson2.databind
     implementation libs.jackson2.jsr310

@@ -13,6 +13,7 @@ lombok = "1.18.46"
 lombok-mapstruct-binding = "0.2.0"
 jjwt = "0.13.0"                     # 서비스 access/refresh JWT 발급·검증 (ADR-0009 D2)
 aws-sdk = "2.32.14"                 # S3 v2 — app-media 산출물 업로드 (ADR-0010)
+firebase-admin = "9.4.3"            # FCM HTTP v1 — 레거시 서버 키는 2024 종료 (§14)
 
 [libraries]
 aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
@@ -28,6 +29,7 @@ mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.re
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 lombok-mapstruct-binding = { module = "org.projectlombok:lombok-mapstruct-binding", version.ref = "lombok-mapstruct-binding" }
 micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }   # 버전은 Boot BOM
+firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 postgresql = { module = "org.postgresql:postgresql" }                                  # 버전은 Boot BOM
 jjwt-api     = { module = "io.jsonwebtoken:jjwt-api",     version.ref = "jjwt" }
 jjwt-impl    = { module = "io.jsonwebtoken:jjwt-impl",    version.ref = "jjwt" }
