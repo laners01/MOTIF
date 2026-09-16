@@ -17,9 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,6 +49,7 @@ class ChallengeVideoFeedLocalDbTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private VideoTestData data;
     private Integer me;
     private Integer other;
     private Integer artistSeq;
@@ -58,10 +57,11 @@ class ChallengeVideoFeedLocalDbTest {
 
     @BeforeEach
     void setUp() {
-        me = newUser();
-        other = newUser();
-        artistSeq = newArtist();
-        challengeSeq = newChallenge(false);
+        data = new VideoTestData(entityManager);
+        me = data.newUser();
+        other = data.newUser();
+        artistSeq = data.newArtist();
+        challengeSeq = data.newChallenge(artistSeq, data.newSong(me), false);
     }
 
     // --- 정렬 ---------------------------------------------------------------
@@ -122,7 +122,7 @@ class ChallengeVideoFeedLocalDbTest {
     @Test
     @DisplayName("삭제된 사용자의 영상은 빠진다 — §1.8 공통 비노출")
     void videoOfDeletedUserIsHidden() {
-        Integer 탈퇴자 = newUser();
+        Integer 탈퇴자 = data.newUser();
         Long 탈퇴자영상 = video().owner(탈퇴자).insert();
         execute("update motif_core.users set is_deleted = true where user_seq = ?1", 탈퇴자);
 
@@ -262,7 +262,7 @@ class ChallengeVideoFeedLocalDbTest {
     @Test
     @DisplayName("삭제된 챌린지도 404 다 — 빈 목록으로 답하지 않는다")
     void deletedChallengeIs404() {
-        Integer 삭제된챌린지 = newChallenge(true);
+        Integer 삭제된챌린지 = data.newChallenge(artistSeq, data.newSong(me), true);
 
         assertThatThrownBy(() -> videoFeedQueryService.feed(me, 삭제된챌린지, null, 10))
                 .isInstanceOf(BusinessException.class)
@@ -306,166 +306,11 @@ class ChallengeVideoFeedLocalDbTest {
 
     // --- 픽스처 -------------------------------------------------------------
 
-    private Integer newUser() {
-        String nickname = "t-" + UUID.randomUUID().toString().substring(0, 20);
-        execute("insert into motif_core.users (nickname, role) values (?1, 'USER')", nickname);
-        return scalar("select user_seq from motif_core.users where nickname = ?1", nickname);
-    }
-
-    /** {@code users(ARTIST)} → {@code companies} → {@code artists} FK 체인. */
-    private Integer newArtist() {
-        Integer userSeq = newUser();
-        String companyName = "t-" + UUID.randomUUID().toString().substring(0, 20);
-        execute("insert into motif_core.companies (company_name, reg_usr_seq) values (?1, ?2)",
-                companyName, userSeq);
-        Integer companySeq = scalar(
-                "select company_seq from motif_core.companies where company_name = ?1", companyName);
-
-        execute("insert into motif_core.artists (user_seq, company_seq, reg_usr_seq) values (?1, ?2, ?1)",
-                userSeq, companySeq);
-        return scalar("select artist_seq from motif_core.artists where user_seq = ?1", userSeq);
-    }
-
-    private Integer newSong() {
-        String title = "t-" + UUID.randomUUID().toString().substring(0, 20);
-        execute("insert into motif_core.songs (title, singer_name, reg_usr_seq) values (?1, '가수', ?2)",
-                title, me);
-        return scalar("select song_seq from motif_core.songs where title = ?1", title);
-    }
-
-    private Integer newChallenge(boolean deleted) {
-        String uuid = UUID.randomUUID().toString();
-        execute("""
-                insert into motif_core.challenges
-                    (artist_seq, song_seq, description, video_key, thumbnail_key, duration_ms,
-                     is_deleted)
-                values (?1, ?2, '소개글', ?3, ?4, 15000, ?5)
-                """, artistSeq, newSong(),
-                "challenges/" + uuid + ".mp4", "challenges/" + uuid + "/thumb.jpg", deleted);
-        return scalar("select challenge_seq from motif_core.challenges where video_key = ?1",
-                "challenges/" + uuid + ".mp4");
-    }
-
-    private VideoFixture video() {
-        return new VideoFixture();
-    }
-
-    /**
-     * 참여 영상 한 건. 칸이 많아 빌더로 둔다 — 위치 인자 8개짜리 헬퍼는 테스트를 읽어도
-     * 무엇을 세우는지 알 수 없다.
-     *
-     * <p>{@code composite_jobs} 를 먼저 만드는 것은 {@code job_seq} 가 NOT NULL FK 이기
-     * 때문이다. 게시된 영상이라 잡은 {@code DONE} 이어야 한다
-     * ({@code ck_composite_jobs_status_shape} 가 결과 키를 함께 요구한다).
-     */
-    private final class VideoFixture {
-        private Integer owner;
-        private long views;
-        private int likes;
-        private int comments;
-        private boolean artistLike;
-        private boolean artistComment;
-        private boolean deleted;
-        private String visibility = "PUBLIC";
-        private String prefix = "public/challenge/";
-
-        private VideoFixture owner(Integer userSeq) {
-            this.owner = userSeq;
-            return this;
-        }
-
-        private VideoFixture views(long viewCount) {
-            this.views = viewCount;
-            return this;
-        }
-
-        private VideoFixture likes(int likeCount) {
-            this.likes = likeCount;
-            return this;
-        }
-
-        private VideoFixture comments(int commentCount) {
-            this.comments = commentCount;
-            return this;
-        }
-
-        private VideoFixture artistLike() {
-            this.artistLike = true;
-            return this;
-        }
-
-        private VideoFixture artistComment() {
-            this.artistComment = true;
-            return this;
-        }
-
-        private VideoFixture deleted() {
-            this.deleted = true;
-            return this;
-        }
-
-        /** 비공개는 공개 사본이 없으므로 키도 보호 프리픽스가 기본이다. */
-        private VideoFixture privateVisibility() {
-            this.visibility = "PRIVATE";
-            this.prefix = "private/challenge/";
-            return this;
-        }
-
-        private VideoFixture prefix(String keyPrefix) {
-            this.prefix = keyPrefix;
-            return this;
-        }
-
-        private Long insert() {
-            String uuid = UUID.randomUUID().toString();
-            String resultKey = prefix + uuid + "/master.m3u8";
-            String thumbKey = prefix + uuid + "/thumb.jpg";
-
-            execute("""
-                    insert into motif_core.composite_jobs
-                        (job_uuid, job_type, user_seq, challenge_seq, raw_video_key, status,
-                         result_video_key, result_thumbnail_key)
-                    values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, 'DONE', ?5, ?6)
-                    """, uuid, owner, challengeSeq, "raw/" + uuid + ".mp4", resultKey, thumbKey);
-            long jobSeq = ((Number) entityManager
-                    .createNativeQuery("""
-                            select job_seq from motif_core.composite_jobs
-                             where job_uuid = cast(?1 as uuid)
-                            """)
-                    .setParameter(1, uuid)
-                    .getSingleResult()).longValue();
-
-            execute("""
-                    insert into motif_core.participation_videos
-                        (challenge_seq, artist_seq, user_seq, job_seq, description, video_key,
-                         thumbnail_key, duration_ms, visibility, view_count, like_count,
-                         comment_count, has_artist_like, has_artist_comment, reg_dttm, is_deleted)
-                    values (?1, ?2, ?3, ?4, '설명', ?5, ?6, 15000, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-                    """, challengeSeq, artistSeq, owner, jobSeq, resultKey, thumbKey,
-                    visibility, views, likes, comments, artistLike, artistComment,
-                    Instant.now(), deleted);
-            entityManager.flush();
-            entityManager.clear();
-
-            return ((Number) entityManager
-                    .createNativeQuery(
-                            "select video_seq from motif_core.participation_videos where job_seq = ?1")
-                    .setParameter(1, jobSeq)
-                    .getSingleResult()).longValue();
-        }
+    private VideoTestData.VideoFixture video() {
+        return data.video(challengeSeq, artistSeq);
     }
 
     private void execute(String sql, Object... params) {
-        var query = entityManager.createNativeQuery(sql);
-        for (int i = 0; i < params.length; i++) {
-            query.setParameter(i + 1, params[i]);
-        }
-        query.executeUpdate();
-    }
-
-    private Integer scalar(String sql, Object param) {
-        return ((Number) entityManager.createNativeQuery(sql)
-                .setParameter(1, param)
-                .getSingleResult()).intValue();
+        data.execute(sql, params);
     }
 }

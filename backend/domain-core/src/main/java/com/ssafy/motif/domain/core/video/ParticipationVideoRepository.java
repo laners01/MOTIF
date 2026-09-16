@@ -268,6 +268,40 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
     List<VideoFeedRow> findFeedCards(@Param("videoSeqs") Collection<Long> videoSeqs);
 
     /**
+     * 참여 영상 단건 (API 명세 §8.2) — <b>§1.8 비노출을 쿼리에서 건다</b>.
+     *
+     * <p>삭제 영상 · 삭제 사용자의 콘텐츠 · 삭제된 챌린지 소속을 여기서 떨어뜨려
+     * "없음" 으로 만든다. 셋을 서비스에서 가르면 각각 다른 코드로 답할 길이 열리는데,
+     * 명세 §8.2 실패표는 <b>전부 같은 404</b> 다.
+     *
+     * <p><b>타인의 {@code PRIVATE} 은 여기서 거르지 않는다.</b> 그 판정에는 요청자가
+     * 필요한데, 쿼리에 {@code userSeq} 를 넣으면 이 메서드가 "보이는가" 까지 떠맡아
+     * §8.9·§8.10(본인만 수정·삭제)이 쓸 수 없게 된다 — 그쪽은 남의 영상도 찾아낸 뒤
+     * 403 을 내야 한다. 공개 범위 판단은 호출부 몫이다.
+     *
+     * <p>투영은 {@link #findFeedCards} 와 같은 {@link VideoFeedRow} 다 — 명세가 §8.1
+     * 항목과 §8.2 응답을 같은 형태로 못박았으므로 읽어 오는 칸도 같아야 한다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.video.VideoFeedRow(
+                       v.videoSeq, v.challengeSeq, v.userSeq, v.description,
+                       v.videoKey, v.thumbnailKey, v.durationMs,
+                       v.viewCount, v.likeCount, v.commentCount,
+                       v.hasArtistLike, v.hasArtistComment,
+                       v.commentEnabled, v.visibility, v.regDttm,
+                       u.nickname, u.profileImageKey, j.jobUuid)
+            from ParticipationVideo v
+              join User u on u.userSeq = v.userSeq
+              join CompositeJob j on j.jobSeq = v.jobSeq
+              join Challenge c on c.challengeSeq = v.challengeSeq
+            where v.videoSeq = :videoSeq
+              and v.deleted = false
+              and u.deleted = false
+              and c.deleted = false
+            """)
+    Optional<VideoFeedRow> findDetailCard(@Param("videoSeq") Long videoSeq);
+
+    /**
      * 한 페이지 분 {@code isLiked} 를 한 번에 (API 명세 §8.1).
      *
      * <p><b>네이티브다.</b> {@code video_likes} 는 엔티티가 없다 — 여기서 필요한 것이
