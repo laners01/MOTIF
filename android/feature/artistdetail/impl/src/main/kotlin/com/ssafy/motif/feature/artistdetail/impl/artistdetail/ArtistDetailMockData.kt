@@ -20,11 +20,16 @@ internal object ArtistDetailMockData {
         1_240_000L, 892_000L, 45_200L, 12_400L, 3_100L, 980L, 512L, 64L,
     )
 
+    private const val CHALLENGE_BASE_TIME = 1_757_900_000_000L
+    private const val ONE_DAY_MILLIS = 86_400_000L
+
+    // index가 커질수록 createdAt이 작아지므로 목록 자체가 최신 등록순이다.
     val challenges: List<ArtistChallenge> = List(29) { index ->
         ArtistChallenge(
             id = index + 1L,
             thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
             view = CHALLENGE_VIEWS[index % CHALLENGE_VIEWS.size],
+            createdAt = CHALLENGE_BASE_TIME - index * ONE_DAY_MILLIS,
         )
     }
 
