@@ -4,6 +4,7 @@ import com.ssafy.motif.domain.core.artist.ArtistCount;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -301,6 +302,69 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
               and c.deleted = false
             """)
     Optional<VideoFeedRow> findDetailCard(@Param("videoSeq") Long videoSeq);
+
+    /**
+     * 어드민 참여 영상 목록 (어드민 명세 §3.12.1) — S15P21D104-575.
+     *
+     * <p><b>팬 API 와 정반대로 아무것도 감추지 않는다.</b> PRIVATE 도 삭제분도 보인다 —
+     * 신고 대상과 회원 상세를 확인해야 하기 때문이다({@code includeDeleted} 로 가른다).
+     * 작성자·챌린지가 삭제된 행도 남긴다. 신고가 들어온 뒤 작성자가 탈퇴하면 그 신고를
+     * 영영 처리할 수 없게 된다.
+     *
+     * <p>{@code reportCount} 는 상관 서브쿼리다. 신고가 여러 건 쌓인 영상을 어드민이
+     * 먼저 보게 하는 신호이고, 한 페이지가 20건이라 비용이 문제되지 않는다.
+     *
+     * <p>정렬은 최신순 고정이다 — 추천 정렬은 대행 UI(577)가 붙을 때 넣는다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.video.AdminVideoRow(
+                       v.videoSeq, v.challengeSeq, v.userSeq, v.description,
+                       v.videoKey, v.thumbnailKey, v.durationMs,
+                       v.viewCount, v.likeCount, v.commentCount,
+                       v.hasArtistLike, v.hasArtistComment,
+                       v.commentEnabled, v.visibility, v.regDttm,
+                       u.nickname, u.profileImageKey, j.jobUuid,
+                       v.deleted,
+                       (select count(r) from Report r where r.videoSeq = v.videoSeq))
+            from ParticipationVideo v
+              join User u on u.userSeq = v.userSeq
+              join CompositeJob j on j.jobSeq = v.jobSeq
+            where (:challengeSeq is null or v.challengeSeq = :challengeSeq)
+              and (:userSeq is null or v.userSeq = :userSeq)
+              and (:visibility is null or v.visibility = :visibility)
+              and (:includeDeleted = true or v.deleted = false)
+            order by v.regDttm desc, v.videoSeq desc
+            """)
+    Page<AdminVideoRow> searchForAdmin(@Param("challengeSeq") Integer challengeSeq,
+                                       @Param("userSeq") Integer userSeq,
+                                       @Param("visibility") Visibility visibility,
+                                       @Param("includeDeleted") boolean includeDeleted,
+                                       Pageable pageable);
+
+    /**
+     * 어드민 참여 영상 단건 (§3.12.2) — 삭제분도 준다.
+     *
+     * <p>{@code findDetailCard} 와 달리 {@code deleted} 조건이 없다. 신고 상세(§3.13.2)가
+     * 이미 삭제된 대상도 보여줘야 하기 때문이다 — 그래야 "이미 지워졌으니 기각" 을
+     * 판단할 수 있다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.video.AdminVideoRow(
+                       v.videoSeq, v.challengeSeq, v.userSeq, v.description,
+                       v.videoKey, v.thumbnailKey, v.durationMs,
+                       v.viewCount, v.likeCount, v.commentCount,
+                       v.hasArtistLike, v.hasArtistComment,
+                       v.commentEnabled, v.visibility, v.regDttm,
+                       u.nickname, u.profileImageKey, j.jobUuid,
+                       v.deleted,
+                       (select count(r) from Report r where r.videoSeq = v.videoSeq))
+            from ParticipationVideo v
+              join User u on u.userSeq = v.userSeq
+              join CompositeJob j on j.jobSeq = v.jobSeq
+            where v.videoSeq = :videoSeq
+            """)
+    Optional<AdminVideoRow> findAdminDetail(@Param("videoSeq") Long videoSeq);
+
 
     /**
      * 한 페이지 분 {@code isLiked} 를 한 번에 (API 명세 §8.1).
