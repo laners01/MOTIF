@@ -33,6 +33,8 @@ import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDetailCard
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import com.ssafy.motif.core.designsystem.component.LoadingWheel
 
 @Composable
 fun ArtistDetailScreen(
@@ -210,6 +212,11 @@ internal fun ArtistDetailScreen(
                                         }
                                     }
                                 }
+                                if(state.appendState is ChallengeAppendUiState.Loading){
+                                    item{
+                                        ChallengeLoadingMore()
+                                    }
+                                }
                             }
                             is ChallengeUiState.Error ->{
                                 item{}
@@ -238,6 +245,19 @@ internal fun ArtistDetailScreen(
             }
         }
 
+    }
+}
+@Composable
+private fun ChallengeLoadingMore(
+    modifier: Modifier = Modifier,
+){
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        contentAlignment = Alignment.Center,
+    ){
+        LoadingWheel(contentDescription = "불러오는 중...")
     }
 }
 private const val LOAD_MORE_THRESHOLD = 3
