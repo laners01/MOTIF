@@ -175,16 +175,19 @@ internal object ArtistDetailMockData {
     private const val MOTIF_THUMBNAIL =
         "android.resource://com.ssafy.motif/drawable/motif_thumbnail"
 
+    private const val MOTIF_VIDEO =
+        "android.resource://com.ssafy.motif/raw/test_video"
+
     val motifs: List<ArtistMotif> = listOf(
         ArtistMotif(
             id = 1L,
-            videoUrl = "",
+            videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME,
         ),
         ArtistMotif(
             id = 2L,
-            videoUrl = "",
+            videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME - ONE_DAY_MILLIS,
         ),
