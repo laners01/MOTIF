@@ -186,7 +186,7 @@ internal fun ArtistDetailScreen(
                         when(val state = uiState.challengeState){
                             ChallengeUiState.Loading ->{
                                 item{
-
+                                        ChallengeLoadingContent()
                                 }
                             }
                             is ChallengeUiState.Success ->{
@@ -284,6 +284,18 @@ private fun ChallengeEmptyContent(
             style = MotifTheme.typography.bodyR14,
             color = MotifTheme.colors.gray400,
         )
+    }
+}
+
+@Composable
+private fun ChallengeLoadingContent(
+    modifier: Modifier = Modifier,
+){
+    Box(modifier = modifier
+        .fillMaxWidth()
+        .padding(vertical = 80.dp),
+        contentAlignment = Alignment.Center,){
+        LoadingWheel(contentDescription = "불러오는 중...")
     }
 }
 

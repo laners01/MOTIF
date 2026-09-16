@@ -22,14 +22,32 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
         ArtistDetailUiState(
             artistDetail = ArtistDetailMockData.artist,
             notices = ArtistDetailMockData.notices,
-            challengeState = ChallengeUiState.Success(
-                challenges = ArtistDetailMockData.challenges.take(CHALLENGE_PAGE_SIZE),
-                hasNext = ArtistDetailMockData.challenges.size>CHALLENGE_PAGE_SIZE,
-                ),
+            challengeState = ChallengeUiState.Loading,
             ),
         )
     internal val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
 
+    init{
+        loadChallenges()
+    }
+    private fun loadChallenges(){
+        viewModelScope.launch {
+            _uiState.update{state ->
+                state.copy(challengeState = ChallengeUiState.Loading)
+            }
+            val firstPage =
+                ArtistDetailMockData.challenges.take(CHALLENGE_PAGE_SIZE)
+            _uiState.update { state ->
+                state.copy(
+                    challengeState = ChallengeUiState.Success(
+                        challenges = firstPage,
+                        hasNext = firstPage.size<
+                        ArtistDetailMockData.challenges.size,
+                    ),
+                )
+            }
+        }
+    }
     fun toggleSubscribe() {
         _uiState.update { state ->
             val detail = state.artistDetail ?: return@update state
