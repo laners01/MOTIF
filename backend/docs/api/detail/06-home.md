@@ -189,17 +189,32 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
 - `title` 은 **전용 컬럼 `motif_assets.title`** 값이다(R6 — DB v0.11 신설). `description`(소개 문구)과 다른 필드다.
 - 클릭하면 §11.2 에셋 상세로 이동한다.
 
-**`NOTICE`** — `artist{artistSeq, name, profileImageUrl}` + `notice{noticeSeq, content, images, likeCount, commentCount, isLiked}`
+**`NOTICE`** — **공통 아티스트 요약** + `notice{noticeSeq, content, images, likeCount, commentCount, isLiked}`
 
 - **본문 전체 + 이미지 전체 배열**이다(`displayOrder` 순). 구 `repImageUrl` 은 폐기됐다.
 - `isLiked` 를 함께 내린다 — 공지 상세 API 가 없어서(구 §10.1 삭제) **이 항목이 공지 화면의 진입 데이터**이기 때문이다. §5.5 목록 항목과 같은 필드 구성이다.
 - `artist` 는 `MOTIF_ASSET` 과 **같은 공통 아티스트 요약**이다 — 원본 예시는 NOTICE 쪽에서 `groupName` 을 빠뜨렸지만 타입을 통일했다.
 
-### 정렬
+**타입에 없는 칸은 응답에서 아예 뺀다.** `MOTIF_ASSET` 항목에 `"notice": null` 이 실리지 않고 그 반대도 마찬가지다 — 클라이언트가 `type` 하나로 분기하면 되도록.
 
-이종 통합 정렬 키는 **`(regDttm, type, seq)`** 다(기본안). `regDttm` 이 같을 때 순서를 고정하기 위한 보조 키다.
+### 모집단과 정렬 (기본안)
 
-구독이 0건이면 **빈 목록 200**이다.
+원본은 "구독 아티스트의 신규 모티프 에셋 등록 + 공지" 라고만 적고 제외 조건과 보조 정렬을 정하지 않았다. 아래는 이 티켓에서 정한 **기본안**이다.
+
+**모집단** — 구독 중인 **비삭제** 아티스트의
+
+| 타입 | 조건 |
+|---|---|
+| `MOTIF_ASSET` | `motif_assets.is_active = TRUE` |
+| `NOTICE` | `notices.is_deleted = FALSE` |
+
+에셋에 `is_active` 를 거는 것은 판매가 중단된 에셋을 남기면 **눌렀을 때 §11.2 상세가 막히는 카드**가 목록에 생기기 때문이다. 아티스트 삭제는 구독 조회(§4.6·§4.7 공용)가 이미 걸러 준다.
+
+**정렬** — `regDttm DESC, type ASC, seq DESC`
+
+원본의 `(regDttm, type, seq)` 를 최신순으로 편 것이다. 보조 키 둘이 없으면 **같은 초에 등록된 항목이 페이지마다 자리를 바꿔** offset 페이지에서 중복·누락이 난다. `type` 이 먼저인 것은 값이 정해져 있어 결정적이기 때문이고(`MOTIF_ASSET` < `NOTICE`), `seq` 는 최신이 앞이라 DESC 다.
+
+구독이 0건이면 **빈 목록 200**이다 — 목록 쿼리를 아예 돌리지 않는다.
 
 ### 실패 응답
 

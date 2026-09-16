@@ -2,8 +2,11 @@ package com.ssafy.motif.coreapi.domain.home.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.domain.home.dto.ActivityItem;
 import com.ssafy.motif.coreapi.domain.home.dto.HotVideoItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -98,4 +101,104 @@ public interface HomeControllerDocs {
     ApiResponse<CursorResponse<HotVideoItem>> hotVideos(
             @Parameter(description = "이전 응답의 nextCursor. 생략하면 현재 순위의 1위부터") String cursor,
             @Parameter(description = "페이지 크기 (기본 10, 최대 100)") int size);
+
+    @Operation(
+            summary = "구독 아티스트 최신 활동 (§6.3)",
+            description = """
+                    구독 중인 아티스트의 **신규 모티프 에셋 등록**과 **공지**를 한 목록에 섞어
+                    등록 시각 통합 최신순으로 내린다 (명세 §6.3). **offset 페이지네이션**.
+
+                    - **인증 필요.** 구독 목록과 `notice.isLiked` 가 호출자 기준이다.
+                    - `size` 기본 20, 최대 100. 서버 고정 정렬이라 `sort` 를 받지 않는다.
+                    - **구독이 0건이면 빈 목록 200** 이다(오류가 아니다).
+
+                    ### 이종 항목이다 — `type` 으로 분기한다
+
+                    | `type` | 채워지는 칸 |
+                    |---|---|
+                    | `MOTIF_ASSET` | `artist` + `asset` |
+                    | `NOTICE` | `artist` + `notice` |
+
+                    **쓰지 않는 칸은 응답에서 빠진다.** `MOTIF_ASSET` 항목에 `"notice": null` 이
+                    실리지 않으므로 `type` 하나로만 분기하면 된다.
+
+                    - `artist` 는 **두 타입이 같은 모양**이다(공통 아티스트 요약 — `groupName` 포함,
+                      솔로 아티스트는 `null`).
+                    - `asset` 에는 **좋아요·댓글 수가 없다** — 에셋에 그 기능 자체가 없다.
+                      `asset.title` 은 `motif_assets.title` 전용 컬럼이며 소개 문구(`description`)와
+                      다른 값이다. 클릭하면 §11.2 에셋 상세로 간다.
+                    - `notice` 는 **본문 전체 + 이미지 전체 배열**(`displayOrder` 순)에 `isLiked` 까지
+                      싣는다. 공지 상세 API 가 없어(구 §10.1 삭제) **이 항목이 공지 화면의 진입
+                      데이터**이기 때문이다. §5.5 목록 항목과 같은 필드 구성이다.
+
+                    ### 모집단과 정렬
+
+                    구독 중인 **비삭제** 아티스트의 활성 에셋(`is_active=TRUE`)과 비삭제 공지다.
+                    판매가 중단된 에셋을 남기면 눌렀을 때 상세가 막히는 카드가 생긴다.
+
+                    정렬은 `regDttm DESC, type ASC, seq DESC` 로 고정이다 — 보조 키가 없으면 같은
+                    초에 등록된 항목이 페이지마다 자리를 바꿔 중복·누락이 난다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": {
+                                "list": [
+                                  {
+                                    "type": "MOTIF_ASSET",
+                                    "regDttm": "2026-09-02T05:00:00.000Z",
+                                    "artist": {
+                                      "artistSeq": 3,
+                                      "name": "카리나",
+                                      "groupName": "aespa",
+                                      "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                                    },
+                                    "asset": {
+                                      "assetSeq": 21,
+                                      "title": "9월 신규 에셋",
+                                      "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
+                                      "durationMs": 9800
+                                    }
+                                  },
+                                  {
+                                    "type": "NOTICE",
+                                    "regDttm": "2026-09-02T04:00:00.000Z",
+                                    "artist": {
+                                      "artistSeq": 7,
+                                      "name": "윈터",
+                                      "groupName": "aespa",
+                                      "profileImageUrl": "https://cdn.motif.io/profiles/c4a7e9d2.jpg"
+                                    },
+                                    "notice": {
+                                      "noticeSeq": 5,
+                                      "content": "컴백 소식 전체 본문...",
+                                      "images": [
+                                        { "imageUrl": "https://cdn.motif.io/notices/9f3b2a71.jpg", "displayOrder": 0 }
+                                      ],
+                                      "likeCount": 200,
+                                      "commentCount": 14,
+                                      "isLiked": false
+                                    }
+                                  }
+                                ],
+                                "page": 0,
+                                "size": 20,
+                                "totalElements": 37,
+                                "totalPages": 2,
+                                "hasNext": true,
+                                "hasPrevious": false
+                              },
+                              "timestamp": "2026-09-10T00:00:00.000Z"
+                            }
+                            """)))
+    })
+    ApiResponse<PageResponse<ActivityItem>> activities(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "0-base 페이지 번호 (기본 0)") int page,
+            @Parameter(description = "페이지 크기 (기본 20, 최대 100)") int size);
 }
