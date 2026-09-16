@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('신고 처리', ~{::main})}">
+<body>
+<!--/* 신고 목록·상세·처리(§3.13) — 한 화면. 로직은 reports.js. */-->
+<main>
+    <p>
+        <label style="display:inline">상태
+            <select id="status">
+                <option value="RECEIVED" selected>접수</option>
+                <option value="ACCEPTED">인용</option>
+                <option value="REJECTED">기각</option>
+                <option value="">전체</option>
+            </select>
+        </label>
+        <label style="display:inline">대상
+            <select id="target-type">
+                <option value="">전체</option>
+                <option value="VIDEO">참여 영상</option>
+                <option value="CHALLENGE_COMMENT">챌린지 댓글</option>
+                <option value="VIDEO_COMMENT">영상 댓글</option>
+                <option value="NOTICE_COMMENT">공지 댓글</option>
+            </select>
+        </label>
+        <button type="button" id="reload">조회</button>
+    </p>
+    <p class="err" id="err" hidden></p>
+
+    <table>
+        <thead>
+        <tr><th>#</th><th>대상</th><th>사유</th><th>신고자</th><th>누적</th><th>상태</th><th>접수일</th><th></th><th>결과</th></tr>
+        </thead>
+        <tbody id="reports"></tbody>
+    </table>
+    <p class="muted" id="page-hint"></p>
+    <p>
+        <button type="button" id="prev" disabled>이전</button>
+        <button type="button" id="next" disabled>다음</button>
+    </p>
+
+    <p class="muted">
+        접수순 고정이다 — 오래 방치된 것이 먼저 온다.
+        <strong>인용은 대상을 소프트 삭제한다.</strong> 이미 삭제된 대상이면 상태만 바뀌고
+        참여 수는 그대로다(멱등). 댓글 대상은 아직 처리할 수 없다 — §9 댓글 구현 후에 열린다.
+    </p>
+
+    <!--/* 상세는 행을 펼쳐서 보여준다. 별도 화면을 두면 목록으로 돌아오는 길이 필요하고,
+           처리 버튼이 어느 신고의 것인지 헷갈린다 */-->
+    <template id="report-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="target"></td>
+            <td class="reason"></td>
+            <td class="reporter"></td>
+            <td class="same-count"></td>
+            <td class="status"></td>
+            <td class="reg"></td>
+            <td>
+                <button type="button" class="detail">미리보기</button>
+                <button type="button" class="accept">인용</button>
+                <button type="button" class="reject">기각</button>
+            </td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+    <template id="preview-row">
+        <tr class="preview">
+            <td colspan="9">
+                <div class="target-preview"></div>
+            </td>
+        </tr>
+    </template>
+
+    <script src="/admin/reports.js" defer></script>
+</main>
+</body>
+</html>
