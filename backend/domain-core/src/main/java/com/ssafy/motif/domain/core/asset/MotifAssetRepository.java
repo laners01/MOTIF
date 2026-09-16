@@ -78,6 +78,7 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
                    u.nickname      as "artistName",
                    g.group_name    as "groupName",
                    a.title         as "title",
+                   a.description   as "description",
                    a.thumbnail_key as "thumbnailKey",
                    a.duration_ms   as "durationMs",
                    a.asset_type    as "assetType",
@@ -98,19 +99,22 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
                      on p.asset_seq = a.asset_seq
                     and p.country_seq = (select c.country_seq from motif_core.countries c
                                           where c.country_code = :countryCode)
-             where (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
+             where (cast(:assetSeq as integer) is null or a.asset_seq = cast(:assetSeq as integer))
+               and (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
                and (cast(:isActive as boolean) is null or a.is_active = cast(:isActive as boolean))
                and (cast(:assetType as varchar) is null or a.asset_type = cast(:assetType as varchar))
              order by a.asset_seq desc
             """,
             countQuery = """
             select count(*) from motif_core.motif_assets a
-             where (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
+             where (cast(:assetSeq as integer) is null or a.asset_seq = cast(:assetSeq as integer))
+               and (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
                and (cast(:isActive as boolean) is null or a.is_active = cast(:isActive as boolean))
                and (cast(:assetType as varchar) is null or a.asset_type = cast(:assetType as varchar))
             """,
             nativeQuery = true)
-    Page<AssetListRow> search(@Param("artistSeq") Integer artistSeq,
+    Page<AssetListRow> search(@Param("assetSeq") Integer assetSeq,
+                              @Param("artistSeq") Integer artistSeq,
                               @Param("isActive") Boolean isActive,
                               @Param("assetType") String assetType,
                               @Param("countryCode") String countryCode,
@@ -128,6 +132,9 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
         String getGroupName();
 
         String getTitle();
+
+        /** §3.8.3 상세에만 쓰인다 — 목록 항목(§3.8.1)에는 없는 값이다. */
+        String getDescription();
 
         String getThumbnailKey();
 

@@ -74,6 +74,36 @@ public class MotifAsset extends BaseTimeEntity {
         return asset;
     }
 
+    /**
+     * 수정 (어드민 명세 §3.8.4) — {@code null} 은 "두라" 다.
+     *
+     * <p>빈 문자열과 {@code null} 을 구분한다 — {@code description} 은 nullable 이라
+     * "소개를 지운다"(빈 문자열)와 "건드리지 않는다"({@code null})가 다른 요청이다.
+     */
+    public void update(String title, String description, AssetType assetType) {
+        if (title != null) {
+            this.title = title;
+        }
+        if (description != null) {
+            this.description = description;
+        }
+        if (assetType != null) {
+            this.assetType = assetType;
+        }
+    }
+
+    /**
+     * 영상 교체 (§3.8.4).
+     *
+     * <p>썸네일 키도 같이 바꾼다 — 둘은 한 규약으로 묶여 있다({@code MediaKeys}).
+     * 따로 놓으면 새 영상에 옛 썸네일이 붙은 채 남는다.
+     */
+    public void replaceVideo(String videoKey, String thumbnailKey, int durationMs) {
+        this.videoKey = videoKey;
+        this.thumbnailKey = thumbnailKey;
+        this.durationMs = durationMs;
+    }
+
     public void changeActive(boolean active) {
         this.active = active;
     }

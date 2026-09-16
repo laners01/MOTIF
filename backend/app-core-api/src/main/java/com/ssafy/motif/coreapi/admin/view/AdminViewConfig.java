@@ -50,6 +50,9 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 에셋 등록 (§3.8.2) — API 는 396·568 로 있었는데 화면이 없어 어드민 UI 로
         // 등록할 길이가 없었다. 리터럴이라 /assets 와 순서는 상관없다
         registry.addViewController(AdminPaths.VIEW + "/assets/new").setViewName("admin/asset-new");
+        // 에셋 수정 (§3.8.3·§3.8.4) — 에셋만 등록 후 고칠 방법이 없었다.
+        // assetSeq 는 화면 JS 가 location.pathname 에서 읽는다
+        registry.addViewController(AdminPaths.VIEW + "/assets/{assetSeq}/edit").setViewName("admin/asset-edit");
         // 곡 — 목록·등록 (§1.7, §3.6). 수정은 API 가 없다(3.6.3 삭제 — 곡은 불변)
         registry.addViewController(AdminPaths.VIEW + "/songs").setViewName("admin/songs");
         // 챌린지 상세 (§3.7.3) — 읽기 전용. challengeSeq 는 화면 JS 가 pathname 에서 읽는다

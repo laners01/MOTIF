@@ -170,6 +170,21 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("에셋 수정 — 영상 교체가 선택이라는 것이 화면에 드러난다 (§3.8.4)")
+    void assetEdit() {
+        String html = render("admin/asset-edit");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 모티프 에셋 수정</title>")
+                .contains("/admin/asset-edit.js")
+                .contains("id=\"file\"")
+                .contains("id=\"asset-type\"");
+        // "고르지 않으면 그대로 둔다" 가 빠지면 운영자는 매번 영상을 다시 올려야 하는 줄 안다
+        assertThat(html).contains("선택").contains("그대로");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("에셋 목록 — 행 뼈대와 타입·활성 필터가 들어간다 (§3.8.1)")
     void assets() {
         String html = render("admin/assets");

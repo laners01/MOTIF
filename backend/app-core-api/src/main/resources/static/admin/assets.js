@@ -36,6 +36,8 @@ function paint(tr, asset) {
     set(tr, '.results', asset.resultCount);
     set(tr, '.reg', new Date(asset.regDttm).toLocaleString('ko-KR'));
     set(tr, '.toggle', asset.isActive ? '비활성화' : '활성화');
+    // 수정 화면(§3.8.3·§3.8.4)으로. 행마다 seq 가 다르니 링크도 행에서 채운다
+    tr.querySelector('.edit').href = `/admin/assets/${asset.assetSeq}/edit`;
 }
 
 /**
