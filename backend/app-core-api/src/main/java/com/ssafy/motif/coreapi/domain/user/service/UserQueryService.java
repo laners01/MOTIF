@@ -4,12 +4,16 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
 import com.ssafy.motif.coreapi.domain.user.UserErrorCode;
+import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
+import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
+import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
@@ -25,10 +29,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
- * 사용자 조회 (API 명세 §4.1 · §4.6 · §4.8).
+ * 사용자 조회 (API 명세 §4.1 · §4.6 · §4.7 · §4.8).
  *
  * <p><b>원콜이다.</b> 프로필·대표 모티프·영상 프리뷰를 한 번에 내려준다(회의 확정
  * 2026-09-02 개편). 첫 화면에 필요한 것이 셋뿐이라 화면 하나에 왕복 세 번을 쓸 이유가
@@ -76,6 +84,8 @@ public class UserQueryService {
     private final CompositeJobRepository compositeJobRepository;
     private final ParticipationVideoRepository participationVideoRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final MotifAssetRepository motifAssetRepository;
+    private final MotifPassPriceRepository motifPassPriceRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
     /** §4.1 마이페이지 원콜. */
@@ -160,6 +170,68 @@ public class UserQueryService {
                 row.name(),
                 row.groupName(),
                 mediaUrlResolver.resolve(row.profileImageKey()));
+    }
+
+    /**
+     * §4.7 구독 아티스트 카드 — <b>비페이지 전량</b>, 구독 최신순.
+     *
+     * <p>카드 앞면·뒷면을 한 번에 내린다. 마이페이지뿐 아니라 <b>숍 화면의 아티스트
+     * 섹션</b>도 이 응답으로 구성한다(구 §11.3 집계 API 는 삭제됐다).
+     *
+     * <p><b>집계를 카드마다 부르지 않는다.</b> 구독이 n 건이면 카드별 조회는 그대로
+     * 4n 쿼리가 된다. 아티스트 seq 를 모아 집계 4종을 <b>각 한 번씩</b> 돌리므로
+     * 구독 수와 무관하게 <b>쿼리는 5개로 고정</b>이다(구독 1 + 집계 4).
+     *
+     * <p>구독이 0건이면 집계를 아예 돌리지 않는다 — 빈 {@code in} 절은 DB 마다 취급이
+     * 달라 굳이 보내지 않는다.
+     */
+    public ListResponse<SubscriptionCardItem> subscriptions(Integer userSeq) {
+        List<SubscribedArtistRow> rows = subscriptionRepository.findSubscribed(userSeq);
+        if (rows.isEmpty()) {
+            return ListResponse.of(List.of());
+        }
+
+        List<Integer> artistSeqs = rows.stream().map(SubscribedArtistRow::artistSeq).toList();
+        Map<Integer, Long> myVideoCounts =
+                counts(participationVideoRepository.countMineByArtists(userSeq, artistSeqs));
+        Map<Integer, Long> activeAssetCounts =
+                counts(motifAssetRepository.countActiveByArtists(artistSeqs));
+        Map<Integer, Long> purchasedCounts =
+                motifAssetRepository.countPurchasedByArtists(userSeq, artistSeqs).stream()
+                        .collect(Collectors.toMap(
+                                MotifAssetRepository.ArtistCountProjection::getArtistSeq,
+                                MotifAssetRepository.ArtistCountProjection::getCount));
+        Map<Integer, Instant> passExpiries =
+                motifPassPriceRepository.findActivePasses(userSeq, artistSeqs).stream()
+                        .collect(Collectors.toMap(
+                                MotifPassPriceRepository.ActivePassProjection::getArtistSeq,
+                                MotifPassPriceRepository.ActivePassProjection::getExpiresDttm));
+
+        Instant now = Instant.now();
+        List<SubscriptionCardItem> cards = rows.stream()
+                .map(row -> {
+                    // 없으면 유효 패스가 없는 것이다 — 쿼리가 유효한 것만 주고 온다
+                    Instant expiresDttm = passExpiries.get(row.artistSeq());
+                    return new SubscriptionCardItem(
+                            row.artistSeq(),
+                            row.name(),
+                            row.groupName(),
+                            mediaUrlResolver.resolve(row.profileImageKey()),
+                            expiresDttm != null,
+                            expiresDttm,
+                            ChronoUnit.DAYS.between(row.subscribedDttm(), now),
+                            myVideoCounts.getOrDefault(row.artistSeq(), 0L),
+                            purchasedCounts.getOrDefault(row.artistSeq(), 0L),
+                            activeAssetCounts.getOrDefault(row.artistSeq(), 0L));
+                })
+                .toList();
+        return ListResponse.of(cards);
+    }
+
+    /** {@code group by} 결과는 건수 0 인 아티스트를 아예 주지 않는다 — 없으면 0 으로 읽는다. */
+    private static Map<Integer, Long> counts(List<ArtistCount> rows) {
+        return rows.stream().collect(Collectors.toMap(ArtistCount::artistSeq,
+                ArtistCount::count, (a, b) -> a, java.util.HashMap::new));
     }
 
     /**

@@ -10,8 +10,12 @@ import com.ssafy.motif.coreapi.global.media.MediaSigningProperties;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.coreapi.global.media.ProtectedMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
+import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
+import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
@@ -32,6 +36,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.lang.reflect.Constructor;
 import java.security.KeyPairGenerator;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -41,8 +47,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -66,6 +75,8 @@ class UserQueryServiceTest {
     private CompositeJobRepository compositeJobRepository;
     private ParticipationVideoRepository participationVideoRepository;
     private SubscriptionRepository subscriptionRepository;
+    private MotifAssetRepository motifAssetRepository;
+    private MotifPassPriceRepository motifPassPriceRepository;
     private UserQueryService service;
 
     @BeforeEach
@@ -75,6 +86,8 @@ class UserQueryServiceTest {
         compositeJobRepository = mock(CompositeJobRepository.class);
         participationVideoRepository = mock(ParticipationVideoRepository.class);
         subscriptionRepository = mock(SubscriptionRepository.class);
+        motifAssetRepository = mock(MotifAssetRepository.class);
+        motifPassPriceRepository = mock(MotifPassPriceRepository.class);
 
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
                 "KTESTKEYPAIRID", generatePkcs8Pem(), Duration.ofMinutes(10), Duration.ofHours(6)));
@@ -83,11 +96,15 @@ class UserQueryServiceTest {
 
         service = new UserQueryService(userRepository, motifResultRepository,
                 compositeJobRepository, participationVideoRepository, subscriptionRepository,
-                resolver);
+                motifAssetRepository, motifPassPriceRepository, resolver);
 
         givenUser(user(null, null));
         given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of());
         given(subscriptionRepository.findSubscribed(anyInt())).willReturn(List.of());
+        given(participationVideoRepository.countMineByArtists(anyInt(), any())).willReturn(List.of());
+        given(motifAssetRepository.countActiveByArtists(any())).willReturn(List.of());
+        given(motifAssetRepository.countPurchasedByArtists(anyInt(), any())).willReturn(List.of());
+        given(motifPassPriceRepository.findActivePasses(anyInt(), any())).willReturn(List.of());
     }
 
     @Test
@@ -201,7 +218,7 @@ class UserQueryServiceTest {
         void returnsProfileWithSubscriptions() {
             givenTarget(OTHER, "팬123", "profiles/aa11bb22.jpg");
             given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
-                    new SubscribedArtistRow(3, "카리나", "profiles/3f9c1a2b.jpg", "aespa")));
+                    new SubscribedArtistRow(3, "카리나", "profiles/3f9c1a2b.jpg", "aespa", Instant.now())));
 
             UserProfileResponse profile = service.profile(OTHER);
 
@@ -221,7 +238,7 @@ class UserQueryServiceTest {
         void soloArtistHasNullGroupName() {
             givenTarget(OTHER, "팬123", null);
             given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
-                    new SubscribedArtistRow(9, "아이유", "profiles/iu.jpg", null)));
+                    new SubscribedArtistRow(9, "아이유", "profiles/iu.jpg", null, Instant.now())));
 
             assertThat(service.profile(OTHER).subscribedArtists())
                     .singleElement()
@@ -241,7 +258,7 @@ class UserQueryServiceTest {
         void missingImagesAreNull() {
             givenTarget(OTHER, "팬123", null);
             given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
-                    new SubscribedArtistRow(9, "아이유", null, null)));
+                    new SubscribedArtistRow(9, "아이유", null, null, Instant.now())));
 
             UserProfileResponse profile = service.profile(OTHER);
 
@@ -280,6 +297,142 @@ class UserQueryServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("§4.7 구독 아티스트 카드")
+    class Subscriptions {
+
+        @Test
+        @DisplayName("구독이 0건이면 빈 배열이고 집계를 아예 돌리지 않는다")
+        void noSubscriptionsSkipsAggregates() {
+            assertThat(service.subscriptions(ME).list()).isEmpty();
+
+            verify(motifAssetRepository, never()).countActiveByArtists(any());
+            verify(motifPassPriceRepository, never()).findActivePasses(anyInt(), any());
+        }
+
+        @Test
+        @DisplayName("요약과 집계를 한 카드에 담는다")
+        void buildsCard() {
+            givenSubscribed(subscription(3, "카리나", "aespa", Instant.now().minus(41, ChronoUnit.DAYS)));
+            given(participationVideoRepository.countMineByArtists(eq(ME), any()))
+                    .willReturn(List.of(new ArtistCount(3, 5L)));
+            given(motifAssetRepository.countActiveByArtists(any()))
+                    .willReturn(List.of(new ArtistCount(3, 12L)));
+            givenPurchased(3, 2L);
+            givenActivePass(3, Instant.parse("2026-10-01T00:00:00Z"));
+
+            SubscriptionCardItem card = service.subscriptions(ME).list().get(0);
+
+            assertThat(card.artistSeq()).isEqualTo(3);
+            assertThat(card.name()).isEqualTo("카리나");
+            assertThat(card.groupName()).isEqualTo("aespa");
+            assertThat(card.passActive()).isTrue();
+            assertThat(card.passExpiresDttm()).isEqualTo(Instant.parse("2026-10-01T00:00:00Z"));
+            assertThat(card.subscribedDays()).isEqualTo(41);
+            assertThat(card.challengeCount()).isEqualTo(5);
+            assertThat(card.purchasedAssetCount()).isEqualTo(2);
+            assertThat(card.totalAssetCount()).isEqualTo(12);
+        }
+
+        @Test
+        @DisplayName("패스가 없으면 passActive=false 이고 만료는 null 이다")
+        void noPassIsInactive() {
+            givenSubscribed(subscription(3, "카리나", "aespa", Instant.now()));
+
+            SubscriptionCardItem card = service.subscriptions(ME).list().get(0);
+
+            assertThat(card.passActive()).isFalse();
+            assertThat(card.passExpiresDttm()).isNull();
+        }
+
+        @Test
+        @DisplayName("패스만 있고 산 게 없으면 0/m 이다 — 패스로 열린 것은 세지 않는다")
+        void passDoesNotCountAsPurchase() {
+            givenSubscribed(subscription(3, "카리나", "aespa", Instant.now()));
+            given(motifAssetRepository.countActiveByArtists(any()))
+                    .willReturn(List.of(new ArtistCount(3, 12L)));
+            givenActivePass(3, Instant.parse("2026-10-01T00:00:00Z"));
+            // 구매 조회는 빈 결과 — 패스는 asset_purchases 에 행을 만들지 않는다
+
+            SubscriptionCardItem card = service.subscriptions(ME).list().get(0);
+
+            assertThat(card.passActive()).isTrue();
+            assertThat(card.purchasedAssetCount()).isZero();
+            assertThat(card.totalAssetCount()).isEqualTo(12);
+        }
+
+        @Test
+        @DisplayName("판매 중단 에셋을 샀으면 분자가 분모보다 클 수 있다 — 서버가 보정하지 않는다")
+        void purchasedMayExceedTotal() {
+            givenSubscribed(subscription(3, "카리나", "aespa", Instant.now()));
+            given(motifAssetRepository.countActiveByArtists(any()))
+                    .willReturn(List.of(new ArtistCount(3, 1L)));
+            givenPurchased(3, 3L);
+
+            SubscriptionCardItem card = service.subscriptions(ME).list().get(0);
+
+            assertThat(card.purchasedAssetCount()).isEqualTo(3);
+            assertThat(card.totalAssetCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("집계에 없는 아티스트는 0 이다 — group by 는 0건을 주지 않는다")
+        void missingAggregatesAreZero() {
+            givenSubscribed(subscription(9, "아이유", null, Instant.now()));
+
+            SubscriptionCardItem card = service.subscriptions(ME).list().get(0);
+
+            assertThat(card.groupName()).isNull();
+            assertThat(card.challengeCount()).isZero();
+            assertThat(card.purchasedAssetCount()).isZero();
+            assertThat(card.totalAssetCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("구독이 몇 건이든 집계 쿼리는 4번뿐이다 — 카드마다 부르면 4N 이다")
+        void aggregatesAreBatchedRegardlessOfSize() {
+            givenSubscribed(
+                    subscription(1, "a", null, Instant.now()),
+                    subscription(2, "b", null, Instant.now()),
+                    subscription(3, "c", null, Instant.now()),
+                    subscription(4, "d", null, Instant.now()),
+                    subscription(5, "e", null, Instant.now()));
+
+            assertThat(service.subscriptions(ME).list()).hasSize(5);
+
+            verify(participationVideoRepository, times(1)).countMineByArtists(eq(ME), any());
+            verify(motifAssetRepository, times(1)).countActiveByArtists(any());
+            verify(motifAssetRepository, times(1)).countPurchasedByArtists(eq(ME), any());
+            verify(motifPassPriceRepository, times(1)).findActivePasses(eq(ME), any());
+        }
+
+        private void givenSubscribed(SubscribedArtistRow... rows) {
+            given(subscriptionRepository.findSubscribed(ME)).willReturn(List.of(rows));
+        }
+
+        private SubscribedArtistRow subscription(int artistSeq, String name, String groupName,
+                                                 Instant subscribedDttm) {
+            return new SubscribedArtistRow(artistSeq, name, "profiles/a.jpg", groupName, subscribedDttm);
+        }
+
+        private void givenPurchased(int artistSeq, long count) {
+            MotifAssetRepository.ArtistCountProjection row =
+                    mock(MotifAssetRepository.ArtistCountProjection.class);
+            given(row.getArtistSeq()).willReturn(artistSeq);
+            given(row.getCount()).willReturn(count);
+            given(motifAssetRepository.countPurchasedByArtists(eq(ME), any()))
+                    .willReturn(List.of(row));
+        }
+
+        private void givenActivePass(int artistSeq, Instant expiresDttm) {
+            MotifPassPriceRepository.ActivePassProjection row =
+                    mock(MotifPassPriceRepository.ActivePassProjection.class);
+            given(row.getArtistSeq()).willReturn(artistSeq);
+            given(row.getExpiresDttm()).willReturn(expiresDttm);
+            given(motifPassPriceRepository.findActivePasses(eq(ME), any())).willReturn(List.of(row));
         }
     }
 

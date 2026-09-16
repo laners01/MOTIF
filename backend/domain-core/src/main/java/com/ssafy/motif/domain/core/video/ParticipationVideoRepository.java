@@ -1,10 +1,12 @@
 package com.ssafy.motif.domain.core.video;
 
+import com.ssafy.motif.domain.core.artist.ArtistCount;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +40,35 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
             order by v.videoSeq desc
             """)
     List<ParticipationVideo> findMine(@Param("userSeq") Integer userSeq, Pageable pageable);
+
+    /**
+     * 구독 카드의 {@code challengeCount} (API 명세 §4.7) — 아티스트별 <b>내</b> 영상 수.
+     *
+     * <p>이름이 challenge 지만 세는 것은 <b>참여 영상</b>이다(명세 §4.7 표).
+     *
+     * <p><b>{@link #findMine} 과 같은 필터를 쓴다</b> — 삭제된 챌린지에 속한 영상까지
+     * 뺀다. 명세는 "내 비삭제 참여 영상 수"라고만 적었지만, 여기서 §1.8 을 빼면
+     * <b>§4.8 그리드에는 안 보이는 영상이 이 숫자에는 잡힌다</b>. "5개라는데 4개만
+     * 보인다"가 되고 사용자는 어느 쪽이 맞는지 알 수 없다.
+     *
+     * <p>그래서 명세가 언급한 {@code idx_pv_user_artist} 만으로는 끝나지 않고 챌린지
+     * 확인이 붙는다. 목록과 숫자가 어긋나는 것보다 낫다고 본다.
+     *
+     * <p>아티스트 목록 전체를 한 번에 센다 — 카드마다 부르면 그대로 N+1 이다
+     * ({@code MotifAssetRepository.countByArtists} 와 같은 방식).
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistCount(v.artistSeq, count(v))
+            from ParticipationVideo v
+            where v.userSeq = :userSeq
+              and v.artistSeq in :artistSeqs
+              and v.deleted = false
+              and exists (select 1 from Challenge c
+                           where c.challengeSeq = v.challengeSeq and c.deleted = false)
+            group by v.artistSeq
+            """)
+    List<ArtistCount> countMineByArtists(@Param("userSeq") Integer userSeq,
+                                         @Param("artistSeqs") Collection<Integer> artistSeqs);
 
     /**
      * 보호 등급 인가 — 이 잡이 게시됐는지, 됐다면 공개 범위가 무엇인지 (API 명세 §1.7).
