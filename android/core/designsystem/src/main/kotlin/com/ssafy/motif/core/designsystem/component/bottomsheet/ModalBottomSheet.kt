@@ -1,23 +1,17 @@
 package com.ssafy.motif.core.designsystem.component.bottomsheet
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
@@ -38,31 +32,15 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/**
- * 화면 하단에서 표시되는 모달 형태의 Bottom Sheet.
- *
- * @param onDismissRequest Bottom Sheet가 닫힌 후 호출되는 콜백.
- * @param modifier Bottom Sheet 컨테이너에 적용할 Modifier.
- * @param sheetState Bottom Sheet의 상태와 애니메이션을 관리하는 객체.
- * @param shape Bottom Sheet 컨테이너의 Shape.
- * @param containerColor Bottom Sheet의 배경 색상.
- * @param contentColor Bottom Sheet 내부 콘텐츠의 기본 색상.
- * @param scrimColor Bottom Sheet 뒤쪽에 표시되는 Scrim 색상.
- * @param sheetGesturesEnabled Bottom Sheet 드래그 가능 여부.
- * @param dragHandle Bottom Sheet 상단에 표시되는 Drag Handle.
- * @param content Bottom Sheet 내부 콘텐츠.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ModalBottomSheet(
@@ -72,16 +50,17 @@ fun ModalBottomSheet(
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = MotifTheme.colors.background,
     contentColor: Color = MotifTheme.colors.typo,
-    scrimColor: Color = BottomSheetDefaults.ScrimColor,
     sheetGesturesEnabled: Boolean = true,
     dragHandle: @Composable (() -> Unit)? = {
-        BottomSheetDefaults.DragHandle()
+        DefaultDragHandle()
     },
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val coroutineScope =
+        rememberCoroutineScope()
 
-    val currentOnDismissRequest by rememberUpdatedState(
+    val currentOnDismissRequest by
+    rememberUpdatedState(
         onDismissRequest,
     )
 
@@ -90,23 +69,27 @@ fun ModalBottomSheet(
     }
 
     val nestedScrollConnection =
-        remember(sheetState) {
-            sheetNestedScrollConnection(
+        remember(
+            sheetState,
+            coroutineScope,
+        ) {
+            sheetContentNestedScrollConnection(
                 sheetState = sheetState,
+                coroutineScope = coroutineScope,
             )
         }
 
     /*
-     * Sheet는 항상 화면 전체 높이를 가진다.
-     *
-     * Hidden
-     *   -> 화면 아래
-     *
-     * PartiallyExpanded
-     *   -> 화면의 60% 노출
+     * Sheet Anchor
      *
      * Expanded
-     *   -> 화면 전체 노출
+     *   -> y = 0
+     *
+     * PartiallyExpanded
+     *   -> 화면의 일부만 노출
+     *
+     * Hidden
+     *   -> y = rootHeight
      */
     LaunchedEffect(
         rootHeight,
@@ -119,7 +102,10 @@ fun ModalBottomSheet(
 
         val partiallyExpandedOffset =
             rootHeight *
-                    (1f - sheetState.partiallyExpandedFraction)
+                    (
+                            1f -
+                                    sheetState.partiallyExpandedFraction
+                            )
 
         val anchors =
             DraggableAnchors {
@@ -133,27 +119,32 @@ fun ModalBottomSheet(
                 SheetValue.Expanded at 0f
             }
 
-        sheetState.anchoredDraggableState.updateAnchors(
-            newAnchors = anchors,
-        )
+        sheetState
+            .anchoredDraggableState
+            .updateAnchors(
+                newAnchors = anchors,
+            )
 
         /*
-         * BottomSheet가 처음 생성되면
-         * 사용자의 드래그를 기다리지 않고 바로 표시한다.
+         * 최초 진입 시 Partial 또는 Expanded 상태로 표시.
          */
         if (
-            sheetState.currentValue == SheetValue.Hidden &&
-            sheetState.targetValue == SheetValue.Hidden
+            sheetState.currentValue ==
+            SheetValue.Hidden &&
+            sheetState.targetValue ==
+            SheetValue.Hidden
         ) {
             sheetState.show()
         }
     }
 
     /*
-     * 드래그 등을 통해 Hidden까지 내려갔을 때
-     * 실제 BottomSheet를 제거할 수 있도록 알린다.
+     * Hidden 애니메이션이 완전히 끝난 뒤
+     * 호출부의 BottomSheet를 제거한다.
      */
-    LaunchedEffect(sheetState) {
+    LaunchedEffect(
+        sheetState,
+    ) {
         var hasBeenShown = false
 
         snapshotFlow {
@@ -174,6 +165,7 @@ fun ModalBottomSheet(
                 targetValue == SheetValue.Hidden
             ) {
                 hasBeenShown = false
+
                 currentOnDismissRequest()
             }
         }
@@ -185,262 +177,335 @@ fun ModalBottomSheet(
         }
     }
 
-    Dialog(
-        onDismissRequest = dismissSheet,
-        properties = DialogProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-        ),
+    BackHandler(
+        enabled = sheetState.isVisible,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged {
-                    rootHeight = it.height.toFloat()
-                },
-        ) {
-            BottomSheetScrim(
-                color = scrimColor,
-                visible = sheetState.isVisible,
-                onDismissRequest = dismissSheet,
-            )
+        dismissSheet()
+    }
 
-            Surface(
-                modifier = modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight()
-                    .offsetForSheet(
-                        sheetState = sheetState,
-                        fallback = rootHeight,
+    /*
+     * 별도 Dialog를 사용하지 않는다.
+     *
+     * 따라서 Sheet 위쪽 영역에서는
+     * 뒤쪽 화면과 그대로 상호작용할 수 있다.
+     */
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { size ->
+                rootHeight =
+                    size.height.toFloat()
+            },
+    ) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+
+                /*
+                 * 핵심:
+                 *
+                 * 화면 전체 높이를 가진 Surface를
+                 * 단순 offset 하는 것이 아니라,
+                 *
+                 * 실제 보이는 높이:
+                 *
+                 * rootHeight - sheetOffset
+                 *
+                 * 만큼만 측정한다.
+                 */
+                .sheetVisibleHeight(
+                    sheetState = sheetState,
+                    fallback = rootHeight,
+                )
+
+                /*
+                 * Sheet의 실제 top 위치로 이동.
+                 */
+                .sheetOffset(
+                    sheetState = sheetState,
+                    fallback = rootHeight,
+                )
+                .graphicsLayer {
+                    alpha =
+                        if (
+                            sheetState
+                                .anchoredDraggableState
+                                .offset
+                                .isNaN()
+                        ) {
+                            0f
+                        } else {
+                            1f
+                        }
+                },
+            shape = shape,
+            color = containerColor,
+            contentColor = contentColor,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(
+                        WindowInsets.navigationBars,
                     )
-                    .graphicsLayer {
-                        alpha =
-                            if (
-                                sheetState
-                                    .anchoredDraggableState
-                                    .offset
-                                    .isNaN()
-                            ) {
-                                0f
-                            } else {
-                                1f
-                            }
-                    }
                     .then(
                         if (sheetGesturesEnabled) {
-                            Modifier
-                                .nestedScroll(
-                                    nestedScrollConnection,
-                                )
-                                .anchoredDraggable(
-                                    state =
-                                        sheetState
-                                            .anchoredDraggableState,
-                                    orientation =
-                                        Orientation.Vertical,
-                                )
+                            Modifier.nestedScroll(
+                                nestedScrollConnection,
+                            )
                         } else {
                             Modifier
                         },
                     ),
-                shape = shape,
-                color = containerColor,
-                contentColor = contentColor,
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .windowInsetsPadding(
-                            WindowInsets.navigationBars,
-                        ),
-                ) {
-                    if (dragHandle != null) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    top = 12.dp,
-                                    bottom = 16.dp,
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            dragHandle()
-                        }
+                /*
+                 * Header 영역에서만
+                 * Sheet를 직접 드래그할 수 있다.
+                 */
+                if (dragHandle != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                            .then(
+                                if (sheetGesturesEnabled) {
+                                    Modifier.anchoredDraggable(
+                                        state =
+                                            sheetState
+                                                .anchoredDraggableState,
+                                        orientation =
+                                            Orientation.Vertical,
+                                    )
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                    ) {
+                        dragHandle()
                     }
-
-                    content()
                 }
+
+                /*
+                 * Body 영역.
+                 *
+                 * LazyColumn 등의 스크롤 영역은
+                 * 실제 Sheet 높이만큼만 측정된다.
+                 */
+                content()
             }
         }
     }
 }
 
-private fun Modifier.offsetForSheet(
+@Composable
+private fun DefaultDragHandle() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                top = 12.dp,
+                bottom = 16.dp,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        BottomSheetDefaults.DragHandle()
+    }
+}
+
+/**
+ * 현재 Sheet가 실제 화면에서 차지하는 높이를 계산한다.
+ *
+ * 예)
+ *
+ * rootHeight = 1000
+ * offset = 400
+ *
+ * sheetHeight = 600
+ *
+ * 기존처럼 1000 높이의 Sheet를 400 아래로 이동하는 것이 아니라,
+ * 실제 Sheet 자체를 600 높이로 측정한다.
+ */
+private fun Modifier.sheetVisibleHeight(
     sheetState: SheetState,
     fallback: Float,
 ): Modifier =
-    offset {
-        val offset =
+    layout {
+            measurable,
+            constraints,
+        ->
+
+        val rootHeight =
+            constraints.maxHeight
+
+        val rawOffset =
             sheetState
                 .anchoredDraggableState
                 .offset
 
-        IntOffset(
-            x = 0,
-            y =
-                if (offset.isNaN()) {
+        val sheetTop =
+            if (rawOffset.isNaN()) {
+                fallback.roundToInt()
+            } else {
+                rawOffset.roundToInt()
+            }.coerceIn(
+                minimumValue = 0,
+                maximumValue = rootHeight,
+            )
+
+        val sheetHeight =
+            (
+                    rootHeight -
+                            sheetTop
+                    )
+                .coerceAtLeast(0)
+
+        val placeable =
+            measurable.measure(
+                constraints.copy(
+                    minHeight = sheetHeight,
+                    maxHeight = sheetHeight,
+                ),
+            )
+
+        layout(
+            width = placeable.width,
+            height = sheetHeight,
+        ) {
+            placeable.placeRelative(
+                x = 0,
+                y = 0,
+            )
+        }
+    }
+
+/**
+ * Sheet의 top 위치를 실제 anchor offset과 동일하게 이동한다.
+ */
+private fun Modifier.sheetOffset(
+    sheetState: SheetState,
+    fallback: Float,
+): Modifier =
+    this.then(
+        Modifier.layout {
+                measurable,
+                constraints,
+            ->
+
+            val placeable =
+                measurable.measure(
+                    constraints,
+                )
+
+            val rawOffset =
+                sheetState
+                    .anchoredDraggableState
+                    .offset
+
+            val y =
+                if (rawOffset.isNaN()) {
                     fallback.roundToInt()
                 } else {
-                    offset.roundToInt()
-                },
-        )
-    }
+                    rawOffset.roundToInt()
+                }
 
-@Composable
-private fun BottomSheetScrim(
-    color: Color,
-    visible: Boolean,
-    onDismissRequest: () -> Unit,
-) {
-    val alpha by animateFloatAsState(
-        targetValue =
-            if (visible) {
-                1f
-            } else {
-                0f
-            },
-        animationSpec = tween(
-            durationMillis = 200,
-        ),
-        label = "BottomSheetScrim",
-    )
-
-    if (color == Color.Unspecified) {
-        return
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                this.alpha = alpha
+            layout(
+                width = placeable.width,
+                height = placeable.height,
+            ) {
+                placeable.placeRelative(
+                    x = 0,
+                    y = y,
+                )
             }
-            .background(color)
-            .clickable(
-                enabled = visible,
-                interactionSource =
-                    remember {
-                        MutableInteractionSource()
-                    },
-                indication = null,
-                onClick = onDismissRequest,
-            ),
+        },
     )
-}
 
-private fun sheetNestedScrollConnection(
+/**
+ * Body 스크롤 처리.
+ *
+ * LazyColumn 등이 먼저 스크롤을 소비한다.
+ *
+ * Body가 최상단에 도달해 더 이상 아래 방향 스크롤을
+ * 소비하지 못하는 경우에만 Sheet 상태를 한 단계 내린다.
+ *
+ * Expanded
+ *   -> PartiallyExpanded
+ *
+ * PartiallyExpanded
+ *   -> Hidden
+ */
+private fun sheetContentNestedScrollConnection(
     sheetState: SheetState,
+    coroutineScope: CoroutineScope,
 ): NestedScrollConnection =
     object : NestedScrollConnection {
 
-        override fun onPreScroll(
-            available: Offset,
-            source: NestedScrollSource,
-        ): Offset {
-            if (
-                source != NestedScrollSource.UserInput ||
-                available.y >= 0f
-            ) {
-                return Offset.Zero
-            }
-
-            /*
-             * 위로 스크롤할 때 Sheet가 아직 Expanded가 아니라면
-             * 내부 리스트보다 Sheet를 먼저 올린다.
-             */
-            val consumed =
-                sheetState
-                    .anchoredDraggableState
-                    .dispatchRawDelta(
-                        available.y,
-                    )
-
-            return Offset(
-                x = 0f,
-                y = consumed,
-            )
-        }
+        private var isCollapsing =
+            false
 
         override fun onPostScroll(
             consumed: Offset,
             available: Offset,
             source: NestedScrollSource,
         ): Offset {
-            if (source != NestedScrollSource.UserInput) {
+            if (
+                source != NestedScrollSource.UserInput ||
+                available.y <= 0f
+            ) {
                 return Offset.Zero
             }
 
-            /*
-             * LazyColumn이 더 이상 스크롤되지 않을 때
-             * 남은 움직임을 Sheet가 소비한다.
-             */
-            val consumedBySheet =
-                sheetState
-                    .anchoredDraggableState
-                    .dispatchRawDelta(
-                        available.y,
-                    )
+            val currentValue =
+                sheetState.currentValue
 
+            if (
+                currentValue ==
+                SheetValue.Hidden
+            ) {
+                return Offset.Zero
+            }
+
+            if (isCollapsing) {
+                return Offset(
+                    x = 0f,
+                    y = available.y,
+                )
+            }
+
+            isCollapsing = true
+
+            coroutineScope.launch {
+                try {
+                    when (currentValue) {
+                        SheetValue.Expanded -> {
+                            if (
+                                sheetState
+                                    .skipPartiallyExpanded
+                            ) {
+                                sheetState.hide()
+                            } else {
+                                sheetState.partialExpand()
+                            }
+                        }
+
+                        SheetValue.PartiallyExpanded -> {
+                            sheetState.hide()
+                        }
+
+                        SheetValue.Hidden -> Unit
+                    }
+                } finally {
+                    isCollapsing = false
+                }
+            }
+
+            /*
+             * LazyColumn이 소비하지 못한 pull-down을
+             * 여기서 소비해서 overscroll과 중복되지 않게 한다.
+             */
             return Offset(
                 x = 0f,
-                y = consumedBySheet,
+                y = available.y,
             )
-        }
-
-        override suspend fun onPreFling(
-            available: Velocity,
-        ): Velocity {
-            val state =
-                sheetState.anchoredDraggableState
-
-            val currentOffset =
-                state.offset
-
-            val expandedPosition =
-                state.anchors
-                    .positionOf(
-                        SheetValue.Expanded,
-                    )
-
-            return if (
-                available.y < 0f &&
-                !currentOffset.isNaN() &&
-                !expandedPosition.isNaN() &&
-                currentOffset > expandedPosition
-            ) {
-                sheetState.settle(
-                    velocity = available.y,
-                )
-
-                available
-            } else {
-                Velocity.Zero
-            }
-        }
-
-        override suspend fun onPostFling(
-            consumed: Velocity,
-            available: Velocity,
-        ): Velocity {
-            if (available.y != 0f) {
-                sheetState.settle(
-                    velocity = available.y,
-                )
-            }
-
-            return available
         }
     }
