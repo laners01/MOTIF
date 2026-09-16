@@ -192,4 +192,23 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update Artist a set a.subscriberCount = a.subscriberCount + 1 where a.artistSeq in :artistSeqs")
     int increaseSubscriberCount(@Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /**
+     * 구독자 수 감소 — {@link #increaseSubscriberCount} 의 대칭 (명세 §5.7).
+     *
+     * <p>두 플래그가 필요한 이유는 증가 쪽과 같다. 특히 {@code clearAutomatically} 가
+     * 없으면 <b>응답의 {@code subscriberCount} 가 감소 전 값으로 나간다</b> — 벌크
+     * UPDATE 는 영속성 컨텍스트를 우회하므로, 같은 트랜잭션에서 이미 로드된
+     * {@code Artist} 가 옛 카운터를 들고 있는 채로 조회에 쓰인다.
+     *
+     * <p><b>{@code count > 0} 조건을 달지 않는다.</b> 방어처럼 보이지만 오히려 위험하다 —
+     * 카운터가 0 인데 구독 행이 남아 있는 어긋난 상태에서 UPDATE 가 조용히 0행이 되고,
+     * 그러면 거울 카운터가 틀어졌다는 사실이 드러나지 않는다.
+     * {@code ck_artists_subscriber_count CHECK (subscriber_count >= 0)} 이 터지게 두는 편이
+     * 낫다. 애초에 호출부가 <b>실제로 지운 경우에만</b> 부르므로
+     * ({@link SubscriptionRepository#deleteIfPresent} 의 반환값) 정상 경로에서는 음수가 되지 않는다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Artist a set a.subscriberCount = a.subscriberCount - 1 where a.artistSeq = :artistSeq")
+    int decreaseSubscriberCount(@Param("artistSeq") Integer artistSeq);
 }
