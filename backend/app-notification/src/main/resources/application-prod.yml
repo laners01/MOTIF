@@ -13,3 +13,9 @@ spring:
     username: ${MQ_USERNAME:notification}
     password: ${MQ_PASSWORD}
     virtual-host: /motif
+
+motif:
+  notification:
+    # app-notification-secret 을 파일로 마운트한 경로. 값이 없으면 기동에 실패한다 —
+    # 조용히 뜨면 배포는 성공으로 보이고 알림만 전부 안 간다
+    fcm-credentials-path: ${FCM_CREDENTIALS_PATH:/etc/fcm/service-account.json}
