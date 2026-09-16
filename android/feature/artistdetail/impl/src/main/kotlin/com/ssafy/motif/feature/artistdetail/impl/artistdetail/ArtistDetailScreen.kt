@@ -127,7 +127,11 @@ internal fun ArtistDetailScreen(
                             onBackClick = onBackClick,
                         )
                     }
+                    if(artistDetail.hasMotifPass && uiState.motifs.isNotEmpty()){
+
+                    }
                 }
+
                 stickyHeader{
                     TabRow(selectedTabIndex = uiState.selectedTab.ordinal,
                         containerColor = MotifTheme.colors.background,

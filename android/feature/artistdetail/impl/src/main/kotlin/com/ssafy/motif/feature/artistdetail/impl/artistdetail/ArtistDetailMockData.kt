@@ -7,6 +7,7 @@ import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.comment.Reply
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.home.Notice
+import com.ssafy.motif.core.model.artistdetail.ArtistMotif
 
 internal object ArtistDetailMockData {
 
@@ -169,6 +170,20 @@ internal object ArtistDetailMockData {
                 likeCount = 8L,
                 isLiked = false,
             ),
+        ),
+    )
+    val motifs: List<ArtistMotif> = listOf(
+        ArtistMotif(
+            id = 1L,
+            videoUrl = "",
+            thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_1",
+            createdAt = CHALLENGE_BASE_TIME,
+        ),
+        ArtistMotif(
+            id = 2L,
+            videoUrl = "",
+            thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_2",
+            createdAt = CHALLENGE_BASE_TIME - ONE_DAY_MILLIS,
         ),
     )
 }
