@@ -17,7 +17,8 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
     private val _uiState = MutableStateFlow(
         ArtistDetailUiState(
             artistDetail = ArtistDetailMockData.artist,
-            notices = ArtistDetailMockData.notices))
+            notices = ArtistDetailMockData.notices,
+            challenges = ArtistDetailMockData.challenges))
     val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
 
     fun toggleSubscribe() {
@@ -83,6 +84,9 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
         }
     }
 
+    fun onChallengeClick(challengeId: Long){
+
+    }
     fun goBackScreen(){
 
     }

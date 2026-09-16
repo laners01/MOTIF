@@ -1,5 +1,6 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
+import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
 import com.ssafy.motif.core.model.artistdetail.ArtistDetail
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
@@ -14,6 +15,18 @@ internal object ArtistDetailMockData {
 
     private const val YEJI =
         "android.resource://com.ssafy.motif/drawable/yeji"
+
+    private val CHALLENGE_VIEWS = listOf(
+        1_240_000L, 892_000L, 45_200L, 12_400L, 3_100L, 980L, 512L, 64L,
+    )
+
+    val challenges: List<ArtistChallenge> = List(29) { index ->
+        ArtistChallenge(
+            id = index + 1L,
+            thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
+            view = CHALLENGE_VIEWS[index % CHALLENGE_VIEWS.size],
+        )
+    }
 
     val artist: ArtistDetail = ArtistDetail(
         name = "Yeji",

@@ -4,16 +4,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
+import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ChallengeThumbnail
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +52,7 @@ fun ArtistDetailScreen(
         onCommentLikeClick = viewModel::onCommentLikeClick,
         onReplyClick = viewModel::onReplyClick,
         onReplyLikeClick = viewModel::onReplyLikeClick,
+        onChallengeClick = viewModel::onChallengeClick,
         formatCreatedAt = { "방금 전" },
         modifier = modifier,
     )
@@ -67,14 +72,21 @@ internal fun ArtistDetailScreen(
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
     formatCreatedAt: (Long) -> String,
+    onChallengeClick:(Long) -> Unit,
     modifier: Modifier = Modifier,
+
+
 ) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(uiState.selectedTab){
+        listState.scrollToItem(0)
+    }
     Surface(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()){
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 uiState.artistDetail?.let{ artistDetail ->
                     item{
@@ -134,12 +146,36 @@ internal fun ArtistDetailScreen(
                                 onArtistClick = {},
                                 onLikeClick = onNoticeLikeClick,
                                 onCommentClick = onNoticeCommentClick,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    bottom = 12.dp,
+                                )
                             )
                         }
                     }
                     ArtistDetailTab.Challenge -> {
-                        item {
+                        items(
+                            items = uiState.challenges.chunked(3),
+                            key = { row -> row.first().id },
+                        ) { row ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ){
+                                row.forEach { challenge ->
+                                    ChallengeThumbnail(
+                                        challenge = challenge,
+                                        onClick = onChallengeClick,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                repeat(3 - row.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
 
                         }
                     }
