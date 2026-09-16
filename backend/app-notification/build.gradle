@@ -32,3 +32,26 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
 }
+
+// 기본 test 는 외부 의존이 없는 것만 돈다 — Jenkinsfile 이 이 태스크를 실행하며
+// 그 에이전트에는 DB·MQ·Redis 가 없다. app-core-api 와 같은 규약이다.
+tasks.named('test', Test) {
+    useJUnitPlatform {
+        excludeTags 'local-db'
+    }
+}
+
+// 로컬 compose(ADR-0003 격리 모드)가 떠 있을 때만 도는 통합 테스트.
+//   cd backend/local-infra && docker compose up -d --wait
+//   ./gradlew :app-notification:localDbTest
+//
+// 이 모듈은 DB 에 더해 **Redis 도** 필요하다 — 멱등 가드가 SETNX 를 쓴다.
+tasks.register('localDbTest', Test) {
+    group = 'verification'
+    description = '로컬 compose DB·Redis 를 쓰는 통합 테스트 (@Tag("local-db"))'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'local-db'
+    }
+}

@@ -6,9 +6,9 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,10 +24,19 @@ import java.nio.file.Path;
  * <p><b>키가 없으면 기동에 실패한다.</b> 조용히 뜨게 두면 발송이 전부 실패하는데 그
  * 사실이 런타임 로그로만 드러난다 — 배포는 성공했다고 표시되고 알림만 안 간다.
  * 설정 누락은 기동 시점에 크게 실패하는 편이 낫다(ADR-0004 placeholder 규율).
+ *
+ * <p><b>{@code local} 프로파일은 예외다.</b> 이 키는 운영 k8s Secret 에만 있어야 하는데,
+ * 없으면 기동이 막히니 알림 쪽을 건드리는 사람마다 운영 키를 노트북에 받아두게 된다 —
+ * 그러면 fail-fast 로 얻은 것보다 잃는 것이 크다. 격리 모드(ADR-0003)에서는 이 설정을
+ * 통째로 건너뛰고 {@link com.ssafy.motif.notification.push.FcmSender} 가 발송만 생략한다.
+ * Liquibase·리스너·팬아웃 조회는 그대로 돌아 로컬 테스트가 막히지 않는다.
+ *
+ * <p>{@code local-remote} 는 제외하지 않는다 — 실제 인프라에 붙여 보는 모드라 발송까지
+ * 확인하려는 의도이고, 그때는 키를 갖고 있는 것이 맞다.
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(NotificationProperties.class)
+@Profile("!local")
 public class FcmConfig {
 
     @Bean
