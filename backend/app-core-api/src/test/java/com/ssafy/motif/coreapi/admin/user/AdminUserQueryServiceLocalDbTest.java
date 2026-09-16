@@ -42,10 +42,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("local-db")
 @SpringBootTest
 @Transactional
-class AdminUserServiceLocalDbTest {
+class AdminUserQueryServiceLocalDbTest {
 
     @Autowired
-    private AdminUserService adminUserService;
+    private AdminUserQueryService adminUserQueryService;
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -60,15 +60,15 @@ class AdminUserServiceLocalDbTest {
         userAccountRepository.saveAndFlush(UserAccount.activeFor(user));
         String nickname = user.getNickname();
 
-        assertThat(seqsOf(adminUserService.list(nickname, null, null, null, 0, 20)))
+        assertThat(seqsOf(adminUserQueryService.list(nickname, null, null, null, 0, 20)))
                 .containsExactly(user.getUserSeq());
-        assertThat(seqsOf(adminUserService.list(nickname, null, UserRole.USER, null, 0, 20)))
+        assertThat(seqsOf(adminUserQueryService.list(nickname, null, UserRole.USER, null, 0, 20)))
                 .containsExactly(user.getUserSeq());
-        assertThat(seqsOf(adminUserService.list(nickname, null, UserRole.ARTIST, null, 0, 20)))
+        assertThat(seqsOf(adminUserQueryService.list(nickname, null, UserRole.ARTIST, null, 0, 20)))
                 .isEmpty();
-        assertThat(seqsOf(adminUserService.list(nickname, null, null, AccountStatus.ACTIVE, 0, 20)))
+        assertThat(seqsOf(adminUserQueryService.list(nickname, null, null, AccountStatus.ACTIVE, 0, 20)))
                 .containsExactly(user.getUserSeq());
-        assertThat(seqsOf(adminUserService.list(nickname, null, null, AccountStatus.SUSPENDED, 0, 20)))
+        assertThat(seqsOf(adminUserQueryService.list(nickname, null, null, AccountStatus.SUSPENDED, 0, 20)))
                 .isEmpty();
     }
 
@@ -78,7 +78,7 @@ class AdminUserServiceLocalDbTest {
         User user = newUser();
         entityManager.flush();
 
-        assertThat(adminUserService.list(null, user.getUserSeq(), null, null, 0, 20).list())
+        assertThat(adminUserQueryService.list(null, user.getUserSeq(), null, null, 0, 20).list())
                 .extracting(UserSummaryResponse::userSeq)
                 .containsExactly(user.getUserSeq());
     }
@@ -91,7 +91,7 @@ class AdminUserServiceLocalDbTest {
         execute("update motif_core.users set is_deleted = true where user_seq = :seq", user.getUserSeq());
         entityManager.clear();
 
-        assertThat(adminUserService.list(null, user.getUserSeq(), null, null, 0, 20).list())
+        assertThat(adminUserQueryService.list(null, user.getUserSeq(), null, null, 0, 20).list())
                 .singleElement()
                 .satisfies(row -> assertThat(row.isDeleted()).isTrue());
     }
@@ -99,7 +99,7 @@ class AdminUserServiceLocalDbTest {
     @Test
     @DisplayName("없는 회원 상세는 404 USER_NOT_FOUND")
     void detailOfMissingUser() {
-        assertThatThrownBy(() -> adminUserService.detail(-1))
+        assertThatThrownBy(() -> adminUserQueryService.detail(-1))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("userSeq=-1");
     }
@@ -110,7 +110,7 @@ class AdminUserServiceLocalDbTest {
         User user = newUser();
         entityManager.flush();
 
-        UserDetailResponse.Stats stats = adminUserService.detail(user.getUserSeq()).stats();
+        UserDetailResponse.Stats stats = adminUserQueryService.detail(user.getUserSeq()).stats();
 
         assertThat(stats).isEqualTo(new UserDetailResponse.Stats(0, 0, 0, 0, 0, 0));
     }
@@ -123,7 +123,7 @@ class AdminUserServiceLocalDbTest {
         Integer artistSeq = newArtist();
         newPass(user.getUserSeq(), artistSeq, Instant.now().minus(1, ChronoUnit.DAYS));
 
-        UserDetailResponse detail = adminUserService.detail(user.getUserSeq());
+        UserDetailResponse detail = adminUserQueryService.detail(user.getUserSeq());
         assertThat(detail.activePasses()).isEmpty();
         assertThat(detail.stats().activePassCount()).isZero();
     }
@@ -136,7 +136,7 @@ class AdminUserServiceLocalDbTest {
         Integer artistSeq = newArtist();
         newPass(user.getUserSeq(), artistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
 
-        UserDetailResponse detail = adminUserService.detail(user.getUserSeq());
+        UserDetailResponse detail = adminUserQueryService.detail(user.getUserSeq());
         assertThat(detail.activePasses()).singleElement()
                 .satisfies(pass -> {
                     assertThat(pass.artistSeq()).isEqualTo(artistSeq);

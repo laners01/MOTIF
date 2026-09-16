@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -56,5 +57,26 @@ public class RefreshTokenRevoker {
         }
 
         token.revoke();
+    }
+
+    /**
+     * 이 사용자의 모든 기기 로그아웃 — 회원 정지 (어드민 명세 §3.14.3).
+     *
+     * <p>로그아웃(§2.3)이 "현재 기기 하나"인 것과 정반대다. 정지는 계정 전체를 막는
+     * 것이라 기기 하나만 남아도 재발급으로 서비스를 계속 쓰게 된다.
+     *
+     * <p><b>호출부의 트랜잭션에 참여한다.</b> 상태 전이와 토큰 폐기가 한 트랜잭션이어야
+     * "정지는 됐는데 토큰은 살아 있는" 중간 상태가 생기지 않는다.
+     *
+     * <p>이미 발급된 access token 은 만료까지 유효하다 — JWT 라 서버 상태가 없다.
+     * 명세 §1.5 가 수용한 동작이고, 매 요청마다 계정 조회를 붙이지 않기 위한 선택이다.
+     *
+     * @return 이번 호출로 폐기된 토큰 수 (§3.14.3 {@code revokedTokenCount})
+     */
+    @Transactional
+    public int revokeAll(Integer userSeq) {
+        int revoked = refreshTokenRepository.revokeAllByUserSeq(userSeq, Instant.now());
+        log.info("전체 기기 로그아웃(정지): userSeq={} revokedTokenCount={}", userSeq, revoked);
+        return revoked;
     }
 }

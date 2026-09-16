@@ -28,12 +28,13 @@ import java.util.List;
  * (§1.8, {@code UserErrorCode.USER_NOT_FOUND} javadoc) 운영은 "탈퇴한 회원의 신고 이력"
  * 을 봐야 한다. 404 는 정말 없는 {@code userSeq} 일 때만이다.
  *
- * <p><b>정지/해제는 여기 없다</b> — §3.14.3~4 는 refresh 토큰 폐기와 이벤트 발행이 붙어
- * 트랜잭션 성격이 다르다(582). 읽기 전용인 이 서비스와 섞지 않는다.
+ * <p>정지·해제(§3.14.3~4)는 {@link AdminUserCommandService} 다 — 사용자 도메인의
+ * {@code UserQueryService}·{@code UserCommandService} 와 같은 가름이다. 두 쪽이 쓰는
+ * 협력자가 {@code UserRepository} 하나만 겹친다.
  */
 @Service
 @RequiredArgsConstructor
-public class AdminUserService {
+public class AdminUserQueryService {
 
     private final UserRepository userRepository;
     private final MotifPassRepository motifPassRepository;
@@ -65,7 +66,7 @@ public class AdminUserService {
                         stats.getVideoCount(), stats.getSubscriptionCount(),
                         stats.getActivePurchaseCount(), activePasses.size(),
                         stats.getReportedCount(), stats.getReportCount()),
-                activePasses.stream().map(AdminUserService::activePass).toList());
+                activePasses.stream().map(AdminUserQueryService::activePass).toList());
     }
 
     private UserSummaryResponse summary(UserListRow row) {

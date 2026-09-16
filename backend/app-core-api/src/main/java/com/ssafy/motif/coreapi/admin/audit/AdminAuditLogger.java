@@ -58,9 +58,27 @@ public class AdminAuditLogger {
      * @param targetType {@code CHALLENGE} · {@code ASSET} · {@code REPORT} 등
      */
     public void write(AuthenticatedAdmin admin, String action, String targetType, long targetSeq, String result) {
+        write(admin, action, targetType, targetSeq, result, null);
+    }
+
+    /**
+     * 사유가 있는 쓰기 — 회원 정지(§3.14.3) 처럼 <b>DB 에 사유 칸이 없는</b> 행위용.
+     *
+     * <p>정지 사유는 {@code user_accounts} 에 저장되지 않는다(명세 §3.14.3 "로그 전용").
+     * 그래서 여기 싣지 않으면 "왜 정지했는가"가 어디에도 남지 않는다. 일반 로거로 따로
+     * 찍으면 stdout 에만 가고 감사 파일({@code ADMIN_AUDIT} 어펜더)에는 빠진다 —
+     * 원본이 파일인 동안(§1.3) 두 사실이 다른 곳에 나뉘어 있으면 조회가 안 된다.
+     *
+     * @param reason {@code null} 이면 필드를 싣지 않는다 — 사유가 없는 행위가 더 많다
+     */
+    public void write(AuthenticatedAdmin admin, String action, String targetType, long targetSeq,
+                      String result, String reason) {
         Map<String, String> fields = baseFields(admin, action, result);
         fields.put("targetType", targetType);
         fields.put("targetSeq", String.valueOf(targetSeq));
+        if (reason != null) {
+            fields.put("reason", reason);
+        }
         log(fields, "ADMIN_WRITE admin={} usr={} action={} target={}:{} result={}",
                 admin.adminSeq(), admin.userSeq(), action, targetType, targetSeq, result);
     }
