@@ -144,4 +144,144 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
               and u.deleted = false
             """)
     List<HotVideoRow> findHotCards(@Param("videoSeqs") Collection<Long> videoSeqs);
+
+    /**
+     * 챌린지별 피드의 추천 점수 (API 명세 §8.1) — <b>공식이 사는 유일한 자리</b>.
+     *
+     * <pre>
+     * score = (has_artist_like + has_artist_comment) × 10¹² + view_count
+     * </pre>
+     *
+     * <p><b>아티스트 반응이 사실상 다른 층이다.</b> §8.1 은 "아티스트가 반응한 영상을
+     * 위로"를 요구하는데, 가중치를 조회수와 같은 자릿수로 주면 조회수가 충분히 큰
+     * 영상이 그 위로 올라가 요구가 조용히 무너진다. {@code view_count} 가 BIGINT 라
+     * 10¹² 는 안전한 경계다 — 실제 조회수가 1조에 닿는 일이 없고, 둘 다 반응한 영상
+     * (2×10¹²)까지 더해도 BIGINT 상한에서 멀다.
+     *
+     * <p><b>좋아요·댓글 수는 점수에 넣지 않는다</b>(§6.1 {@code VideoRankingScore} 와
+     * 같은 기본안). 응답에는 그대로 나가지만 순서를 정하지는 않는다.
+     *
+     * <p><b>왜 SQL 인가.</b> §5.1·§6.1 의 점수는 시간 감쇠가 있어 {@code now} 를 주입해야
+     * 했고, 그래서 순수 Java 클래스로 뺐다. 여기 점수는 <b>저장된 칼럼만의 함수</b>라
+     * 시간축이 없고, Java 로 빼면 정렬을 위해 <b>그 챌린지의 후보 전량</b>을 매 요청마다
+     * 읽어야 한다(§6.1 은 5분에 한 번 도는 배치라 전량 스캔이 허용됐다). 대신 순서
+     * 검증은 local-db 테스트가 맡는다.
+     *
+     * <p>상수로 둔 것은 {@code where}(커서 비교)와 {@code order by} 가 <b>같은 식</b>을
+     * 써야 하기 때문이다. 문자열을 두 번 적으면 한쪽만 고쳤을 때 페이지 경계에서만
+     * 항목이 어긋난다 — 예외도 로그도 남지 않는 종류다.
+     */
+    String FEED_SCORE = "((case when v.has_artist_like then 1 else 0 end"
+            + " + case when v.has_artist_comment then 1 else 0 end) * 1000000000000"
+            + " + v.view_count)";
+
+    /**
+     * 피드 후보 — §1.8 비노출과 §8.6 관심 없음을 한 번에 건다.
+     *
+     * <p><b>{@code PRIVATE} 은 본인 것만 남긴다.</b> §8.1 이 빼라고 적은 것은 "타인의
+     * {@code PRIVATE}" 이고, 내 비공개 영상은 내 피드에 보인다(§4.8 그리드와 같은 취급).
+     *
+     * <p>삭제된 챌린지 확인이 여기 없는 것은 의도다 — 호출부가 챌린지를 먼저 읽어
+     * 404 로 끊는다. 여기서 또 걸면 "빈 목록 200" 과 404 가 같은 상황에서 갈린다.
+     */
+    String FEED_FROM = " from motif_core.participation_videos v"
+            + " join motif_core.users u on u.user_seq = v.user_seq and u.is_deleted = false"
+            + " where v.challenge_seq = :challengeSeq"
+            + "   and v.is_deleted = false"
+            + "   and (v.visibility = 'PUBLIC' or v.user_seq = :userSeq)"
+            + "   and not exists (select 1 from motif_core.video_hides h"
+            + "                    where h.user_seq = :userSeq and h.video_seq = v.video_seq)";
+
+    /**
+     * 정렬·절단. {@code video_seq} 보조 키가 없으면 <b>점수가 같은 영상들이 호출마다
+     * 자리를 바꿔</b> 커서 페이지에 중복·누락이 생긴다({@code HomeActivityRepository} 와
+     * 같은 근거). 점수 0인 영상이 흔하므로 실제로 일어난다.
+     *
+     * <p>별칭에 따옴표를 두른 이유는 Postgres 가 따옴표 없는 식별자를 소문자로 내리기
+     * 때문이다 — 그대로 두면 {@code videoSeq} 가 {@code videoseq} 로 와서 투영 게터와
+     * 맞지 않는다({@code ActivityKeyRow} 와 같은 함정).
+     */
+    String FEED_ORDER = " order by \"score\" desc, v.video_seq desc limit :limit";
+
+    /**
+     * 피드 첫 페이지의 순서 (API 명세 §8.1).
+     *
+     * <p>카드 본문을 함께 읽지 않는다 — 순서를 정하는 쿼리와 본문을 읽는 쿼리를
+     * 나누면 정렬식이 한 줄로 남고, 본문 조인(작성자·잡)이 정렬 계획에 끼지 않는다
+     * (§6.1 스냅샷 → {@link #findHotCards} 와 같은 2단 구조).
+     *
+     * <p>커서 유무로 메서드를 가른다 — 타입 없는 {@code null} 을 Postgres 가 추론하다
+     * 운영에서 500 이 나는 함정을 이 프로젝트가 두 번 밟았다({@code ChallengeRepository}).
+     */
+    @Query(value = "select v.video_seq as \"videoSeq\", " + FEED_SCORE + " as \"score\""
+            + FEED_FROM + FEED_ORDER, nativeQuery = true)
+    List<VideoFeedKeyRow> findFeedKeys(@Param("challengeSeq") Integer challengeSeq,
+                                       @Param("userSeq") Integer userSeq,
+                                       @Param("limit") int limit);
+
+    /**
+     * 피드 다음 페이지 — 커서가 가리키는 {@code (점수, videoSeq)} 보다 뒤부터.
+     *
+     * <p><b>점수는 카운터라 페이지 사이에 변한다.</b> 조회수가 오른 영상이 커서를
+     * 앞질러 다시 나오거나(중복) 뒤로 밀려 건너뛸 수(누락) 있다 — keyset 방식이
+     * 정렬 키의 불변을 전제하기 때문이고, 순위 목록에서는 피할 수 없다. 대안은 §6.1
+     * 처럼 스냅샷을 떠 두는 것인데 챌린지마다 키가 생겨 이 목록에는 과하다.
+     * 커서가 opaque 토큰이라(§1.9) 이 선택이 클라이언트 계약을 깨지는 않는다.
+     */
+    @Query(value = "select v.video_seq as \"videoSeq\", " + FEED_SCORE + " as \"score\""
+            + FEED_FROM
+            + " and (" + FEED_SCORE + " < :cursorScore"
+            + "   or (" + FEED_SCORE + " = :cursorScore and v.video_seq < :cursorVideoSeq))"
+            + FEED_ORDER, nativeQuery = true)
+    List<VideoFeedKeyRow> findFeedKeysAfter(@Param("challengeSeq") Integer challengeSeq,
+                                            @Param("userSeq") Integer userSeq,
+                                            @Param("cursorScore") long cursorScore,
+                                            @Param("cursorVideoSeq") long cursorVideoSeq,
+                                            @Param("limit") int limit);
+
+    /**
+     * 피드 카드 배치 조회 (API 명세 §8.1) — 순서 쿼리가 고른 {@code videoSeq} 묶음.
+     *
+     * <p>{@link #findFeedKeys} 가 이미 비노출을 걸렀고 같은 트랜잭션 안이라 조건을 다시
+     * 걸지 않는다 — §6.1 {@link #findHotCards} 가 한 번 더 거는 것은 그쪽 입력이
+     * <b>5분 전 스냅샷</b>이라서다. 여기 입력은 방금 읽은 것이다.
+     *
+     * <p>작성자와 잡을 함께 조인한다. {@code jobUuid} 는 보호 등급 영상의 재생목록
+     * 주소를 만드는 재료다(§1.7) — 보호 등급만 골라 따로 읽으면 페이지당 왕복이
+     * 하나 더 생긴다.
+     *
+     * <p>{@code in} 은 순서를 보장하지 않는다 — 호출부가 순서 쿼리의 결과로 다시 세운다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.video.VideoFeedRow(
+                       v.videoSeq, v.challengeSeq, v.userSeq, v.description,
+                       v.videoKey, v.thumbnailKey, v.durationMs,
+                       v.viewCount, v.likeCount, v.commentCount,
+                       v.hasArtistLike, v.hasArtistComment,
+                       v.commentEnabled, v.visibility, v.regDttm,
+                       u.nickname, u.profileImageKey, j.jobUuid)
+            from ParticipationVideo v
+              join User u on u.userSeq = v.userSeq
+              join CompositeJob j on j.jobSeq = v.jobSeq
+            where v.videoSeq in :videoSeqs
+            """)
+    List<VideoFeedRow> findFeedCards(@Param("videoSeqs") Collection<Long> videoSeqs);
+
+    /**
+     * 한 페이지 분 {@code isLiked} 를 한 번에 (API 명세 §8.1).
+     *
+     * <p><b>네이티브다.</b> {@code video_likes} 는 엔티티가 없다 — 여기서 필요한 것이
+     * {@code video_seq} 하나뿐이고, 쓰기(§8.3 토글)를 담당하는 티켓이 따로 있어 지금
+     * 엔티티를 만들면 같은 파일을 양쪽에서 만들게 된다
+     * ({@code ChallengeRepository.findLikedChallengeSeqs} 와 같은 판단).
+     *
+     * <p>항목마다 물으면 20행짜리 페이지에 20번을 더 왕복한다. 좋아요한 seq 만
+     * 돌려주고 호출부가 {@code Set} 으로 대조한다.
+     */
+    @Query(value = """
+            select video_seq from motif_core.video_likes
+             where user_seq = :userSeq and video_seq in (:videoSeqs)
+            """, nativeQuery = true)
+    List<Long> findLikedVideoSeqs(@Param("userSeq") Integer userSeq,
+                                  @Param("videoSeqs") Collection<Long> videoSeqs);
 }
