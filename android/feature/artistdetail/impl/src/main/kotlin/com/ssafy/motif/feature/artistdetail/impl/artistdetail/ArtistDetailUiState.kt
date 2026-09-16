@@ -15,4 +15,5 @@ data class ArtistDetailUiState(
     val artistDetail: ArtistDetail? = null,
     val notices: List<Notice> = emptyList(),
     val selectedTab: ArtistDetailTab = ArtistDetailTab.Challenge,
+    val commentSheet: CommentSheetUiState = CommentSheetUiState.Hidden,
 )

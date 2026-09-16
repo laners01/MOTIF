@@ -33,12 +33,44 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
     }
 
     fun toggleNoticeLike(noticeId: Long) {
-
+        _uiState.update { state ->
+            state.copy(
+                notices = state.notices.map{notice ->
+                    if(notice.id != noticeId){
+                        notice
+                    }else{
+                        notice.copy(
+                            isLiked = !notice.isLiked,
+                            likeCount = notice.likeCount + if (notice.isLiked) -1 else 1,
+                        )
+                    }
+                }
+            )
+        }
     }
 
     fun onNoticeCommentClick(noticeId: Long) {
-
+        val notice = _uiState.value.notices.find { it.id == noticeId }?:return
+        _uiState.update{state ->
+            state.copy(
+                commentSheet = CommentSheetUiState.Success(
+                    commentCount = notice.commentCount,
+                    comments = ArtistDetailMockData.comments,
+                    repliesByCommentId = ArtistDetailMockData.replies,
+                    expandedCommentIds = emptySet(),
+                )
+            )
+        }
     }
+
+    fun onCommentSheetDismiss(){
+        _uiState.update { it.copy(commentSheet =
+            CommentSheetUiState.Hidden) }
+    }
+
+    fun onCommentLikeClick(commentId: Long) { }
+    fun onReplyClick(commentId: Long) { }      // expandedCommentIds 토글
+    fun onReplyLikeClick(replyId: Long) { }
 
     fun toggleAlarm(){
         _uiState.update { state ->

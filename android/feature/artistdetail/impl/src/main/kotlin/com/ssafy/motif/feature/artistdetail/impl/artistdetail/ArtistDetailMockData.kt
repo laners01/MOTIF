@@ -1,6 +1,9 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import com.ssafy.motif.core.model.artistdetail.ArtistDetail
+import com.ssafy.motif.core.model.comment.Comment
+import com.ssafy.motif.core.model.comment.CommentAuthorType
+import com.ssafy.motif.core.model.comment.Reply
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.home.Notice
 
@@ -59,5 +62,78 @@ internal object ArtistDetailMockData {
             createdAt = 0L,
         ),
 
+    )
+
+    val comments: List<Comment> = listOf(
+        Comment(
+            id = 1L,
+            profileImageUrl = YEJI,
+            nickname = "Yeji",
+            content = "다들 와줘서 고마워요! 다음에 또 만나요 :)",
+            createdAt = 0L,
+            likeCount = 3_200L,
+            replyCount = 2L,
+            isLiked = false,
+            authorType = CommentAuthorType.ARTIST,
+        ),
+        Comment(
+            id = 2L,
+            profileImageUrl = PROFILE_SQUARE,
+            nickname = "midzy_01",
+            content = "오늘 무대 진짜 최고였어요. 목소리 듣고 울 뻔했어요 ㅠㅠ",
+            createdAt = 0L,
+            likeCount = 128L,
+            replyCount = 1L,
+            isLiked = true,
+            authorType = CommentAuthorType.CURRENT_USER,
+        ),
+        Comment(
+            id = 3L,
+            profileImageUrl = PROFILE_SQUARE,
+            nickname = "yeji_pick",
+            content = "앵콜 무대 다시 보고 싶다",
+            createdAt = 0L,
+            likeCount = 42L,
+            replyCount = 0L,
+            isLiked = false,
+            authorType = CommentAuthorType.USER,
+        ),
+    )
+
+    val replies: Map<Long, List<Reply>> = mapOf(
+        1L to listOf(
+            Reply(
+                id = 101L,
+                commentId = 1L,
+                profileImageUrl = PROFILE_SQUARE,
+                nickname = "midzy_01",
+                content = "저도 고마워요! 다음 공연도 꼭 갈게요",
+                createdAt = 0L,
+                likeCount = 12L,
+                isLiked = false,
+            ),
+            Reply(
+                id = 102L,
+                commentId = 1L,
+                profileImageUrl = PROFILE_SQUARE,
+                nickname = "always_itzy",
+                content = "언제나 응원합니다",
+                createdAt = 0L,
+                likeCount = 5L,
+                isLiked = true,
+            ),
+        ),
+        2L to listOf(
+            Reply(
+                id = 103L,
+                commentId = 2L,
+                profileImageUrl = PROFILE_SQUARE,
+                nickname = "yeji_pick",
+                content = "저도요 ㅠㅠ 그 부분에서 다 같이 울었어요",
+                createdAt = 0L,
+                likeCount = 8L,
+                isLiked = false,
+            ),
+        ),
     )
 }
