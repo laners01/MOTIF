@@ -39,6 +39,8 @@ public class ProtectedMediaUrlResolver {
             return null;
         }
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        return signer.sign(base + "/" + key);
+        // 이미지용 만료를 쓴다 — 이 클래스가 만드는 것은 단일 파일 주소뿐이고,
+        // 그쪽은 만료돼도 재생목록처럼 다시 받아 복구되지 않는다
+        return signer.signImage(base + "/" + key);
     }
 }

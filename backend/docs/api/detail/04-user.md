@@ -42,12 +42,12 @@ Authorization: Bearer {accessToken}
     "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
     "repMotif": {
       "resultSeq": 10,
-      "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
-      "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg"
+      "videoUrl": "/api/v1/media/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
+      "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
     },
     "videos": [
-      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
-      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/results/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg", "viewCount": 120, "visibility": "PRIVATE" }
+      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
+      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 120, "visibility": "PRIVATE" }
     ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
@@ -56,10 +56,10 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `profileImageUrl` | string \| null | 공개 CDN URL. 미설정이면 `null` |
+| `profileImageUrl` | string \| null | **무서명 공개 CDN URL.** 미설정이면 `null` |
 | `repMotif` | object \| null | 대표 모티프. **미설정이면 `null`** |
-| `repMotif.videoUrl` | string | **HLS 마스터 재생목록**(`master.m3u8`) 주소. 모티프 결과물은 보호 등급이라 **core-api 가 서명해 다시 쓴 재생목록**을 받는다(§1.7). 진입 시 자동재생·음소거 |
-| `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 역시 보호 등급이다 |
+| `repMotif.videoUrl` | string | **HLS 마스터 재생목록** 주소. 모티프 결과물은 보호 등급이라 CDN 이 아니라 **core-api** 를 가리킨다 — `/api/v1/media/{jobUuid}/master.m3u8` (§1.7). 진입 시 자동재생·음소거 |
+| `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 단일 파일이라 리라이팅 없이 **CloudFront signed URL** 을 바로 낸다 |
 | `videos` | array | 내 참여 영상 **최신 9개** 경량 프리뷰(3×3). **없으면 빈 배열 `[]`** |
 | `videos[].visibility` | string | `PUBLIC` \| `PRIVATE`. 본인 화면이라 둘 다 포함한다 |
 | `videos[].viewCount` | number | 전 영상 그리드 공통 규칙 |
@@ -70,9 +70,18 @@ Authorization: Bearer {accessToken}
 ### 서버 처리
 
 1. 인증된 `userSeq` 로 `users` 조회 → 닉네임·`profile_image_key`
-2. `users.rep_motif_result_seq` 가 있으면 `motif_results` 조회 → 마스터 재생목록은 core-api 경로로, 썸네일은 signed URL 로 생성
-3. `participation_videos` 에서 본인 비삭제 영상을 `reg_dttm DESC` 로 9건 조회
-4. 썸네일을 `visibility` 에 따라 공개 URL / 보호 URL(+쿠키)로 변환
+2. `users.rep_motif_result_seq` 가 있으면 `motif_results` 조회 → 마스터 재생목록은 core-api 경로로(`composite_jobs.job_uuid` 로 조립), 썸네일은 signed URL 로 생성
+3. `participation_videos` 에서 본인 비삭제 영상을 최신순 9건 조회. **삭제된 챌린지에 속한 영상은 뺀다**(§1.8)
+4. 이미지 URL 을 **키의 최상위 프리픽스**로 변환 — `private/` 면 signed URL, 아니면 무서명 CDN URL
+
+> **4번은 `visibility` 로 판정하지 않는다.** PUBLIC 게시는 산출물 트리를 `public/` 으로
+> **복사**할 뿐 키를 바꾸지 않으므로(§1.7 — 바꾸면 재생 중인 클라이언트가 404 를 만난다),
+> `visibility=PUBLIC` 인데 `thumbnail_key` 는 아직 `private/` 인 행이 정상적으로 존재한다.
+> 거기에 무서명 URL 을 만들면 403 이다. 반대 방향(PUBLIC → PRIVATE)은 CloudFront
+> 무효화가 비동기라 그 사이에 반대로 어긋난다. **키 하나만 보면 두 경우 모두 맞는다.**
+>
+> 정렬은 `reg_dttm DESC` 대신 **PK 역순**이다 — IDENTITY 라 결과가 같으면서, 같은 초에
+> 올라온 영상들이 호출마다 순서를 바꾸는 일이 없다.
 
 ### 실패 응답
 
@@ -84,7 +93,9 @@ Authorization: Bearer {accessToken}
 |---|---|---|
 | 프리뷰 개수 | 9개 (3×3) | 원본 §4.1 기본안. 상수로 두고 조정 가능하게 |
 | 영상 0건 | `"videos": []` | 원본은 `null` 로 적었지만 **빈 배열로 바꿨다**(2026-09-13 확정). null 과 빈 배열을 구분하면 클라이언트가 같은 "없음"에 분기를 둘로 갖는다 |
-| `rep_motif_result_seq` 가 삭제된 결과물을 가리킬 때 | `repMotif: null` | FK 없는 **논리 참조**(순환 참조 방지)라 방어가 필요하다 |
+| `rep_motif_result_seq` 가 삭제된 결과물을 가리킬 때 | `repMotif: null` | FK 없는 **논리 참조**(순환 참조 방지)라 방어가 필요하다. 남의 결과물 seq 가 들어가 있어도 막히지 않으므로 조회에 `user_seq` 를 함께 건다 |
+| 이미지 전달 | **전부 CloudFront 경유.** S3 presigned GET 은 쓰지 않는다 | §1.7 · ADR-0010 D5 — presigned 는 서명 쿼리스트링이 오리진(S3)까지 전달돼야 해서 **CDN 캐시 적중률이 0% 가 된다.** CloudFront 서명은 엣지에서 소비되므로 캐시 키에 들어가지 않는다. presigned 가 맞는 자리는 §4.3 업로드(PUT)다 |
+| 보호 이미지 서명 만료 | **6시간** (재생목록·조각은 10분) | 조각 URL 은 만료돼도 앱이 재생목록을 다시 받아 복구되지만 **`<img>` 에는 그 경로가 없다** — 403 이면 깨진 채로 남는다. 10분이면 마이페이지를 열어둔 채 잠깐 다른 앱을 보고 돌아왔을 때 3×3 이 통째로 깨진다. 길게 줘도 노출 범위는 서명된 그 한 장뿐이다(URL 단위 서명) |
 
 ---
 

@@ -302,15 +302,22 @@ D3(프리페치 N·T)와 D1(사다리 구성)은 다음 조건에서 다시 본�
 없기 때문이다** — `composite_jobs` 엔티티가 core-api 에 없어 `jobUuid` 로 타입도
 소유자도 못 찾고, `private/` 아래 객체도 0건이다. 도메인이 생길 때 아래를 붙인다.
 
+**1~5 는 S15P21D104-278 에서 붙었다** (`domain/media/MediaController` ·
+`MediaPlaylistQueryService`, `domain-core` 의 `CompositeJob` · `ParticipationVideo`).
+인가 표와 "왜 전부 404 인가"는 `MediaPlaylistQueryService` javadoc 에 있다.
+4번은 결국 **할 일이 없었다** — `SecurityConfig` 가 `anyRequest().authenticated()`
+catch-all 이라 경로를 적지 않아도 이미 인증이 걸린다. 여기 "빠뜨리면 미인증이
+통과한다"고 적었던 것은 사실이 아니었다. permitAll 목록에 넣지만 않으면 된다.
+
 | # | 항목 | 왜 |
 |---|---|---|
-| 1 | **`composite_jobs(job_uuid) → (job_type, user_seq)` 조회** | 프리픽스 조립(`private/{challenge\|motif}/`)과 인가에 둘 다 필요하다. `MediaPlaylistService` 는 프리픽스를 **인자로** 받으므로 이것만 생기면 된다 |
-| 2 | **컨트롤러 2개** — `GET /api/v1/media/{jobUuid}/master.m3u8`, `.../{rendition}/index.m3u8` | `MediaPlaylistService.master(prefix, apiBasePath)` · `variant(prefix, rendition)` 를 그대로 부른다 |
-| 3 | **응답 봉투 예외** | 명세 §1.5 는 `{result, code, data…}` 봉투인데 **재생목록은 플레이어가 먹는 텍스트**라 봉투를 씌우면 못 읽는다. `Content-Type` 은 `MediaPlaylistService.contentType()`. §1.5 에 예외를 명시해야 한다 |
-| 4 | **`SecurityConfig` 에 `/api/v1/media/**` 인증 필요 경로 추가** | 지금은 어느 체인에도 없다. 빠뜨리면 미인증이 통과한다 |
-| 5 | **인가 — 타인 것은 404** | 본인 것만 통과. 403 은 "있는데 못 본다"를 알려줘 존재가 드러난다(§1.8·§8.2 존재 은닉). `MediaPlaylistNotFoundException` 도 같은 404 로 옮긴다 |
-| 6 | **응답 DTO 의 `videoUrl` 을 core-api 경로로** | 보호 등급(§6.1·§8.2·§11.5·§11.6·§13.3)은 CDN 주소가 아니라 `/api/v1/media/{jobUuid}/master.m3u8` 이다. `PublicMediaUrlResolver` 를 쓰면 안 된다 |
-| 7 | **썸네일은 `ProtectedMediaUrlResolver`** | 단일 파일이라 리라이팅이 필요 없다. 보관함 목록처럼 썸네일만 그리는 화면은 이것만으로 끝난다 |
+| ~~1~~ | ~~`composite_jobs(job_uuid) → (job_type, user_seq)` 조회~~ | **완료(278)** — `CompositeJobRepository.findByJobUuid` |
+| ~~2~~ | ~~컨트롤러 2개~~ | **완료(278)** — `MediaController` |
+| ~~3~~ | ~~응답 봉투 예외~~ | **완료(278)** — 성공은 m3u8 텍스트, 실패만 봉투. 명세 §1.5 에 예외 명시는 아직 |
+| ~~4~~ | ~~`SecurityConfig` 경로 추가~~ | **불필요** — catch-all 이 이미 건다 |
+| ~~5~~ | ~~인가 — 타인 것은 404~~ | **완료(278)** — 부재·미완료·거부·화이트리스트 위반을 전부 `PLAYLIST_NOT_FOUND` 로 합쳤다 |
+| 6 | **응답 DTO 의 `videoUrl` 을 core-api 경로로** | 보호 등급(§6.1·§8.2·§11.5·§11.6·§13.3)은 CDN 주소가 아니라 `/api/v1/media/{jobUuid}/master.m3u8` 이다. `PublicMediaUrlResolver` 를 쓰면 안 된다. **주소 조립은 `MediaPlaylistQueryService.masterPlaylistUrl(jobUuid)` 를 부른다**(278) — §4.1 은 했고 나머지 화면이 남았다 |
+| 7 | **썸네일·프로필은 `MediaUrlResolver`** | 단일 파일이라 리라이팅이 필요 없다. **등급은 키 프리픽스가 정하고 판정은 `MediaUrlResolver` 한 곳에만 있다**(278) — `visibility` 로 가르면 PUBLIC 게시 직후처럼 "공개인데 키는 아직 `private/`" 인 행에서 403 이 난다. Public/Protected 리졸버를 직접 부르지 않는다 |
 | 8 | **PUBLIC 게시 시 `public/` 복사** | `MediaKeys.forPublishedChallenge(jobUuid)` 가 대상 프리픽스다. S3 `CopyObject` 6~8개. 옮기지 않고 **복사**한다 |
 | 9 | **PUBLIC → PRIVATE 시 CloudFront 무효화** | `public/` 삭제만으로는 1년 `immutable` 탓에 엣지가 계속 서빙한다. `cloudfront:CreateInvalidation` IAM 권한이 필요하고, 비동기라 즉시 차단은 약속하지 않는다(§8.2) |
 | 10 | **인프라 — `CLOUDFRONT_PRIVATE_KEY` Secret 주입** | 없으면 파드는 뜨고 보호 URL 발급만 실패한다(fail-closed). `40-core-api/secret.example.yaml.txt` 도 함께(`develop/infra`) |

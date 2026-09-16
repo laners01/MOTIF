@@ -145,6 +145,10 @@ S15P21D104-181
 | **커서 페이지 봉투** `CursorResponse`(§1.9) · 비페이지 봉투 `ListResponse`(§5.4) · 토큰 코덱 `Cursors` | `module-common/.../response/` · `app-core-api/.../global/response/` | S15P21D104-79 |
 | 팬 조회 API `ArtistController`(§5.3·5.4·5.5) · `ChallengeController`(§7.2) + `…QueryService` | `app-core-api/.../domain/artist/` · `domain/challenge/` | 67 · 76 · 79 · 138 |
 | 어드민 화면 `orgs`·`artists`·`songs`·`challenges`·`assets` (전부 `layout.html` 프래그먼트) | `templates/admin/` · `static/admin/` | 387 · 388 · 395 · 401 · 613 |
+| **보호 등급 재생목록 API** `MediaController`(`/api/v1/media/{jobUuid}/master.m3u8`·`/{rendition}/index.m3u8`) · `MediaPlaylistQueryService`(인가) | `app-core-api/.../domain/media/` | S15P21D104-278 |
+| **등급 판정 단일 지점** `MediaUrlResolver` · `MediaKeys.isProtected`·`prefixOf` | `app-core-api/.../global/media/` · `domain/media/` | 278 |
+| `CompositeJob`·`JobType`·`JobStatus` · `ParticipationVideo`·`Visibility` · `MotifResult` 엔티티·리포지토리 (전부 **읽기 전용 — 생성자 없음**) | `domain-core/.../job/` · `video/` · `motif/` | 278 |
+| 마이페이지 원콜 `UserController`·`UserQueryService` (§4.1) | `app-core-api/.../domain/user/` | 278 |
 
 **§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed
 쿠키가 필요한데 레포에 서명 발급 수단이 없다(키페어·만료 설정 전무). 공개 URL 로 대신
@@ -179,6 +183,17 @@ adminJwtProvider.issue(new AuthenticatedAdmin(adminSeq, userSeq, name));   // �
 throw new BusinessException(AdminErrorCode.COMPANY_IN_USE, msg, Map.of("refs", n));  // §5 코드 + data
 videoRules.checkChallengeOrigin(new VideoRules.Meta(durationMs, width, height));     // 폼 값 검증
 adminAuditLogger.write(admin, "CREATE_CHALLENGE", "CHALLENGE", seq, AdminAuditLogger.RESULT_OK);
+```
+
+```java
+// 이미지 URL 을 만들 때 — 공개/보호 판정을 직접 하지 않는다. 키 프리픽스가 등급이다
+mediaUrlResolver.resolve(video.getThumbnailKey());   // private/ 면 서명, 아니면 무서명
+// visibility 로 가르면 안 된다 — PUBLIC 게시는 public/ 으로 '복사'만 하고 키를 안 바꾼다.
+// PublicMediaUrlResolver·ProtectedMediaUrlResolver 를 호출부에서 직접 고르지 말 것.
+// S3 presigned GET 은 어느 등급에도 쓰지 않는다 — CDN 캐시 적중률이 0% 가 된다(§1.7)
+
+// 보호 등급 영상 주소 — CDN 이 아니라 core-api 다. 문자열을 직접 조립하지 않는다
+MediaPlaylistQueryService.masterPlaylistUrl(job.getJobUuid());
 ```
 
 ```java

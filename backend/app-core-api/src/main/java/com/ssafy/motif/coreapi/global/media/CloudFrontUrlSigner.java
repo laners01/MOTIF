@@ -44,10 +44,12 @@ public class CloudFrontUrlSigner {
     private final PrivateKey privateKey;
     private final String keyPairId;
     private final Duration ttl;
+    private final Duration imageTtl;
 
     public CloudFrontUrlSigner(MediaSigningProperties properties) {
         this.keyPairId = properties.keyPairId();
         this.ttl = properties.ttl();
+        this.imageTtl = properties.imageTtl();
         this.privateKey = parse(properties.privateKey());
         if (this.privateKey == null) {
             log.warn("motif.media.signing.private-key 가 비어 있다 — 보호 등급 URL 발급이 전부 실패한다");
@@ -67,6 +69,21 @@ public class CloudFrontUrlSigner {
      *                               돌려주지 않는다</b> — 그러면 보호 콘텐츠가 열린다
      */
     public String sign(String resourceUrl) {
+        return sign(resourceUrl, ttl);
+    }
+
+    /**
+     * 이미지 한 장을 서명한다 — 썸네일·프로필.
+     *
+     * <p><b>만료가 재생목록보다 길다.</b> 조각 URL 은 만료돼도 앱이 재생목록을 다시
+     * 받아 복구되지만 {@code <img>} 에는 그 경로가 없어 깨진 채로 남는다. 길게 줘도
+     * 새는 범위는 서명된 그 한 장뿐이다.
+     */
+    public String signImage(String resourceUrl) {
+        return sign(resourceUrl, imageTtl);
+    }
+
+    private String sign(String resourceUrl, Duration expiresIn) {
         if (privateKey == null) {
             throw new IllegalStateException(
                     "CloudFront 개인키가 없어 보호 등급 URL 을 낼 수 없다 — "
@@ -76,7 +93,7 @@ public class CloudFrontUrlSigner {
                 .resourceUrl(resourceUrl)
                 .privateKey(privateKey)
                 .keyPairId(keyPairId)
-                .expirationDate(Instant.now().plus(ttl))
+                .expirationDate(Instant.now().plus(expiresIn))
                 .build());
         return signed.url();
     }
