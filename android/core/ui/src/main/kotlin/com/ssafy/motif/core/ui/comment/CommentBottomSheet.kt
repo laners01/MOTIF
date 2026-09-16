@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -27,11 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,9 +40,7 @@ import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.component.bottomsheet.BottomSheetDefaults
 import com.ssafy.motif.core.designsystem.component.bottomsheet.ModalBottomSheet
 import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
-import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetValue
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberModalBottomSheetState
-import com.ssafy.motif.core.designsystem.theme.MotifColors
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
@@ -67,16 +59,15 @@ fun CommentBottomSheet(
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
     formatCreatedAt: (Long) -> String,
-    modifier: Modifier = Modifier,
-) {
-    val sheetState =
+    sheetState: SheetState =
         rememberModalBottomSheetState(
             skipPartiallyExpanded = false,
-            partiallyExpandedFraction = 0.6f,
-        )
-
-    val listState =
-        rememberLazyListState()
+            partiallyExpandedFraction = COMMENT_SHEET_FRACTION,
+        ),
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope =
+        rememberCoroutineScope()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -84,7 +75,11 @@ fun CommentBottomSheet(
         dragHandle = {
             CommentSheetHeader(
                 commentCount = commentCount,
-                onDismissClick = onDismissRequest,
+                onDismissClick = {
+                    coroutineScope.launch {
+                        sheetState.hide()
+                    }
+                },
             )
         },
         modifier = modifier,
@@ -93,8 +88,6 @@ fun CommentBottomSheet(
             comments = comments,
             repliesByCommentId = repliesByCommentId,
             expandedCommentIds = expandedCommentIds,
-            sheetState = sheetState,
-            listState = listState,
             onCommentLikeClick = onCommentLikeClick,
             onReplyClick = onReplyClick,
             onReplyLikeClick = onReplyLikeClick,
@@ -111,8 +104,6 @@ private fun CommentSheetContent(
     comments: List<Comment>,
     repliesByCommentId: Map<Long, List<Reply>>,
     expandedCommentIds: Set<Long>,
-    sheetState: SheetState,
-    listState: LazyListState,
     onCommentLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
@@ -126,25 +117,19 @@ private fun CommentSheetContent(
             )
         }
 
-    val nestedScrollConnection =
-        rememberCommentSheetNestedScrollConnection(
-            sheetState = sheetState,
-            listState = listState,
+    Column(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        HorizontalDivider(
+            color = Color.White.copy(
+                alpha = 0.35f,
+            ),
         )
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth(),
-    ) {
-        HorizontalDivider(color = MotifColors.defaultColors().gray500)
         LazyColumn(
-            state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .nestedScroll(
-                    nestedScrollConnection,
-                ),
+                .weight(1f),
         ) {
             prioritizedComments.forEach { comment ->
                 item(
@@ -189,90 +174,6 @@ private fun CommentSheetContent(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun rememberCommentSheetNestedScrollConnection(
-    sheetState: SheetState,
-    listState: LazyListState,
-): NestedScrollConnection {
-    val coroutineScope =
-        rememberCoroutineScope()
-
-    return remember(
-        sheetState,
-        listState,
-        coroutineScope,
-    ) {
-        object : NestedScrollConnection {
-
-            var isCollapsing = false
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (
-                    source != NestedScrollSource.UserInput ||
-                    available.y <= 0f
-                ) {
-                    return Offset.Zero
-                }
-
-                val isListAtTop =
-                    listState.firstVisibleItemIndex == 0 &&
-                            listState.firstVisibleItemScrollOffset == 0
-
-                if (!isListAtTop) {
-                    return Offset.Zero
-                }
-
-                val canCollapse =
-                    sheetState.currentValue ==
-                            SheetValue.Expanded ||
-                            sheetState.currentValue ==
-                            SheetValue.PartiallyExpanded
-
-                if (!canCollapse) {
-                    return Offset.Zero
-                }
-
-                if (!isCollapsing) {
-                    isCollapsing = true
-
-                    coroutineScope.launch {
-                        try {
-                            when (sheetState.currentValue) {
-                                SheetValue.Expanded -> {
-                                    sheetState.partialExpand()
-                                }
-
-                                SheetValue.PartiallyExpanded -> {
-                                    sheetState.hide()
-                                }
-
-                                SheetValue.Hidden -> Unit
-                            }
-                        } finally {
-                            isCollapsing = false
-                        }
-                    }
-                }
-
-                /*
-                 * LazyColumn이 최상단에서 더 이상 내려갈 수 없을 때
-                 * 남은 아래 방향 스크롤을 소비한다.
-                 *
-                 * 그렇지 않으면 overscroll 효과가 동시에 발생할 수 있다.
-                 */
-                return Offset(
-                    x = 0f,
-                    y = available.y,
-                )
             }
         }
     }
@@ -578,9 +479,7 @@ private fun CommentAction(
                 onClick = onClick,
             ),
         horizontalArrangement =
-            Arrangement.spacedBy(
-                6.dp,
-            ),
+            Arrangement.spacedBy(6.dp),
         verticalAlignment =
             Alignment.CenterVertically,
     ) {
@@ -640,9 +539,7 @@ private fun formatCount(
             if (value % 1f == 0f) {
                 "${value.toInt()}m"
             } else {
-                "%.1fm".format(
-                    value,
-                )
+                "%.1fm".format(value)
             }
         }
 
@@ -653,16 +550,14 @@ private fun formatCount(
             if (value % 1f == 0f) {
                 "${value.toInt()}k"
             } else {
-                "%.1fk".format(
-                    value,
-                )
+                "%.1fk".format(value)
             }
         }
 
-        else -> {
-            count.toString()
-        }
+        else -> count.toString()
     }
+
+private const val COMMENT_SHEET_FRACTION = 0.6f
 
 @Preview(
     name = "Comment Sheet Content",
@@ -675,12 +570,6 @@ private fun CommentSheetContentPreview() {
 
     val profileUrl =
         "android.resource://${context.packageName}/${DesignSystemR.drawable.img_profile}"
-
-    val sheetState =
-        rememberModalBottomSheetState(
-            skipPartiallyExpanded = false,
-            partiallyExpandedFraction = 0.6f,
-        )
 
     MotifTheme {
         Box(
@@ -696,7 +585,9 @@ private fun CommentSheetContentPreview() {
                         Alignment.BottomCenter,
                     )
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f),
+                    .fillMaxHeight(
+                        COMMENT_SHEET_FRACTION,
+                    ),
                 shape =
                     RoundedCornerShape(
                         topStart = 28.dp,
@@ -707,29 +598,30 @@ private fun CommentSheetContentPreview() {
                 contentColor =
                     MotifTheme.colors.typo,
             ) {
-                CommentSheetContent(
-                    comments =
-                        previewComments(
-                            profileUrl = profileUrl,
-                        ),
-                    repliesByCommentId =
-                        mapOf(
-                            30L to previewReplies(
+                Column {
+                    CommentSheetContent(
+                        comments =
+                            previewComments(
                                 profileUrl = profileUrl,
                             ),
-                        ),
-                    expandedCommentIds =
-                        emptySet(),
-                    sheetState = sheetState,
-                    listState =
-                        rememberLazyListState(),
-                    onCommentLikeClick = {},
-                    onReplyClick = {},
-                    onReplyLikeClick = {},
-                    formatCreatedAt = {
-                        "3시간"
-                    },
-                )
+                        repliesByCommentId =
+                            mapOf(
+                                30L to previewReplies(
+                                    profileUrl = profileUrl,
+                                ),
+                            ),
+                        expandedCommentIds =
+                            emptySet(),
+                        onCommentLikeClick = {},
+                        onReplyClick = {},
+                        onReplyLikeClick = {},
+                        formatCreatedAt = {
+                            "3시간"
+                        },
+                        modifier =
+                            Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
