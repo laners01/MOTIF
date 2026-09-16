@@ -5,6 +5,8 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetDetailResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetUpdateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetListItem;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceResponse;
@@ -86,7 +88,7 @@ public class AdminAssetService {
     public PageResponse<AssetListItem> list(Integer artistSeq, Boolean isActive,
                                             AssetType assetType, Pageable pageable) {
         return PageResponses.of(assetRepository
-                .search(artistSeq, isActive, assetType == null ? null : assetType.name(),
+                .search(null, artistSeq, isActive, assetType == null ? null : assetType.name(),
                         DEFAULT_COUNTRY_CODE, pageable)
                 .map(this::listItem));
     }
@@ -110,6 +112,70 @@ public class AdminAssetService {
     }
 
     /** §3.8.2 — 에셋과 KR 가격을 한 트랜잭션에 만든다. */
+    /**
+     * §3.8.3 — 상세. 목록과 <b>같은 쿼리</b>를 {@code assetSeq} 로 좁혀 쓴다.
+     *
+     * <p>조인이 똑같아서(아티스트·그룹·KR 가격·구매 수·결과물 수) 전용 쿼리를 따로
+     * 두면 두 벌이 갈라진다 — 한쪽만 고쳤을 때 목록과 상세가 다른 값을 보여준다.
+     */
+    @Transactional(readOnly = true)
+    public AssetDetailResponse detail(int assetSeq) {
+        // 존재 확인은 asset() 이 한다 — 목록 쿼리의 빈 결과를 404 로 옮기는 것보다
+        // 같은 예외를 한 곳에서 내는 편이 메시지가 갈리지 않는다
+        MotifAsset asset = asset(assetSeq);
+        MotifAssetRepository.AssetListRow row = assetRepository
+                .search(assetSeq, null, null, null, DEFAULT_COUNTRY_CODE, Pageable.ofSize(1))
+                .stream().findFirst().orElseThrow();
+        // videoKey 는 목록 쿼리에 없다(§3.8.1 항목이 아니다) — 엔티티에서 읽는다.
+        // 상세는 한 건이라 왕복 하나가 더 붙어도 목록처럼 행마다 곱해지지 않는다
+        return detailOf(row, asset.getVideoKey());
+    }
+
+    /**
+     * §3.8.4 — 부분 수정. 보낸 필드만 반영한다.
+     *
+     * <p><b>영상 교체는 메타 3종을 함께 받는다.</b> core-api 에는 ffmpeg 가 없어 서버가
+     * 영상을 열어 볼 수 없다(v0.5) — 화면이 {@code <video>} 로 읽어 실어 보낸 값을
+     * {@code VideoRules} 로 대조만 한다. 등록(§3.8.2)과 같은 규약이다.
+     *
+     * <p>바꾼 영상의 <b>썸네일은 아직 만들어지지 않는다</b> — 키만 새 규약으로 갈리고
+     * 파일은 app-media 가 만든다(§8 #19). 그 발행부가 아직 없어(398) 교체 직후
+     * 썸네일은 404 다. 등록과 똑같은 상태이므로 여기서 따로 막지 않는다.
+     */
+    @Transactional
+    public AssetDetailResponse update(AuthenticatedAdmin admin, int assetSeq,
+                                      AssetUpdateRequest request) {
+        if (request.videoMetaMissing()) {
+            throw new BusinessException(com.ssafy.motif.common.error.CommonErrorCode.INVALID_PARAMETER,
+                    "영상을 바꾸려면 durationMs·width·height 가 함께 와야 한다");
+        }
+        MotifAsset asset = asset(assetSeq);
+        asset.update(request.title(), request.description(), request.assetType());
+        if (request.hasVideo()) {
+            // 등록과 같은 순서 — 규격 먼저, HEAD 는 마지막. 왕복이 제일 비싸다(§1.4)
+            videoRules.checkAsset(new VideoRules.Meta(
+                    request.durationMs(), request.width(), request.height()));
+            requireUploaded(request.videoKey());
+            asset.replaceVideo(request.videoKey(),
+                    MediaKeys.forAssetThumbnail(request.videoKey()),
+                    Math.toIntExact(request.durationMs()));
+        }
+
+        auditLogger.write(admin, "UPDATE_ASSET", "ASSET", assetSeq, AdminAuditLogger.RESULT_OK);
+        // 갱신된 값으로 다시 읽는다 — 구매 수·결과물 수처럼 이 트랜잭션이 안 건드린
+        // 집계도 함께 돌려줘야 화면이 응답만으로 행을 다시 그릴 수 있다
+        return detail(assetSeq);
+    }
+
+    private AssetDetailResponse detailOf(MotifAssetRepository.AssetListRow row, String videoKey) {
+        AssetListItem item = listItem(row);
+        return new AssetDetailResponse(
+                item.assetSeq(), item.artist(), item.title(), row.getDescription(),
+                item.thumbnailUrl(), videoKey, item.durationMs(), item.assetType(),
+                item.isActive(), item.price(), item.purchaseCount(), item.resultCount(),
+                item.regDttm());
+    }
+
     @Transactional
     public AssetCreateResponse create(AuthenticatedAdmin admin, AssetCreateRequest request) {
         if (artistRepository.countByArtistSeqInAndDeletedFalse(List.of(request.artistSeq())) != 1) {

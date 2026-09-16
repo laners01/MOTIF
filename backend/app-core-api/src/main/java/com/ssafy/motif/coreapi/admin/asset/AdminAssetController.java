@@ -7,6 +7,8 @@ import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetActiveResponse;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetCreateResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetDetailResponse;
+import com.ssafy.motif.coreapi.admin.asset.dto.AssetUpdateRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetListItem;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceRequest;
 import com.ssafy.motif.coreapi.admin.asset.dto.AssetPriceResponse;
@@ -62,6 +64,23 @@ public class AdminAssetController {
             @Valid @RequestBody AssetCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(adminAssetService.create(admin, request)));
+    }
+
+    @Operation(summary = "에셋 상세", description = "목록 항목에 소개 문구와 현재 videoKey 가 더 붙는다.")
+    @GetMapping("/{assetSeq}")
+    public ApiResponse<AssetDetailResponse> detail(@PathVariable int assetSeq) {
+        return ApiResponse.success(adminAssetService.detail(assetSeq));
+    }
+
+    @Operation(summary = "에셋 수정",
+            description = "부분 수정. videoKey 를 보내면 durationMs·width·height 도 함께 와야 한다 "
+                    + "— core-api 는 영상을 열어 보지 않는다(§1.4).")
+    @PatchMapping("/{assetSeq}")
+    public ApiResponse<AssetDetailResponse> update(
+            @AuthenticationPrincipal AuthenticatedAdmin admin,
+            @PathVariable int assetSeq,
+            @Valid @RequestBody AssetUpdateRequest request) {
+        return ApiResponse.success(adminAssetService.update(admin, assetSeq, request));
     }
 
     @Operation(summary = "에셋 활성/비활성",

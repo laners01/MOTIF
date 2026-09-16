@@ -3,9 +3,16 @@
       th:replace="~{admin/layout :: page('모티프 에셋 목록', ~{::main})}">
 <body>
 <!--/*
-  §3.8.1 목록. 활성 전환·가격 수정은 이미 /admin/prices 에 있으므로 여기 겹쳐 놓지
-  않는다 — 같은 값을 두 화면에서 고치게 하면 어느 쪽이 최신인지 알 수 없다.
-  로직은 assets.js.
+  §3.8.1 목록 + §3.8.5 활성 전환.
+
+  활성 전환을 여기 두는 이유: 목록이 "활성인데 가격이 없다" 같은 어긋난 상태를 이미
+  붉게 보여주는데, 고치러 다른 화면으로 가야 하면 그 경고가 반쪽이다. 전환 자체는
+  에셋 한 칸짜리라 목록 행에 붙는 것이 자연스럽다.
+
+  **가격 수정은 여전히 /admin/prices 다**(§3.8.6, 570). 같은 값을 두 화면에서 고치게
+  하면 어느 쪽이 최신인지 알 수 없다 — 링크만 유지한다.
+
+  상세(§3.8.3)·수정(§3.8.4)은 API 가 아직 없어 여기 없다. 로직은 assets.js.
 */-->
 <main>
     <section>
@@ -36,7 +43,7 @@
         <table>
             <thead>
             <tr><th>#</th><th>아티스트</th><th>제목</th><th>길이</th><th>타입</th><th>활성</th>
-                <th>KR 가격</th><th>구매</th><th>결과물</th><th>등록</th></tr>
+                <th>KR 가격</th><th>구매</th><th>결과물</th><th>등록</th><th>관리</th></tr>
             </thead>
             <tbody id="assets"></tbody>
         </table>
@@ -55,6 +62,7 @@
             <td class="purchases"></td>
             <td class="results"></td>
             <td class="reg"></td>
+            <td><button type="button" class="toggle"></button> <a class="edit" href="">수정</a></td>
         </tr>
     </template>
 
