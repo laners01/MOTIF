@@ -4,6 +4,8 @@ import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.media.dto.PresignRequest;
 import com.ssafy.motif.coreapi.admin.media.dto.PresignResponse;
+import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
+import com.ssafy.motif.coreapi.global.media.MediaUploadProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.unit.DataSize;
@@ -36,21 +38,23 @@ class AdminMediaServiceTest {
     private static final String BUCKET = "motif-media";
 
     private final AdminMediaService service = new AdminMediaService(
-            S3Presigner.builder()
-                    .region(Region.AP_NORTHEAST_2)
-                    .credentialsProvider(StaticCredentialsProvider.create(
-                            AwsBasicCredentials.create("test-access-key", "test-secret-key")))
-                    .build(),
-            null,   // S3Client — presign 은 HEAD 를 쓰지 않는다
+            new MediaObjectStore(
+                    S3Presigner.builder()
+                            .region(Region.AP_NORTHEAST_2)
+                            .credentialsProvider(StaticCredentialsProvider.create(
+                                    AwsBasicCredentials.create("test-access-key", "test-secret-key")))
+                            .build(),
+                    null,   // S3Client — presign 은 HEAD 를 쓰지 않는다
+                    BUCKET),
             new AdminMediaProperties(
-                    new AdminMediaProperties.Upload(
+                    new MediaUploadProperties.Upload(
                             List.of("video/mp4", "video/quicktime"),
                             DataSize.ofMegabytes(300), Duration.ofSeconds(600)),
-                    new AdminMediaProperties.Upload(
-                            List.of("image/jpeg", "image/png", "image/webp"),
-                            DataSize.ofMegabytes(10), Duration.ofSeconds(300)),
                     null),
-            BUCKET);
+            new MediaUploadProperties(
+                    new MediaUploadProperties.Upload(
+                            List.of("image/jpeg", "image/png", "image/webp"),
+                            DataSize.ofMegabytes(10), Duration.ofSeconds(300))));
 
     @Test
     @DisplayName("챌린지 원본은 challenges/{uuid}.mp4 — raw/ 와 분리된 프리픽스다")
@@ -99,54 +103,6 @@ class AdminMediaServiceTest {
                 .isEqualTo(AdminErrorCode.MEDIA_TYPE_NOT_ALLOWED);
     }
 
-    /**
-     * 권한 문제가 "파일 없음"으로 위장하지 않는지 (2026-09-14 사고).
-     *
-     * <p>403 을 {@code false} 로 삼키면 어드민 화면에 {@code MEDIA_NOT_UPLOADED} 가 뜬다 —
-     * 파일은 버킷에 멀쩡히 있는데 "안 올라왔다"고 하는 상태다. 그러면 아무도 IAM 을
-     * 의심하지 않는다.
-     */
-    @Test
-    @DisplayName("HEAD 가 403 이면 삼키지 않고 던진다 — 권한 문제는 파일 없음이 아니다")
-    void headForbiddenIsNotTreatedAsMissing() {
-        AdminMediaService withS3 = serviceWith(s3Throwing(403, "AccessDenied"));
-
-        assertThatThrownBy(() -> withS3.exists("profiles/x.jpg"))
-                .isInstanceOf(S3Exception.class);
-    }
-
-    @Test
-    @DisplayName("HEAD 가 404 면 없는 것이 맞다")
-    void headNotFoundIsMissing() {
-        AdminMediaService withS3 = serviceWith(s3Throwing(404, "NoSuchKey"));
-
-        assertThat(withS3.exists("profiles/x.jpg")).isFalse();
-    }
-
-    private static S3Client s3Throwing(int status, String errorCode) {
-        S3Client s3 = mock(S3Client.class);
-        S3Exception failure = (S3Exception) S3Exception.builder()
-                .statusCode(status)
-                .awsErrorDetails(AwsErrorDetails.builder().errorCode(errorCode).build())
-                .build();
-        given(s3.headObject(any(java.util.function.Consumer.class))).willThrow(failure);
-        return s3;
-    }
-
-    private AdminMediaService serviceWith(S3Client s3) {
-        return new AdminMediaService(
-                S3Presigner.builder()
-                        .region(Region.AP_NORTHEAST_2)
-                        .credentialsProvider(StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create("test-access-key", "test-secret-key")))
-                        .build(),
-                s3,
-                new AdminMediaProperties(
-                        new AdminMediaProperties.Upload(
-                                List.of("video/mp4"), DataSize.ofMegabytes(300), Duration.ofSeconds(600)),
-                        new AdminMediaProperties.Upload(
-                                List.of("image/jpeg"), DataSize.ofMegabytes(10), Duration.ofSeconds(300)),
-                        null),
-                BUCKET);
-    }
+    // HEAD 의 403/404 판정은 MediaObjectStoreTest 로 옮겼다 — 코드가 그리로 갔고,
+    // 같은 판정을 두 파일에서 보면 한쪽만 고쳐졌을 때 어느 쪽이 맞는지 알 수 없다.
 }

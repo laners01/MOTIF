@@ -33,9 +33,12 @@ public class AdminMediaConfig {
      * {@code getObject} 로 읽는다. 재생목록은 수 KB 의 텍스트이고 조각({@code data.m4s})은
      * 여전히 CDN 이 내므로 원칙 ① 의 경계(영상 바이트가 API 서버를 통과하지 않는다)는 유지된다.
      *
-     * <p>HEAD 로 쓰는 곳은 {@link AdminMediaService#requireUploaded} 하나다. 같은 일을 하는
-     * 클래스를 따로 만들지 않는다 — 403 처리(버킷에 {@code s3:ListBucket} 이 없으면
-     * S3 가 없는 키에 404 대신 403 을 준다)와 부재 키 일괄 수집이 거기 들어 있다.
+     * <p><b>HEAD 와 서명 발급은 {@code global.media.MediaObjectStore} 한 곳에서만 한다.</b>
+     * 같은 일을 하는 클래스를 따로 만들지 않는다 — 403 처리(버킷에 {@code s3:ListBucket}
+     * 이 없으면 S3 가 없는 키에 404 대신 403 을 준다)가 거기 들어 있고, 복제하면 그 판단이
+     * 갈린다. 2026-09-16 에 팬 프로필 업로드(API §4.3·§4.4)가 같은 연산을 필요로 하면서
+     * {@link AdminMediaService} 에서 그리로 <b>옮겼다</b>. 어드민에 남은 것은 정책이다 —
+     * 종류별 키 규약·실패 코드·부재 키 일괄 수집.
      */
     @Bean
     public S3Client s3Client(@Value("${motif.media.s3.region}") String region) {
