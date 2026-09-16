@@ -206,7 +206,7 @@ private fun ChallengeInformation(
                     ),
             )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             SubscribeButton(
                 isSubscribed = challenge.isSubscribed,
@@ -247,14 +247,14 @@ private fun SubscribeButton(
         onClick = onClick,
         shape = RoundedCornerShape(50),
         color = if (isSubscribed) {
-            Color.White.copy(alpha = 0.25f)
+            MotifTheme.colors.pink
         } else {
-            Color.White
+            MotifTheme.colors.white
         },
         contentColor = if (isSubscribed) {
-            Color.White
+            MotifTheme.colors.white
         } else {
-            Color.Black
+            MotifTheme.colors.black
         },
     ) {
         Text(
