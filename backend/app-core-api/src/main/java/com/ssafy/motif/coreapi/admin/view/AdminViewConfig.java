@@ -61,5 +61,9 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 숍 배너 — 목록·등록·순서·활성 한 화면 (§1.7, §3.11). 재정렬이 전량 교체라
         // 목록과 편집을 갈라 둘 이유가 없다
         registry.addViewController(AdminPaths.VIEW + "/banners").setViewName("admin/banners");
+        // 신고 처리 — 목록·미리보기·인용/기각 한 화면 (§1.7, §3.13). 상세를 별도
+        // 화면으로 빼지 않는다: 처리 버튼이 어느 신고의 것인지 헷갈리고, 목록으로
+        // 돌아오는 길을 따로 만들어야 한다
+        registry.addViewController(AdminPaths.VIEW + "/reports").setViewName("admin/reports");
     }
 }
