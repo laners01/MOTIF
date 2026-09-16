@@ -1,12 +1,16 @@
 package com.ssafy.motif.coreapi.domain.user.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
+import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -15,6 +19,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
+ *
+ * <p>§4.2 예시의 닉네임 오류 문구는 {@link com.ssafy.motif.coreapi.global.validation.Nickname}
+ * 가 소유한다 — 텍스트 블록 안이라 상수를 끼워 넣지 못해 옮겨 적은 사본이다.
  */
 @Tag(name = "사용자 (USER)", description = "명세 §4 — 마이페이지")
 public interface UserControllerDocs {
@@ -106,4 +113,60 @@ public interface UserControllerDocs {
                             }))
     })
     ApiResponse<UserMeResponse> me(@Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "닉네임 수정 (§4.2)",
+            description = """
+                    마이페이지에서 닉네임을 바꾼다.
+
+                    - **형식 검증만 한다. 중복 확인은 하지 않는다** — `users.nickname` 에
+                      UNIQUE 가 없다(C1 회의 확정). 같은 닉네임을 쓰는 사용자가 여럿일 수 있다
+                    - 규칙은 **온보딩(§3.3)과 같다**: 영문·한글·**숫자**·`.`·`_` 2~20자.
+                      같은 제약 애너테이션을 공유하므로 한쪽만 달라지지 않는다
+                    - 숫자가 허용 목록에 있는 이유는 §2.1 이 가입 시 발급하는 임시 닉네임이
+                      `user_{seq}` 라, 막으면 **서버가 만든 값이 서버의 검증을 통과하지 못하기**
+                      때문이다
+                    - **앞뒤 공백을 다듬지 않는다.** `" 닉"` 은 400 이다 — 서버가 조용히 고치면
+                      보낸 값과 저장된 값이 달라진다
+                    - 같은 값으로 바꿔도 **200** 이다. 변경 없음을 오류로 돌려줄 실익이 없다
+
+                    응답은 확정된 닉네임 하나다. 마이페이지 전체를 다시 그려야 하면 **§4.1** 을 부른다.
+
+                    설정·해제가 아니라 **수정**이므로 `users.mod_usr_seq` 에 본인 seq 가 기록된다
+                    (온보딩의 최초 확정은 기록하지 않는다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "수정된 닉네임",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "nickname": "새닉네임" },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = """
+                            형식 위반 — **이 API 의 유일한 도메인 실패다.**
+                            `data` 에 필드 오류가 실리며 닉네임 오류는 항상 **1건**이다
+                            (`null` 이면 필수, 그 밖은 형식).
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": [
+                                        { "field": "nickname", "message": "2~20자의 영문·한글·숫자·마침표·언더바만 허용합니다." }
+                                      ],
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<NicknameUpdateResponse> updateNickname(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            NicknameUpdateRequest request);
 }

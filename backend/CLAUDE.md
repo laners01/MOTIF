@@ -149,6 +149,8 @@ S15P21D104-181
 | **등급 판정 단일 지점** `MediaUrlResolver` · `MediaKeys.isProtected`·`prefixOf` | `app-core-api/.../global/media/` · `domain/media/` | 278 |
 | `CompositeJob`·`JobType`·`JobStatus` · `ParticipationVideo`·`Visibility` · `MotifResult` 엔티티·리포지토리 (전부 **읽기 전용 — 생성자 없음**) | `domain-core/.../job/` · `video/` · `motif/` | 278 |
 | 마이페이지 원콜 `UserController`·`UserQueryService` (§4.1) | `app-core-api/.../domain/user/` | 278 |
+| **닉네임 제약 `@Nickname`** (§3.3·§4.2 공용 — 패턴·메시지를 각자 두지 않는다) | `app-core-api/.../global/validation/` | S15P21D104-282 |
+| 닉네임 수정 `UserCommandService` (§4.2) | `app-core-api/.../domain/user/` | 282 |
 
 **§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed
 쿠키가 필요한데 레포에 서명 발급 수단이 없다(키페어·만료 설정 전무). 공개 URL 로 대신

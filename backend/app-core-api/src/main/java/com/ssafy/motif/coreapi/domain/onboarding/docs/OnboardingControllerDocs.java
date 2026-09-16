@@ -18,6 +18,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑과 {@code @Valid} 는 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
+ *
+ * <p><b>아래 예시의 닉네임 오류 문구는 {@link com.ssafy.motif.coreapi.global.validation.Nickname}
+ * 가 소유한다.</b> 텍스트 블록 안이라 상수를 그대로 끼워 넣지 못해 글자를 옮겨 적었다 —
+ * 규칙을 고치면 여기 예시도 같이 고쳐야 한다. 실제 응답을 만드는 것은 애너테이션 쪽이고,
+ * 이 문서는 그 사본이다({@code §4.2} 예시도 마찬가지다).
  */
 @Tag(name = "온보딩 (ONBOARDING)", description = "명세 §3 — 최초 로그인 후 구독·닉네임 확정")
 public interface OnboardingControllerDocs {
