@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.video.docs.VideoControllerDocs;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
+import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoReportService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -27,8 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isMine} 과
  * 타인 {@code PRIVATE} 은닉이 전부 호출자 기준이다.
  *
- * <p>§8.3 좋아요 · §8.5 조회 · §8.6 관심 없음 · §8.8~§8.10 게시·수정·삭제는 아직
- * 매핑이 없다.
+ * <p>§8.3 좋아요 · §8.5 조회 · §8.8~§8.10 게시·수정·삭제는 아직 매핑이 없다.
  *
  * <p>Swagger 문서는 {@link VideoControllerDocs} 가 갖는다.
  */
@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VideoController implements VideoControllerDocs {
 
     private final VideoQueryService videoQueryService;
+    private final VideoCommandService videoCommandService;
     private final VideoReportService videoReportService;
 
     /** §8.2 참여 영상 단건 — 뷰어 오버레이. */
@@ -48,6 +49,20 @@ public class VideoController implements VideoControllerDocs {
             @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable Long videoSeq) {
         return ApiResponse.success(videoQueryService.detail(user.userSeq(), videoSeq));
+    }
+
+    /**
+     * §8.6 관심 없음 — 요청 본문이 없다.
+     *
+     * <p>숨김 해제 매핑은 두지 않는다(명세 §8.6 기본안) — 되돌리는 화면이 없다.
+     */
+    @Override
+    @PostMapping("/{videoSeq}/hide")
+    public ApiResponse<Void> hide(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long videoSeq) {
+        videoCommandService.hide(user.userSeq(), videoSeq);
+        return ApiResponse.success();
     }
 
     /**

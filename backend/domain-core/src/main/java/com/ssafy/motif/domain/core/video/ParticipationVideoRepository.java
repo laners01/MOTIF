@@ -3,6 +3,7 @@ package com.ssafy.motif.domain.core.video;
 import com.ssafy.motif.domain.core.artist.ArtistCount;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -318,4 +319,27 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
             """, nativeQuery = true)
     List<Long> findLikedVideoSeqs(@Param("userSeq") Integer userSeq,
                                   @Param("videoSeqs") Collection<Long> videoSeqs);
+
+    /**
+     * 관심 없음 (API 명세 §8.6) — 이후 §8.1 피드에서 그 영상을 뺀다.
+     *
+     * <p><b>네이티브다.</b> {@code video_hides} 는 엔티티가 없다 — §8.1 이 같은 테이블을
+     * {@code not exists} 로 읽는 것이 전부이고, 행이 곧 상태라 담을 칸도 없다
+     * ({@code findLikedVideoSeqs} 와 같은 판단).
+     *
+     * <p><b>반환값을 호출부가 보지 않는다.</b> {@code on conflict do nothing} 을 쓰는 것은
+     * 중복을 가르기 위해서가 아니라 <b>가르지 않기 위해서</b>다 — §8.6 은 멱등이고, 두 번
+     * 눌러도 사용자가 원하는 상태는 같다. 같은 구문을 쓰는 §8.7 신고가 영향 행 수로 409 를
+     * 내는 것과 정반대이므로, 그쪽 코드를 보고 여기에 409 를 더하지 않는다.
+     *
+     * <p>{@code reg_dttm} 을 넣지 않는 것은 DDL 에 {@code DEFAULT CURRENT_TIMESTAMP} 가
+     * 있기 때문이다(0005-03).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.video_hides (user_seq, video_seq)
+            values (:userSeq, :videoSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    void insertHideIfAbsent(@Param("userSeq") Integer userSeq, @Param("videoSeq") Long videoSeq);
 }

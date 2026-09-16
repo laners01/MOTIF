@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 참여 영상 API 문서 계약 (명세 §8.2 · §8.7).
+ * 참여 영상 API 문서 계약 (명세 §8.2 · §8.6 · §8.7).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -92,6 +92,50 @@ public interface VideoControllerDocs {
                                     }""")))
     })
     ApiResponse<VideoItem> detail(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
+
+    @Operation(
+            summary = "관심 없음 (§8.6)",
+            description = """
+                    이후 **§8.1 피드에서 그 영상을 빼달라**는 요청이다 (명세 §8.6).
+                    요청 본문이 없다.
+
+                    - **인증 필요.**
+                    - **멱등이다.** 이미 숨긴 영상을 다시 호출해도 200 이고, "이미 숨김" 을 알리는
+                      코드는 없다 — 사용자가 원하는 상태가 같다.
+                    - **해제 API 가 없다**(기본안). 한 번 숨기면 되돌리는 화면이 없다.
+                    - **접근 차단이 아니다.** 숨긴 영상도 §8.2 단건 조회는 열린다 — 링크·공유로
+                      직접 들어오는 길까지 막지 않는다.
+                    - 안 보이는 영상은 숨길 대상도 아니다 — §8.2 와 **같은 404 규칙**이다
+                      (삭제 · 삭제 사용자 · 삭제된 챌린지 소속 · **타인의 `PRIVATE`**).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "숨김 (이미 숨긴 상태도 200)",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": null,
+                              "timestamp": "2026-09-17T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · 삭제 영상 · 삭제 사용자의 콘텐츠 · 타인의 PRIVATE · 삭제된 챌린지 소속",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<Void> hide(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
 
