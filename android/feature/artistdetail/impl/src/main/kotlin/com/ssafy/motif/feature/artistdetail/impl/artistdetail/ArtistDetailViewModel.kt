@@ -11,6 +11,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor() : ViewModel() {
 
+
     fun selectTab(tab: ArtistDetailTab){
         _uiState.update { state -> state.copy(selectedTab = tab) }
     }
@@ -18,8 +19,13 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
         ArtistDetailUiState(
             artistDetail = ArtistDetailMockData.artist,
             notices = ArtistDetailMockData.notices,
-            challenges = ArtistDetailMockData.challenges))
-    val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
+            challengeState = ChallengeUiState.Success(
+                challenges = ArtistDetailMockData.challenges.take(CHALLENGE_PAGE_SIZE),
+                hasNext = ArtistDetailMockData.challenges.size>CHALLENGE_PAGE_SIZE,
+                ),
+            ),
+        )
+    internal val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
 
     fun toggleSubscribe() {
         _uiState.update { state ->
@@ -91,6 +97,8 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
 
     }
 
-
+    companion object{
+        private const val CHALLENGE_PAGE_SIZE = 9
+    }
 
 }

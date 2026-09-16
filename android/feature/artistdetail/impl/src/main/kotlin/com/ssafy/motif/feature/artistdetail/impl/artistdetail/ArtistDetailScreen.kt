@@ -155,28 +155,39 @@ internal fun ArtistDetailScreen(
                         }
                     }
                     ArtistDetailTab.Challenge -> {
-                        items(
-                            items = uiState.challenges.chunked(3),
-                            key = { row -> row.first().id },
-                        ) { row ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 2.dp),
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            ){
-                                row.forEach { challenge ->
-                                    ChallengeThumbnail(
-                                        challenge = challenge,
-                                        onClick = onChallengeClick,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                                repeat(3 - row.size) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                        when(val state = uiState.challengeState){
+                            ChallengeUiState.Loading ->{
+                                item{
+
                                 }
                             }
-
+                            is ChallengeUiState.Success ->{
+                                items(
+                                    items = state.challenges.chunked(3),
+                                    key = {row -> row.first().id},
+                                ){row ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    ){
+                                        row.forEach { challenge ->
+                                            ChallengeThumbnail(
+                                                challenge = challenge,
+                                                onClick = onChallengeClick,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                        }
+                                        repeat(3 - row.size){
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                            is ChallengeUiState.Error ->{
+                                item{}
+                            }
                         }
                     }
                 }

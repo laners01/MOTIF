@@ -3,7 +3,7 @@ package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.Reply
 
-sealed interface CommentSheetUiState {
+internal sealed interface CommentSheetUiState {
 
     data object Hidden : CommentSheetUiState
 
