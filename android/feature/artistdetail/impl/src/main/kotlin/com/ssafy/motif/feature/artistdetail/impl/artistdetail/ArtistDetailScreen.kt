@@ -88,8 +88,9 @@ internal fun ArtistDetailScreen(
                         )
                     }
                 }
-                item{
+                stickyHeader{
                     TabRow(selectedTabIndex = uiState.selectedTab.ordinal,
+                        containerColor = MotifTheme.colors.background,
                         divider = {},
                         indicator = {tabPositions ->
                             if(uiState.selectedTab.ordinal < tabPositions.size){
