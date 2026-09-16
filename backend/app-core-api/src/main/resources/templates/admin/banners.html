@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('숍 배너', ~{::main})}">
+<body>
+<!--/* 숍 공용 배너(§3.11) — 목록·등록·순서·활성을 한 화면에서. 로직은 banners.js. */-->
+<main>
+    <h2>등록 <span class="muted">— 이미지를 고르면 S3 에 올리고 맨 뒤에 붙인다</span></h2>
+    <p>
+        <label style="display:inline">이미지 <input type="file" id="new-image" accept="image/jpeg,image/png"></label>
+        <button type="button" id="create" disabled>등록</button>
+    </p>
+    <p class="err" id="err" hidden></p>
+
+    <h2>목록 <span class="muted">— 위/아래로 옮기고 "순서 저장" 을 눌러야 반영된다</span></h2>
+    <p>
+        <button type="button" id="reload">조회</button>
+        <button type="button" id="save-order" disabled>순서 저장</button>
+        <span class="muted" id="order-hint"></span>
+    </p>
+    <table>
+        <thead>
+        <tr><th>#</th><th>미리보기</th><th>순서</th><th>노출</th><th>등록일</th><th></th><th>결과</th></tr>
+        </thead>
+        <tbody id="banners"></tbody>
+    </table>
+    <p class="muted">
+        순서는 한 건씩 바꿀 수 없다 — <code>display_order</code> 가 UNIQUE 라 전량 교체(§3.11.4)로만 바뀐다.
+        삭제는 하드 삭제이고 되돌릴 수 없다. 잠시 내리려면 노출을 끄면 된다.
+    </p>
+
+    <template id="banner-row">
+        <tr>
+            <td class="seq"></td>
+            <td><img class="thumb" alt="" height="48" style="max-width:160px;object-fit:contain"></td>
+            <td class="order"></td>
+            <td><input type="checkbox" class="active"></td>
+            <td class="reg"></td>
+            <td>
+                <button type="button" class="up">↑</button>
+                <button type="button" class="down">↓</button>
+                <button type="button" class="replace">이미지 교체</button>
+                <button type="button" class="delete">삭제</button>
+            </td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/banners.js" defer></script>
+</main>
+</body>
+</html>
