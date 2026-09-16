@@ -1,5 +1,6 @@
 package com.ssafy.motif.coreapi.global.media;
 
+import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class MediaPlaylistService {
 
-    public static final String MASTER = "master.m3u8";
+    /** 파일명 규약의 주인은 {@link MediaKeys} 다 — 여기서 다시 정의하지 않는다. */
+    public static final String MASTER = MediaKeys.MASTER_PLAYLIST;
     public static final String VARIANT = "index.m3u8";
     private static final String SEGMENT_CONTENT_TYPE = "application/vnd.apple.mpegurl";
 
@@ -102,9 +104,20 @@ public class MediaPlaylistService {
      * 사다리는 {@code Rendition.LADDER} 고정이라 목록으로 막는 것이 가장 싸다.
      */
     private static void requireKnownRendition(String rendition) {
-        if (!RENDITIONS.contains(rendition)) {
+        if (!isKnownRendition(rendition)) {
             throw new IllegalArgumentException("알 수 없는 화질: " + rendition);
         }
+    }
+
+    /**
+     * 사다리에 있는 화질인가 — 호출자가 <b>404 로 먼저 끊고 싶을 때</b> 쓴다.
+     *
+     * <p>{@link #variant} 는 이 검사를 다시 한다. 밖에서 걸렀다고 안에서 빼면, 다른
+     * 호출자가 생겼을 때 검증 없이 S3 키가 조립된다 — 막는 것이 경로 순회라 한 겹으로
+     * 두지 않는다.
+     */
+    public static boolean isKnownRendition(String rendition) {
+        return RENDITIONS.contains(rendition);
     }
 
     private String cdn(String key) {

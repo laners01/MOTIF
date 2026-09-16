@@ -33,6 +33,14 @@ package com.ssafy.motif.coreapi.domain.media;
  */
 public final class MediaKeys {
 
+    /**
+     * 프리픽스 아래 마스터 재생목록의 파일명.
+     *
+     * <p>{@code app-media} 의 {@code HlsPackager.MASTER} 와 같은 값이다 — 모듈이 갈려
+     * 상수를 공유하지 못한다. 한쪽을 바꾸면 산출물을 못 찾는다.
+     */
+    public static final String MASTER_PLAYLIST = "master.m3u8";
+
     private MediaKeys() {
     }
 
@@ -101,6 +109,28 @@ public final class MediaKeys {
         String key = require(videoKey, "videoKey");
         int dot = key.lastIndexOf('.');
         return (dot < 0 ? key : key.substring(0, dot)) + "/thumb.jpg";
+    }
+
+    /**
+     * 마스터 재생목록 키 → 산출물 프리픽스 ({@code …/master.m3u8} 를 떼어낸다).
+     *
+     * <p>DB 에는 마스터 재생목록 경로 하나만 저장하는데(ADR-0010 D4), 화질별 재생목록과
+     * 썸네일을 찾으려면 그 위 디렉터리가 필요하다. 저장된 값에서 거꾸로 구하는 것이
+     * {@link #forCompositeResult} 로 다시 계산하는 것보다 안전하다 — 워커가 실제로 쓴
+     * 자리를 그대로 따라가므로, 규약이 나중에 바뀌어도 이미 만들어진 산출물을 못 찾는
+     * 일이 없다.
+     *
+     * @param masterKey {@code composite_jobs.result_video_key} 같은 {@code …/master.m3u8}
+     * @throws IllegalArgumentException 마스터 재생목록 키가 아닐 때. 조용히 통과시키면
+     *                                  엉뚱한 프리픽스에 서명이 나간다
+     */
+    public static String prefixOf(String masterKey) {
+        String key = require(masterKey, "masterKey");
+        String suffix = "/" + MASTER_PLAYLIST;
+        if (!key.endsWith(suffix)) {
+            throw new IllegalArgumentException("마스터 재생목록 키가 아니다: " + key);
+        }
+        return key.substring(0, key.length() - suffix.length());
     }
 
     /** {@code composite_jobs.job_type} → 경로 세그먼트. */
