@@ -74,4 +74,28 @@ public class Report extends BaseTimeEntity {
 
     @Column(name = "processed_dttm")
     private Instant processedDttm;
+
+    /**
+     * 4개 대상 칸 중 채워진 것으로 종류를 정한다 (§3.13.1).
+     *
+     * <p>DB 가 {@code ck_reports_target} 으로 "정확히 하나" 를 강제하므로 여기서 다시
+     * 검사하지 않는다. 그래도 전부 비어 있으면 던진다 — 제약이 빠진 채 마이그레이션이
+     * 돌았을 때 조용히 null 을 흘려보내는 것보다 낫다.
+     */
+    public ReportTargetType targetType() {
+        if (videoSeq != null) {
+            return ReportTargetType.VIDEO;
+        }
+        if (challengeCommentSeq != null) {
+            return ReportTargetType.CHALLENGE_COMMENT;
+        }
+        if (videoCommentSeq != null) {
+            return ReportTargetType.VIDEO_COMMENT;
+        }
+        if (noticeCommentSeq != null) {
+            return ReportTargetType.NOTICE_COMMENT;
+        }
+        throw new IllegalStateException("대상이 없는 신고다: reportSeq=" + reportSeq);
+    }
+
 }

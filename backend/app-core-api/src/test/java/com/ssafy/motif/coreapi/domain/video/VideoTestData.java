@@ -17,22 +17,22 @@ import java.util.UUID;
  * "피드에는 보이는데 단건은 404" 같은 차이를 만들어 놓고도 픽스처가 달라서 그런 줄
  * 알게 된다 — 그 둘이 같은 데이터에서 같은 항목을 내는지가 §8.2 의 핵심 단언이다.
  */
-final class VideoTestData {
+public final class VideoTestData {
 
     private final EntityManager entityManager;
 
-    VideoTestData(EntityManager entityManager) {
+    public VideoTestData(EntityManager entityManager) {
         this.entityManager = entityManager;
     }
 
-    Integer newUser() {
+    public Integer newUser() {
         String nickname = "t-" + UUID.randomUUID().toString().substring(0, 20);
         execute("insert into motif_core.users (nickname, role) values (?1, 'USER')", nickname);
         return scalar("select user_seq from motif_core.users where nickname = ?1", nickname);
     }
 
     /** {@code users(ARTIST)} → {@code companies} → {@code artists} FK 체인. */
-    Integer newArtist() {
+    public Integer newArtist() {
         Integer userSeq = newUser();
         String companyName = "t-" + UUID.randomUUID().toString().substring(0, 20);
         execute("insert into motif_core.companies (company_name, reg_usr_seq) values (?1, ?2)",
@@ -45,14 +45,14 @@ final class VideoTestData {
         return scalar("select artist_seq from motif_core.artists where user_seq = ?1", userSeq);
     }
 
-    Integer newSong(Integer regUsrSeq) {
+    public Integer newSong(Integer regUsrSeq) {
         String title = "t-" + UUID.randomUUID().toString().substring(0, 20);
         execute("insert into motif_core.songs (title, singer_name, reg_usr_seq) values (?1, '가수', ?2)",
                 title, regUsrSeq);
         return scalar("select song_seq from motif_core.songs where title = ?1", title);
     }
 
-    Integer newChallenge(Integer artistSeq, Integer songSeq, boolean deleted) {
+    public Integer newChallenge(Integer artistSeq, Integer songSeq, boolean deleted) {
         String uuid = UUID.randomUUID().toString();
         execute("""
                 insert into motif_core.challenges
@@ -65,7 +65,7 @@ final class VideoTestData {
                 "challenges/" + uuid + ".mp4");
     }
 
-    VideoFixture video(Integer challengeSeq, Integer artistSeq) {
+    public VideoFixture video(Integer challengeSeq, Integer artistSeq) {
         return new VideoFixture(challengeSeq, artistSeq);
     }
 
@@ -87,7 +87,7 @@ final class VideoTestData {
      * 참여 영상 한 건. 칸이 많아 빌더로 둔다 — 위치 인자 8개짜리 헬퍼는 테스트를 읽어도
      * 무엇을 세우는지 알 수 없다.
      */
-    final class VideoFixture {
+    public final class VideoFixture {
 
         private final Integer challengeSeq;
         private final Integer artistSeq;
@@ -106,49 +106,49 @@ final class VideoTestData {
             this.artistSeq = artistSeq;
         }
 
-        VideoFixture owner(Integer userSeq) {
+        public VideoFixture owner(Integer userSeq) {
             this.owner = userSeq;
             return this;
         }
 
-        VideoFixture views(long viewCount) {
+        public VideoFixture views(long viewCount) {
             this.views = viewCount;
             return this;
         }
 
-        VideoFixture likes(int likeCount) {
+        public VideoFixture likes(int likeCount) {
             this.likes = likeCount;
             return this;
         }
 
-        VideoFixture comments(int commentCount) {
+        public VideoFixture comments(int commentCount) {
             this.comments = commentCount;
             return this;
         }
 
-        VideoFixture artistLike() {
+        public VideoFixture artistLike() {
             this.artistLike = true;
             return this;
         }
 
-        VideoFixture artistComment() {
+        public VideoFixture artistComment() {
             this.artistComment = true;
             return this;
         }
 
-        VideoFixture deleted() {
+        public VideoFixture deleted() {
             this.deleted = true;
             return this;
         }
 
         /** 비공개는 공개 사본이 없으므로 키도 보호 프리픽스가 기본이다. */
-        VideoFixture privateVisibility() {
+        public VideoFixture privateVisibility() {
             this.visibility = "PRIVATE";
             this.prefix = "private/challenge/";
             return this;
         }
 
-        VideoFixture prefix(String keyPrefix) {
+        public VideoFixture prefix(String keyPrefix) {
             this.prefix = keyPrefix;
             return this;
         }
@@ -158,7 +158,7 @@ final class VideoTestData {
          * 때문이다. 게시된 영상이라 잡은 {@code DONE} 이어야 한다
          * ({@code ck_composite_jobs_status_shape} 가 결과 키를 함께 요구한다).
          */
-        Long insert() {
+        public Long insert() {
             String uuid = UUID.randomUUID().toString();
             String resultKey = prefix + uuid + "/master.m3u8";
             String thumbKey = prefix + uuid + "/thumb.jpg";
