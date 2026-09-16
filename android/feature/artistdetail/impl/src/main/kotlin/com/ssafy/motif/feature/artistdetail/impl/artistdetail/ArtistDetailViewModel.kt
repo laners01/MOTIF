@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor() : ViewModel() {
@@ -90,6 +93,36 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
         }
     }
 
+    fun onLoadMoreChallenges(){
+        val current = _uiState.value.challengeState as?
+                ChallengeUiState.Success?: return
+        if(!current.hasNext) return
+        if(current.appendState !is ChallengeAppendUiState.Idle)return
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    challengeState = current.copy(
+                        appendState = ChallengeAppendUiState.Loading,
+                    ),
+                )
+            }
+
+            val loaded = current.challenges.size
+            val next = ArtistDetailMockData.challenges
+                .drop(loaded)
+                .take(CHALLENGE_PAGE_SIZE)
+            _uiState.update{state ->
+                state.copy(
+                    challengeState = ChallengeUiState.Success(
+                        challenges = current.challenges+next,
+                        hasNext = loaded + next.size<
+                        ArtistDetailMockData.challenges.size
+                    ),
+                )
+            }
+        }
+    }
     fun onChallengeClick(challengeId: Long){
 
     }

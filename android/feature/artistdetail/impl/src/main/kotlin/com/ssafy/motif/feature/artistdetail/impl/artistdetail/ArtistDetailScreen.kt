@@ -31,6 +31,8 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.ui.comment.CommentBottomSheet
 import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDetailCard
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 
 @Composable
 fun ArtistDetailScreen(
@@ -53,6 +55,7 @@ fun ArtistDetailScreen(
         onReplyClick = viewModel::onReplyClick,
         onReplyLikeClick = viewModel::onReplyLikeClick,
         onChallengeClick = viewModel::onChallengeClick,
+        onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
         formatCreatedAt = { "방금 전" },
         modifier = modifier,
     )
@@ -73,6 +76,7 @@ internal fun ArtistDetailScreen(
     onReplyLikeClick: (Long) -> Unit,
     formatCreatedAt: (Long) -> String,
     onChallengeClick:(Long) -> Unit,
+    onLoadMoreChallenges:() -> Unit,
     modifier: Modifier = Modifier,
 
 
@@ -80,6 +84,28 @@ internal fun ArtistDetailScreen(
     val listState = rememberLazyListState()
     LaunchedEffect(uiState.selectedTab){
         listState.scrollToItem(0)
+    }
+    val challengeSuccess = uiState.challengeState as? ChallengeUiState.Success
+    val canLoadMore = challengeSuccess != null &&
+            uiState.selectedTab == ArtistDetailTab.Challenge &&
+            challengeSuccess.hasNext &&
+            challengeSuccess.appendState is ChallengeAppendUiState.Idle
+    val shouldLoadMore by remember(listState, canLoadMore) {
+        derivedStateOf {
+            if (!canLoadMore) return@derivedStateOf false
+
+            val layoutInfo = listState.layoutInfo
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                ?: return@derivedStateOf false
+
+            layoutInfo.totalItemsCount > 0 &&
+                    lastVisible >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            onLoadMoreChallenges()
+        }
     }
     Surface(modifier = modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()){
@@ -214,3 +240,4 @@ internal fun ArtistDetailScreen(
 
     }
 }
+private const val LOAD_MORE_THRESHOLD = 3
