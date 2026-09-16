@@ -190,33 +190,41 @@ internal fun ArtistDetailScreen(
                                 }
                             }
                             is ChallengeUiState.Success ->{
-                                items(
-                                    items = state.challenges.chunked(3),
-                                    key = {row -> row.first().id},
-                                ){row ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 2.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                    ){
-                                        row.forEach { challenge ->
-                                            ChallengeThumbnail(
-                                                challenge = challenge,
-                                                onClick = onChallengeClick,
-                                                modifier = Modifier.weight(1f),
-                                            )
-                                        }
-                                        repeat(3 - row.size){
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                                if(state.appendState is ChallengeAppendUiState.Loading){
+                                if(state.challenges.isEmpty()){
                                     item{
-                                        ChallengeLoadingMore()
+                                        ChallengeEmptyContent()
+                                    }
+                                }else{
+                                    items(
+                                        items = state.challenges.chunked(3),
+                                        key = {row -> row.first().id},
+                                    ){row ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 2.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        ){
+                                            row.forEach { challenge ->
+                                                ChallengeThumbnail(
+                                                    challenge = challenge,
+                                                    onClick = onChallengeClick,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                            }
+                                            repeat(3 - row.size){
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
+                                    if(state.appendState is ChallengeAppendUiState.Loading){
+                                        item{
+                                            ChallengeLoadingMore()
+                                        }
                                     }
                                 }
+
+
                             }
                             is ChallengeUiState.Error ->{
                                 item{}
@@ -260,4 +268,23 @@ private fun ChallengeLoadingMore(
         LoadingWheel(contentDescription = "불러오는 중...")
     }
 }
+
+@Composable
+private fun ChallengeEmptyContent(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 80.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "등록된 챌린지가 없습니다",
+            style = MotifTheme.typography.bodyR14,
+            color = MotifTheme.colors.gray400,
+        )
+    }
+}
+
 private const val LOAD_MORE_THRESHOLD = 3
