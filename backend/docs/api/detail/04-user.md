@@ -306,6 +306,12 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
 - `participationCount` 는 제거됐다(회의 확정 R2). `subscribedArtists[]` 는 **공통 아티스트 요약**(README §3.5)을 그대로 쓴다 — 원본은 여기서 `groupName` 을 뺐지만 타입 통일을 위해 되살렸다.
 - 구독이 0건이면 `subscribedArtists: []`.
 
+### 서버 처리
+
+1. `userSeq` 로 `users` 조회 — **`is_deleted=TRUE` 면 없는 것으로 답한다**(404)
+2. `subscriptions` → `artists` → `users`(이름·프로필) → `artist_groups`(그룹명, left join) 조인
+3. 프로필 이미지 키를 **무서명 공개 CDN URL** 로 변환
+
 ### 실패 응답
 
 | HTTP | code | 조건 |
@@ -321,6 +327,15 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
 ```
+
+### 기본안
+
+| 항목 | 기본안 | 근거 |
+|---|---|---|
+| **삭제된 아티스트** | `subscribedArtists` 에서 **뺀다** | 명세에 없다. §1.8 이 삭제 아티스트를 "없는 것으로 답한다"고 정했으므로(§5.3 은 404), 목록에 남기면 **눌러도 404 가 나는 카드**가 된다. 구독 행 자체는 지우지 않고 조회에서 거른다 |
+| 정렬 | **구독 최신순**(`subscriptions.reg_dttm DESC`) | 명세 미지정. §4.7 이 "구독 최신순"으로 못 박았으니 **같은 목록을 두 API 가 다른 순서로 주지 않게** 맞춘다 |
+| 건수 상한 | 없음(전량) | 구독 수는 사람당 수십 건 규모다. §4.7 도 전량이다 |
+| 본인 `userSeq` 로 호출 | 그대로 응답 | 막을 이유가 없다. 굳이 막으면 클라이언트가 "내 seq 인지" 분기를 하나 더 갖는다. 마이페이지는 §4.1 이다 |
 
 > **스키마 주의**: 아티스트 이름은 `artists` 에 없다. `artists.user_seq → users.nickname` 조인으로 얻는다(`artists` 는 `role='ARTIST'` 사용자의 도메인 확장).
 

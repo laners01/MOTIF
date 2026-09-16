@@ -11,6 +11,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.domain.user.service.UserCommandService;
 import com.ssafy.motif.coreapi.domain.user.service.UserProfileImageService;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,8 +31,12 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 사용자·마이페이지 API (명세 §4). Base URL 은 {@code /api/v1}.
  *
- * <p>지금은 §4.1·§4.2·§4.3·§4.4·§4.8 이다 — §4.6 남의 프로필·§4.7 구독 목록·§4.9 활동은
- * 각각 별개 티켓이라 여기 매핑이 없다.
+ * <p>지금은 §4.1·§4.2·§4.3·§4.4·§4.6·§4.8 이다 — §4.7 구독 카드·§4.9 활동은 각각 별개
+ * 티켓이라 여기 매핑이 없다.
+ *
+ * <p>{@code /me} 와 {@code /{userSeq}} 가 한 컨트롤러에 있다. 경로 세그먼트가 갈리므로
+ * 충돌하지 않고, 응답도 전혀 다르다 — §4.1 은 대표 모티프·영상 그리드를, §4.6 은 구독
+ * 아티스트를 준다.
  *
  * <p>Swagger 문서는 {@link UserControllerDocs} 가 갖는다.
  */
@@ -49,6 +55,13 @@ public class UserController implements UserControllerDocs {
     @GetMapping("/me")
     public ApiResponse<UserMeResponse> me(@AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.success(userQueryService.me(user.userSeq()));
+    }
+
+    /** §4.6 타 사용자 프로필 — 뷰어에서 작성자를 눌렀을 때의 Bottom Sheet. */
+    @Override
+    @GetMapping("/{userSeq}/profile")
+    public ApiResponse<UserProfileResponse> profile(@PathVariable Integer userSeq) {
+        return ApiResponse.success(userQueryService.profile(userSeq));
     }
 
     /** §4.8 내 챌린지 그리드 — 비페이지 전량. 첫 화면 9개는 §4.1 이 이미 줬다. */

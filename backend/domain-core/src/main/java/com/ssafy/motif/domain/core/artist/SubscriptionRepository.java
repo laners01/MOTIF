@@ -43,4 +43,29 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Subs
                                            @Param("artistSeqs") Collection<Integer> artistSeqs);
 
     boolean existsByIdUserSeq(Integer userSeq);
+
+    /**
+     * 구독 중인 아티스트 카드 (API 명세 §4.6) — <b>구독 최신순</b>, 비페이지 전량.
+     *
+     * <p><b>삭제된 아티스트는 뺀다.</b> 명세에 적혀 있지 않지만 §1.8 이 삭제 아티스트를
+     * "없는 것으로 답한다"고 정했고(§5.3 은 404), 남겨 두면 <b>눌러도 404 가 나는 카드</b>
+     * 가 목록에 생긴다. 구독 행 자체는 지우지 않으므로 여기서 거른다.
+     *
+     * <p>정렬 기준은 {@code subscriptions.reg_dttm} 이다 — 명세는 §4.6 의 순서를 말하지
+     * 않지만 §4.7 이 "구독 최신순"으로 못 박았다. 같은 목록을 두 API 가 다른 순서로
+     * 주지 않게 맞춘다.
+     *
+     * <p>{@code artist_groups} 는 솔로면 {@code group_seq} 가 NULL 이라 left join 이다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.SubscribedArtistRow(
+                       a.artistSeq, u.nickname, u.profileImageKey, g.groupName)
+            from Subscription s
+              join Artist a on a.artistSeq = s.id.artistSeq
+              join User u on u.userSeq = a.userSeq
+              left join ArtistGroup g on g.groupSeq = a.groupSeq
+            where s.id.userSeq = :userSeq and a.deleted = false
+            order by s.regDttm desc, a.artistSeq desc
+            """)
+    List<SubscribedArtistRow> findSubscribed(@Param("userSeq") Integer userSeq);
 }

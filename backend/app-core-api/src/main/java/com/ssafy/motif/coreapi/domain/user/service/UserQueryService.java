@@ -1,10 +1,15 @@
 package com.ssafy.motif.coreapi.domain.user.service;
 
+import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
+import com.ssafy.motif.coreapi.domain.user.UserErrorCode;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
+import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
+import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
@@ -23,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 마이페이지 조회 (API 명세 §4.1 · §4.8).
+ * 사용자 조회 (API 명세 §4.1 · §4.6 · §4.8).
  *
  * <p><b>원콜이다.</b> 프로필·대표 모티프·영상 프리뷰를 한 번에 내려준다(회의 확정
  * 2026-09-02 개편). 첫 화면에 필요한 것이 셋뿐이라 화면 하나에 왕복 세 번을 쓸 이유가
@@ -70,6 +75,7 @@ public class UserQueryService {
     private final MotifResultRepository motifResultRepository;
     private final CompositeJobRepository compositeJobRepository;
     private final ParticipationVideoRepository participationVideoRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
     /** §4.1 마이페이지 원콜. */
@@ -118,6 +124,42 @@ public class UserQueryService {
                 result.getResultSeq(),
                 MediaPlaylistQueryService.masterPlaylistUrl(job.getJobUuid()),
                 mediaUrlResolver.resolve(result.getThumbnailKey()));
+    }
+
+    /**
+     * §4.6 타 사용자 프로필 — 참여 영상 뷰어의 작성자 Bottom Sheet.
+     *
+     * <p><b>삭제된 사용자는 없는 것으로 답한다</b>(§1.8). 403 으로 갈라 내면 "그 사람은
+     * 있는데 탈퇴했다"가 응답에서 읽히는데, {@code userSeq} 를 찍어 볼 수 있는 자리라
+     * 더 그렇다.
+     *
+     * <p><b>본인 seq 로 불러도 막지 않는다.</b> 화면 흐름상 일어나기 어렵고, 굳이 막으면
+     * 클라이언트가 "내 seq 인지" 분기를 하나 더 갖는다. 마이페이지는 §4.1 로 따로 있다.
+     */
+    public UserProfileResponse profile(Integer userSeq) {
+        User user = userRepository.findById(userSeq)
+                .filter(target -> !target.isDeleted())
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND,
+                        "미존재 또는 삭제된 사용자: userSeq=" + userSeq));
+
+        List<UserProfileResponse.SubscribedArtist> artists =
+                subscriptionRepository.findSubscribed(userSeq).stream()
+                        .map(this::toSubscribedArtist)
+                        .toList();
+
+        return new UserProfileResponse(
+                user.getUserSeq(),
+                user.getNickname(),
+                mediaUrlResolver.resolve(user.getProfileImageKey()),
+                artists);
+    }
+
+    private UserProfileResponse.SubscribedArtist toSubscribedArtist(SubscribedArtistRow row) {
+        return new UserProfileResponse.SubscribedArtist(
+                row.artistSeq(),
+                row.name(),
+                row.groupName(),
+                mediaUrlResolver.resolve(row.profileImageKey()));
     }
 
     /**
