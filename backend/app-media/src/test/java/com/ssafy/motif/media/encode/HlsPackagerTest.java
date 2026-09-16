@@ -109,7 +109,7 @@ class HlsPackagerTest {
 
     @Test
     void 원본보다_큰_단은_건너뛴다() throws IOException {
-        // 가로 720 원본 — 1080p 단(가로 1080)은 업스케일이라 만들어선 안 된다
+        // 짧은 변 720 세로 원본 — 1080p 단은 업스케일이라 만들어선 안 된다
         Path out = packSource(720, 1280, "src720.mp4", "out720");
 
         String master = Files.readString(out.resolve(HlsPackager.MASTER));
@@ -124,7 +124,7 @@ class HlsPackagerTest {
 
     @Test
     void 모든_단이_스킵되면_원본_해상도로_한_단을_만든다() throws IOException {
-        // 가로 320 — 사다리 최저단(480)보다도 작다. 한 단도 안 만들면 재생할 것이 없다
+        // 짧은 변 320 — 사다리 최저단(480)보다도 작다. 한 단도 안 만들면 재생할 것이 없다
         Path out = packSource(320, 568, "src320.mp4", "out320");
 
         String master = Files.readString(out.resolve(HlsPackager.MASTER));
@@ -146,20 +146,38 @@ class HlsPackagerTest {
     }
 
     @Test
-    void 가로_영상은_처리하지_않는다() {
-        // 업로드 검증(VideoRules.PORTRAIT_REQUIRED)은 화면 JS 가 보낸 값을 믿는다.
-        // 합성 결과는 그 검증을 아예 안 타므로 실제 바이트를 읽는 여기가 최종 방어선이다
-        Path src = source(1920, 1080, "land.mp4");
-        Path out = tmp.resolve("outLand");
+    void 가로_영상도_짧은_변_기준_사다리로_나온다() throws IOException {
+        // 2026-09-17 이전에는 여기서 예외를 던졌다(requirePortrait) — 에셋 미리보기가
+        // 가로라 무조건 dlq.job.media 로 갔고 썸네일이 영영 404 였다.
+        // 짧은 변으로 일반화한 뒤로는 가로도 같은 사다리를 탄다
+        Path out = packSource(1920, 1080, "land1080.mp4", "outLand1080");
 
-        try {
-            new HlsPackager().packageForPlayback(src, out);
-        } catch (MediaEncodingException expected) {
-            assertThat(expected).hasMessageContaining("세로 영상만 처리한다");
-            assertThat(out).doesNotExist();
-            return;
-        }
-        throw new AssertionError("가로 영상은 예외가 나야 한다");
+        String master = Files.readString(out.resolve(HlsPackager.MASTER));
+        assertThat(master).contains("480p/index.m3u8", "720p/index.m3u8", "1080p/index.m3u8");
+        // 핵심 — 720p 는 어느 방향에서든 짧은 변 720 이다. 방향을 안 보고 가로폭에
+        // 맞추면 720x405 가 나오는데 화소 수가 세로 720p 의 38% 다
+        assertThat(master).contains("RESOLUTION=1280x720");
+        // 최상단은 원본 해상도 그대로 — 업스케일도 다운스케일도 아니다
+        assertThat(master).contains("RESOLUTION=1920x1080");
+    }
+
+    @Test
+    void 가로에서도_화질_간_키프레임이_일치하고_업스케일이_없다() throws IOException {
+        // 짧은 변 720 원본 — 1080p 단은 업스케일이라 만들어선 안 된다.
+        // 긴 변(1280)과 견주면 1080 <= 1280 이라 가드가 통째로 뚫린다
+        Path out = packSource(1280, 720, "land720.mp4", "outLand720");
+
+        String master = Files.readString(out.resolve(HlsPackager.MASTER));
+        assertThat(master).contains("480p/index.m3u8", "720p/index.m3u8");
+        assertThat(master).doesNotContain("1080p/index.m3u8");
+        assertThat(out.resolve("1080p")).doesNotExist();
+        assertThat(master).contains("RESOLUTION=1280x720");
+
+        // 세로에서와 같은 이유로 가로에서도 이게 제일 중요하다 — 어긋나면 예외도
+        // 로그도 없이 화질 전환만 안 된다
+        List<String> first = segmentBoundaries(out, "480p");
+        assertThat(first).hasSizeGreaterThan(1);
+        assertThat(segmentBoundaries(out, "720p")).as("720p 조각 경계").isEqualTo(first);
     }
 
     @Test
