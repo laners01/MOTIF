@@ -2,6 +2,7 @@ package com.ssafy.motif.coreapi.domain.video.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,7 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 참여 영상 단건 API 문서 계약 (명세 §8.2).
+ * 참여 영상 API 문서 계약 (명세 §8.2 · §8.7).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -93,4 +94,80 @@ public interface VideoControllerDocs {
     ApiResponse<VideoItem> detail(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
+
+    @Operation(
+            summary = "영상 신고 (§8.7)",
+            description = """
+                    뷰어 Bottom Sheet 의 신고. 접수만 하고 **클라이언트는 다음 영상으로 이동**한다
+                    (명세 §8.7).
+
+                    - **인증 필요.**
+                    - **1인 1대상 1회다.** 처리 결과와 무관하게 재신고는 409 다 — 기각된 신고도 그렇다.
+                    - **접수는 제재가 아니다.** 신고했다고 그 영상이 숨겨지거나 목록에서 빠지지 않는다.
+                      판단·조치는 어드민 몫이다.
+                    - 안 보이는 영상은 신고 대상도 아니다 — §8.2 와 **같은 404 규칙**이다
+                      (삭제 · 삭제 사용자 · 삭제된 챌린지 소속 · **타인의 `PRIVATE`**).
+
+                    ### reasonCode 는 문자열이다
+
+                    **코드표가 아직 정해지지 않았다**(명세 §16 #4 — §8.7·§9.6·§13.3 공통 미결).
+                    지금 enum 으로 고정하면 표가 정해질 때 이미 쌓인 값이 열거에 없게 되므로,
+                    서버는 **비어 있지 않은 30자 이내 문자열**만 확인한다. 클라이언트는 화면의
+                    사유 목록에 대응하는 값을 보내면 된다(`SPAM` 같은 형태를 권한다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "접수됨",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": null,
+                              "timestamp": "2026-09-17T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "reasonCode 누락·공백·30자 초과",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "잘못된 요청 값입니다.",
+                                      "data": [
+                                        { "field": "reasonCode", "message": "공백일 수 없습니다" }
+                                      ],
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · 삭제 영상 · 삭제 사용자의 콘텐츠 · 타인의 PRIVATE · 삭제된 챌린지 소속",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "이미 신고한 대상",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "ALREADY_REPORTED",
+                                      "message": "이미 신고한 대상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<Void> report(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq,
+            VideoReportRequest request);
 }
