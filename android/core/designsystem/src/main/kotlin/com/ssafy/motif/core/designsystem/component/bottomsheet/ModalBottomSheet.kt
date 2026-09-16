@@ -23,7 +23,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -37,7 +36,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -55,9 +53,6 @@ fun ModalBottomSheet(
     },
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val coroutineScope =
-        rememberCoroutineScope()
-
     val currentOnDismissRequest by
     rememberUpdatedState(
         onDismissRequest,
@@ -145,12 +140,6 @@ fun ModalBottomSheet(
 
                 currentOnDismissRequest()
             }
-        }
-    }
-
-    val dismissSheet: () -> Unit = {
-        coroutineScope.launch {
-            sheetState.hide()
         }
     }
 
