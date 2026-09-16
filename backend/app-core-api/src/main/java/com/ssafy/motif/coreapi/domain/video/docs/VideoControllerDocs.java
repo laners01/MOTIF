@@ -1,0 +1,96 @@
+package com.ssafy.motif.coreapi.domain.video.docs;
+
+import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
+import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * 참여 영상 단건 API 문서 계약 (명세 §8.2).
+ *
+ * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
+ * (팀 표준, {@code backend/README.md}).
+ */
+@Tag(name = "참여 영상 (VIDEO)", description = "명세 §8 — 챌린지 참여 영상")
+public interface VideoControllerDocs {
+
+    @Operation(
+            summary = "참여 영상 단건 (§8.2)",
+            description = """
+                    **이 응답이 "참여 영상 항목" 의 정의다** (명세 §8.2). §8.1 피드가 같은 형태를
+                    배열로 내려주고, §6.1 HOT 같은 **경량 항목**을 쓰는 화면은 뷰어에 진입할 때
+                    이 API 를 1회 호출해 오버레이 정보를 채운다.
+
+                    - **인증 필요.** `isLiked`·`isMine` 이 호출자 기준이다.
+                    - `videoUrl` 은 **마스터 재생목록(`master.m3u8`)** 이고 단일 MP4 가 아니다(§1.7).
+                      공개 사본이 준비된 영상은 무서명 CloudFront URL, 내 `PRIVATE` 은 **core-api 주소**다.
+                    - `isMine=true` 면 클라이언트가 Bottom Sheet 에 수정·삭제를 노출한다(§8.9·§8.10).
+                    - **조회수는 올라가지 않는다.** 조회 이벤트는 §8.5 `POST /videos/{videoSeq}/view` 다.
+
+                    ### 안 보이는 것은 전부 404 다
+
+                    미존재 · 삭제된 영상 · **삭제된 사용자의 콘텐츠** · 삭제된 챌린지에 속한 영상 ·
+                    **타인의 `PRIVATE`** 이 모두 같은 `VIDEO_NOT_FOUND` 다. 타인의 `PRIVATE` 을
+                    403 으로 가르면 "그 영상은 존재한다" 가 응답에서 읽히기 때문이다(§1.8 존재 은닉).
+
+                    **"관심 없음"(§8.6) 한 영상은 열린다** — 그 기능은 §8.1 피드에서 빼는 장치지
+                    접근 차단이 아니다. 링크로 직접 들어오면 정상 응답이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": {
+                                "videoSeq": 88,
+                                "challengeSeq": 11,
+                                "description": "재밌었다!",
+                                "videoUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                                "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                "durationMs": 15000,
+                                "author": {
+                                  "userSeq": 5,
+                                  "nickname": "팬123",
+                                  "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg"
+                                },
+                                "viewCount": 3400,
+                                "likeCount": 120,
+                                "commentCount": 15,
+                                "hasArtistLike": true,
+                                "hasArtistComment": false,
+                                "isLiked": false,
+                                "commentEnabled": true,
+                                "visibility": "PUBLIC",
+                                "isMine": false,
+                                "regDttm": "2026-09-01T10:00:00.000Z"
+                              },
+                              "timestamp": "2026-09-17T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · 삭제 영상 · 삭제 사용자의 콘텐츠 · 타인의 PRIVATE · 삭제된 챌린지 소속",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<VideoItem> detail(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
+}

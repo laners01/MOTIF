@@ -3,11 +3,7 @@ package com.ssafy.motif.coreapi.domain.video.service;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
-import com.ssafy.motif.coreapi.domain.media.MediaKeys;
-import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
-import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
-import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
@@ -44,17 +40,8 @@ public class VideoFeedQueryService {
     private final ChallengeRepository challengeRepository;
     private final ParticipationVideoRepository participationVideoRepository;
 
-    /** 썸네일·프로필처럼 <b>그 자체로 끝나는</b> 단일 파일 주소용 — 등급 판정은 이쪽이 한다. */
-    private final MediaUrlResolver mediaUrlResolver;
-
-    /**
-     * 공개 사본이 준비된 영상의 재생목록용.
-     *
-     * <p>재생목록에 {@link MediaUrlResolver} 를 쓰면 <b>HLS 에 단일 파일 서명을 붙이는</b>
-     * 잘못된 경로가 열린다 — 재생목록만 열리고 조각 요청이 403 이 된다(§6.1 과 같은
-     * 이유). 보호 등급 쪽은 서명이 아니라 core-api 주소로 간다.
-     */
-    private final PublicMediaUrlResolver publicMediaUrlResolver;
+    /** 항목 조립은 §8.2 단건과 <b>같은 코드</b>여야 한다 — 이유는 그쪽 javadoc 에 있다. */
+    private final VideoItemAssembler assembler;
 
     /**
      * §8.1 챌린지별 참여 영상 피드 — 커서, 추천 정렬.
@@ -121,50 +108,9 @@ public class VideoFeedQueryService {
         for (Long videoSeq : videoSeqs) {
             VideoFeedRow row = rows.get(videoSeq);
             if (row != null) {
-                list.add(toItem(row, userSeq, liked.contains(videoSeq)));
+                list.add(assembler.toItem(row, userSeq, liked.contains(videoSeq)));
             }
         }
         return list;
-    }
-
-    private VideoItem toItem(VideoFeedRow row, Integer userSeq, boolean liked) {
-        return new VideoItem(
-                row.videoSeq(),
-                row.challengeSeq(),
-                row.description(),
-                videoUrl(row),
-                mediaUrlResolver.resolve(row.thumbnailKey()),
-                row.durationMs(),
-                new VideoItem.Author(
-                        row.userSeq(),
-                        row.authorNickname(),
-                        mediaUrlResolver.resolve(row.authorProfileImageKey())),
-                row.viewCount(),
-                row.likeCount(),
-                row.commentCount(),
-                row.hasArtistLike(),
-                row.hasArtistComment(),
-                liked,
-                row.commentEnabled(),
-                row.visibility(),
-                row.userSeq().equals(userSeq),
-                row.regDttm());
-    }
-
-    /**
-     * 재생목록 주소 — <b>키 프리픽스가 등급이다</b>.
-     *
-     * <p>{@code visibility} 로 가르지 않는다. 게시는 공개 사본을 {@code public/} 으로
-     * 복사할 뿐 키를 바꾸지 않아, {@code PUBLIC} 인데 키는 아직 {@code private/} 인 행이
-     * 정상적으로 존재한다({@code MediaKeys#isProtected} javadoc). 거기에 무서명 URL 을
-     * 만들면 403 이다.
-     *
-     * <p>보호 등급은 CDN 이 아니라 core-api 를 가리킨다 — 조각까지 서명이 붙은
-     * 재생목록을 거기서 다시 써서 낸다(§1.7).
-     */
-    private String videoUrl(VideoFeedRow row) {
-        return MediaKeys.isProtected(row.videoKey())
-                ? MediaPlaylistQueryService.masterPlaylistUrl(row.jobUuid())
-                : publicMediaUrlResolver.resolve(row.videoKey());
     }
 }
