@@ -164,7 +164,16 @@ Authorization: Bearer {accessToken}
 
 ### 요청
 
-본문 없음.
+```json
+{ "contentType": "image/jpeg", "contentLength": 204800 }
+```
+
+**원본 명세는 "본문 없음"이다.** 조건을 받도록 바꿨다 — 근거는 아래 [기본안](#기본안-1).
+
+| 필드 | 규칙 |
+|---|---|
+| `contentType` | `image/jpeg` · `image/png` · `image/webp` |
+| `contentLength` | 1 이상, 최대 10MB |
 
 ### 성공 응답 (200)
 
@@ -191,12 +200,23 @@ Authorization: Bearer {accessToken}
 ### 클라이언트 순서
 
 1. 이 API 로 `uploadUrl`·`imageKey` 수령
-2. `PUT {uploadUrl}` — 본문은 이미지 바이트, `Content-Type` 은 해당 미디어 타입(JSON 아님)
+2. `PUT {uploadUrl}` — 본문은 이미지 바이트, `Content-Type`·`Content-Length` 는 **1번에 보낸 값과 같아야 한다**
 3. **§4.4** 로 `imageKey` 를 보내 반영
 
 ### 실패 응답
 
-**도메인 분기 없음.**
+| HTTP | code | 조건 |
+|---|---|---|
+| 400 | `INVALID_PARAMETER` | 허용 외 `contentType`(`data.allowedContentTypes`) · 상한 초과 `contentLength`(`data.maxBytes`) |
+
+### 기본안
+
+| 항목 | 기본안 | 근거 |
+|---|---|---|
+| 요청 본문 | **`contentType`·`contentLength` 를 받는다** (원본은 본문 없음) | 받은 값이 **서명 대상 헤더**가 되어 다른 값으로 PUT 하면 S3 가 거부한다. 없으면 발급된 URL 로 **아무 타입이든 아무 크기든 `profiles/` 에 올릴 수 있고**, 바이트가 서버를 지나가지 않으므로 사후 검증도 불가능하다. 어드민 §1.4 가 같은 근거로 이미 그렇게 한다 |
+| 한도 | `image/jpeg`·`png`·`webp` · 10MB · TTL 300초 | 어드민 이미지 한도와 **같은 설정**을 본다(`motif.media.upload.image`). 어드민 아티스트 프로필과 사용자 프로필이 같은 `profiles/` 프리픽스에 쓰므로 갈리면 한 자리에 규칙이 둘이 된다 |
+| 확장자 | `.jpg` 고정 | `contentType` 이 png/webp 여도 키는 `.jpg` 다. 실제 타입은 PUT 시 서명된 `Content-Type` 으로 S3 에 기록되므로 서빙에 문제가 없다(어드민 `ARTIST_PROFILE` 과 같은 규약) |
+| 발급 기록 | **Redis, TTL = presign 만료** | §4.4 의 403 을 판정할 근거다. 상세는 §4.4 기본안과 [ADR-0011](../../adr/0011-redis-short-lived-state.md) |
 
 ### 참고 — MY-08 모티프 프레임 프로필
 
@@ -228,16 +248,25 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
 
 ### 서버 처리
 
-1. `imageKey` 가 **본인에게 발급된 키**인지 확인(프리픽스·발급 기록)
+1. `imageKey` 가 **본인에게 발급된 키**인지 확인 — Redis 발급 기록 대조
 2. **S3 에 해당 오브젝트가 실제로 있는지 확인**(HEAD) — 이 API 만 스토리지를 실제로 호출한다
-3. `users.profile_image_key` 갱신 → 공개 CDN URL 반환
+3. `users.profile_image_key` 갱신 + `mod_usr_seq` 기록 → 공개 CDN URL 반환
+4. 발급 기록 삭제
+
+> **1번이 2번보다 먼저인 것은 의도다.** 뒤집으면 남의 키를 보냈을 때 **오브젝트의 존재
+> 여부가 응답 시간에 드러난다** — 있으면 HEAD 왕복만큼 느리고 없으면 빠르다. 어차피
+> 거부할 요청에 스토리지를 두드리는 것도 아깝다.
 
 ### 실패 응답
 
 | HTTP | code | 조건 |
 |---|---|---|
-| 409 | `IMAGE_NOT_UPLOADED` | 해당 키의 S3 오브젝트 부재(업로드 미완료·URL 만료) |
-| 403 | `FORBIDDEN` | 본인 발급 키가 아님 |
+| 403 | `FORBIDDEN` | 본인 발급 키가 아님 — **발급 기록 만료(300초 경과)도 여기다** |
+| 409 | `IMAGE_NOT_UPLOADED` | 해당 키의 S3 오브젝트 부재(업로드 미완료·PUT 실패) |
+
+403 과 409 를 합치지 않는 이유는 **사용자에게 요구하는 행동이 다르기 때문**이다 —
+409 는 "PUT 부터 다시", 403 은 "§4.3 부터 다시"다. 여기서 키의 존재는 비밀이 아니다:
+프로필 이미지는 공개 등급이고 §4.6 이 남의 것도 URL 로 내보낸다.
 
 ```json
 {
@@ -481,3 +510,5 @@ Authorization: Bearer {accessToken}
 
 1. **아티스트 이름 출처** — `artists` 테이블에 `name` 컬럼이 없다. 이름은 `users.nickname` 이며 `artists.user_seq` 로 조인해야 한다. §4.6·§4.7 을 포함해 아티스트 이름을 내리는 모든 API 가 해당한다.
 2. **§4.1 `videos` 를 빈 배열로 바꿨다** — 원본은 "없으면 null" 이라고 적었지만, 같은 "없음"을 `null` 과 `[]` 로 나누면 클라이언트가 분기를 둘 갖게 된다. 목록 필드는 전부 빈 배열로 통일한다(2026-09-13 확정).
+3. **§4.3 에 요청 본문을 추가했다** — 원본은 "본문 없음"인데, 그러면 발급된 presigned URL 로 **아무 타입이든 아무 크기든 `profiles/` 에 올릴 수 있다**(2GB mp4 든 실행 파일이든). 바이트가 서버를 지나가지 않아 사후 검증도 불가능하다. `contentType`·`contentLength` 를 받아 **서명 대상 헤더**로 넣으면 S3 가 대신 거부한다 — 어드민 §1.4 가 같은 근거로 이미 그렇게 하고 있어 규약을 맞춘 것이기도 하다(2026-09-16).
+4. **§4.3 의 `Content-Type` 서술 보강** — 원본 클라이언트 순서 2번이 "`Content-Type` 은 해당 미디어 타입(JSON 아님)" 이라고만 적었는데, **§4.3 에 보낸 값과 같아야 한다.** 다르면 S3 가 서명 불일치로 거부한다.
