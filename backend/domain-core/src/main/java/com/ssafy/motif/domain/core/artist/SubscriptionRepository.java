@@ -1,6 +1,7 @@
 package com.ssafy.motif.domain.core.artist;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -9,6 +10,46 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, SubscriptionId> {
+
+    /**
+     * 구독 생성 (API 명세 §5.6) — <b>있으면 그냥 넘어간다</b>.
+     *
+     * <p><b>왜 {@code save} 가 아니라 네이티브인가.</b> §5.6 은 멱등이면서 "이미 구독 중이면
+     * 카운터가 변하지 않는다"를 함께 요구한다. {@code existsById} 로 확인하고 저장하면
+     * 확인과 저장 사이가 벌어져, 동시에 들어온 두 요청이 둘 다 "없음"을 보고 <b>카운터를
+     * 두 번 올린다</b>(하나는 복합 PK 충돌로 500 까지 난다). {@code on conflict do nothing}
+     * 은 확인과 삽입을 한 문장에서 끝내므로, <b>반환값이 곧 "내가 새로 만들었는가"</b> 다.
+     *
+     * <p>{@code reg_dttm} 을 넣지 않는 것은 DDL 에 {@code DEFAULT CURRENT_TIMESTAMP} 가
+     * 있기 때문이다(0003-02). 엔티티의 {@code @PrePersist} 는 네이티브라 타지 않는다.
+     *
+     * @return 1 이면 새로 생겼다 — <b>이때만</b> {@code subscriber_count} 를 올린다.
+     *         0 이면 이미 구독 중이다
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.subscriptions (user_seq, artist_seq)
+            values (:userSeq, :artistSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("userSeq") Integer userSeq, @Param("artistSeq") Integer artistSeq);
+
+    /**
+     * 구독 해제 (API 명세 §5.7) — <b>하드 삭제</b>.
+     *
+     * <p>{@link #deleteById} 를 쓰지 않는 이유는 그쪽이 <b>몇 행을 지웠는지 알려주지 않기</b>
+     * 때문이다. §5.7 도 멱등이라 "실제로 지워졌을 때만" 카운터를 내려야 하는데, 그러지 않으면
+     * 미구독 상태에서 DELETE 를 두 번 받았을 때 {@code ck_artists_subscriber_count
+     * CHECK (subscriber_count >= 0)} 을 위반해 DB 가 예외를 던진다.
+     *
+     * <p>{@code deleteById} 는 없는 행을 지우려 할 때 먼저 SELECT 를 한 번 더 하기도 한다 —
+     * 여기서는 그 왕복도 필요 없다.
+     *
+     * @return 1 이면 지웠다 — <b>이때만</b> {@code subscriber_count} 를 내린다. 0 이면 원래 없었다
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Subscription s where s.id.userSeq = :userSeq and s.id.artistSeq = :artistSeq")
+    int deleteIfPresent(@Param("userSeq") Integer userSeq, @Param("artistSeq") Integer artistSeq);
 
     /**
      * 아티스트 상세의 {@code isSubscribed}·{@code subscribedDays} (명세 §5.3).

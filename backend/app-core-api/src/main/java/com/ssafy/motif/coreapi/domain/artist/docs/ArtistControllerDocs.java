@@ -9,6 +9,7 @@ import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
+import com.ssafy.motif.coreapi.domain.artist.dto.SubscriptionResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,12 +21,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.1 · §5.3 · §5.4 · §5.5).
+ * 팬 앱 아티스트 API 문서 계약 (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
  */
-@Tag(name = "아티스트 (ARTIST)", description = "명세 §5 — 랭킹·아티스트 상세·챌린지 그리드·공지 목록")
+@Tag(name = "아티스트 (ARTIST)", description = "명세 §5 — 랭킹·상세·챌린지 그리드·공지 목록·구독")
 public interface ArtistControllerDocs {
 
     @Operation(
@@ -288,4 +289,98 @@ public interface ArtistControllerDocs {
             @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq,
             @Parameter(description = "직전 응답의 nextCursor. 최초 호출은 생략한다") String cursor,
             @Parameter(description = "페이지 크기 — 기본 20 · 최대 100", example = "20") int size);
+
+    @Operation(
+            summary = "구독 (§5.6)",
+            description = """
+                    아티스트를 구독한다. **무료 팔로우이며 모티프 패스 구매(§11.4)와 완전히 별개**다.
+
+                    **요청 본문이 없다.** 토글이 아니라 "구독 상태로 만들어라"는 단언이라 보낼 값이 없다.
+
+                    ### 멱등하다
+                    **이미 구독 중인데 다시 호출해도 200 이고 `subscriberCount` 는 변하지 않는다.**
+                    서버는 삽입이 실제로 행을 만들었을 때만 카운터를 올린다(복합 PK 가 판정한다).
+                    동시에 두 번 들어와도 카운터는 한 번만 움직인다.
+
+                    ### 연타 처리는 클라이언트 몫이다 (§5.6)
+                    서버가 멱등이라 정합성은 항상 유지되므로, 방어는 클라이언트가 한다.
+                    1. 버튼을 누르면 **즉시 낙관적으로 UI 를 반전**한다
+                    2. **디바운스(약 500ms) 후 최종 상태만 1회 전송**한다
+                    3. 응답의 `isSubscribed`·`subscriberCount` 로 UI 를 **보정**한다
+                    4. 요청이 진행 중이면 중복 탭을 무시한다
+
+                    **좋아요와 달리 204 가 아니라 200 이다** — §1.2 의 "성공만 204" 예외는
+                    좋아요 토글 전용이고, 이쪽은 위 3번의 보정 값을 돌려줘야 한다.
+
+                    ### 랭킹 순위는 움직이지 않는다
+                    §5.1 랭킹 점수는 **챌린지 활동**(조회·참여)만 본다. 구독해도 순위는 그대로이며,
+                    바뀌는 것은 §5.1 의 `SUBSCRIBED`/`UNSUBSCRIBED` **필터 결과**와
+                    §5.3 `isSubscribed`·§4.6 구독 목록·§4.7 구독 카드다.
+
+                    **삭제된 아티스트는 구독할 수 없다** — 404 다(§1.8 없는 것으로 답한다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "구독 상태",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "isSubscribed": true, "subscriberCount": 15231 },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<SubscriptionResponse> subscribe(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(
+            summary = "구독 취소 (§5.7)",
+            description = """
+                    구독을 해제한다. **하드 삭제**이며 구독 기록이 남지 않는다 —
+                    다시 구독하면 `subscribedDays`(§5.3)가 0부터 다시 센다.
+
+                    ### 멱등하다
+                    **구독하지 않은 상태에서 호출해도 200 이고 `subscriberCount` 는 변하지 않는다.**
+                    서버는 삭제가 실제로 행을 지웠을 때만 카운터를 내린다.
+
+                    ### 404 범위가 §5.6 과 다르다
+                    | 대상 | §5.6 구독 | §5.7 취소 |
+                    |---|---|---|
+                    | 존재하지 않는 `artistSeq` | 404 | 404 |
+                    | **삭제된 아티스트** | 404 | **200 — 해제할 수 있다** |
+
+                    삭제된 아티스트 구독은 §4.6 목록에서 이미 숨겨지는데 해제까지 막으면
+                    사용자가 그 구독을 **영원히 정리할 수 없다.**
+
+                    연타 규약·204 아닌 이유는 §5.6 과 같다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "구독 상태",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "isSubscribed": false, "subscriberCount": 15230 },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "존재하지 않는 아티스트 (삭제된 아티스트는 200)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<SubscriptionResponse> unsubscribe(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
 }
