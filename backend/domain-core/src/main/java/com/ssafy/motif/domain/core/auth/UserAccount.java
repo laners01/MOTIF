@@ -49,4 +49,28 @@ public class UserAccount extends BaseTimeEntity {
     public boolean isSuspended() {
         return this.accountStatus == AccountStatus.SUSPENDED;
     }
+
+    /**
+     * 정지 (어드민 명세 §3.14.3).
+     *
+     * <p><b>이미 정지된 계정에는 부르지 않는다.</b> 호출부가 {@link #isSuspended()} 로
+     * 먼저 걸러 409 {@code USER_ALREADY_SUSPENDED} 를 준다 — 여기서 조용히 통과시키면
+     * 두 번째 정지가 refresh 토큰을 또 훑고 이벤트를 또 발행한다.
+     *
+     * <p>{@code mod_dttm} 은 {@code BaseTimeEntity} 의 {@code @PreUpdate} 가 채운다.
+     */
+    public void suspend() {
+        this.accountStatus = AccountStatus.SUSPENDED;
+    }
+
+    /**
+     * 정지 해제 (§3.14.4) — {@code ACTIVE} 전이만 한다.
+     *
+     * <p><b>토큰은 복구하지 않는다.</b> 폐기된 refresh 토큰은 되살릴 수 없고 되살려서도
+     * 안 된다(재로그인으로 새로 받는다). 기기 토큰도 재로그인 시 재등록으로 살아난다 —
+     * 그래서 해제 이벤트가 없다.
+     */
+    public void unsuspend() {
+        this.accountStatus = AccountStatus.ACTIVE;
+    }
 }

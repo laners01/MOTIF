@@ -22,6 +22,14 @@ public final class RoutingKeys {
     public static final String NOTICE_CREATED = "notice.created";
     /** evt.notification. */
     public static final String CHALLENGE_CREATED = "challenge.created";
+    /**
+     * evt.notification — 회원 정지 시 기기 토큰 비활성 (어드민 명세 §3.14.3·§4).
+     *
+     * <p><b>거울인 definitions 쪽 바인딩이 아직 없다</b>(develop/infra 의
+     * {@code configmap-definitions.yaml}). 붙기 전까지 이 키로 나간 메시지는 unroutable
+     * 로 버려진다 — 정지 자체는 refresh 토큰 폐기로 이미 끝나 있어 기능은 성립한다.
+     */
+    public static final String USER_SUSPENDED = "user.suspended";
     /** evt.ranking. */
     public static final String VIDEO_PATTERN = "video.*";
 
