@@ -3,9 +3,12 @@ package com.ssafy.motif.coreapi.domain.artist.docs;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,13 +20,102 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.3 · §5.4 · §5.5).
+ * 팬 앱 아티스트 조회 API 문서 계약 (명세 §5.1 · §5.3 · §5.4 · §5.5).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
  */
-@Tag(name = "아티스트 (ARTIST)", description = "명세 §5 — 아티스트 상세·챌린지 그리드·공지 목록")
+@Tag(name = "아티스트 (ARTIST)", description = "명세 §5 — 랭킹·아티스트 상세·챌린지 그리드·공지 목록")
 public interface ArtistControllerDocs {
+
+    @Operation(
+            summary = "아티스트 랭킹 (§5.1)",
+            description = """
+                    Redis 스냅샷 기반의 **서버 고정 정렬**이다. `sort` 파라미터를 받지 않는다.
+
+                    홈 "Who's On TOP4"(§6.2)는 `size=4`, 온보딩 인기 아티스트 목록(§3.1)도
+                    **같은 API 를 재사용**한다 — 필드도 캐시 정책도 같아 나눌 실익이 없다.
+
+                    - `rank` 는 **전체 스냅샷 기준**이다. `filter` 로 걸러도 다시 매기지 않는다 —
+                      "내 구독 아티스트 중 3위"가 아니라 "전체 3위"를 보여준다.
+                    - `rankDelta` = 직전 스냅샷 순위 − 현재 순위. **상승이 양수·하락이 음수**
+                      (5위→3위 = `2`, 3위→5위 = `-2`). **신규 진입은 `null`** 이다.
+                    - `totalElements` 는 **`filter` 를 적용한 뒤**의 개수다.
+                    - `name` 은 `users.nickname`, `groupName` 은 솔로면 `null` 이다.
+                    - 스냅샷이 비어 있으면 **빈 목록 200** 이다(에러가 아니다).
+
+                    ### 점수 공식
+                    ```
+                    score = Σ_c ( view_count_c × 1 + participant_count_c × 100 ) × 0.5 ^ (age_c / 14일)
+                    ```
+                    해당 아티스트의 **비삭제 챌린지**가 받은 반응을, 그 챌린지의 **등록 시각 기준으로
+                    감쇠**시켜 더한다. 챌린지를 올리는 행위 자체에는 점수를 주지 않는다 — 주면 반응
+                    없는 챌린지를 여러 개 올리는 것만으로 순위가 올라 인기 랭킹이 아니게 된다.
+                    가중치·반감기는 `motif.ranking.*` 설정이다.
+
+                    ### 지금은 전 아티스트가 0점 동점이다 — 버그가 아니다
+                    점수의 두 입력을 올리는 경로가 아직 없다 — `view_count` 는 §7.4 조회 이벤트,
+                    `participant_count` 는 참여 영상 업로드가 선행 티켓이다. 그 전까지 랭킹은
+                    **`artistSeq` ASC 고정 목록**이고 `rankDelta` 는 전원 `null` 이다.
+                    두 티켓이 머지되면 **코드 변경 없이** 순위가 갈리기 시작한다.
+
+                    ### 갱신과 캐싱 (§1.6)
+                    스냅샷은 **5분**마다(`rank:artist:current`), `rankDelta` 의 기준은 **10분**마다
+                    (`rank:artist:prev`) 갱신된다. **서버는 갱신을 push 하지 않는다** — SSE·WebSocket 을
+                    쓰지 않고 FCM 은 §14 전용이다. 클라이언트는 **화면 진입·포그라운드 복귀·당겨서
+                    새로고침** 시점에만 호출하고, 마지막 응답이 **5분** 안이면 요청하지 않는다
+                    (stale-while-revalidate). **타이머 폴링 금지.**
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "아티스트 랭킹",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "rank": 1,
+                                            "rankDelta": 2,
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "isSubscribed": false
+                                          },
+                                          {
+                                            "rank": 2,
+                                            "rankDelta": null,
+                                            "artistSeq": 7,
+                                            "name": "윈터",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": null,
+                                            "isSubscribed": true
+                                          }
+                                        ],
+                                        "page": 0,
+                                        "size": 20,
+                                        "totalElements": 58,
+                                        "totalPages": 3,
+                                        "hasNext": true,
+                                        "hasPrevious": false
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "인증 실패 (§1.4 공통)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<PageResponse<ArtistRankingResponse>> ranking(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "구독 여부 필터", example = "ALL") RankingFilter filter,
+            @Parameter(description = "0-base 페이지 번호", example = "0") int page,
+            @Parameter(description = "페이지 크기 — 최대 100. 홈 TOP4 는 4", example = "20") int size);
 
     @Operation(
             summary = "아티스트 상세 (§5.3)",

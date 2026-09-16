@@ -111,6 +111,38 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
      */
     long countByArtistSeqInAndDeletedFalse(Collection<Integer> artistSeqs);
 
+    /**
+     * 랭킹 카드 한 페이지 분 (명세 §5.1) — 구독 목록(§4.6)과 같은 투영이다
+     * ({@link ArtistCardRow}).
+     *
+     * <p><b>순서를 보장하지 않는다.</b> 랭킹 순서는 Redis 스냅샷이 정하고 여기는 메타만
+     * 채운다 — 호출부가 {@code artistSeq} 로 묶어 자기 순서에 끼운다. {@code in} 절에
+     * {@code order by} 를 붙여 봐야 스냅샷 순서와는 무관하다.
+     *
+     * <p>삭제 아티스트를 거르지 않는다 — 스냅샷에 비삭제만 들어가므로 이미 걸러져 있고,
+     * 여기서 또 걸면 "스냅샷에는 있는데 메타가 없는" 항목이 조용히 사라진다. 그런 일이
+     * 생긴다면 스냅샷이 낡은 것이고, 그건 호출부가 다룬다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistCardRow(
+                       a.artistSeq, u.nickname, u.profileImageKey, g.groupName)
+            from Artist a
+              join User u on u.userSeq = a.userSeq
+              left join ArtistGroup g on g.groupSeq = a.groupSeq
+            where a.artistSeq in :artistSeqs
+            """)
+    List<ArtistCardRow> findCards(@Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /**
+     * 랭킹 스냅샷에 올릴 아티스트 전량 (명세 §5.1) — 비삭제만.
+     *
+     * <p><b>챌린지가 0개여도 포함한다.</b> 챌린지 쪽에서 집계해 얻은 목록만 쓰면 아직
+     * 챌린지가 없는 아티스트가 스냅샷에서 빠지는데, 그러면 온보딩 인기 목록(§3.1)과
+     * {@code UNSUBSCRIBED} 필터에서 신인이 통째로 사라진다. 점수 0 으로 넣는다.
+     */
+    @Query("select a.artistSeq from Artist a where a.deleted = false")
+    List<Integer> findRankableSeqs();
+
     /** 소속사 삭제 차단 (§3.3.4 {@code COMPANY_IN_USE}) — 비삭제 아티스트가 남아 있으면 막는다. */
     long countByCompanySeqAndDeletedFalse(Integer companySeq);
 

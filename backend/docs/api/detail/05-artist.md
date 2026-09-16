@@ -65,7 +65,6 @@ Authorization: Bearer {accessToken}
         "artistSeq": 3,
         "name": "카리나",
         "groupName": "aespa",
-        "groupName": "aespa",
         "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
         "isSubscribed": false
       },
@@ -92,32 +91,84 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 설명 |
 |---|---|
-| `rank` | 스냅샷 순위(1-base) |
+| `rank` | 스냅샷 순위(1-base). **`filter` 로 걸러도 다시 매기지 않는다** — 전체 스냅샷 기준이다. "내 구독 아티스트 중 3위"가 아니라 "전체 3위"를 보여주는 것이 랭킹 화면의 의미다 |
 | `rankDelta` | **직전 스냅샷 순위 − 현재 순위**. 상승이 양수, 하락이 음수(5위→3위 = `+2`, 3위→5위 = `-2`). **신규 진입은 `null`** |
 | `isSubscribed` | 요청자의 구독 여부 |
-| `totalElements` | 스냅샷 ZSET 크기 |
+| `totalElements` | **`filter` 를 적용한 뒤**의 개수다. `ALL` 이면 스냅샷 ZSET 크기와 같다 |
+
+### 점수 공식 **(기본안 — 원본 미기재)**
+
+```
+score_artist = Σ_c ( view_count_c × Wv + participant_count_c × Wp ) × 0.5 ^ (age_c / H)
+
+Wv = 1     조회 1회
+Wp = 100   참여 1건
+H  = 14일  반감기
+age_c = 기준 시각 − challenges.reg_dttm
+```
+
+- 대상은 **해당 아티스트의 비삭제 챌린지**뿐이다.
+- **챌린지 등록 자체에는 점수를 주지 않는다.** 점수의 출처는 챌린지가 실제로 받은 반응이고, 그 반응을 업로드 시각 기준으로 깎는다. 등록 행위에 점수를 주면 반응 없는 챌린지를 여러 개 올리는 것만으로 순위가 올라 인기 랭킹이 아니게 된다.
+- 참여 1건을 조회 100회로 보는 것은 **참여가 촬영·업로드를 요구하는 행위**이기 때문이다.
+- **감쇠 기준이 `challenges.reg_dttm` 인 이유**: `view_count`·`participant_count` 가 누적 카운터라 개별 조회·참여의 발생 시각이 DB 에 없다. 걸 수 있는 시간축이 챌린지 등록 시각 하나뿐이다.
+
+숫자로 보면 의도가 드러난다 — 조회수가 3배 넘게 많은 옛날 챌린지가 최근 챌린지에 밀린다.
+
+| 챌린지 | 조회수 | 나이 | 감쇠 계수 | 기여 점수 |
+|---|---|---|---|---|
+| A | 10,000 | 30일 | 0.2264 | 2,264 |
+| B | 3,000 | 2일 | 0.9057 | **2,717** |
+
+`Wv`·`Wp`·`H` 는 원본 명세에 근거가 없는 수라 설정으로 뺀다 — `motif.ranking.weight.view` · `.participant` · `motif.ranking.half-life-days`.
+
+### 선행 티켓 전까지 전원 0점이다 — 버그가 아니다
+
+점수의 두 입력을 올리는 경로가 아직 없다.
+
+| 입력 | 증가 경로 | 상태 |
+|---|---|---|
+| `challenges.view_count` | §7.4 `POST /challenges/{seq}/view` | 미구현 |
+| `challenges.participant_count` | 참여 영상 업로드 | 미구현 |
+
+따라서 현재 랭킹은 **전 아티스트 0점 동점 → `artistSeq` ASC 고정 목록**이고 `rankDelta` 는 전원 `null` 이다. 두 선행 티켓이 머지되면 **코드 변경 없이** 순위가 갈리기 시작한다.
+
+### 스냅샷 (서버)
+
+| 키 | 갱신 주기 | 내용 |
+|---|---|---|
+| `rank:artist:current` | **5분** | 현재 순위 ZSET — §1.6 클라 TTL 5분과 같은 주기다 |
+| `rank:artist:prev` | **10분** | `rankDelta` 의 기준이 되는 직전 순위 ZSET |
+
+- **비삭제 아티스트는 챌린지가 0개여도 넣는다**(score 0). 빼면 온보딩 인기 목록(§3.1)과 `UNSUBSCRIBED` 필터에서 신인이 통째로 사라진다.
+- **동점 정렬은 `artistSeq` ASC 고정이고, 애플리케이션에서 확정한다.** ZSET member 사전순에 기대면 안 된다 — `ZREVRANGE` 는 동점일 때 member 를 역사전순으로 주므로 `artistSeq` DESC 가 나온다.
+- 적재는 임시 키에 쓴 뒤 `RENAME` 한다. 아티스트가 0명이면 ZSET 이 비어 임시 키 자체가 생기지 않으므로(Redis 에 빈 키는 없다) 그때는 대상 키를 `DELETE` 한다.
+- **키에 TTL 을 걸지 않는다.** 배치가 매번 덮는다. TTL 을 걸면 배치가 멈췄을 때 랭킹이 통째로 사라진다 — 낡은 랭킹이 없는 랭킹보다 낫다. §1.6 의 "TTL 5분"은 **클라이언트 캐시** 규약이지 Redis 키 만료가 아니다.
+- 최초 배포로 `:prev` 가 없으면 첫 `:current` 적재 때 같은 내용으로 함께 심는다 → 전원 `rankDelta = 0`. 그래야 `null` 이 **진짜 신규 아티스트** 전용으로 남는다.
 
 ### 서버 처리
 
-1. Redis `rank:artist:current`(ZSET)에서 `page`·`size` 구간을 꺼낸다
-2. `rank:artist:prev` 에서 같은 아티스트의 직전 순위를 찾아 `rankDelta` 를 계산한다 — 없으면 `null`
-3. 아티스트 메타(`name`·`groupName`·`profileImageUrl`)를 DB 에서 채운다
-4. `filter` 가 `SUBSCRIBED`/`UNSUBSCRIBED` 면 요청자의 구독 여부로 거른다
+1. `rank:artist:current`(ZSET)에서 **전량**을 꺼낸다. 아티스트가 수백 규모라 전량이 싸고, 구간만 꺼내면 4번 필터에서 걸러진 만큼 페이지가 비어 버린다
+2. `score DESC → artistSeq ASC` 로 정렬을 확정하고 순서대로 `rank` 를 매긴다(1-base)
+3. `rank:artist:prev` 에서 같은 아티스트의 직전 순위를 찾아 `rankDelta` 를 계산한다 — 없으면 `null`
+4. `filter` 가 `SUBSCRIBED`/`UNSUBSCRIBED` 면 요청자의 구독 아티스트를 **1회 조회**해 거른다. 항목마다 조회하면 그대로 N+1 이다
+5. `page`·`size` 로 자른 뒤, **그 페이지 분량만** 아티스트 메타(`name`·`groupName`·`profileImageUrl`)를 DB 에서 채운다
+6. `profileImageUrl` 은 공개 등급이다 — 서명하지 않는다(§1.7)
+
+**`filter` 는 Redis 가 아니라 애플리케이션 단계에서 적용한다** (미결 해소). 구독 정보는 Redis 에 없고, 자르기 전에 걸러야 페이지 크기가 일정하다.
 
 ### 캐싱 (클라이언트 규약 §1.6)
 
 - **TTL 5분** + stale-while-revalidate. 랭킹 배치 주기와 같다.
 - 탭 복귀 시 TTL 안이면 요청하지 않는다. 지났으면 **기존 화면을 유지한 채 조용히 갱신**한다.
 - 당겨서 새로고침만 강제 갱신이다. **폴링·소켓 금지.**
+- **서버는 갱신을 push 하지 않는다.** SSE·WebSocket 을 쓰지 않으며 FCM 은 §14 전용이라 랭킹과 무관하다. 스냅샷이 갈려도 서버는 아무에게도 알리지 않고, 앱이 **화면 진입·포그라운드 복귀·당겨서 새로고침** 시점에 당겨 간다.
+- 이 규약은 **클라이언트 책임**이다(§1.6 제목). 서버는 강제하지 않는다 — "5분마다 갱신된다"를 타이머 폴링으로 구현하지 않도록 계약을 넘길 때 함께 짚는다.
 
 ### 실패 응답
 
 **도메인 분기 없음.** 스냅샷이 비어 있으면 빈 목록 200.
 
-### 미결
-
-- **랭킹 스냅샷을 만드는 배치가 선행 작업이다.** 이 API 는 스냅샷을 읽기만 한다 — 집계 주기·점수 공식·`:current`/`:prev` 교체 방식은 배치 티켓에서 정한다.
-- `filter` 를 적용하면 페이지 크기가 들쭉날쭉해진다(스냅샷에서 꺼낸 뒤 거르므로). 필터링을 Redis 단계에서 할지 DB 단계에서 할지는 구현 시 판단한다.
+Redis 가 죽으면 §1.4 공통 500 이다 — 랭킹은 캐시가 아니라 **데이터 출처**라 DB 폴백을 두지 않는다.
 
 ---
 
@@ -458,4 +509,5 @@ Authorization: Bearer {accessToken}
 ## 이 문서에서 발견한 원본 명세 반영 대기
 
 1. **아티스트 이름·그룹명의 출처** — 원본은 `name`·`groupName` 을 아티스트 속성처럼 적지만, DB 에서는 `users.nickname` 과 `artist_groups.group_name` 이다. `group_seq` 가 NULL 허용이라 **`groupName` 은 `null` 일 수 있다**(솔로 아티스트). 원본 예시에는 항상 값이 있어 오해의 소지가 있다.
-2. **§5.1 랭킹 배치** — 원본은 API 계약만 적고 스냅샷 생성 주체를 정하지 않았다. 배치 없이는 이 API 가 항상 빈 목록을 반환한다.
+2. **§5.1 점수 공식·갱신 주기** — 원본은 API 계약(`rank:artist:current` 를 읽는다)만 적고 **점수 공식과 스냅샷 생성 주체를 정하지 않았다.** S15P21D104-51 에서 배치와 함께 확정했고 그 내용이 위 §5.1 에 있다. `:prev` 교체 주기(10분)도 원본에 없던 값이다.
+3. **§5.1 의 입력이 아직 0 이다** — 점수가 `challenges.view_count`·`participant_count` 에서 나오는데 둘 다 증가 경로(§7.4 조회 이벤트, 참여 영상 업로드)가 미구현이다. 랭킹 API 자체는 완성이지만 **의미 있는 순위는 그 두 티켓이 머지된 뒤**에 나온다.
