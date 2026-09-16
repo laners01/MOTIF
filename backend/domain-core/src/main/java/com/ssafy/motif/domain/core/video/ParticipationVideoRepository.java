@@ -365,6 +365,23 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
             """)
     Optional<AdminVideoRow> findAdminDetail(@Param("videoSeq") Long videoSeq);
 
+    /**
+     * 소프트 삭제 — 영향 행 수를 돌려준다 (§3.13.3 · §8.10 공용).
+     *
+     * <p><b>0행이면 이미 삭제된 것이다.</b> 신고 인용이 멱등이려면 그 구분이 필요하다 —
+     * 이미 지워진 영상을 또 지웠다고 {@code participant_count} 를 한 번 더 내리면
+     * 카운트가 음수로 흐른다(DB §26).
+     *
+     * <p><b>여기 있는 이유.</b> §8.10 본인 삭제도 같은 로직을 쓴다. 어드민 신고 처리
+     * 쪽에 두면 §8.10 이 같은 것을 다시 만들고, 한쪽만 고쳤을 때 카운트가 갈린다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ParticipationVideo v
+               set v.deleted = true, v.modUsrSeq = :modUsrSeq
+             where v.videoSeq = :videoSeq and v.deleted = false
+            """)
+    int softDelete(@Param("videoSeq") Long videoSeq, @Param("modUsrSeq") Integer modUsrSeq);
 
     /**
      * 한 페이지 분 {@code isLiked} 를 한 번에 (API 명세 §8.1).

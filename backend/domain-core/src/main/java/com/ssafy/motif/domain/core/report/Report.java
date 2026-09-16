@@ -98,4 +98,19 @@ public class Report extends BaseTimeEntity {
         throw new IllegalStateException("대상이 없는 신고다: reportSeq=" + reportSeq);
     }
 
+    /**
+     * 인용·기각 처리 (§3.13.3).
+     *
+     * <p>상태 전이만 한다. 대상 삭제와 후처리는 도메인이 다르므로 서비스가 맡는다 —
+     * 여기서 하면 {@code Report} 가 참여 영상·댓글을 알게 된다.
+     */
+    public void process(ReportStatus decision, Integer processedUsrSeq) {
+        this.status = decision;
+        this.processedUsrSeq = processedUsrSeq;
+        this.processedDttm = Instant.now();
+    }
+
+    public boolean isReceived() {
+        return status == ReportStatus.RECEIVED;
+    }
 }

@@ -4,6 +4,7 @@ import com.ssafy.motif.domain.core.artist.ArtistCount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,6 +13,23 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
+
+    /**
+     * 참여 수 감소 — 참여 영상이 처음 삭제될 때 (어드민 명세 §3.13.3 · DB §26).
+     *
+     * <p><b>0 아래로 내려가지 않는다.</b> {@code participant_count > 0} 조건이 바닥을
+     * 막는다. 신고 인용이 멱등이라 같은 영상에 두 번 불릴 수 있는데, 그때 음수가 되면
+     * 챌린지 목록의 참여 수가 영영 틀어진다.
+     *
+     * <p>UPDATE 한 문장이다 — 엔티티를 읽어 −1 하고 저장하면 동시 삭제에 유실된다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Challenge c
+               set c.participantCount = c.participantCount - 1
+             where c.challengeSeq = :challengeSeq and c.participantCount > 0
+            """)
+    int decrementParticipantCount(@Param("challengeSeq") Integer challengeSeq);
 
     /** 아티스트 목록·상세의 {@code challengeCount} (어드민 §3.5.1) — 페이지 전체를 한 번에. */
     @Query("""
