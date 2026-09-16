@@ -1,5 +1,6 @@
 package com.ssafy.motif.core.ui.comment
 
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,32 +17,47 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogWindowProvider
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.HorizontalDivider
 import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
+import com.ssafy.motif.core.designsystem.component.bottomsheet.BottomSheetDefaults
 import com.ssafy.motif.core.designsystem.component.bottomsheet.ModalBottomSheet
+import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
+import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetValue
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberModalBottomSheetState
+import com.ssafy.motif.core.designsystem.theme.MotifColors
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.comment.Reply
+import kotlinx.coroutines.launch
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
@@ -63,17 +79,26 @@ fun CommentBottomSheet(
             partiallyExpandedFraction = 0.6f,
         )
 
+    val listState =
+        rememberLazyListState()
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        dragHandle = {
+            CommentSheetHeader(
+                commentCount = commentCount,
+                onDismissClick = onDismissRequest,
+            )
+        },
         modifier = modifier,
     ) {
         CommentSheetContent(
-            commentCount = commentCount,
             comments = comments,
             repliesByCommentId = repliesByCommentId,
             expandedCommentIds = expandedCommentIds,
-            onDismissClick = onDismissRequest,
+            sheetState = sheetState,
+            listState = listState,
             onCommentLikeClick = onCommentLikeClick,
             onReplyClick = onReplyClick,
             onReplyLikeClick = onReplyLikeClick,
@@ -87,11 +112,11 @@ fun CommentBottomSheet(
 
 @Composable
 private fun CommentSheetContent(
-    commentCount: Long,
     comments: List<Comment>,
     repliesByCommentId: Map<Long, List<Reply>>,
     expandedCommentIds: Set<Long>,
-    onDismissClick: () -> Unit,
+    sheetState: SheetState,
+    listState: LazyListState,
     onCommentLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
@@ -105,25 +130,25 @@ private fun CommentSheetContent(
             )
         }
 
+    val nestedScrollConnection =
+        rememberCommentSheetNestedScrollConnection(
+            sheetState = sheetState,
+            listState = listState,
+        )
+
     Column(
         modifier = modifier
             .fillMaxWidth(),
     ) {
-        CommentSheetHeader(
-            commentCount = commentCount,
-            onDismissClick = onDismissClick,
-        )
-
-        HorizontalDivider(
-            color = Color.White.copy(
-                alpha = 0.35f,
-            ),
-        )
-
+        HorizontalDivider(color = MotifColors.defaultColors().gray500)
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .nestedScroll(
+                    nestedScrollConnection,
+                ),
         ) {
             prioritizedComments.forEach { comment ->
                 item(
@@ -174,59 +199,148 @@ private fun CommentSheetContent(
 }
 
 @Composable
+private fun rememberCommentSheetNestedScrollConnection(
+    sheetState: SheetState,
+    listState: LazyListState,
+): NestedScrollConnection {
+    val coroutineScope =
+        rememberCoroutineScope()
+
+    return remember(
+        sheetState,
+        listState,
+        coroutineScope,
+    ) {
+        object : NestedScrollConnection {
+
+            var isCollapsing = false
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (
+                    source != NestedScrollSource.UserInput ||
+                    available.y <= 0f
+                ) {
+                    return Offset.Zero
+                }
+
+                val isListAtTop =
+                    listState.firstVisibleItemIndex == 0 &&
+                            listState.firstVisibleItemScrollOffset == 0
+
+                if (!isListAtTop) {
+                    return Offset.Zero
+                }
+
+                val canCollapse =
+                    sheetState.currentValue ==
+                            SheetValue.Expanded ||
+                            sheetState.currentValue ==
+                            SheetValue.PartiallyExpanded
+
+                if (!canCollapse) {
+                    return Offset.Zero
+                }
+
+                if (!isCollapsing) {
+                    isCollapsing = true
+
+                    coroutineScope.launch {
+                        try {
+                            when (sheetState.currentValue) {
+                                SheetValue.Expanded -> {
+                                    sheetState.partialExpand()
+                                }
+
+                                SheetValue.PartiallyExpanded -> {
+                                    sheetState.hide()
+                                }
+
+                                SheetValue.Hidden -> Unit
+                            }
+                        } finally {
+                            isCollapsing = false
+                        }
+                    }
+                }
+
+                /*
+                 * LazyColumn이 최상단에서 더 이상 내려갈 수 없을 때
+                 * 남은 아래 방향 스크롤을 소비한다.
+                 *
+                 * 그렇지 않으면 overscroll 효과가 동시에 발생할 수 있다.
+                 */
+                return Offset(
+                    x = 0f,
+                    y = available.y,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CommentSheetHeader(
     commentCount: Long,
     onDismissClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .padding(
-                horizontal = 20.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "댓글",
-            color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.titleSB18,
-        )
+        BottomSheetDefaults.DragHandle()
 
-        Spacer(
-            modifier = Modifier.width(12.dp),
-        )
-
-        Text(
-            text = formatCount(
-                commentCount,
-            ),
-            color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.bodySB16,
-        )
-
-        Spacer(
-            modifier = Modifier.weight(1f),
-        )
-
-        Icon(
-            painter = painterResource(
-                DesignSystemR.drawable.ic_close_24,
-            ),
-            contentDescription = "닫기",
-            tint = MotifTheme.colors.typo,
+        Row(
             modifier = Modifier
-                .size(28.dp)
-                .clickable(
-                    interactionSource =
-                        remember {
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 20.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "댓글",
+                color = MotifTheme.colors.typo,
+                style = MotifTheme.typography.titleSB18,
+            )
+
+            Spacer(
+                modifier = Modifier.width(12.dp),
+            )
+
+            Text(
+                text = formatCount(
+                    commentCount,
+                ),
+                color = MotifTheme.colors.typo,
+                style = MotifTheme.typography.bodySB16,
+            )
+
+            Spacer(
+                modifier = Modifier.weight(1f),
+            )
+
+            Icon(
+                painter = painterResource(
+                    DesignSystemR.drawable.ic_close_24,
+                ),
+                contentDescription = "닫기",
+                tint = MotifTheme.colors.typo,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(
+                        interactionSource = remember {
                             MutableInteractionSource()
                         },
-                    indication = null,
-                    onClick = onDismissClick,
-                ),
-        )
+                        indication = null,
+                        onClick = onDismissClick,
+                    ),
+            )
+        }
     }
 }
 
@@ -312,7 +426,8 @@ private fun CommentItem(
                 )
 
                 CommentAction(
-                    iconRes = DesignSystemR.drawable.ic_message_24,
+                    iconRes =
+                        DesignSystemR.drawable.ic_message_24,
                     count = comment.replyCount,
                     tint = MotifTheme.colors.typo,
                     onClick = onReplyClick,
@@ -402,11 +517,13 @@ private fun CommentAuthor(
     nickname: String,
     createdAt: String,
     modifier: Modifier = Modifier,
-    authorType: CommentAuthorType = CommentAuthorType.USER,
+    authorType: CommentAuthorType =
+        CommentAuthorType.USER,
 ) {
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment =
+            Alignment.CenterVertically,
     ) {
         Text(
             text = nickname,
@@ -416,7 +533,10 @@ private fun CommentAuthor(
             overflow = TextOverflow.Ellipsis,
         )
 
-        if (authorType == CommentAuthorType.ARTIST) {
+        if (
+            authorType ==
+            CommentAuthorType.ARTIST
+        ) {
             Spacer(
                 modifier = Modifier.width(4.dp),
             )
@@ -465,7 +585,8 @@ private fun CommentAction(
             Arrangement.spacedBy(
                 6.dp,
             ),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment =
+            Alignment.CenterVertically,
     ) {
         Icon(
             painter = painterResource(
@@ -559,6 +680,12 @@ private fun CommentSheetContentPreview() {
     val profileUrl =
         "android.resource://${context.packageName}/${DesignSystemR.drawable.img_profile}"
 
+    val sheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = false,
+            partiallyExpandedFraction = 0.6f,
+        )
+
     MotifTheme {
         Box(
             modifier = Modifier
@@ -585,7 +712,6 @@ private fun CommentSheetContentPreview() {
                     MotifTheme.colors.typo,
             ) {
                 CommentSheetContent(
-                    commentCount = 328L,
                     comments =
                         previewComments(
                             profileUrl = profileUrl,
@@ -598,7 +724,9 @@ private fun CommentSheetContentPreview() {
                         ),
                     expandedCommentIds =
                         emptySet(),
-                    onDismissClick = {},
+                    sheetState = sheetState,
+                    listState =
+                        rememberLazyListState(),
                     onCommentLikeClick = {},
                     onReplyClick = {},
                     onReplyLikeClick = {},
@@ -649,13 +777,6 @@ private fun CommentBottomSheetPreview() {
     }
 }
 
-/*
- * 일부러 USER -> CURRENT_USER -> ARTIST 순서로 넣는다.
- *
- * 실제 화면에서는 prioritizeComments()에 의해
- * ARTIST -> CURRENT_USER -> USER 순서로 표시되는지
- * Preview에서 확인할 수 있다.
- */
 private fun previewComments(
     profileUrl: String,
 ): List<Comment> =
