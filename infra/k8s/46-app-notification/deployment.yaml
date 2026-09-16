@@ -1,0 +1,121 @@
+# app-notification — evt.notification 을 소비해 구독자에게 FCM 을 보내는 워커
+# (backend/app-notification, API 명세 §14).
+#
+# app-media 와 같은 모양의 큐 소비자다. 다른 점만 적는다.
+#   1) 작업 디렉터리가 없다. 바이트를 다루지 않고 토큰과 JSON 만 만진다.
+#   2) 대신 **FCM 서비스 계정 JSON 을 읽기 전용으로 마운트**한다.
+#   3) 리소스가 훨씬 작다 — ffmpeg 가 없다.
+#
+# ** 이 파드가 motif_notif 스키마의 유일한 생성자다. ** Liquibase 가 기동 시
+# device_tokens 와 core_app 용 GRANT 를 만든다. 2026-09-17 확인 시점에 운영
+# motif_notif 에는 테이블이 하나도 없었다 — 이 배포 전까지 §14 전체가 죽어 있다.
+#
+# 이미지는 레지스트리에서 받지 않는다(ADR-0007). 아래 태그는 `REPLACE_ME`
+# 자리표시자이고 **최초 apply 전에 사람이 실제 빌드번호로 치환해야 한다.**
+#
+#   kubectl get deployment app-notification -o jsonpath='{.spec.template.spec.containers[0].image}'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-notification
+  labels:
+    app: app-notification
+spec:
+  replicas: 1
+  # Recreate — app-media 와 같은 이유다. 받는 것이 HTTP 가 아니라 큐 메시지라
+  # 교체 중 잠깐 없어도 evt.notification 이 durable 로 들고 기다린다.
+  # RollingUpdate 면 교체 순간 소비자가 둘이 되는데, 멱등 가드가 Redis SETNX 라
+  # 막히기는 하지만 같은 이벤트를 두 파드가 동시에 집으면 한쪽이 헛돈다.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: app-notification
+  template:
+    metadata:
+      labels:
+        app: app-notification
+    spec:
+      # application.yml 의 timeout-per-shutdown-phase=30s 가 끝날 시간을 준다.
+      # 기본 30s 로 두면 종료 단계 중에 SIGKILL 이 들어온다.
+      terminationGracePeriodSeconds: 45
+      # 이미지가 uid/gid 1001(app) 비루트로 돈다. Secret 볼륨을 group 1001 로
+      # 잡아 defaultMode 0440 으로 좁힐 수 있게 한다.
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: app-notification
+          image: registry.local/motif/app-notification:REPLACE_ME
+          # 로컬 containerd 에 이미지가 없으면 즉시 실패시킨다 — IfNotPresent 로
+          # 두면 임포트 누락이 ImagePullBackOff 로 나타나 네트워크 문제처럼 보인다.
+          imagePullPolicy: Never
+          ports:
+            - name: management
+              containerPort: 9082
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: TZ
+              value: "Asia/Seoul"
+            # 컨테이너 메모리 인식 기본 상한 25% 는 너무 낮다. 50% 로 올린다.
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=50.0"
+          # DB_PASSWORD · MQ_PASSWORD · REDIS_PASSWORD — secret.example.yaml.txt 참조.
+          # FCM 자격증명은 여기 넣지 않는다. JSON 파일이라 환경변수로 넣으면
+          # 키 이름이 유효한 env 이름이 아니어서 kubelet 이 조용히 건너뛴다.
+          envFrom:
+            - secretRef:
+                name: app-notification-secret
+          # FCM 서비스 계정 JSON. application-prod.yml 의
+          # motif.notification.fcm-credentials-path 와 같은 경로여야 한다 —
+          # 어긋나면 기동 시점에 크게 실패한다(FcmConfig 가 읽기 가능 여부를 본다).
+          volumeMounts:
+            - name: fcm
+              mountPath: /etc/fcm
+              readOnly: true
+          resources:
+            requests:
+              memory: "384Mi"
+              cpu: "100m"
+            limits:
+              # 인코딩이 없다. 하는 일은 DB 조회 한 번과 HTTPS 호출이라
+              # app-media 의 1000m 이 필요 없다.
+              memory: "768Mi"
+              cpu: "500m"
+          # 프로브는 전부 관리 포트 9082 다(core-api 9081, app-media 9083).
+          #
+          # ** 워커는 설정이 틀려도 "Started" 를 찍고 뜬다. ** readiness 그룹에
+          # db·rabbit·redis 를 넣어둬서(application-prod.yml) 비밀번호가 틀리면
+          # 배포가 그 자리에서 멈춘다. 없으면 1/1 Ready 인 파드가 알림을 하나도
+          # 보내지 않는 상태로 방치된다.
+          #
+          # 5s * 30 = 150s. Liquibase 가 돌아 app-media(120s)보다 길게 준다 —
+          # 첫 기동에서 device_tokens 생성과 GRANT 3종이 실행된다.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 9082
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9082
+            periodSeconds: 10
+            failureThreshold: 3
+          # liveness 는 livenessState 만 본다. Redis 나 MQ 가 잠깐 끊겼다고
+          # 재시작하면 처리 중이던 이벤트만 날아간다.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9082
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: fcm
+          secret:
+            secretName: app-notification-fcm
+            # 0440 — 소유자와 group(fsGroup 1001)만 읽는다. 이 키 하나로 프로젝트
+            # 전체에 푸시를 쏠 수 있다.
+            defaultMode: 0440
