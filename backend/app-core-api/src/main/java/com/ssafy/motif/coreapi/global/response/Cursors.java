@@ -12,9 +12,10 @@ import java.util.Base64;
  * <p>§1.9 는 커서를 "서버 생성 opaque 토큰(base64 — 정렬 키 조합)" 으로 정하고 클라이언트는
  * 해석·조작하지 않는다고 못박는다. 정렬 키가 <b>PK 하나</b>인 목록(§5.5 아티스트 공지,
  * §7.1 챌린지 피드)은 {@link #encode}·{@link #decode} 를, 스냅샷 순서를 페이지하는
- * 목록(§6.1 HOT)은 {@link #encodeSnapshot}·{@link #decodeSnapshot} 을 쓴다.
+ * 목록(§6.1 HOT)은 {@link #encodeSnapshot}·{@link #decodeSnapshot} 을, 조회 시점에 점수를
+ * 매겨 정렬하는 목록(§8.1 참여 영상 피드)은 {@link #encodeScore}·{@link #decodeScore} 를 쓴다.
  *
- * <p><b>두 형식을 하나로 합치지 않는다.</b> 단일 PK 토큰에 버전 칸을 더하면 §5.5·§7.1
+ * <p><b>세 형식을 하나로 합치지 않는다.</b> 단일 PK 토큰에 버전 칸을 더하면 §5.5·§7.1
  * 이 쓰지 않는 값을 채워야 하고, 이미 발급돼 클라이언트가 들고 있는 토큰이 디코드되지
  * 않는다(무한 스크롤 중인 화면이 400 을 만난다). 형식을 늘리는 쪽이 싸다.
  *
@@ -98,6 +99,51 @@ public final class Cursors {
             return new Snapshot(
                     Long.parseLong(decoded.substring(0, at)),
                     Integer.parseInt(decoded.substring(at + 1)));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER, "cursor: " + cursor);
+        }
+    }
+
+    /** 점수 정렬 목록의 커서 위치 — {@code (이번 페이지 마지막 항목의 점수, 그 videoSeq)} (§8.1). */
+    public record Score(long score, long lastSeq) {
+    }
+
+    /**
+     * 점수 정렬 목록의 다음 페이지 토큰 (§8.1).
+     *
+     * <p><b>seq 가 함께 들어가는 것이 요점이다.</b> 점수만 담으면 같은 점수인 영상들의
+     * 경계에서 페이지가 잘리지 않는다 — 점수 0(아직 아무도 안 본 영상)이 흔해 실제로
+     * 일어나고, 같은 점수 묶음이 통째로 반복되거나 통째로 사라진다.
+     *
+     * <p>{@link #encodeSnapshot} 과 칸 수가 같아 <b>토큰 문자열만으로는 구분되지 않는다</b>
+     * — 어느 목록의 커서인지는 형식이 아니라 부르는 쪽이 안다. 그래도 record 를 나눠 두는
+     * 것은 담는 값의 뜻과 타입이 다르기 때문이다(버전·순위 ≠ 점수·seq, {@code int} ≠
+     * {@code long}). 합치면 §6.1 의 순위 자리에 §8.1 의 {@code videoSeq} 를 넣어도
+     * 컴파일이 통과한다.
+     */
+    public static String encodeScore(long score, long lastSeq) {
+        return ENCODER.encodeToString(
+                (score + DELIMITER + lastSeq).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 토큰 → {@code (점수, seq)}. {@code null}·빈 문자열은 "최초 호출" 이라 {@code null} 을 준다.
+     *
+     * <p>{@link #decode} 와 같은 이유로 망가진 토큰은 400 이다.
+     */
+    public static Score decodeScore(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            String decoded = new String(DECODER.decode(cursor), StandardCharsets.UTF_8);
+            int at = decoded.indexOf(DELIMITER);
+            if (at < 0) {
+                throw new IllegalArgumentException("구분자가 없다");
+            }
+            return new Score(
+                    Long.parseLong(decoded.substring(0, at)),
+                    Long.parseLong(decoded.substring(at + 1)));
         } catch (IllegalArgumentException e) {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER, "cursor: " + cursor);
         }

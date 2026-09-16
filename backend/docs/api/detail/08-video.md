@@ -90,7 +90,29 @@
 
 ## 8.1 GET /api/v1/challenges/{challengeSeq}/videos — 참여 영상 피드
 
-**커서 페이지네이션**(§1.9). **추천 정렬**이며 서버 고정이다 — 좋아요·댓글·조회수에 `has_artist_like`·`has_artist_comment` 를 강하게 가중한다(아티스트가 반응한 영상을 위로).
+**커서 페이지네이션**(§1.9). **추천 정렬**이며 서버 고정이다 — `sort` 파라미터가 없다.
+
+### 정렬 **(기본안)**
+
+```
+score = (has_artist_like + has_artist_comment) × 10¹² + view_count
+order by score desc, video_seq desc
+```
+
+- **아티스트가 반응한 영상이 사실상 다른 층이다.** 원본 명세는 "좋아요·댓글·조회수 +
+  `has_artist_like`/`has_artist_comment` 강가중" 이라고 적었는데, 강가중을 조회수와 같은
+  자릿수로 주면 조회수가 큰 영상이 그 위로 올라가 요구가 무너진다. 10¹² 는 `view_count`
+  (BIGINT)가 실제로 닿지 않는 자리다.
+- **좋아요·댓글 수는 점수에 넣지 않는다 (기본안)** — §6.1 HOT 랭킹이 같은 이유로
+  조회수만 쓴다. 두 수는 응답 필드로는 그대로 내려간다.
+- `video_seq` 보조 키가 없으면 점수가 같은 영상들이 호출마다 자리를 바꿔 커서 페이지에
+  중복·누락이 생긴다. 점수 0(아무도 안 본 영상)이 흔해 실제로 일어난다.
+- 점수를 **조회 시점에** 매기므로, 스크롤 중 조회수가 오른 영상이 커서를 앞질러 다시
+  나오거나 뒤로 밀려 건너뛸 수 있다. keyset 페이지에서는 피할 수 없고, §6.1 처럼 스냅샷을
+  뜨면 챌린지마다 키가 생겨 이 목록에는 과하다. 커서가 opaque 토큰이라 계약은 안 깨진다.
+
+**커서 형식**: `base64("{score}:{videoSeq}")` — §5.5·§7.1 의 단일 seq 토큰, §6.1 의
+스냅샷 토큰과 **다른 세 번째 형식**이다(`Cursors.encodeScore`).
 
 ### 요청
 
@@ -98,6 +120,8 @@
 GET /api/v1/challenges/{challengeSeq}/videos?cursor={opaque}&size=20
 Authorization: Bearer {accessToken}
 ```
+
+`size` 기본 20, 최대 100(§1.9 공통 상한).
 
 ### 성공 응답 (200) — 커서 페이지
 
@@ -131,7 +155,7 @@ Authorization: Bearer {accessToken}
       }
     ],
     "prevCursor": null,
-    "nextCursor": "eyJ2Ijo4OH0",
+    "nextCursor": "MTAwMDAwMDAwMzQwMDo4OA",
     "hasPrevious": false,
     "hasNext": true
   },
@@ -139,16 +163,29 @@ Authorization: Bearer {accessToken}
 }
 ```
 
+`videoUrl` 의 등급은 **키 프리픽스가 정한다** — `visibility` 로 가르지 않는다(§1.7).
+게시는 공개 사본을 `public/` 으로 복사할 뿐 키를 바꾸지 않아 `PUBLIC` 인데 키는 아직
+`private/` 인 행이 정상적으로 존재한다. 보호 등급이면 CDN 이 아니라 **core-api**
+(`/api/v1/media/{jobUuid}/master.m3u8`)를 가리킨다.
+
 ### 목록에서 제외하는 것
 
-- 타인의 `PRIVATE` 영상 · 삭제 영상 · 삭제 사용자의 영상 (§1.8)
+- **타인의** `PRIVATE` 영상 · 삭제 영상 · 삭제 사용자의 영상 (§1.8)
 - **요청자가 "관심 없음"(§8.6) 한 영상** — `video_hides` 행이 있으면 뺀다
+
+**내 `PRIVATE` 영상은 보인다 (기본안)** — 명세가 뺀다고 적은 것은 "타인의 `PRIVATE`" 이고,
+§4.8 내 챌린지 그리드도 같은 취급이다. 항목의 `visibility` 로 클라이언트가 자물쇠를 그린다.
+
+영상이 0건이면 **빈 목록 200** 이다(`hasNext:false`).
 
 ### 실패 응답
 
 | HTTP | code | 조건 |
 |---|---|---|
+| 400 | `INVALID_PARAMETER` | 망가진 `cursor` (§1.9 공통 — 조용히 첫 페이지로 되돌리지 않는다) |
 | 404 | `CHALLENGE_NOT_FOUND` | 미존재·삭제 챌린지 |
+
+챌린지가 없을 때 빈 목록으로 답하지 않는다 — "영상 0건" 과 구분할 수 없게 된다.
 
 ---
 
