@@ -53,6 +53,19 @@ public class MediaPlaylistQueryService {
     /** 자식 재생목록 주소의 뿌리. {@code MediaController} 의 매핑과 같은 값이어야 한다. */
     public static final String API_BASE_PATH = "/api/v1/media";
 
+    /**
+     * 조회 API 가 {@code videoUrl} 로 내보낼 <b>보호 등급</b> 재생목록 주소.
+     *
+     * <p>CDN 이 아니라 core-api 를 가리킨다 — 왜 그런지는 클래스 javadoc 에 있다.
+     * 주소를 만드는 곳과 받는 곳이 갈리면 한쪽만 고쳤을 때 404 가 되므로, 경로를 아는
+     * 이 클래스가 조립까지 맡는다.
+     *
+     * <p><b>공개 등급에는 쓰지 않는다.</b> 서명이 필요 없는 영상은 CDN 직통 주소가 맞다.
+     */
+    public static String masterPlaylistUrl(UUID jobUuid) {
+        return API_BASE_PATH + "/" + jobUuid + "/" + MediaKeys.MASTER_PLAYLIST;
+    }
+
     private final CompositeJobRepository compositeJobRepository;
     private final ParticipationVideoRepository participationVideoRepository;
     private final MediaPlaylistService playlistService;

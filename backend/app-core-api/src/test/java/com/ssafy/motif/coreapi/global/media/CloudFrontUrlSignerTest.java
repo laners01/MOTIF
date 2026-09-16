@@ -34,8 +34,8 @@ class CloudFrontUrlSignerTest {
     }
 
     private static CloudFrontUrlSigner signer(String pem) {
-        return new CloudFrontUrlSigner(
-                new MediaSigningProperties(KEY_PAIR_ID, pem, Duration.ofMinutes(10)));
+        return new CloudFrontUrlSigner(new MediaSigningProperties(
+                KEY_PAIR_ID, pem, Duration.ofMinutes(10), Duration.ofHours(6)));
     }
 
     @Test
@@ -45,6 +45,29 @@ class CloudFrontUrlSignerTest {
 
         assertThat(signed).startsWith(URL + "?");
         assertThat(signed).contains("Expires=", "Signature=", "Key-Pair-Id=" + KEY_PAIR_ID);
+    }
+
+    @Test
+    @DisplayName("이미지는 재생목록보다 늦게 만료된다 — <img> 에는 다시 받는 복구 경로가 없다")
+    void 이미지_만료가_더_길다() throws Exception {
+        CloudFrontUrlSigner signer = signer(pkcs8Pem());
+
+        long playlistExpires = expiresOf(signer.sign(URL));
+        long imageExpires = expiresOf(signer.signImage(URL));
+
+        // 10분 대 6시간. 정확한 초를 고정하면 실행 시각에 흔들리므로 "한참 더 길다"만 본다
+        assertThat(imageExpires - playlistExpires).isGreaterThan(Duration.ofHours(5).toSeconds());
+    }
+
+    /** {@code …?Expires=1789000000&Signature=…} 에서 만료 epoch 초만 꺼낸다. */
+    private static long expiresOf(String signedUrl) {
+        String query = signedUrl.substring(signedUrl.indexOf('?') + 1);
+        for (String param : query.split("&")) {
+            if (param.startsWith("Expires=")) {
+                return Long.parseLong(param.substring("Expires=".length()));
+            }
+        }
+        throw new IllegalStateException("Expires 가 없다: " + signedUrl);
     }
 
     @Test
