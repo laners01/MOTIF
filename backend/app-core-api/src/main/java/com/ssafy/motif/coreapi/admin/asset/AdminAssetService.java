@@ -16,7 +16,9 @@ import com.ssafy.motif.coreapi.admin.media.VideoRules;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.asset.AssetErrorCode;
+import com.ssafy.motif.coreapi.domain.media.MediaJobPublisher;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
+import com.ssafy.motif.event.contract.MediaJobRequestedEvent;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.global.response.PageResponses;
@@ -44,8 +46,11 @@ import java.util.Map;
  * {@code motif_asset_prices} INSERT 를 <b>한 트랜잭션</b>에 넣는다 — 가격 INSERT 가 실패하면
  * 에셋도 남지 않으므로 "활성인데 팔 수 없는" 상태가 구조적으로 생기지 않는다.
  *
- * <p>이벤트를 발행하지 않는다. 에셋 등록은 푸시 대상이 아니고(§1.6 — 홈 활동 피드에
- * 자연 노출), 미리보기는 MP4 그대로 서빙하므로 {@code job.media} 후처리도 없다(§8 #17).
+ * <p><b>알림 이벤트는 발행하지 않는다</b> — 에셋 등록은 푸시 대상이 아니다(§1.6 — 홈
+ * 활동 피드에 자연 노출). <b>{@code job.media} 는 발행한다</b>: 에셋 미리보기도 앱에서
+ * 재생되므로 HLS 대상이다(2026-09-17 결정, API 명세 §1.7). 발행은 {@link #create} 와
+ * {@link #update} 의 영상 교체 분기 두 곳뿐이고, 커밋 후에 {@code MediaJobEventRelay}
+ * 가 실제로 내보낸다 — 행이 없는데 워커가 먼저 도착하면 갱신할 행을 못 찾는다.
  *
  * <p><b>활성 전환과 가격 활성의 방향</b> — 에셋 비활성화는 가격을 전부 내리고(DB §30),
  * 가격 활성화는 에셋이 활성일 때만 허용한다(DB §31). 그래서 순서는 언제나
@@ -75,6 +80,7 @@ public class AdminAssetService {
     private final AdminMediaService adminMediaService;
     private final VideoRules videoRules;
     private final PublicMediaUrlResolver mediaUrlResolver;
+    private final MediaJobPublisher mediaJobPublisher;
     private final AdminAuditLogger auditLogger;
 
     /**
@@ -138,9 +144,12 @@ public class AdminAssetService {
      * 영상을 열어 볼 수 없다(v0.5) — 화면이 {@code <video>} 로 읽어 실어 보낸 값을
      * {@code VideoRules} 로 대조만 한다. 등록(§3.8.2)과 같은 규약이다.
      *
-     * <p>바꾼 영상의 <b>썸네일은 아직 만들어지지 않는다</b> — 키만 새 규약으로 갈리고
-     * 파일은 app-media 가 만든다(§8 #19). 그 발행부가 아직 없어(398) 교체 직후
-     * 썸네일은 404 다. 등록과 똑같은 상태이므로 여기서 따로 막지 않는다.
+     * <p>영상을 바꾸면 {@code job.media} 를 다시 발행한다. 교체본은 <b>새 uuid</b> 라
+     * 프리픽스가 통째로 새것이므로, 산출물에 붙는 1년 {@code immutable} 과 부딪히지
+     * 않는다(같은 프리픽스에 다시 쓰면 CDN 무효화가 필수다 — {@code MediaStorage.uploadTree}).
+     *
+     * <p>가공이 끝나기 전까지 {@code videoKey} 는 업로드 MP4 이고 썸네일은 404 다.
+     * 등록과 똑같은 상태이므로 여기서 따로 막지 않는다(§8 #19).
      */
     @Transactional
     public AssetDetailResponse update(AuthenticatedAdmin admin, int assetSeq,
@@ -159,6 +168,7 @@ public class AdminAssetService {
             asset.replaceVideo(request.videoKey(),
                     MediaKeys.forAssetThumbnail(request.videoKey()),
                     Math.toIntExact(request.durationMs()));
+            publishMediaJob(assetSeq, request.videoKey());
         }
 
         auditLogger.write(admin, "UPDATE_ASSET", "ASSET", assetSeq, AdminAuditLogger.RESULT_OK);
@@ -194,9 +204,26 @@ public class AdminAssetService {
         priceRepository.save(MotifAssetPrice.of(asset.getAssetSeq(), country.getCountrySeq(),
                 request.price().amount(), request.price().currency(), true, admin.userSeq()));
 
+        publishMediaJob(asset.getAssetSeq(), request.videoKey());
+
         auditLogger.write(admin, "CREATE_ASSET", "ASSET", asset.getAssetSeq(), AdminAuditLogger.RESULT_OK);
         return new AssetCreateResponse(asset.getAssetSeq(), asset.getDurationMs(),
                 mediaUrlResolver.resolve(asset.getThumbnailKey()));
+    }
+
+    /**
+     * 후처리 요청 — 렌디션·HLS·썸네일. 챌린지 등록과 같은 모양이다.
+     *
+     * <p>썸네일 시각을 넘기지 않는다. 에셋 등록 화면에는 스크럽 UI 가 없어 어드민이
+     * 고를 값이 없고, 워커 기본값(1.5초)이면 ≤20초짜리 미리보기에 충분하다.
+     */
+    private void publishMediaJob(int assetSeq, String videoKey) {
+        mediaJobPublisher.publish(
+                MediaJobRequestedEvent.SOURCE_ASSET_PREVIEW,
+                assetSeq,
+                videoKey,                                   // assets/{uuid}.mp4
+                MediaKeys.forAssetPreview(videoKey),        // assets/{uuid}
+                null);
     }
 
     /** §3.8.5 — 비활성화는 가격까지 내리고(DB §30), 재활성화는 가격을 되살리지 않는다. */

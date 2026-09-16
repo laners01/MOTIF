@@ -221,6 +221,7 @@ master.m3u8                 ← videoUrl 이 가리키는 것
 | 참여 영상 (§6.1·§8.2) | **HLS** | 피드에서 재생 |
 | 모티프 결과 (§4.1·§5.8/11.5·§11.6) | **HLS** | 보관함에서 재생 |
 | **챌린지 원본 (§7.1·§7.2)** | **HLS** | 피드에서 참여 영상과 **같이 스와이프**된다. 한쪽만 MP4 면 그 구간에서 ABR 이 동작하지 않는다 |
+| **모티프 에셋 미리보기 (§11.1·§11.2)** | **HLS** | 숍 화면에서 재생된다. **가로** 영상이지만 사다리가 짧은 변 기준이라 같은 파라미터로 간다 *(2026-09-17 — 어드민 명세 v0.5 §8 #17 "MP4 유지" 를 뒤집었다)* |
 | 사용자 원본 업로드 (`raw_video_key`) | MP4 | 재생하지 않는다. 합성 워커의 **입력**이다 |
 | 편집본 소스 (`edited_challenges.video_key`) | MP4 | 같음 — 워커 입력 |
 
@@ -231,7 +232,7 @@ master.m3u8                 ← videoUrl 이 가리키는 것
 | 합성 결과 (가공 시점) | `raw/{uuid}.mp4` | `private/{challenge\|motif}/{jobUuid}/` | **필요** |
 | PUBLIC 으로 게시된 참여 영상 | (위 트리에서 복사) | `public/challenge/{jobUuid}/` | 불필요 |
 | 챌린지 원본 | `challenges/{uuid}.mp4` (어드민 명세 §1.4) | `challenges/{uuid}/` | 불필요 |
-| 에셋 미리보기 | `assets/{uuid}.mp4` | `assets/{uuid}/` (썸네일만) | 불필요 |
+| 에셋 미리보기 | `assets/{uuid}.mp4` | `assets/{uuid}/` (마스터·화질별·썸네일) | 불필요 |
 
 CloudFront 의 "Restrict viewer access" 는 **캐시 동작 단위**이고 캐시 동작은 path
 pattern 으로 고른다. 보호 여부가 경로 최상단에 드러나 있어야 동작 하나(`private/*`)로
@@ -1185,7 +1186,7 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
   "assetSeq": 21,
   "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa" },
   "title": "9월 신규 에셋",
-  "previewVideoUrl": "https://cdn.../assets/uuid.mp4",
+  "previewVideoUrl": "https://cdn.../assets/uuid/master.m3u8",
   "thumbnailUrl": "...",
   "description": "...",
   "durationMs": 9800,
@@ -1196,7 +1197,8 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 }
 ```
 
-- `previewVideoUrl` 은 공개 CDN. `price` 는 KR 활성 가격 — 없으면 `null` + `purchasable:false`.
+- `previewVideoUrl` 은 공개 CDN 의 **HLS 마스터 재생목록**이다(§1.7). 가공이 끝나기 전에는 업로드 MP4 키가 그대로 들어 있고 썸네일은 404 다 — 어드민 등록 직후의 짧은 구간이다.
+- `price` 는 KR 활성 가격 — 없으면 `null` + `purchasable:false`.
 
 - `myAccess` ∈ `OWNED | PASS | NONE`, 우선순위 `OWNED > PASS > NONE`.
 

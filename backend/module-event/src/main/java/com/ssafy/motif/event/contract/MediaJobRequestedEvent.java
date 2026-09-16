@@ -15,7 +15,8 @@ import java.time.Instant;
  * @param occurredAt   발생 시각 (ISO-8601 UTC)
  * @param mediaJobUuid 이 후처리 잡의 uuid — 전 구간 멱등 키
  * @param sourceType   {@code COMPOSITE_RESULT}(합성 결과) | {@code CHALLENGE_ORIGIN}(어드민 업로드)
- * @param sourceSeq    갱신할 행의 PK — sourceType 에 따라 composite_jobs 또는 challenges
+ *                     | {@code ASSET_PREVIEW}(모티프 에셋 미리보기)
+ * @param sourceSeq    갱신할 행의 PK — sourceType 에 따라 composite_jobs · challenges · motif_assets
  * @param sourceKey    S3 원본 키. 재생용이 아니라 <b>입력</b>이므로 MP4 그대로다
  * @param outputPrefix S3 산출물 프리픽스. 이 아래에 master.m3u8·thumb.jpg·화질별 디렉터리가 깔린다
  * @param thumbnailAtMs 썸네일을 뽑을 시각(ms). <b>선택 — null 이면 워커 기본값(1.5초)</b>.
@@ -36,4 +37,12 @@ public record MediaJobRequestedEvent(
 ) {
     public static final String SOURCE_COMPOSITE_RESULT = "COMPOSITE_RESULT";
     public static final String SOURCE_CHALLENGE_ORIGIN = "CHALLENGE_ORIGIN";
+
+    /**
+     * 모티프 에셋 미리보기 — 2026-09-17 추가(계약은 additive-only 라 상수 추가가 허용된다).
+     *
+     * <p>에셋도 앱에서 재생되므로 HLS 다(API 명세 §1.7). 가로 영상이지만 사다리 값이
+     * 짧은 변이라 챌린지 원본과 <b>같은 파라미터</b>로 간다 — 가로 전용 사다리는 없다.
+     */
+    public static final String SOURCE_ASSET_PREVIEW = "ASSET_PREVIEW";
 }

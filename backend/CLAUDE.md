@@ -111,6 +111,9 @@ S15P21D104-181
 | `MediaJobRequestedEvent` | `module-event/.../contract/` | S15P21D104-603 |
 | `MediaJobPublisher` · `MediaJobEventRelay` · `MediaKeys` | `app-core-api/.../domain/media/` | 603 |
 | `app-media` 모듈 전체 (렌디션·HLS·썸네일·S3·Dockerfile) | `app-media/` | 603 |
+| **`SOURCE_ASSET_PREVIEW`** — 에셋도 HLS 다. 계약은 additive-only | `module-event/.../contract/MediaJobRequestedEvent` | S15P21D104-398 |
+| 에셋 후처리 발행 `AdminAssetService.publishMediaJob` (등록·영상교체 두 곳) · 프리픽스 `MediaKeys.forAssetPreview` | `app-core-api/.../admin/asset/` · `domain/media/` | 398 |
+| **가로·세로 공용 사다리** — `HlsPackager` 가 짧은 변 기준으로 일반화됐다(`Size.shortSide`·`scaleShortSide`). 방향 게이트(`requirePortrait`)는 제거됨 | `app-media/.../encode/HlsPackager` | 398 |
 | **어드민 §5 에러 코드 전량** `AdminErrorCode` | `module-common/.../error/` | S15P21D104-588 |
 | `BusinessException` 의 `data` — 실패 상세를 응답 `data` 로 | `module-common/.../exception/` | 588 |
 | `AdminIpFilter`(404) · `AdminAuthFilter`(쿠키+Bearer) · `AdminJwtProvider` · `AdminSecurityConfig`(@Order(1)) | `app-core-api/.../admin/security/` | 588 |
@@ -162,6 +165,7 @@ S15P21D104-181
 
 ```java
 // 후처리를 걸 때 — 새로 짜지 말고 이걸 부른다
+// 에셋이면 SOURCE_ASSET_PREVIEW + MediaKeys.forAssetPreview(videoKey) — 이미 있다
 mediaJobPublisher.publish(
     MediaJobRequestedEvent.SOURCE_CHALLENGE_ORIGIN,
     challengeSeq,
@@ -226,6 +230,12 @@ return PageResponses.of(repository.search(q, PageResponses.pageable(page, size))
 **`AdminErrorCode` 에 코드를 새로 추가하지 않는다** — 명세 §5 표는 전량 등록돼 있다.
 표에 없는 코드가 필요하면 명세를 먼저 고친다. 여러 세션이 각자 코드를 덧붙이면
 같은 파일에서 계속 충돌한다.
+
+**사다리 값(480/720/1080)은 언제나 짧은 변이다 — 가로폭이 아니다.** 세로면
+`scale=W:-2`, 가로면 `scale=-2:W` 로 방향에 따라 축이 갈린다(`HlsPackager.scaleShortSide`).
+`r.width()` 라는 이름에 속아 가로폭과 견주면 **가로 영상에서 업스케일 가드가 뚫린다**.
+가공 단계에 방향 게이트를 되살리지 마라 — 되살리면 에셋 미리보기가 전량 DLQ 로 간다
+(세로 피드 강제는 업로드 단계 `VideoRules.PORTRAIT_REQUIRED` 의 몫이다).
 
 **인코딩 파라미터(GOP·비트레이트·faststart)는 `app-media` 에만 둔다 — core-api 에
 복사하지 않는다.** 두 곳에 있으면 한쪽만 고쳤을 때 화질 간 키프레임 정렬이 깨지는데,
