@@ -22,6 +22,9 @@ import java.nio.file.Path;
  * <p>실측 비용은 60초 영상 기준 10.5초다(영상 길이의 0.1배속). 합성 자체가 훨씬
  * 비싸므로 배치로 미루지 않는다 — 미루면 갓 올라온 영상에 화질 사다리가 없어
  * ABR 이 동작하지 않는다.
+ *
+ * <p><b>세 소스가 같은 경로를 탄다</b> — 합성 결과 · 챌린지 원본 · 모티프 에셋
+ * 미리보기. 갈리는 것은 갱신할 테이블뿐이고 가공 파라미터는 하나다(ADR-0010 D1).
  */
 @Slf4j
 @Service
@@ -73,6 +76,10 @@ public class MediaJobProcessor {
             case MediaJobRequestedEvent.SOURCE_CHALLENGE_ORIGIN -> jdbc.queryForObject(
                     "SELECT COUNT(*) FROM challenges WHERE challenge_seq = ? AND video_key = ?",
                     Integer.class, event.sourceSeq(), master);
+            // 에셋도 등록 시점엔 video_key 가 업로드 MP4 다 — 챌린지와 같은 판정이 선다
+            case MediaJobRequestedEvent.SOURCE_ASSET_PREVIEW -> jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM motif_assets WHERE asset_seq = ? AND video_key = ?",
+                    Integer.class, event.sourceSeq(), master);
             default -> throw new IllegalArgumentException("알 수 없는 sourceType: " + event.sourceType());
         };
         return hit != null && hit > 0;
@@ -101,6 +108,10 @@ public class MediaJobProcessor {
                     UPDATE challenges
                        SET video_key = ?, thumbnail_key = ?, mod_dttm = now()
                      WHERE challenge_seq = ?""", master, thumb, event.sourceSeq());
+            case MediaJobRequestedEvent.SOURCE_ASSET_PREVIEW -> jdbc.update("""
+                    UPDATE motif_assets
+                       SET video_key = ?, thumbnail_key = ?, mod_dttm = now()
+                     WHERE asset_seq = ?""", master, thumb, event.sourceSeq());
             default -> throw new IllegalArgumentException("알 수 없는 sourceType: " + event.sourceType());
         };
         if (updated != 1) {

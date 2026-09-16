@@ -220,7 +220,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 대행 좋아요 | `video.liked` 등 | evt.ranking | 카운터·랭킹만. **FCM 없음**(좋아요 알림 미발송 — DB §39 회의 확정) |
 | 회원 정지 | `user.suspended` **(신설)** | evt.notification | `device_tokens.is_active=FALSE` — 토큰 소유권이 알림 서비스라 코어가 직접 UPDATE 불가(코어↔알림 HTTP 금지 → 이벤트) |
 | 에셋 등록 | — | — | 푸시 없음. 홈 6.3 활동 피드에 자연 노출 **(기본안)** |
-| **영상 등록 후처리** *(v0.4)* | `job.media` | app-media | 렌디션 2종 + HLS 패키징 → `video_key` 를 `master.m3u8` 로 교체. **챌린지 등록(3.7.2)·합성 완료 양쪽이 같은 큐로 보낸다** |
+| **영상 등록 후처리** *(v0.4)* | `job.media` | app-media | 렌디션 2종 + HLS 패키징 → `video_key` 를 `master.m3u8` 로 교체. **챌린지 등록(3.7.2)·에셋 등록(3.8.2)·합성 완료 셋이 같은 큐로 보낸다** *(에셋은 2026-09-17 추가)* |
 
 ### 1.7 화면 목록 (Thymeleaf)
 
@@ -667,11 +667,11 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 ```
 
 - 검증: 아티스트 비삭제, `title` 1~100자, `assetType ∈ NORMAL|PREMIUM|SECRET`, `videoKey` HEAD → ffprobe/ffmpeg(가로·≤20초 **기본안**), `price` 선택 — 있으면 `amount > 0`(`NUMERIC(10,2)`, 문자열 `"3900.00"` → `BigDecimal`), `currency` 3자 대문자(현재 `KRW` 만 허용 **기본안**).
-- 처리(트랜잭션): `motif_assets` INSERT(`thumbnail_key`=추출값, `duration_ms`) → `price` 있으면 `motif_asset_prices(asset, KR, amount, currency, is_active=TRUE, reg_usr_seq)` INSERT. 이벤트 없음(홈 6.3 은 `motif_assets.reg_dttm` 조회 기반).
+- 처리(트랜잭션): `motif_assets` INSERT(`thumbnail_key`=추출값, `duration_ms`) → `price` 있으면 `motif_asset_prices(asset, KR, amount, currency, is_active=TRUE, reg_usr_seq)` INSERT → 커밋 후 **`job.media` 발행** *(2026-09-17)*. 알림 이벤트는 없다(홈 6.3 은 `motif_assets.reg_dttm` 조회 기반). `job.media` 가 처리되면 `video_key` 가 `assets/{uuid}/master.m3u8` 로 바뀌고 썸네일 파일이 생긴다.
 
 **성공 (201)** `data`: `{ "assetSeq": 21, "durationMs": 9800, "thumbnailUrl": "…" }`
 
-**3.8.4 요청** `{ "title": "…", "description": "…", "assetType": "PREMIUM", "videoKey": "assets/new….mp4" }` — 부분 수정. `videoKey` 포함 시 재추출·썸네일 재생성(기존 `motif_results`·`composite_jobs` 키는 독립 — 영향 없음). `mod_dttm` 갱신. **200** `data` = 3.8.3.
+**3.8.4 요청** `{ "title": "…", "description": "…", "assetType": "PREMIUM", "videoKey": "assets/new….mp4" }` — 부분 수정. `videoKey` 포함 시 **`job.media` 재발행** — 교체본은 새 uuid 라 프리픽스가 통째로 새것이고, 산출물 1년 `immutable` 과 부딪히지 않는다(기존 `motif_results`·`composite_jobs` 키는 독립 — 영향 없음). `mod_dttm` 갱신. **200** `data` = 3.8.3.
 
 **3.8.5 요청** `{ "isActive": false }` → 같은 트랜잭션에서 해당 에셋 `motif_asset_prices.is_active=FALSE` 전부(DB §30). `{ "isActive": true }` → 에셋만 활성, 가격은 **자동 재활성 없음** — 응답 `data`: `{ "assetSeq": 21, "isActive": true, "inactivePriceCount": 1 }` 로 화면이 경고 표시.
 
@@ -908,7 +908,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | `video.liked` 등 랭킹 이벤트 | 3.12 대행 | 기존 계약 | `evt.ranking` 만. FCM 없음 |
 | `job.media` *(v0.4 부활)* | 3.7.2 커밋 후 · 합성 완료 후 | `{ mediaJobUuid, sourceType, sourceSeq, sourceKey, outputPrefix }` | **app-media**: S3 원본 내려받기 → 렌디션 2종(720p/480p) → HLS(fMP4 + 바이트레인지) → 썸네일 → S3 업로드 → `video_key`(또는 `result_video_key`)를 `master.m3u8` 경로로 갱신. 멱등 키는 대상 행의 키가 이미 마스터 재생목록을 가리키는지로 본다 |
 
-`job.media` 주석 *(v0.4)* — `sourceType` 은 `CHALLENGE_ORIGIN`(어드민 등록) | `COMPOSITE_RESULT`(합성 결과)
+`job.media` 주석 *(v0.4)* — `sourceType` 은 `CHALLENGE_ORIGIN`(어드민 등록) | `COMPOSITE_RESULT`(합성 결과) | `ASSET_PREVIEW`(모티프 에셋, 2026-09-17 추가 — 계약이 additive-only 라 상수만 늘렸다)
 이고 `sourceSeq` 는 갱신 대상 행의 PK(`challenges.challenge_seq` 또는 `composite_jobs.job_seq`)다.
 `outputPrefix` 는 §1.4 산출물 프리픽스 규약으로 만든다. **v0.3 에서 컷한 인제스트 워커와는
 다른 작업이다** — 길이·썸네일은 여전히 동기다(§1.4).
@@ -1000,7 +1000,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 14 | 삭제 아티스트의 `subscriptions` 행 처리(유지+필터 vs 하드 삭제) | ADMIN-04 | 유지+필터 |
 | 15 | 에셋 활성/비활성 멱등 처리(409 vs 200) | 3.8.5 | 409 |
 | 16 | 지침 §7 미결 #1(팬아웃 조회 방식) — DB §39 "직접 조회"로 종결 처리 확인 | §4 | 종결 |
-| 17 | **모티프 에셋 미리보기(`previewVideoUrl`)도 HLS 로 할지** — 가로 ≤20초 짧은 영상이고 스와이프 피드가 아니라 숍 화면에서 재생된다 *(v0.4 신설)* | 3.8, API §11.1 | **MP4 유지**. 길이가 짧아 ABR 이득이 작고 렌디션 2배 비용이 붙는다 |
+| 17 | **모티프 에셋 미리보기(`previewVideoUrl`)도 HLS 로 할지** — 가로 ≤20초 짧은 영상이고 스와이프 피드가 아니라 숍 화면에서 재생된다 *(v0.4 신설)* | 3.8, API §11.1 | ~~MP4 유지~~ → **HLS**. *(2026-09-17 뒤집음, S15P21D104-398)* 팀 결정이 "앱에서 재생되는 모든 영상은 HLS" 로 정리됐다. 뒤집은 결정적 이유는 비용이 아니라 **구멍**이다 — MP4 유지는 곧 `job.media` 를 발행하지 않는다는 뜻이었고, 그래서 에셋 썸네일이 영영 404 였다. 사다리를 짧은 변 기준으로 일반화해 가로도 같은 파라미터로 탄다(ADR-0010 D1) |
 | 18 | **`app-media` 배치 위치** — GPU 서버 대여 후 그쪽으로 옮길지, SSAFY 노드에 둘지 *(v0.4 신설)* | §1.4 | GPU 서버로 이전. 합성 결과가 그 머신에 있어 S3 왕복(잡당 ~60MB)이 사라지고 core-api 와 CPU 경합도 없다 |
 | 20 | **길이·해상도를 업로드 화면이 보내는 것** — 개발자 도구로 조작 가능하다 *(v0.5 신설)* | §1.4 | 허용. 어드민은 테일넷 한정·시드 계정·팀원 수 명이고, app-media 가 실제 영상을 읽으므로 **실측값으로 정정하는 후속 갱신**을 넣을 수 있다(기본안: 넣지 않음, 필요해지면 추가) |
 | 19 | **챌린지 원본 HLS 가공 실패 시 처리** — 재큐만 할지, 어드민 화면에 상태를 노출할지 *(v0.4 신설)* | 3.7, §1.4 | 재큐(DLQ `dlq.job.media`). 가공 전에도 MP4 로 재생되므로 사용자 영향이 없어 화면 노출은 후순위 |

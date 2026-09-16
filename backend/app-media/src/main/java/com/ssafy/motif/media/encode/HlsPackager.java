@@ -32,8 +32,10 @@ import java.util.List;
  * <p>화질 디렉터리는 <b>원본 해상도에 따라 줄어든다</b> — 원본보다 큰 단은 만들지
  * 않는다({@link #ladderFor}). 720 원본이면 1080p 디렉터리가 없다.
  *
- * <p><b>입력은 세로 영상만이다.</b> 가로가 들어오면 사다리의 의미가 뒤집히므로
- * 처리하지 않고 던진다({@link #requirePortrait}).
+ * <p><b>세로·가로를 모두 처리한다.</b> 사다리 값은 언제나 <b>짧은 변</b>이고, 방향은
+ * 원본을 재서 정한다({@link Size#portrait}) — 세로면 {@code scale=W:-2}, 가로면
+ * {@code scale=-2:W} 다. 같은 {@code 720p} 가 어느 방향에서든 짧은 변 720 · 화소
+ * 921,600 을 뜻하므로 {@code maxrate} 도 방향과 무관하게 같은 값을 쓴다.
  */
 public class HlsPackager {
 
@@ -53,13 +55,15 @@ public class HlsPackager {
     private static final double THUMBNAIL_AT = 1.5;
 
     /**
-     * 썸네일 세로 픽셀(긴 변) — {@code scale=-2:1280} 이라 세로 영상에서 720×1280 이
-     * 된다. 원본 해상도로 뽑으면 120KB 로 피드에 과하다.
+     * 썸네일 <b>짧은 변</b> 픽셀 — 세로에서 720×1280, 가로에서 1280×720 이 된다.
+     * 원본 해상도로 뽑으면 120KB 로 피드에 과하다.
      *
-     * <p>사다리와 달리 여기는 긴 변 기준을 그대로 둔다. 피드 목록의 작은 카드라
-     * 가로 720 이면 충분하고, 올리면 목록 30개에 그대로 곱해진다.
+     * <p><b>축과 숫자는 함께 움직인다.</b> 2026-09-17 이전에는 긴 변 1280 기준이었고
+     * 세로에서 지금과 같은 720×1280 을 냈다 — 축만 짧은 변으로 바꾸고 1280 을 두면
+     * 세로 썸네일이 1280×2276 으로 2배가 된다. 피드 목록의 작은 카드라 짧은 변 720
+     * 이면 충분하고, 올리면 목록 30개에 그대로 곱해진다.
      */
-    private static final int THUMBNAIL_HEIGHT = 1280;
+    private static final int THUMBNAIL_SHORT_SIDE = 720;
 
     public static final String MASTER = "master.m3u8";
     public static final String THUMBNAIL = "thumb.jpg";
@@ -95,12 +99,15 @@ public class HlsPackager {
     public void packageForPlayback(Path source, Path outDir, Long thumbnailAtMs) {
         try {
             Files.createDirectories(outDir);
+            // 해상도는 여기서 한 번만 잰다 — 사다리·인코딩·썸네일이 전부 방향을 알아야
+            // 하는데, 각자 재면 ffprobe 왕복이 렌디션 수만큼 늘어난다
+            Size size = sizeOf(source);
             List<String> variants = new ArrayList<>();
-            for (Rendition r : ladderFor(source)) {
-                variants.add(encodeAndPackage(source, outDir, r));
+            for (Rendition r : ladderFor(size)) {
+                variants.add(encodeAndPackage(source, outDir, r, size));
             }
             writeMaster(outDir, variants);
-            thumbnail(source, outDir.resolve(THUMBNAIL), thumbnailAtMs);
+            thumbnail(source, outDir.resolve(THUMBNAIL), thumbnailAtMs, size);
         } catch (IOException e) {
             deleteQuietly(outDir);
             throw new MediaEncodingException("산출물 디렉터리를 만들지 못했다: " + outDir, e);
@@ -125,47 +132,24 @@ public class HlsPackager {
      *
      * <p>판단에 어드민 입력이 필요 없다 — 영상만 보면 된다.
      */
-    private List<Rendition> ladderFor(Path source) {
-        Size size = sizeOf(source);
-        requirePortrait(source, size);
-
-        // 세로가 보장돼 있으므로 가로가 짧은 변이다. 사다리 값과 같은 축이다
+    private List<Rendition> ladderFor(Size size) {
+        // 사다리 값은 짧은 변이다. 방향을 보지 않고 가로폭과 견주면 가로 영상에서
+        // 긴 변과 비교하게 돼 업스케일 가드가 통째로 뚫린다
+        int shortSide = size.shortSide();
         List<Rendition> planned = ladder.stream()
-                .filter(r -> r.width() <= size.width())
+                .filter(r -> r.width() <= shortSide)
                 .toList();
         if (!planned.isEmpty()) {
             return planned;
         }
         // 원본이 사다리 최저단보다도 작다. 한 단도 만들지 않으면 재생할 것이 아예
         // 없으므로 원본 해상도 그대로 한 단을 만든다. 이때도 업스케일은 하지 않는다.
+        // 여기도 짧은 변이다 — 가로 568×320 에 긴 변을 쓰면 폴백이 업스케일이 된다
         Rendition lowest = ladder.get(0);
-        return List.of(new Rendition(size.width() + "p", size.width(), lowest.maxrateKbps()));
+        return List.of(new Rendition(shortSide + "p", shortSide, lowest.maxrateKbps()));
     }
 
-    /**
-     * 세로 영상만 처리한다 — 피드가 세로 화면이다.
-     *
-     * <p>업로드 쪽 {@code VideoRules.checkChallengeOrigin} 이 이미 {@code PORTRAIT_REQUIRED}
-     * 로 막지만 그것만으로는 부족하다. 그 값은 업로드 <b>화면의 JS</b> 가 읽어 폼에 실은
-     * 것이라 개발자 도구로 조작할 수 있고, 무엇보다 합성 결과({@code COMPOSITE_RESULT})는
-     * 업로드 검증을 아예 타지 않는다. 여기서는 실제 바이트를 ffprobe 로 읽으므로
-     * 조작할 여지가 없다.
-     *
-     * <p>가로 영상을 그냥 통과시키면 사다리 의미가 뒤집힌다 — {@code width} 는
-     * 짧은 변이라는 전제로 고른 값인데, 가로 영상에서는 긴 변이 된다. 같은
-     * {@code 720p} 가 전혀 다른 화소 수를 뜻하게 되고 비트레이트 상한도 어긋난다.
-     *
-     * <p>여기서 던지면 정리 후 {@code dlq.job.media} 로 격리된다. 사람이 원본을 고쳐야
-     * 하는 입력 오류라 재시도로 풀릴 성질이 아니다.
-     */
-    private static void requirePortrait(Path source, Size size) {
-        if (size.height() <= size.width()) {
-            throw new MediaEncodingException("세로 영상만 처리한다 — 원본이 "
-                    + size.width() + "x" + size.height() + " 다: " + source);
-        }
-    }
-
-    /** 원본 해상도. {@code height} 는 {@code scale=-2:height} 와 같은 축이라 바로 견줄 수 있다. */
+    /** 원본 해상도 — 사다리·필터·썸네일이 방향을 판단하는 유일한 근거다. */
     private Size sizeOf(Path source) {
         String resolution = ffmpeg.resolution(source);      // "1080x1920"
         try {
@@ -180,16 +164,26 @@ public class HlsPackager {
     }
 
     private record Size(int width, int height) {
+
+        /** 사다리 값과 같은 축 — 세로면 가로폭, 가로면 세로높이다. */
+        int shortSide() {
+            return Math.min(width, height);
+        }
+
+        /** 정사각은 가로로 친다 — 어느 쪽으로 가도 결과가 같다. */
+        boolean portrait() {
+            return height > width;
+        }
     }
 
     /** 렌디션 하나를 인코딩하고 HLS 로 싼다. 마스터 재생목록에 넣을 두 줄을 돌려준다. */
-    private String encodeAndPackage(Path source, Path outDir, Rendition r) {
+    private String encodeAndPackage(Path source, Path outDir, Rendition r, Size size) {
         Path mp4 = outDir.resolve(r.tag() + ".tmp.mp4");
         Path dir = outDir.resolve(r.tag());
 
         ffmpeg.run(List.of(
                 "-v", "error", "-y", "-i", source.toString(),
-                "-vf", "scale=" + r.width() + ":-2,fps=" + FPS,
+                "-vf", scaleShortSide(size, r.width()) + ",fps=" + FPS,
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
                 "-maxrate", r.maxrateKbps() + "k", "-bufsize", r.bufsizeKbps() + "k",
                 // 2초마다 강제 키프레임. sc_threshold=0 이 장면 전환 감지로 인한
@@ -234,13 +228,24 @@ public class HlsPackager {
         }
     }
 
-    private void thumbnail(Path source, Path out, Long atMs) {
+    private void thumbnail(Path source, Path out, Long atMs, Size size) {
         double at = atMs == null ? THUMBNAIL_AT : atMs / 1000.0;
         // -ss 를 -i 앞에 둔다 — 디코딩 없이 건너뛰어 훨씬 빠르다
         ffmpeg.run(List.of(
                 "-v", "error", "-y", "-ss", String.valueOf(at), "-i", source.toString(),
-                "-frames:v", "1", "-vf", "scale=-2:" + THUMBNAIL_HEIGHT, "-q:v", "5",
-                out.toString()));
+                "-frames:v", "1", "-vf", scaleShortSide(size, THUMBNAIL_SHORT_SIDE),
+                "-q:v", "5", out.toString()));
+    }
+
+    /**
+     * 짧은 변을 {@code target} 에 맞추는 ffmpeg 필터. 긴 변은 {@code -2} 로 비율을
+     * 따라온다(2의 배수 — H.264 는 홀수 치수를 쓰지 못한다).
+     *
+     * <p>렌디션과 썸네일이 <b>같은 이 함수</b>를 쓴다. 방향 분기를 두 곳에 두면 한쪽만
+     * 고쳤을 때 썸네일만 조용히 축이 어긋난다.
+     */
+    private static String scaleShortSide(Size size, int target) {
+        return size.portrait() ? "scale=" + target + ":-2" : "scale=-2:" + target;
     }
 
     private static void deleteQuietly(Path dir) {

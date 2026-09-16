@@ -117,18 +117,40 @@ public final class MediaKeys {
     }
 
     /**
-     * 에셋 썸네일 — {@code assets/{uuid}/thumb.jpg} (어드민 명세 §1.4 3항).
+     * 에셋 미리보기 산출물 프리픽스 — {@code assets/{uuid}} (어드민 명세 §1.4 3항).
+     *
+     * <p>업로드 키가 {@code assets/{uuid}.mp4} 이므로 확장자를 떼면 프리픽스다.
+     * {@link #forChallengeOrigin} 과 같은 모양이고 이유도 같다 — 원본과 산출물이 같은
+     * uuid 로 묶인다.
+     *
+     * <p><b>에셋도 HLS 다</b>(2026-09-17, API 명세 §1.7). 숍 화면에서 재생되므로 앱이
+     * 재생하는 다른 영상과 같은 규약을 쓴다. 가로 영상이지만 사다리 값이 짧은 변이라
+     * 챌린지 원본과 같은 파라미터로 간다.
+     *
+     * <p>전부 공개 등급이라 {@code private/} 아래로 가지 않는다.
+     *
+     * @param videoKey 업로드 키 {@code assets/{uuid}.mp4}
+     */
+    public static String forAssetPreview(String videoKey) {
+        String key = require(videoKey, "videoKey");
+        int dot = key.lastIndexOf('.');
+        return dot < 0 ? key : key.substring(0, dot);
+    }
+
+    /**
+     * 에셋 썸네일 — {@code assets/{uuid}/thumb.jpg}.
      *
      * <p>등록 시점에는 <b>아직 없는 파일</b>을 가리킨다. 규약으로 계산해 넣고 파일은
-     * app-media 가 만들며, 그때까지 썸네일 URL 은 404 다(§8 #19). 에셋 미리보기는
-     * HLS 로 가공하지 않으므로(§8 #17 — MP4 유지) 산출물은 이 썸네일 하나뿐이다.
+     * app-media 가 만들며, 그때까지 썸네일 URL 은 404 다(§8 #19).
+     *
+     * <p><b>워커가 쓰는 값과 같아야 한다</b> — 워커는 {@code outputPrefix + "/thumb.jpg"}
+     * 를 기록하므로, 여기서도 {@link #forAssetPreview} 프리픽스 위에서 만든다. 두 곳이
+     * 갈리면 등록 직후와 가공 후의 썸네일 키가 달라진다.
      *
      * @param videoKey 업로드 키 {@code assets/{uuid}.mp4}
      */
     public static String forAssetThumbnail(String videoKey) {
-        String key = require(videoKey, "videoKey");
-        int dot = key.lastIndexOf('.');
-        return (dot < 0 ? key : key.substring(0, dot)) + "/thumb.jpg";
+        return forAssetPreview(videoKey) + "/thumb.jpg";
     }
 
     /**
