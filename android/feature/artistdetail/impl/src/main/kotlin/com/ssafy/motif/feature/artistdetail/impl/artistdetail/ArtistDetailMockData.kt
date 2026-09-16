@@ -24,7 +24,7 @@ internal object ArtistDetailMockData {
     private const val CHALLENGE_BASE_TIME = 1_757_900_000_000L
     private const val ONE_DAY_MILLIS = 86_400_000L
 
-    // index가 커질수록 createdAt이 작아지므로 목록 자체가 최신 등록순이다.
+    // index가 커질수록 createdAt이 작아지므로 목록 자체가 최신 등록순.
     val challenges: List<ArtistChallenge> = List(29) { index ->
         ArtistChallenge(
             id = index + 1L,
@@ -43,7 +43,7 @@ internal object ArtistDetailMockData {
         challengeNum = 121L,
         isAlarmOn = true,
         isSubscribed = false,
-        hasMotifPass = false
+        hasMotifPass = true
     )
     private val noticeArtist = Artist(
         id = 1L,
@@ -172,17 +172,20 @@ internal object ArtistDetailMockData {
             ),
         ),
     )
+    private const val MOTIF_THUMBNAIL =
+        "android.resource://com.ssafy.motif/drawable/motif_thumbnail"
+
     val motifs: List<ArtistMotif> = listOf(
         ArtistMotif(
             id = 1L,
             videoUrl = "",
-            thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_1",
+            thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME,
         ),
         ArtistMotif(
             id = 2L,
             videoUrl = "",
-            thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_2",
+            thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME - ONE_DAY_MILLIS,
         ),
     )

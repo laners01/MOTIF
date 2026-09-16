@@ -18,4 +18,7 @@ internal data class ArtistDetailUiState(
     val commentSheet: CommentSheetUiState = CommentSheetUiState.Hidden,
     val challengeState: ChallengeUiState = ChallengeUiState.Loading,
     val motifs: List<ArtistMotif> = emptyList(),
-)
+){
+    val representativeMotif: ArtistMotif?   //대표 모티프
+        get() = motifs.maxByOrNull { it.createdAt }
+}

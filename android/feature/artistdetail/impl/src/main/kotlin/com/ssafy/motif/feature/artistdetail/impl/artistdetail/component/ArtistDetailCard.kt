@@ -23,8 +23,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.Icon
-import com.ssafy.motif.core.designsystem.component.IconButton
-import com.ssafy.motif.core.designsystem.component.ModifIconButtonDefaults
 import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
@@ -39,10 +37,9 @@ internal fun ArtistDetailCard(
     isSubscribed:Boolean,
     onSubscribeClick: () -> Unit,    //구독버튼 클릭시
     onAlarmClick:() -> Unit,        //알람버튼 클릭시
-    onBackClick:() -> Unit,         //뒤로가기 클릭시
     modifier: Modifier = Modifier
 ){
-    Column(modifier = Modifier
+    Column(modifier = modifier
         .fillMaxWidth()
         .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -68,18 +65,6 @@ internal fun ArtistDetailCard(
                         painterResource(com.ssafy.motif.core.designsystem.R.drawable.profile_square),
                     modifier = Modifier
                         .matchParentSize()
-                )
-
-                IconButton(
-                    painter = painterResource(MotifIcons.BarArrowLeft),
-                    onClick = onBackClick,
-                    size = 48.dp,
-                    colors = ModifIconButtonDefaults.iconButtonColors(
-                        contentColor = MotifTheme.colors.typo
-                    ),
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(15.dp),
                 )
             }
             Column(

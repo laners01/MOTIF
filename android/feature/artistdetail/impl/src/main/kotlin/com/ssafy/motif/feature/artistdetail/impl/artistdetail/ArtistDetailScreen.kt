@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,12 +22,16 @@ import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.Challeng
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.res.painterResource
+import com.ssafy.motif.core.designsystem.component.IconButton
+import com.ssafy.motif.core.designsystem.component.ModifIconButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Tab
 import com.ssafy.motif.core.designsystem.component.TabRow
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults.tabIndicatorOffset
 import com.ssafy.motif.core.designsystem.component.Text
+import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.ui.comment.CommentBottomSheet
 import com.ssafy.motif.core.ui.notice.NoticeCard
@@ -35,6 +40,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
+import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifVideoSection
 
 @Composable
 fun ArtistDetailScreen(
@@ -114,9 +120,20 @@ internal fun ArtistDetailScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 12.dp),
+                contentPadding = PaddingValues(bottom = 12.dp),
             ) {
                 uiState.artistDetail?.let{ artistDetail ->
+                    val motif = uiState.representativeMotif
+                        ?.takeIf { artistDetail.hasMotifPass }
+
+                    if(motif != null){
+                        item{
+                            MotifVideoSection(
+                                motif = motif,
+                                modifier = Modifier.padding(bottom = 12.dp),
+                            )
+                        }
+                    }
                     item{
                         ArtistDetailCard(
                             artistDetail = artistDetail,
@@ -124,11 +141,12 @@ internal fun ArtistDetailScreen(
                             isSubscribed = artistDetail.isSubscribed,
                             onSubscribeClick = onSubscribeClick,
                             onAlarmClick = onAlarmClick,
-                            onBackClick = onBackClick,
+                            modifier = if (motif == null) {
+                                Modifier.padding(top = 12.dp)
+                            } else {
+                                Modifier
+                            },
                         )
-                    }
-                    if(artistDetail.hasMotifPass && uiState.motifs.isNotEmpty()){
-
                     }
                 }
 
@@ -237,6 +255,18 @@ internal fun ArtistDetailScreen(
                     }
                 }
             }
+            IconButton(
+                painter = painterResource(MotifIcons.BarArrowLeft),
+                onClick = onBackClick,
+                size = 18.dp,
+                colors = ModifIconButtonDefaults.iconButtonColors(
+                    contentColor = MotifTheme.colors.typo
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 24.dp, y = 24.dp),
+            )
+
             when(val sheet = uiState.commentSheet){
                 CommentSheetUiState.Hidden -> Unit
                 CommentSheetUiState.Loading -> Unit
