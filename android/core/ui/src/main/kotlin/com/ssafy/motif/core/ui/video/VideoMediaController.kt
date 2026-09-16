@@ -29,12 +29,18 @@ internal class VideoMediaController(
                 ?: return
 
         val mediaSource =
-            preloadManager.getMediaSource(mediaItem)
+            preloadManager.getMediaSource(
+                mediaItem,
+            )
 
         if (mediaSource != null) {
-            player.setMediaSource(mediaSource)
+            player.setMediaSource(
+                mediaSource,
+            )
         } else {
-            player.setMediaItem(mediaItem)
+            player.setMediaItem(
+                mediaItem,
+            )
         }
 
         preloadStatusControl.currentPlayingIndex =
@@ -46,6 +52,71 @@ internal class VideoMediaController(
 
         player.prepare()
         player.play()
+    }
+
+    /**
+     * 현재 재생 상태를 반전하고
+     * 변경 이후 재생 상태를 반환한다.
+     *
+     * true  -> 재생
+     * false -> 일시정지
+     */
+    fun togglePlayback(): Boolean {
+        val shouldPlay =
+            !player.playWhenReady
+
+        if (shouldPlay) {
+            player.play()
+        } else {
+            player.pause()
+        }
+
+        return shouldPlay
+    }
+
+    fun seekTo(
+        progress: Float,
+    ) {
+        val duration =
+            player.duration
+
+        if (
+            duration <= 0L
+        ) {
+            return
+        }
+
+        val position =
+            (
+                    duration *
+                            progress.coerceIn(
+                                0f,
+                                1f,
+                            )
+                    ).toLong()
+
+        player.seekTo(
+            position,
+        )
+    }
+
+    fun playbackProgress(): Float {
+        val duration =
+            player.duration
+
+        if (
+            duration <= 0L
+        ) {
+            return 0f
+        }
+
+        return (
+                player.currentPosition.toFloat() /
+                        duration.toFloat()
+                ).coerceIn(
+                0f,
+                1f,
+            )
     }
 }
 
@@ -87,32 +158,43 @@ internal fun rememberVideoMediaController(
     val context =
         LocalContext.current.applicationContext
 
-    val cache = remember(context) {
-        VideoMediaCache.getInstance(context)
-    }
+    val cache =
+        remember(context) {
+            VideoMediaCache.getInstance(
+                context,
+            )
+        }
 
-    val preloadStatusControl = remember {
-        VideoPreloadStatusControl()
-    }
+    val preloadStatusControl =
+        remember {
+            VideoPreloadStatusControl()
+        }
 
-    val preloadManagerBuilder = remember(
-        context,
-        cache,
-        preloadStatusControl,
-    ) {
-        DefaultPreloadManager.Builder(
+    val preloadManagerBuilder =
+        remember(
             context,
+            cache,
             preloadStatusControl,
-        ).setCache(cache)
-    }
+        ) {
+            DefaultPreloadManager.Builder(
+                context,
+                preloadStatusControl,
+            ).setCache(
+                cache,
+            )
+        }
 
     val preloadManager =
-        remember(preloadManagerBuilder) {
+        remember(
+            preloadManagerBuilder,
+        ) {
             preloadManagerBuilder.build()
         }
 
     val player =
-        remember(preloadManagerBuilder) {
+        remember(
+            preloadManagerBuilder,
+        ) {
             preloadManagerBuilder
                 .buildExoPlayer()
         }
@@ -133,19 +215,23 @@ internal fun rememberVideoMediaController(
             }
     }
 
-    val controller = remember(
-        player,
-        preloadManager,
-        preloadStatusControl,
-        mediaItems,
-    ) {
-        VideoMediaController(
-            player = player,
-            preloadManager = preloadManager,
-            preloadStatusControl = preloadStatusControl,
-            mediaItems = mediaItems,
-        )
-    }
+    val controller =
+        remember(
+            player,
+            preloadManager,
+            preloadStatusControl,
+            mediaItems,
+        ) {
+            VideoMediaController(
+                player = player,
+                preloadManager =
+                    preloadManager,
+                preloadStatusControl =
+                    preloadStatusControl,
+                mediaItems =
+                    mediaItems,
+            )
+        }
 
     DisposableEffect(
         preloadManager,
@@ -158,7 +244,7 @@ internal fun rememberVideoMediaController(
             mediaItems.indices.toList(),
         )
 
-        onDispose { }
+        onDispose {}
     }
 
     DisposableEffect(

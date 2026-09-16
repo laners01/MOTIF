@@ -20,4 +20,5 @@ dependencies {
     api(libs.androidx.compose.animation)
     api(libs.androidx.compose.foundation)
     api(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.activity.compose)
 }

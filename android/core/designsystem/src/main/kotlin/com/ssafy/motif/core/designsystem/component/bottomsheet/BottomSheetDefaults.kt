@@ -22,13 +22,8 @@ object BottomSheetDefaults {
 
     val ExpandedShape: Shape =
         RoundedCornerShape(
-            topStart = 28.dp,
-            topEnd = 28.dp,
-        )
-
-    val ScrimColor: Color =
-        Color.Black.copy(
-            alpha = 0.45f,
+            topStart = 12.dp,
+            topEnd = 12.dp,
         )
 
     internal val AnimationSpec: FiniteAnimationSpec<Float> =

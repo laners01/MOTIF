@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,12 +37,15 @@ import com.ssafy.motif.core.designsystem.component.HorizontalDivider
 import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
+import com.ssafy.motif.core.designsystem.component.bottomsheet.BottomSheetDefaults
 import com.ssafy.motif.core.designsystem.component.bottomsheet.ModalBottomSheet
+import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberModalBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.comment.Reply
+import kotlinx.coroutines.launch
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
@@ -55,25 +59,35 @@ fun CommentBottomSheet(
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
     formatCreatedAt: (Long) -> String,
-    modifier: Modifier = Modifier,
-) {
-    val sheetState =
+    sheetState: SheetState =
         rememberModalBottomSheetState(
             skipPartiallyExpanded = false,
-            partiallyExpandedFraction = 0.6f,
-        )
+            partiallyExpandedFraction = COMMENT_SHEET_FRACTION,
+        ),
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope =
+        rememberCoroutineScope()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        dragHandle = {
+            CommentSheetHeader(
+                commentCount = commentCount,
+                onDismissClick = {
+                    coroutineScope.launch {
+                        sheetState.hide()
+                    }
+                },
+            )
+        },
         modifier = modifier,
     ) {
         CommentSheetContent(
-            commentCount = commentCount,
             comments = comments,
             repliesByCommentId = repliesByCommentId,
             expandedCommentIds = expandedCommentIds,
-            onDismissClick = onDismissRequest,
             onCommentLikeClick = onCommentLikeClick,
             onReplyClick = onReplyClick,
             onReplyLikeClick = onReplyLikeClick,
@@ -87,11 +101,9 @@ fun CommentBottomSheet(
 
 @Composable
 private fun CommentSheetContent(
-    commentCount: Long,
     comments: List<Comment>,
     repliesByCommentId: Map<Long, List<Reply>>,
     expandedCommentIds: Set<Long>,
-    onDismissClick: () -> Unit,
     onCommentLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
     onReplyLikeClick: (Long) -> Unit,
@@ -106,14 +118,8 @@ private fun CommentSheetContent(
         }
 
     Column(
-        modifier = modifier
-            .fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
-        CommentSheetHeader(
-            commentCount = commentCount,
-            onDismissClick = onDismissClick,
-        )
-
         HorizontalDivider(
             color = Color.White.copy(
                 alpha = 0.35f,
@@ -179,54 +185,59 @@ private fun CommentSheetHeader(
     onDismissClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .padding(
-                horizontal = 20.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "댓글",
-            color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.titleSB18,
-        )
+        BottomSheetDefaults.DragHandle()
 
-        Spacer(
-            modifier = Modifier.width(12.dp),
-        )
-
-        Text(
-            text = formatCount(
-                commentCount,
-            ),
-            color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.bodySB16,
-        )
-
-        Spacer(
-            modifier = Modifier.weight(1f),
-        )
-
-        Icon(
-            painter = painterResource(
-                DesignSystemR.drawable.ic_close_24,
-            ),
-            contentDescription = "닫기",
-            tint = MotifTheme.colors.typo,
+        Row(
             modifier = Modifier
-                .size(28.dp)
-                .clickable(
-                    interactionSource =
-                        remember {
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 20.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "댓글",
+                color = MotifTheme.colors.typo,
+                style = MotifTheme.typography.titleSB18,
+            )
+
+            Spacer(
+                modifier = Modifier.width(12.dp),
+            )
+
+            Text(
+                text = formatCount(
+                    commentCount,
+                ),
+                color = MotifTheme.colors.typo,
+                style = MotifTheme.typography.bodySB16,
+            )
+
+            Spacer(
+                modifier = Modifier.weight(1f),
+            )
+
+            Icon(
+                painter = painterResource(
+                    DesignSystemR.drawable.ic_close_24,
+                ),
+                contentDescription = "닫기",
+                tint = MotifTheme.colors.typo,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable(
+                        interactionSource = remember {
                             MutableInteractionSource()
                         },
-                    indication = null,
-                    onClick = onDismissClick,
-                ),
-        )
+                        indication = null,
+                        onClick = onDismissClick,
+                    ),
+            )
+        }
     }
 }
 
@@ -312,7 +323,8 @@ private fun CommentItem(
                 )
 
                 CommentAction(
-                    iconRes = DesignSystemR.drawable.ic_message_24,
+                    iconRes =
+                        DesignSystemR.drawable.ic_message_24,
                     count = comment.replyCount,
                     tint = MotifTheme.colors.typo,
                     onClick = onReplyClick,
@@ -402,11 +414,13 @@ private fun CommentAuthor(
     nickname: String,
     createdAt: String,
     modifier: Modifier = Modifier,
-    authorType: CommentAuthorType = CommentAuthorType.USER,
+    authorType: CommentAuthorType =
+        CommentAuthorType.USER,
 ) {
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment =
+            Alignment.CenterVertically,
     ) {
         Text(
             text = nickname,
@@ -416,7 +430,10 @@ private fun CommentAuthor(
             overflow = TextOverflow.Ellipsis,
         )
 
-        if (authorType == CommentAuthorType.ARTIST) {
+        if (
+            authorType ==
+            CommentAuthorType.ARTIST
+        ) {
             Spacer(
                 modifier = Modifier.width(4.dp),
             )
@@ -462,10 +479,9 @@ private fun CommentAction(
                 onClick = onClick,
             ),
         horizontalArrangement =
-            Arrangement.spacedBy(
-                6.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
+            Arrangement.spacedBy(6.dp),
+        verticalAlignment =
+            Alignment.CenterVertically,
     ) {
         Icon(
             painter = painterResource(
@@ -523,9 +539,7 @@ private fun formatCount(
             if (value % 1f == 0f) {
                 "${value.toInt()}m"
             } else {
-                "%.1fm".format(
-                    value,
-                )
+                "%.1fm".format(value)
             }
         }
 
@@ -536,16 +550,14 @@ private fun formatCount(
             if (value % 1f == 0f) {
                 "${value.toInt()}k"
             } else {
-                "%.1fk".format(
-                    value,
-                )
+                "%.1fk".format(value)
             }
         }
 
-        else -> {
-            count.toString()
-        }
+        else -> count.toString()
     }
+
+private const val COMMENT_SHEET_FRACTION = 0.6f
 
 @Preview(
     name = "Comment Sheet Content",
@@ -573,7 +585,9 @@ private fun CommentSheetContentPreview() {
                         Alignment.BottomCenter,
                     )
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f),
+                    .fillMaxHeight(
+                        COMMENT_SHEET_FRACTION,
+                    ),
                 shape =
                     RoundedCornerShape(
                         topStart = 28.dp,
@@ -584,28 +598,30 @@ private fun CommentSheetContentPreview() {
                 contentColor =
                     MotifTheme.colors.typo,
             ) {
-                CommentSheetContent(
-                    commentCount = 328L,
-                    comments =
-                        previewComments(
-                            profileUrl = profileUrl,
-                        ),
-                    repliesByCommentId =
-                        mapOf(
-                            30L to previewReplies(
+                Column {
+                    CommentSheetContent(
+                        comments =
+                            previewComments(
                                 profileUrl = profileUrl,
                             ),
-                        ),
-                    expandedCommentIds =
-                        emptySet(),
-                    onDismissClick = {},
-                    onCommentLikeClick = {},
-                    onReplyClick = {},
-                    onReplyLikeClick = {},
-                    formatCreatedAt = {
-                        "3시간"
-                    },
-                )
+                        repliesByCommentId =
+                            mapOf(
+                                30L to previewReplies(
+                                    profileUrl = profileUrl,
+                                ),
+                            ),
+                        expandedCommentIds =
+                            emptySet(),
+                        onCommentLikeClick = {},
+                        onReplyClick = {},
+                        onReplyLikeClick = {},
+                        formatCreatedAt = {
+                            "3시간"
+                        },
+                        modifier =
+                            Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
@@ -649,13 +665,6 @@ private fun CommentBottomSheetPreview() {
     }
 }
 
-/*
- * 일부러 USER -> CURRENT_USER -> ARTIST 순서로 넣는다.
- *
- * 실제 화면에서는 prioritizeComments()에 의해
- * ARTIST -> CURRENT_USER -> USER 순서로 표시되는지
- * Preview에서 확인할 수 있다.
- */
 private fun previewComments(
     profileUrl: String,
 ): List<Comment> =
