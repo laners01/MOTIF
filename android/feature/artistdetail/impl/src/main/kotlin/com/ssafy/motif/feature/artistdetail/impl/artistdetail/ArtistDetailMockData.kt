@@ -21,6 +21,7 @@ internal object ArtistDetailMockData {
         challengeNum = 121L,
         isAlarmOn = true,
         isSubscribed = false,
+        hasMotifPass = false
     )
     private val noticeArtist = Artist(
         id = 1L,

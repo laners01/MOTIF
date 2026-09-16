@@ -20,9 +20,11 @@ fun rememberMotifAppState(
     networkMonitor: NetworkMonitor,
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
 ): MotifAppState {
+    // TODO 아티스트 상세 화면 테스트용. 커밋 전 HomeNavKey로 되돌릴 것
+    val startKey = remember { ArtistDetailNavKey(artistId = 1L) }
     val navigationState = rememberNavigationState(
-        startKey = HomeNavKey,
-        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys,
+        startKey = startKey,
+        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys + startKey,
     )
 
     return remember(
