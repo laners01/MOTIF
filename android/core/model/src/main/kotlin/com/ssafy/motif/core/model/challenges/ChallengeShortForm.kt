@@ -5,6 +5,7 @@ import com.ssafy.motif.core.model.home.Artist
 data class ChallengeShortForm(
     val id: Long,
     val videoUrl: String,
+    val thumbnailUrl: String,
     val artist: Artist,
     val description: String,
     val songArtistName: String,
