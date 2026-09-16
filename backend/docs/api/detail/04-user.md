@@ -393,22 +393,32 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
   "message": "요청이 성공했습니다.",
   "data": {
     "list": [
-      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
-      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/results/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg", "viewCount": 120, "visibility": "PRIVATE" }
+      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
+      { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 120, "visibility": "PRIVATE" }
     ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
 ```
 
-- 삭제 영상은 제외한다.
+- 삭제 영상은 제외한다. **삭제된 챌린지에 속한 영상도 뺀다**(§1.8) — 영상 자체가 살아 있어도 그렇다.
 - 그리드에서 항목을 고르면 **§8.2 단건 조회**로 뷰어에 진입한다. 연속 스와이프 재생이 필요해지면 `?view=FULL` 확장을 예약해 뒀다(원본 §16 #12).
 - §4.1 의 `videos`(최신 9개)와의 관계: 첫 화면은 §4.1 로 그리고, "더보기/전체" 진입 시 이 API 를 1회 호출한다.
-- 전량 반환의 전제는 "본인 영상 수가 크지 않다"이다. 수백 건이 쌓이면 재검토 대상이다.
+- 0건이면 `"list": []`.
+
+**항목은 §4.1 `videos[]` 와 완전히 같은 형태다** — 같은 그리드를 그리는 카드라 서버도 같은 쿼리·같은 변환을 쓴다. 나누면 §1.8 비노출이나 썸네일 등급 판정이 한쪽에서만 고쳐질 수 있고, 그때 증상은 "첫 화면과 더보기가 다른 목록을 보여 준다"인데 어느 쪽이 맞는지 화면만 봐서는 알 수 없다.
 
 ### 실패 응답
 
 **도메인 분기 없음.**
+
+### 기본안
+
+| 항목 | 기본안 | 근거 |
+|---|---|---|
+| 건수 상한 | **두지 않는다(명세대로 전량)** | 조용히 자르면 사용자에게는 **영상이 사라진 것**으로 보인다. 자를 거면 커서를 다시 넣는 게 맞고, 그건 R4 에서 뒤집은 결정이다 |
+| 대신 **임계 초과 시 `warn` 로그** | 200건 초과 | 명세가 *"수백 건이 쌓이면 재검토 대상"* 이라고 적어 뒀는데 **재검토할 시점을 알 방법이 없다.** 자르지 않고 시끄럽게만 만든다 — 느려진 뒤에 아는 것보다 낫다(액세스 로그의 300ms 기준과 같은 발상) |
+| 정렬 | **PK 역순** | §4.1 과 같은 근거 — IDENTITY 라 최신순과 결과가 같으면서 같은 초에 올라온 영상의 순서가 호출마다 흔들리지 않는다 |
 
 ---
 

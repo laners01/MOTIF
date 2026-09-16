@@ -1,6 +1,5 @@
 package com.ssafy.motif.coreapi.domain.user.dto;
 
-import com.ssafy.motif.domain.core.video.Visibility;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -23,8 +22,8 @@ public record UserMeResponse(
         String profileImageUrl,
         @Schema(description = "대표 모티프. 미설정·삭제·부재면 null", nullable = true)
         RepMotif repMotif,
-        @Schema(description = "내 참여 영상 최신 9건. 없으면 []")
-        List<VideoPreview> videos) {
+        @Schema(description = "내 참여 영상 최신 9건. 없으면 []. 전량은 §4.8")
+        List<VideoPreviewItem> videos) {
 
     /**
      * 대표 모티프 — 마이페이지 진입 시 자동재생·음소거.
@@ -45,18 +44,4 @@ public record UserMeResponse(
             String thumbnailUrl) {
     }
 
-    /**
-     * 3×3 그리드 한 칸 — 경량 프리뷰다. 재생에 필요한 것은 담지 않는다.
-     *
-     * @param visibility 본인 화면이라 {@code PRIVATE} 도 포함한다 — 클라이언트가 이 값으로
-     *                   자물쇠를 그린다
-     */
-    @Schema(description = "참여 영상 프리뷰")
-    public record VideoPreview(
-            Long videoSeq,
-            String thumbnailUrl,
-            Long viewCount,
-            @Schema(description = "PUBLIC | PRIVATE — 본인 화면이라 둘 다 내려온다")
-            Visibility visibility) {
-    }
 }

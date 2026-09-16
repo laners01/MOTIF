@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.domain.user.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
@@ -8,6 +9,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -117,6 +119,63 @@ public interface UserControllerDocs {
                             }))
     })
     ApiResponse<UserMeResponse> me(@Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "내 챌린지 그리드 (§4.8)",
+            description = """
+                    내 참여 영상을 **전량** 내려준다(회의 확정 R4 — 커서에서 전환).
+                    **§4.1 로 첫 화면을 그린 뒤 "더보기/전체" 진입 시 1회 호출**한다.
+
+                    - 항목 형태는 **§4.1 `videos[]` 와 같다** — 같은 그리드를 그리는 카드다
+                    - **본인 화면이라 `PUBLIC`·`PRIVATE` 전부 포함**하고 항목마다
+                      `visibility` 로 구분한다
+                    - 삭제 영상은 제외한다. **삭제된 챌린지에 속한 영상도 뺀다**(§1.8)
+                    - 0건이면 `"list": []`
+                    - 정렬은 최신순
+
+                    항목을 고르면 **§8.2 단건 조회**로 뷰어에 진입한다. 연속 스와이프 재생이
+                    필요해지면 `?view=FULL` 확장을 예약해 뒀다(원본 §16 #12).
+
+                    ### 페이지가 없는 이유와 그 전제
+                    전량 반환의 전제는 **"본인 영상 수가 크지 않다"** 이다. 수백 건이 쌓이면
+                    커서 전환 재검토 대상이고, 서버는 그 시점을 알 수 있도록 일정 건수를
+                    넘으면 로그로 남긴다 — **응답을 자르지는 않는다.** 조용히 자르면
+                    사용자에게는 영상이 사라진 것으로 보인다.
+
+                    ### 썸네일
+                    공개/보호는 **S3 키의 프리픽스**가 정한다 — `private/` 로 시작하면 서명된
+                    URL, 아니면 무서명 CDN URL 이다. `visibility` 로 판정하지 않는다(§4.1 참고).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "내 참여 영상 전량",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "videoSeq": 88,
+                                            "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                            "viewCount": 3400,
+                                            "visibility": "PUBLIC"
+                                          },
+                                          {
+                                            "videoSeq": 87,
+                                            "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                            "viewCount": 120,
+                                            "visibility": "PRIVATE"
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<VideoPreviewItem>> myVideos(
+            @Parameter(hidden = true) AuthenticatedUser user);
 
     @Operation(
             summary = "닉네임 수정 (§4.2)",
