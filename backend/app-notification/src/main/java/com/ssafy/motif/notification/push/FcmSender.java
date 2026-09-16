@@ -9,6 +9,7 @@ import com.google.firebase.messaging.SendResponse;
 import com.ssafy.motif.domain.notif.token.DeviceTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,11 @@ import java.util.List;
  * <p><b>죽은 토큰은 그 자리에서 내린다.</b> {@code UNREGISTERED}(앱 삭제·데이터 삭제)와
  * {@code INVALID_ARGUMENT}(형식이 깨진 토큰)는 재시도해도 영원히 실패한다 — 안 내리면
  * 구독자가 늘수록 실패율만 쌓이고 진짜 장애와 구분이 안 된다.
+ *
+ * <p><b>{@code local} 에서는 {@link FirebaseMessaging} 빈이 없다</b>({@code FcmConfig}
+ * 가 그 프로파일에서 빠진다). 그때는 발송만 건너뛰고 나머지 흐름은 그대로 돈다 —
+ * 팬아웃 조회·멱등 가드·리스너를 키 없이 검증할 수 있다. {@code ObjectProvider} 로
+ * 받는 이유가 이것뿐이라, 운영에서는 항상 존재한다.
  */
 @Slf4j
 @Component
@@ -33,7 +39,7 @@ public class FcmSender {
     /** FCM 멀티캐스트 상한. 초과하면 요청 전체가 거부된다. */
     private static final int BATCH_SIZE = 500;
 
-    private final FirebaseMessaging firebaseMessaging;
+    private final ObjectProvider<FirebaseMessaging> firebaseMessaging;
     private final DeviceTokenRepository deviceTokenRepository;
 
     /**
@@ -44,11 +50,17 @@ public class FcmSender {
         if (tokens.isEmpty()) {
             return 0;
         }
+        FirebaseMessaging messaging = firebaseMessaging.getIfAvailable();
+        if (messaging == null) {
+            log.warn("FCM 빈이 없어 발송을 건너뛴다(local) — type={} tokens={}",
+                    message.type(), tokens.size());
+            return 0;
+        }
         List<String> dead = new ArrayList<>();
         int sent = 0;
         for (int from = 0; from < tokens.size(); from += BATCH_SIZE) {
             List<String> batch = tokens.subList(from, Math.min(from + BATCH_SIZE, tokens.size()));
-            sent += sendBatch(message, batch, dead);
+            sent += sendBatch(messaging, message, batch, dead);
         }
         if (!dead.isEmpty()) {
             deviceTokenRepository.deactivateByTokens(dead);
@@ -57,7 +69,8 @@ public class FcmSender {
         return sent;
     }
 
-    private int sendBatch(PushMessage message, List<String> batch, List<String> dead) {
+    private int sendBatch(FirebaseMessaging messaging, PushMessage message,
+                          List<String> batch, List<String> dead) {
         MulticastMessage multicast = MulticastMessage.builder()
                 .putAllData(message.data())
                 .addAllTokens(batch)
@@ -67,7 +80,7 @@ public class FcmSender {
         try {
             // sendEachForMulticast — 건별 결과를 돌려준다. 구형 sendMulticast 는 하나만
             // 실패해도 전체를 던져 어느 토큰이 죽었는지 알 수 없다
-            response = firebaseMessaging.sendEachForMulticast(multicast);
+            response = messaging.sendEachForMulticast(multicast);
         } catch (FirebaseMessagingException e) {
             // 배치 전체 실패 = 자격증명·네트워크 문제다. 토큰 탓이 아니므로 하나도
             // 내리지 않고 던진다 — 리스너가 재시도하고 소진되면 DLQ 로 간다
