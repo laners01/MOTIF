@@ -9,6 +9,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -176,6 +177,71 @@ public interface UserControllerDocs {
     })
     ApiResponse<ListResponse<VideoPreviewItem>> myVideos(
             @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "타 사용자 프로필 (§4.6)",
+            description = """
+                    참여 영상 뷰어에서 **작성자를 눌렀을 때 뜨는 Bottom Sheet** 데이터다.
+                    닉네임·프로필과 그 사람이 구독 중인 아티스트를 함께 내린다.
+
+                    - `subscribedArtists[]` 는 **공통 아티스트 요약**(상세 명세 README §3.5)
+                      그대로다. 구독 **최신순**, 0건이면 `[]`
+                    - `groupName` 은 솔로 아티스트면 `null`. 원본 §4.6 은 이 필드를 뺐지만
+                      **타입 통일을 위해 되살렸다** — 아티스트를 참조하는 응답은 상황마다
+                      필드를 빼지 않는다
+                    - **삭제된 아티스트는 목록에서 뺀다.** 남겨 두면 눌러도 404 가 나는
+                      카드가 생긴다(§1.8 — 삭제 아티스트는 없는 것으로 답한다)
+                    - `participationCount` 는 제거됐다(회의 확정 R2)
+
+                    본인 `userSeq` 로 불러도 막지 않는다. 마이페이지는 **§4.1** 로 따로 있다.
+
+                    ### 스키마 주의
+                    아티스트 이름은 `artists` 에 없다 — `artists.user_seq → users.nickname`
+                    조인으로 얻는다(`artists` 는 `role='ARTIST'` 사용자의 도메인 확장).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "사용자 프로필",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "userSeq": 5,
+                                        "nickname": "팬123",
+                                        "profileImageUrl": "https://cdn.motif.io/profiles/aa11bb22.jpg",
+                                        "subscribedArtists": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = """
+                            미존재 **또는 삭제된 사용자** — 둘을 구분하지 않는다.
+                            **삭제 사용자는 존재를 숨긴다**(§1.8): 403 으로 갈라 내면
+                            "그 사람은 있는데 탈퇴했다"가 응답에서 읽힌다.
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "USER_NOT_FOUND",
+                                      "message": "존재하지 않는 사용자입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<UserProfileResponse> profile(
+            @Parameter(description = "조회할 사용자 seq", example = "5") Integer userSeq);
 
     @Operation(
             summary = "닉네임 수정 (§4.2)",

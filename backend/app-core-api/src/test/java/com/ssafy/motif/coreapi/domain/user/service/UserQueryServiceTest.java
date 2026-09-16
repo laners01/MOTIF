@@ -1,12 +1,17 @@
 package com.ssafy.motif.coreapi.domain.user.service;
 
+import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.domain.user.UserErrorCode;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.global.media.CloudFrontUrlSigner;
 import com.ssafy.motif.coreapi.global.media.MediaSigningProperties;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.coreapi.global.media.ProtectedMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
+import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
@@ -33,6 +38,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
@@ -40,7 +46,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * 마이페이지 조회 (명세 §4.1 원콜 · §4.8 전체 그리드).
+ * 사용자 조회 (명세 §4.1 원콜 · §4.6 타 사용자 프로필 · §4.8 전체 그리드).
  *
  * <p><b>URL 변환은 목으로 세우지 않는다.</b> 진짜 {@link MediaUrlResolver} 에 진짜
  * 서명기를 물리고(키는 테스트에서 만든다) 나오는 URL 을 본다 — 이 티켓에서 가장
@@ -59,6 +65,7 @@ class UserQueryServiceTest {
     private MotifResultRepository motifResultRepository;
     private CompositeJobRepository compositeJobRepository;
     private ParticipationVideoRepository participationVideoRepository;
+    private SubscriptionRepository subscriptionRepository;
     private UserQueryService service;
 
     @BeforeEach
@@ -67,6 +74,7 @@ class UserQueryServiceTest {
         motifResultRepository = mock(MotifResultRepository.class);
         compositeJobRepository = mock(CompositeJobRepository.class);
         participationVideoRepository = mock(ParticipationVideoRepository.class);
+        subscriptionRepository = mock(SubscriptionRepository.class);
 
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
                 "KTESTKEYPAIRID", generatePkcs8Pem(), Duration.ofMinutes(10), Duration.ofHours(6)));
@@ -74,10 +82,12 @@ class UserQueryServiceTest {
                 new PublicMediaUrlResolver(CDN), new ProtectedMediaUrlResolver(CDN, signer));
 
         service = new UserQueryService(userRepository, motifResultRepository,
-                compositeJobRepository, participationVideoRepository, resolver);
+                compositeJobRepository, participationVideoRepository, subscriptionRepository,
+                resolver);
 
         givenUser(user(null, null));
         given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of());
+        given(subscriptionRepository.findSubscribed(anyInt())).willReturn(List.of());
     }
 
     @Test
@@ -178,6 +188,99 @@ class UserQueryServiceTest {
         verify(participationVideoRepository).findMine(any(), pageable.capture());
         assertThat(pageable.getValue().getPageSize()).isEqualTo(UserQueryService.PREVIEW_SIZE);
         assertThat(UserQueryService.PREVIEW_SIZE).isEqualTo(9);
+    }
+
+    @Nested
+    @DisplayName("§4.6 타 사용자 프로필")
+    class Profile {
+
+        private static final int OTHER = 5;
+
+        @Test
+        @DisplayName("닉네임·프로필과 구독 아티스트를 함께 내린다")
+        void returnsProfileWithSubscriptions() {
+            givenTarget(OTHER, "팬123", "profiles/aa11bb22.jpg");
+            given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
+                    new SubscribedArtistRow(3, "카리나", "profiles/3f9c1a2b.jpg", "aespa")));
+
+            UserProfileResponse profile = service.profile(OTHER);
+
+            assertThat(profile.userSeq()).isEqualTo(OTHER);
+            assertThat(profile.nickname()).isEqualTo("팬123");
+            assertThat(profile.profileImageUrl()).isEqualTo(CDN + "/profiles/aa11bb22.jpg");
+            assertThat(profile.subscribedArtists()).singleElement().satisfies(artist -> {
+                assertThat(artist.artistSeq()).isEqualTo(3);
+                assertThat(artist.name()).isEqualTo("카리나");
+                assertThat(artist.groupName()).isEqualTo("aespa");
+                assertThat(artist.profileImageUrl()).isEqualTo(CDN + "/profiles/3f9c1a2b.jpg");
+            });
+        }
+
+        @Test
+        @DisplayName("솔로 아티스트는 groupName 이 null 이다 — 필드를 빼지는 않는다")
+        void soloArtistHasNullGroupName() {
+            givenTarget(OTHER, "팬123", null);
+            given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
+                    new SubscribedArtistRow(9, "아이유", "profiles/iu.jpg", null)));
+
+            assertThat(service.profile(OTHER).subscribedArtists())
+                    .singleElement()
+                    .satisfies(artist -> assertThat(artist.groupName()).isNull());
+        }
+
+        @Test
+        @DisplayName("구독이 0건이면 빈 배열이다")
+        void noSubscriptionsIsEmptyArray() {
+            givenTarget(OTHER, "팬123", null);
+
+            assertThat(service.profile(OTHER).subscribedArtists()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("프로필 이미지가 없으면 null 이다 — 아티스트 쪽도 같다")
+        void missingImagesAreNull() {
+            givenTarget(OTHER, "팬123", null);
+            given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
+                    new SubscribedArtistRow(9, "아이유", null, null)));
+
+            UserProfileResponse profile = service.profile(OTHER);
+
+            assertThat(profile.profileImageUrl()).isNull();
+            assertThat(profile.subscribedArtists().get(0).profileImageUrl()).isNull();
+        }
+
+        @Test
+        @DisplayName("없는 사용자는 404")
+        void unknownUserIsNotFound() {
+            given(userRepository.findById(OTHER)).willReturn(Optional.empty());
+
+            assertNotFound(OTHER);
+        }
+
+        @Test
+        @DisplayName("삭제된 사용자도 404 — 존재를 숨긴다 (§1.8)")
+        void deletedUserIsHidden() {
+            User deleted = user(null, null);
+            ReflectionTestUtils.setField(deleted, "userSeq", OTHER);
+            ReflectionTestUtils.setField(deleted, "deleted", true);
+            given(userRepository.findById(OTHER)).willReturn(Optional.of(deleted));
+
+            assertNotFound(OTHER);
+        }
+
+        private void givenTarget(int seq, String nickname, String profileImageKey) {
+            User target = user(profileImageKey, null);
+            ReflectionTestUtils.setField(target, "userSeq", seq);
+            ReflectionTestUtils.setField(target, "nickname", nickname);
+            given(userRepository.findById(seq)).willReturn(Optional.of(target));
+        }
+
+        private void assertNotFound(int seq) {
+            assertThatThrownBy(() -> service.profile(seq))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+        }
     }
 
     @Nested
