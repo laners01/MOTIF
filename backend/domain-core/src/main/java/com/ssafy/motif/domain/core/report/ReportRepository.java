@@ -2,6 +2,8 @@ package com.ssafy.motif.domain.core.report;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -40,4 +42,35 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     /** 접수된 신고를 되읽는다 — 지금은 테스트가 쓴다. */
     Optional<Report> findByReporterSeqAndVideoSeq(Integer reporterSeq, Long videoSeq);
+
+    /**
+     * 어드민 신고 목록 (어드민 명세 §3.13.1) — S15P21D104-578.
+     *
+     * <p><b>접수순 고정이다.</b> 오래 방치된 신고가 먼저 보여야 한다 — 최신순이면
+     * 밀린 것이 계속 아래로 내려간다.
+     *
+     * <p>{@code targetType} 필터는 채워진 칸으로 가른다. enum 을 문자열로 받는 이유는
+     * {@code reports} 에 종류 칸이 없어서다 — 4개 대상 컬럼의 NULL 여부가 곧 종류다.
+     */
+    @Query("""
+            select r from Report r
+             where (:status is null or r.status = :status)
+               and (:targetType is null
+                    or (:targetType = 'VIDEO'             and r.videoSeq is not null)
+                    or (:targetType = 'CHALLENGE_COMMENT' and r.challengeCommentSeq is not null)
+                    or (:targetType = 'VIDEO_COMMENT'     and r.videoCommentSeq is not null)
+                    or (:targetType = 'NOTICE_COMMENT'    and r.noticeCommentSeq is not null))
+             order by r.regDttm asc, r.reportSeq asc
+            """)
+    Page<Report> search(@Param("status") ReportStatus status,
+                        @Param("targetType") String targetType,
+                        Pageable pageable);
+
+    /**
+     * 같은 대상에 쌓인 신고 수 (§3.13.1 {@code sameTargetReportCount}).
+     *
+     * <p>한 영상에 여러 사람이 신고하면 행이 그만큼 생긴다({@code UNIQUE(reporter, video)}
+     * 는 같은 사람의 중복만 막는다). 처리자가 "여러 명이 신고했다" 를 보고 판단하라는 값이다.
+     */
+    long countByVideoSeq(Long videoSeq);
 }

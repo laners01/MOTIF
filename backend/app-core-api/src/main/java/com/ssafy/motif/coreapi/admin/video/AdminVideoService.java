@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 /**
  * 어드민 참여 영상 조회 (어드민 명세 §3.12.1·§3.12.2) — S15P21D104-575.
  *
@@ -59,10 +61,20 @@ public class AdminVideoService {
     /** §3.12.2 — 단건. 삭제분도 준다. */
     @Transactional(readOnly = true)
     public AdminVideoItem detail(long videoSeq) {
-        return videoRepository.findAdminDetail(videoSeq)
-                .map(this::item)
+        return find(videoSeq)
                 .orElseThrow(() -> new BusinessException(VideoErrorCode.VIDEO_NOT_FOUND,
                         "미존재 영상: videoSeq=" + videoSeq));
+    }
+
+    /**
+     * 없으면 비어 있는 채로 준다 — 신고 상세(§3.13.2)가 쓴다.
+     *
+     * <p>거기서는 대상이 없는 것이 404 가 아니다. 대상 행이 사라져도 신고는 남아 있고,
+     * 처리자는 그것을 기각으로 닫을 수 있어야 한다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<AdminVideoItem> find(long videoSeq) {
+        return videoRepository.findAdminDetail(videoSeq).map(this::item);
     }
 
     private AdminVideoItem item(AdminVideoRow row) {
