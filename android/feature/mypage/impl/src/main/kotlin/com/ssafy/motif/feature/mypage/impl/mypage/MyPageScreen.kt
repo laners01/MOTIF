@@ -54,6 +54,10 @@ fun MyPageScreen(
         onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
         onCreateClick = viewModel::onCreateClick,
         onArtistCardClick = viewModel::onArtistCardClick,
+        onNicknameEditStart = viewModel::onNicknameEditStart,
+        onNicknameChange = viewModel::onNicknameChange,
+        onNicknameEditDone = viewModel::onNicknameEditDone,
+        onNicknameEditCancel = viewModel::onNicknameEditCancel,
         modifier = modifier,
     )
 }
@@ -66,6 +70,10 @@ internal fun MyPageScreen(
     onLoadMoreChallenges:() -> Unit,
     onCreateClick:() -> Unit,
     onArtistCardClick:(Long) -> Unit,
+    onNicknameEditStart:() -> Unit,
+    onNicknameChange:(String) -> Unit,
+    onNicknameEditDone:() -> Unit,
+    onNicknameEditCancel:() -> Unit,
     modifier: Modifier = Modifier,
 ) {
 
@@ -112,6 +120,11 @@ internal fun MyPageScreen(
                 is ProfileUiState.Success -> {
                     item{
                         MyProfileSection(profile = profileState.profile,
+                            nicknameEdit = uiState.nicknameEdit,
+                            onNicknameEditStart = onNicknameEditStart,
+                            onNicknameChange = onNicknameChange,
+                            onNicknameEditDone = onNicknameEditDone,
+                            onNicknameEditCancel = onNicknameEditCancel,
                             onNotificationClick = onNotificationClick,
                             onSettingsClick = onSettingsClick,)
                     }

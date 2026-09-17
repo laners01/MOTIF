@@ -118,7 +118,61 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
         }
     }
 
+    fun onNicknameEditStart(){// 현재 닉네임으로 편집 상태 진입
+        val current = (_uiState.value.profileState as? ProfileUiState.Success)
+            ?.profile ?: return
+
+        _uiState.update {
+            it.copy(
+                nicknameEdit = NicknameEditUiState(
+                    value = current.nickname,
+                    isValid = true,
+                ),
+            )
+        }
+    }
+    fun onNicknameChange(value:String){// 검증 통과분만 반영
+        if (value.length > MAX_NICKNAME_LENGTH) return
+        if (!NICKNAME_PATTERN.matches(value)) return
+
+        _uiState.update { state ->
+            state.copy(
+                nicknameEdit = state.nicknameEdit?.copy(
+                    value = value,
+                    isValid = value.isNotBlank(),
+                ),
+            )
+        }
+    }
+    fun onNicknameEditDone(){// 저장 후 조회 상태 복귀
+        val edit = _uiState.value.nicknameEdit ?: return
+        val current = (_uiState.value.profileState as? ProfileUiState.Success)
+            ?.profile ?: return
+
+        // 빈 값이면 완료 불가
+        if (edit.value.isBlank()) return
+
+        // 변경 없음 → 저장 요청 없이 복귀
+        if (edit.value == current.nickname) {
+            _uiState.update { it.copy(nicknameEdit = null) }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                profileState = ProfileUiState.Success(
+                    profile = current.copy(nickname = edit.value),
+                ),
+                nicknameEdit = null,
+            )
+        }
+    }
+    fun onNicknameEditCancel(){ // 폐기
+        _uiState.update { it.copy(nicknameEdit = null) }
+    }
     companion object {
         private const val CHALLENGE_PAGE_SIZE = 9
+        private const val MAX_NICKNAME_LENGTH = 20
+        private val NICKNAME_PATTERN = Regex("^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z._0-9]*\$")
     }
 }
