@@ -7,9 +7,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.ssafy.motif.core.data.util.NetworkMonitor
 import com.ssafy.motif.core.navigation.NavigationState
 import com.ssafy.motif.core.navigation.rememberNavigationState
-import com.ssafy.motif.feature.artistdetail.api.navigation.ArtistDetailNavKey
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
-import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.navigation.TOP_LEVEL_NAV_ITEMS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,11 +19,9 @@ fun rememberMotifAppState(
     networkMonitor: NetworkMonitor,
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
 ): MotifAppState {
-    // TODO 마이페이지 화면 테스트용. 커밋 전 HomeNavKey로 되돌릴 것
-    val startKey = MyPageNavKey
     val navigationState = rememberNavigationState(
-        startKey = startKey,
-        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys + startKey,
+        startKey = HomeNavKey,
+        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys,
     )
 
     return remember(

@@ -19,6 +19,9 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
         _uiState.asStateFlow()
 
 
+    fun onCreateClick(){
+
+    }
     fun notificationClick(){
 
     }

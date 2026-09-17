@@ -33,6 +33,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.items
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextAlign
+import com.ssafy.motif.core.designsystem.component.Button
+import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
+
 @Composable
 fun MyPageScreen(
     modifier: Modifier = Modifier,
@@ -46,6 +52,7 @@ fun MyPageScreen(
         onSettingsClick = viewModel::settingClick,
         onTabClick = viewModel::selectTab,
         onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
+        onCreateClick = viewModel::onCreateClick,
         modifier = modifier,
     )
 }
@@ -56,6 +63,7 @@ internal fun MyPageScreen(
     onSettingsClick:() -> Unit,
     onTabClick:(MyPageTab) -> Unit,
     onLoadMoreChallenges:() -> Unit,
+    onCreateClick:() -> Unit,
     modifier: Modifier = Modifier,
 ) {
 
@@ -149,30 +157,42 @@ internal fun MyPageScreen(
                         MyChallengeUiState.Loading -> { item { ChallengeLoadingContent() } }
 
                         is MyChallengeUiState.Success -> {
-                            items(
-                                items = state.challenges.chunked(3),
-                                key = { row -> row.first().id },
-                            ) { row ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    row.forEach { challenge ->
-                                        ChallengeThumbnail(
-                                            thumbnailUrl = challenge.thumbnailUrl,
-                                            viewCount = challenge.view,
-                                            onClick = { },
-                                            modifier = Modifier.weight(1f),
-                                        )
+                            if(state.challenges.isEmpty()){
+                                item {
+                                    ChallengeEmptyContent(
+                                        onCreateClick = onCreateClick,
+                                        // 프로필·탭을 뺀 남은 영역의 가운데에 배치
+                                        modifier = Modifier.fillParentMaxHeight(0.7f),
+                                    )
+                                }
+                            } else {
+                                items(
+                                    items = state.challenges.chunked(3),
+                                    key = { row -> row.first().id },
+                                ) { row ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    ) {
+                                        row.forEach { challenge ->
+                                            ChallengeThumbnail(
+                                                thumbnailUrl = challenge.thumbnailUrl,
+                                                viewCount = challenge.view,
+                                                onClick = { },
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                        }
+                                        repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                                     }
-                                    repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                                }
+
+                                if (state.appendState is MyChallengeAppendUiState.Loading) {
+                                    item { ChallengeLoadingMore() }
                                 }
                             }
-
-                            if (state.appendState is MyChallengeAppendUiState.Loading) {
-                                item { ChallengeLoadingMore() }
-                            }
                         }
+
+
 
                         is MyChallengeUiState.Error -> { item { } }
                     }
@@ -225,6 +245,38 @@ private fun ChallengeLoadingMore(
         contentAlignment = Alignment.Center,
     ) {
         LoadingWheel()
+    }
+}
+
+@Composable
+private fun ChallengeEmptyContent(
+    onCreateClick: () -> Unit,
+    modifier: Modifier=Modifier,
+){
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterVertically),
+    ){
+        Text(
+            text ="아직 참여한 챌린지가 없어요. \n 마음에 드는 챌린지를 찾아 참여해보세요!",
+            style = MotifTheme.typography.titleR20,
+            color = MotifTheme.colors.typo,
+            textAlign = TextAlign.Center,
+        )
+        Button(
+            onClick = onCreateClick,
+            shape = RoundedCornerShape(4.dp),
+            colors = MotifButtonDefaults.buttonColors(
+                containerColor = MotifTheme.colors.pink,
+                contentColor = MotifTheme.colors.typo,
+            ),
+        ){
+            Text(
+                text = "챌린지 둘러보기",
+                style = MotifTheme.typography.bodySB16,
+            )
+        }
     }
 }
 private const val LOAD_MORE_THRESHOLD = 3
