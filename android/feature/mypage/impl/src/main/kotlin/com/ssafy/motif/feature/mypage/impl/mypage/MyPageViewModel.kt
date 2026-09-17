@@ -20,6 +20,12 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
         loadProfile()
     }
 
+    fun notificationClick(){
+
+    }
+    fun settingClick(){
+
+    }
     private fun loadProfile(){
         viewModelScope.launch {
             _uiState.value = MyPageUiState.Loading

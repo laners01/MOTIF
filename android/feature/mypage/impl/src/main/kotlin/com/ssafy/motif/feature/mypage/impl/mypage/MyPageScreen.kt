@@ -22,12 +22,16 @@ fun MyPageScreen(
 
     MyPageScreen(
         uiState = uiState,
+        onNotificationClick = viewModel::notificationClick,
+        onSettingsClick = viewModel::settingClick,
         modifier = modifier,
     )
 }
 @Composable
 internal fun MyPageScreen(
     uiState: MyPageUiState,
+    onNotificationClick:() -> Unit,
+    onSettingsClick:() -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
@@ -43,7 +47,9 @@ internal fun MyPageScreen(
 
             is MyPageUiState.Success -> {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    MyProfileSection(profile = uiState.profile)
+                    MyProfileSection(profile = uiState.profile,
+                        onNotificationClick = onNotificationClick,
+                        onSettingsClick = onSettingsClick,)
                 }
             }
 
