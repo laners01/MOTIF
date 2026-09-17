@@ -132,25 +132,11 @@ public class CommentQueryService {
     }
 
     /**
-     * 대상 접근 판정을 걸되 <b>안 보이는 대상은 "댓글이 없다" 로 바꾼다</b> (§9.2 실패표).
-     *
-     * <p>§9.1 은 대상을 직접 지목하므로 {@code VIDEO_NOT_FOUND} 처럼 대상의 코드로 답한다.
-     * 여기는 {@code commentSeq} 만 들고 들어오는 경로라 대상별 코드를 그대로 내보내면
-     * <b>그 번호가 어느 테이블의 것인지</b>가 응답에서 읽힌다.
-     *
-     * <p><b>{@code COMMENT_DISABLED} 만 통과시킨다</b> — 명세 §9.2 가 403 으로 못박은
-     * 유일한 분기다. 잠금은 "보이지만 쓸 수 없다" 라서 숨길 것이 없다(대상이 안 보이면
-     * 그 판정에 닿기도 전에 위에서 404 가 난다).
+     * 대상 접근 판정을 걸되 안 보이는 대상은 "댓글이 없다" 로 바꾼다 —
+     * 근거는 {@link CommentTargetGuard#orCommentNotFound} 에 있다.
      */
     private Integer visibleTarget(Long commentSeq, Supplier<Integer> guard) {
-        try {
-            return guard.get();
-        } catch (BusinessException e) {
-            if (e.getErrorCode() == CommentErrorCode.COMMENT_DISABLED) {
-                throw e;
-            }
-            throw commentNotFound(commentSeq);
-        }
+        return targetGuard.orCommentNotFound(commentSeq, guard);
     }
 
     private static BusinessException commentNotFound(Long commentSeq) {

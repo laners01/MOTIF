@@ -40,7 +40,25 @@ public enum CommentErrorCode implements ErrorCode {
      * 경로는 {@code commentSeq} 만 들고 오므로 대상별로 다른 코드를 주면 <b>그 번호가
      * 어느 테이블의 것인지</b>가 응답에서 읽힌다.
      */
-    COMMENT_NOT_FOUND(404, "COMMENT_NOT_FOUND", "존재하지 않는 댓글입니다.");
+    COMMENT_NOT_FOUND(404, "COMMENT_NOT_FOUND", "존재하지 않는 댓글입니다."),
+
+    /**
+     * 답글에 답글을 달려고 했다 (API 명세 §9.3).
+     *
+     * <p>깊이는 2단으로 못박혀 있다 — {@code parent_comment_seq} 가 가리키는 것은 반드시
+     * 루트 댓글이어야 한다. DB 는 자기 참조만 막고(changeSet 0006) 이 규칙은 서비스가
+     * 지킨다.
+     */
+    REPLY_DEPTH_EXCEEDED(400, "REPLY_DEPTH_EXCEEDED", "답글에는 답글을 달 수 없습니다."),
+
+    /**
+     * 부모 댓글이 <b>다른 게시물</b>의 것이다 (API 명세 §9.3).
+     *
+     * <p>경로의 대상과 {@code parentCommentSeq} 의 대상이 어긋난 요청이다. 막지 않으면
+     * A 챌린지의 댓글 아래에 B 챌린지의 답글이 달려, 어느 쪽 목록에서도 답글 수가 맞지
+     * 않는 행이 생긴다.
+     */
+    PARENT_TARGET_MISMATCH(400, "PARENT_TARGET_MISMATCH", "다른 게시물의 댓글에는 답글을 달 수 없습니다.");
 
     private final int status;
     private final String code;

@@ -2,6 +2,9 @@ package com.ssafy.motif.coreapi.domain.comment.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateRequest;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateResponse;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentDeleteResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
 import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
@@ -15,7 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 댓글 API 문서 계약 (명세 §9.1 · §9.2).
+ * 댓글 API 문서 계약 (명세 §9.1 · §9.2 · §9.3 · §9.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -281,4 +284,191 @@ public interface CommentControllerDocs {
             @Parameter(description = "루트 댓글 식별자", example = "501") Long commentSeq,
             @Parameter(description = "0-base 페이지", example = "0") int page,
             @Parameter(description = "페이지 크기 — 최대 100", example = "20") int size);
+
+    String WRITE_DESCRIPTION = """
+            댓글 또는 답글을 단다. **`parentCommentSeq` 가 있으면 답글**, 없으면 루트 댓글이다.
+
+            - **인증 필요.**
+            - **201 Created.** 응답은 `commentSeq` 하나다 — 화면은 로컬 상태로 즉시 그리고,
+              정렬(§9.1 은 세 그룹 우선순위다)까지 맞춰야 할 때만 목록을 다시 받는다.
+            - 대상의 `commentCount` 가 **같은 트랜잭션에서** 1 올라간다.
+            - `content` 는 앞뒤 공백을 떼고 저장한다. **(기본안) 최대 1000자**이고, 공백만
+              보내면 400 이다.
+
+            ### 답글 규칙 — 깊이는 2단까지다
+
+            `parentCommentSeq` 는 반드시 **루트 댓글**이어야 하고(답글에 답글 → 400
+            `REPLY_DEPTH_EXCEEDED`), **같은 게시물**의 댓글이어야 한다(→ 400
+            `PARENT_TARGET_MISMATCH`). 삭제된 부모나 **탈퇴 사용자가 쓴 루트**는 404 다 —
+            그 스레드는 §9.1·§9.2 에서 통째로 감춰져 있어(§1.8) 달아도 아무도 볼 수 없다.
+
+            ### 알림
+
+            **이 API 는 알림을 보내지 않는다.** FCM 발송(NOTI-04/05)은 발송 경로가 붙는
+            티켓에서 이어진다. 서버는 `notifications` 테이블에 저장하지 않는다(§14).
+            """;
+
+    String CREATE_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": { "commentSeq": 502 },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String PARENT_FAIL_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "REPLY_DEPTH_EXCEEDED",
+              "message": "답글에는 답글을 달 수 없습니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "챌린지 댓글·답글 작성 (§9.3)", description = WRITE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201", description = "작성됨",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = CREATE_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "본문 검증 실패 · 답글에 답글 · 다른 게시물의 부모",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = PARENT_FAIL_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제된 챌린지 · 부모 댓글 없음",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<CommentCreateResponse> writeOnChallenge(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "챌린지 식별자", example = "11") Integer challengeSeq,
+            CommentCreateRequest request);
+
+    @Operation(
+            summary = "참여 영상 댓글·답글 작성 (§9.3)",
+            description = WRITE_DESCRIPTION + """
+
+                    ### 잠긴 영상은 403
+
+                    `comment_enabled=FALSE` 면 `COMMENT_DISABLED` 다. 안 보이는 영상
+                    (삭제·타인의 `PRIVATE`·삭제된 챌린지 소속)은 그보다 **먼저** 404 로 걸린다.
+
+                    ### 아티스트가 달면 피드가 바뀐다
+
+                    그 영상의 아티스트가 댓글을 달면 `has_artist_comment` 가 켜지고, 이 값은
+                    §8.1 피드 정렬에 강하게 반영된다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201", description = "작성됨",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = CREATE_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "본문 검증 실패 · 답글에 답글 · 다른 게시물의 부모",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = PARENT_FAIL_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "댓글 사용 중지",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "안 보이는 영상 · 부모 댓글 없음",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<CommentCreateResponse> writeOnVideo(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "참여 영상 식별자", example = "88") Long videoSeq,
+            CommentCreateRequest request);
+
+    @Operation(summary = "공지 댓글·답글 작성 (§9.3)", description = WRITE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201", description = "작성됨",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = CREATE_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "본문 검증 실패 · 답글에 답글 · 다른 게시물의 부모",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = PARENT_FAIL_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제된 공지 · 부모 댓글 없음",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<CommentCreateResponse> writeOnNotice(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "공지 식별자", example = "7") Integer noticeSeq,
+            CommentCreateRequest request);
+
+    @Operation(
+            summary = "댓글·답글 삭제 (§9.4)",
+            description = """
+                    **본인 댓글만** 지울 수 있다. 소프트 삭제라 행은 남고 목록에서만 사라진다.
+
+                    - **인증 필요.**
+                    - **루트를 지우면 직계 답글도 함께 지워진다** — `deletedCount` 가 1보다 클
+                      수 있다(루트 1 + 답글 2 = 3). 이미 지워져 있던 답글은 세지 않는다.
+                    - 지워진 댓글들의 **좋아요는 하드 삭제**된다. 되살릴 일이 없는 행이다.
+                    - 대상의 `commentCount` 가 **실제 삭제된 행 수만큼** 줄어든다(0 아래로
+                      내려가지 않는다).
+                    - 참여 영상이면 `has_artist_comment` 를 **다시 센다** — 아티스트 댓글을
+                      하나 지웠다고 무조건 끄면 다른 아티스트 댓글이 남았는데도 §8.1 피드
+                      가산점이 사라진다.
+
+                    ### 잠긴 영상에서도 지울 수 있다
+
+                    `comment_enabled=FALSE` 라도 삭제는 된다(기본안). 잠금은 **새 글을 막는
+                    장치**지 이미 쓴 내 글을 못 내리게 하는 장치가 아니다.
+
+                    ### 멱등이 아니다
+
+                    이미 삭제된 댓글은 404 다. 안 보이는 대상(삭제된 챌린지·공지, 타인의
+                    `PRIVATE` 영상)에 달린 댓글도 같은 404 다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "삭제됨",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": { "deletedCount": 3 },
+                              "timestamp": "2026-09-10T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "본인 댓글이 아님",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "FORBIDDEN",
+                                      "message": "권한이 없습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 이미 삭제됨 · 대상 비노출 · 알 수 없는 type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "COMMENT_NOT_FOUND",
+                                      "message": "존재하지 않는 댓글입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<CommentDeleteResponse> delete(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "challenge | video | notice", example = "challenge") String type,
+            @Parameter(description = "댓글 식별자", example = "501") Long commentSeq);
 }

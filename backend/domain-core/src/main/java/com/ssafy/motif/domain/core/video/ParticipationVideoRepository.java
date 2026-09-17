@@ -423,4 +423,37 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
             on conflict do nothing
             """, nativeQuery = true)
     void insertHideIfAbsent(@Param("userSeq") Integer userSeq, @Param("videoSeq") Long videoSeq);
+
+    /**
+     * 댓글 수 증감 (API 명세 §9.3·§9.4) — 거울 카운터.
+     *
+     * <p>규칙은 {@code ChallengeRepository.addCommentCount} 와 같다: 작성 {@code +1},
+     * 삭제는 실제로 지워진 행 수만큼 음수, 바닥은 0.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ParticipationVideo v
+               set v.commentCount = v.commentCount + :delta
+             where v.videoSeq = :videoSeq and v.commentCount + :delta >= 0
+            """)
+    int addCommentCount(@Param("videoSeq") Long videoSeq, @Param("delta") int delta);
+
+    /**
+     * {@code has_artist_comment} 갱신 (API 명세 §9.3 처리 5 · §9.4).
+     *
+     * <p><b>이 플래그는 피드 정렬에 강하게 반영된다</b>(§8.1) — 댓글 한 건이 아니라
+     * "아티스트가 이 영상에 반응했는가" 라는 신호다. 그래서 켜는 것은 아티스트 댓글이
+     * 하나 생기면 되지만, 끄는 것은 <b>남은 아티스트 댓글이 없는지 세어 본 뒤</b>여야
+     * 한다({@code VideoCommentRepository.existsArtistComment}).
+     *
+     * <p>엔티티에 세터를 열지 않는다 — 이 칼럼을 바꾸는 경로는 댓글 작성·삭제뿐이고,
+     * 게시(§8.8)·수정(§8.9)이 건드릴 값이 아니다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ParticipationVideo v
+               set v.hasArtistComment = :value
+             where v.videoSeq = :videoSeq and v.hasArtistComment <> :value
+            """)
+    int updateHasArtistComment(@Param("videoSeq") Long videoSeq, @Param("value") boolean value);
 }

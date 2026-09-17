@@ -3,9 +3,11 @@ package com.ssafy.motif.domain.core.comment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -156,4 +158,58 @@ public interface ChallengeCommentRepository extends JpaRepository<ChallengeComme
             """, nativeQuery = true)
     List<Long> findLikedCommentSeqs(@Param("userSeq") Integer userSeq,
                                     @Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /**
+     * 루트 댓글의 <b>아직 살아 있는</b> 직계 답글 seq (API 명세 §9.4).
+     *
+     * <p>이미 삭제된 답글을 함께 집으면 {@code deletedCount} 가 부풀고, 그만큼
+     * {@code comment_count} 를 더 깎아 카운터가 음수 쪽으로 흐른다.
+     *
+     * <p><b>손자는 없다</b> — 깊이가 2단이라 직계가 전부다.
+     */
+    @Query("""
+            select c.commentSeq
+            from ChallengeComment c
+            where c.parentCommentSeq = :parentSeq and c.deleted = false
+            """)
+    List<Long> findAliveReplySeqs(@Param("parentSeq") Long parentSeq);
+
+    /**
+     * 소프트 삭제 — <b>실제로 바뀐 행 수</b>를 돌려준다 (§9.4 {@code deletedCount}).
+     *
+     * <p>루트와 직계 답글을 한 문장에 지운다. 엔티티를 하나씩 들어 고치면 몇 건이
+     * 실제로 바뀌었는지를 다시 세야 하고, 그 수가 곧 응답값이자
+     * {@code comment_count} 감소폭이라 세는 곳이 둘이 되면 어긋난다.
+     *
+     * <p>{@code deleted = false} 조건이 <b>멱등을 막는다</b> — 이미 지워진 행은 세지
+     * 않는다(§9.4 는 이미 삭제된 댓글에 404 를 준다).
+     *
+     * <p>{@code modDttm} 을 명시적으로 올린다 — 벌크 UPDATE 는
+     * {@code BaseTimeEntity} 의 {@code @PreUpdate} 를 거치지 않는다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ChallengeComment c
+               set c.deleted = true, c.modDttm = :now, c.modUsrSeq = :modUsrSeq
+             where c.commentSeq in :commentSeqs and c.deleted = false
+            """)
+    int softDelete(@Param("commentSeqs") Collection<Long> commentSeqs,
+                   @Param("modUsrSeq") Integer modUsrSeq,
+                   @Param("now") Instant now);
+
+    /**
+     * 삭제되는 댓글들의 좋아요 <b>하드 삭제</b> (§9.4).
+     *
+     * <p>소프트 삭제된 댓글의 좋아요를 남겨 두면 like_count 집계와 "내가 누른 목록" 에
+     * 유령이 남는다. 되살릴 일이 없는 행이라 지운다.
+     *
+     * <p>네이티브인 이유는 {@code findLikedCommentSeqs} 와 같다 — 좋아요 테이블은
+     * 엔티티가 없고 토글(§9.5) 티켓이 소유한다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.challenge_comment_likes
+             where challenge_comment_seq in (:commentSeqs)
+            """, nativeQuery = true)
+    int deleteLikes(@Param("commentSeqs") Collection<Long> commentSeqs);
 }
