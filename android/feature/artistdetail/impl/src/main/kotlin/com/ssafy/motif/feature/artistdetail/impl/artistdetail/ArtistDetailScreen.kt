@@ -18,7 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ChallengeThumbnail
+import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -244,8 +244,9 @@ internal fun ArtistDetailScreen(
                                         ){
                                             row.forEach { challenge ->
                                                 ChallengeThumbnail(
-                                                    challenge = challenge,
-                                                    onClick = onChallengeClick,
+                                                    thumbnailUrl = challenge.thumbnailUrl,
+                                                    viewCount = challenge.view,
+                                                    onClick = { onChallengeClick(challenge.id) },
                                                     modifier = Modifier.weight(1f),
                                                 )
                                             }
