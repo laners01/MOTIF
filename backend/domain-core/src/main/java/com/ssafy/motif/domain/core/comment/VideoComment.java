@@ -56,4 +56,21 @@ public class VideoComment extends BaseTimeEntity {
 
     @Column(name = "mod_usr_seq")
     private Integer modUsrSeq;
+
+    /**
+     * 댓글·답글 작성 (API 명세 §9.3) — 규칙은 {@link ChallengeComment#write} 와 같다.
+     *
+     * <p>작성자가 <b>그 영상의 아티스트</b>면 호출부가
+     * {@code participation_videos.has_artist_comment} 를 함께 올린다(§9.3 처리 5).
+     * 그 플래그는 §8.1 피드 정렬에 강하게 반영되므로 여기 댓글 한 건의 문제가 아니다.
+     */
+    public static VideoComment write(Long videoSeq, Integer userSeq,
+                                     Long parentCommentSeq, String content) {
+        VideoComment comment = new VideoComment();
+        comment.videoSeq = videoSeq;
+        comment.userSeq = userSeq;
+        comment.parentCommentSeq = parentCommentSeq;
+        comment.content = content;
+        return comment;
+    }
 }

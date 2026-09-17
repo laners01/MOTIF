@@ -51,4 +51,15 @@ public class NoticeComment extends BaseTimeEntity {
 
     @Column(name = "mod_usr_seq")
     private Integer modUsrSeq;
+
+    /** 댓글·답글 작성 (API 명세 §9.3) — 규칙은 {@link ChallengeComment#write} 와 같다. */
+    public static NoticeComment write(Integer noticeSeq, Integer userSeq,
+                                      Long parentCommentSeq, String content) {
+        NoticeComment comment = new NoticeComment();
+        comment.noticeSeq = noticeSeq;
+        comment.userSeq = userSeq;
+        comment.parentCommentSeq = parentCommentSeq;
+        comment.content = content;
+        return comment;
+    }
 }

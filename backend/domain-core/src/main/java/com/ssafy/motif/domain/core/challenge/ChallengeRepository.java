@@ -31,6 +31,24 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
             """)
     int decrementParticipantCount(@Param("challengeSeq") Integer challengeSeq);
 
+    /**
+     * 댓글 수 증감 (API 명세 §9.3·§9.4 · DB §26) — <b>거울 카운터</b>.
+     *
+     * <p>{@code delta} 는 작성에서 {@code +1}, 삭제에서 <b>실제로 삭제된 행 수만큼</b>
+     * 음수다(루트를 지우면 직계 답글이 함께 지워져 1보다 크다).
+     *
+     * <p>UPDATE 한 문장이다 — 엔티티를 읽어 더하고 저장하면 동시 작성에서 유실된다.
+     * 바닥 조건({@code commentCount + delta >= 0})이 음수를 막는다
+     * ({@link #decrementParticipantCount} 와 같은 장치다).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Challenge c
+               set c.commentCount = c.commentCount + :delta
+             where c.challengeSeq = :challengeSeq and c.commentCount + :delta >= 0
+            """)
+    int addCommentCount(@Param("challengeSeq") Integer challengeSeq, @Param("delta") int delta);
+
     /** 아티스트 목록·상세의 {@code challengeCount} (어드민 §3.5.1) — 페이지 전체를 한 번에. */
     @Query("""
             select new com.ssafy.motif.domain.core.artist.ArtistCount(c.artistSeq, count(c))

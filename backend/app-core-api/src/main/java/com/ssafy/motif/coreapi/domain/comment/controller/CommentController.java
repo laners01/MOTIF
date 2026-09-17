@@ -4,16 +4,26 @@ import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.comment.docs.CommentControllerDocs;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateRequest;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateResponse;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentDeleteResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
 import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
+import com.ssafy.motif.coreapi.domain.comment.service.CommentCommandService;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -39,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CommentController implements CommentControllerDocs {
 
     private final CommentQueryService commentQueryService;
+    private final CommentCommandService commentCommandService;
 
     /** §9.1 챌린지 루트 댓글. */
     @Override
@@ -92,5 +103,52 @@ public class CommentController implements CommentControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(
                 commentQueryService.replies(user.userSeq(), type, commentSeq, page, size));
+    }
+
+    /** §9.3 챌린지 댓글·답글 작성. */
+    @Override
+    @PostMapping("/challenges/{challengeSeq}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CommentCreateResponse> writeOnChallenge(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer challengeSeq,
+            @Valid @RequestBody CommentCreateRequest request) {
+        return ApiResponse.success(
+                commentCommandService.writeOnChallenge(user.userSeq(), challengeSeq, request));
+    }
+
+    /** §9.3 참여 영상 댓글·답글 작성 — 잠긴 영상은 403 이다. */
+    @Override
+    @PostMapping("/videos/{videoSeq}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CommentCreateResponse> writeOnVideo(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long videoSeq,
+            @Valid @RequestBody CommentCreateRequest request) {
+        return ApiResponse.success(
+                commentCommandService.writeOnVideo(user.userSeq(), videoSeq, request));
+    }
+
+    /** §9.3 공지 댓글·답글 작성. */
+    @Override
+    @PostMapping("/notices/{noticeSeq}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<CommentCreateResponse> writeOnNotice(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer noticeSeq,
+            @Valid @RequestBody CommentCreateRequest request) {
+        return ApiResponse.success(
+                commentCommandService.writeOnNotice(user.userSeq(), noticeSeq, request));
+    }
+
+    /** §9.4 삭제 — 본인 댓글만. 루트를 지우면 직계 답글도 함께 지워진다. */
+    @Override
+    @DeleteMapping("/comments/{type}/{commentSeq}")
+    public ApiResponse<CommentDeleteResponse> delete(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String type,
+            @PathVariable Long commentSeq) {
+        return ApiResponse.success(
+                commentCommandService.delete(user.userSeq(), type, commentSeq));
     }
 }

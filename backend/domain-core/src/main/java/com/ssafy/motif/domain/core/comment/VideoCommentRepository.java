@@ -3,9 +3,11 @@ package com.ssafy.motif.domain.core.comment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -115,4 +117,51 @@ public interface VideoCommentRepository extends JpaRepository<VideoComment, Long
             """, nativeQuery = true)
     List<Long> findLikedCommentSeqs(@Param("userSeq") Integer userSeq,
                                     @Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /** 살아 있는 직계 답글 seq (§9.4) — {@link ChallengeCommentRepository#findAliveReplySeqs} 참고. */
+    @Query("""
+            select c.commentSeq
+            from VideoComment c
+            where c.parentCommentSeq = :parentSeq and c.deleted = false
+            """)
+    List<Long> findAliveReplySeqs(@Param("parentSeq") Long parentSeq);
+
+    /** 소프트 삭제 (§9.4) — {@link ChallengeCommentRepository#softDelete} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update VideoComment c
+               set c.deleted = true, c.modDttm = :now, c.modUsrSeq = :modUsrSeq
+             where c.commentSeq in :commentSeqs and c.deleted = false
+            """)
+    int softDelete(@Param("commentSeqs") Collection<Long> commentSeqs,
+                   @Param("modUsrSeq") Integer modUsrSeq,
+                   @Param("now") Instant now);
+
+    /** 좋아요 하드 삭제 (§9.4) — {@link ChallengeCommentRepository#deleteLikes} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.video_comment_likes
+             where video_comment_seq in (:commentSeqs)
+            """, nativeQuery = true)
+    int deleteLikes(@Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /**
+     * 이 영상에 <b>그 아티스트의 댓글이 남아 있는가</b>
+     * ({@code participation_videos.has_artist_comment} 재계산 — §9.3·§9.4).
+     *
+     * <p>플래그를 지우는 쪽에서 특히 필요하다 — 아티스트 댓글을 하나 지웠다고 무조건
+     * {@code FALSE} 로 내리면 <b>다른 아티스트 댓글이 남아 있는데도</b> 피드 정렬
+     * 가산점이 사라진다(§8.1). 켤 때는 자명하지만 끌 때는 세어 봐야 한다.
+     *
+     * <p>답글도 아티스트 댓글이다 — 루트만 세지 않는다.
+     */
+    @Query("""
+            select count(c) > 0
+            from VideoComment c
+            where c.videoSeq = :videoSeq
+              and c.userSeq = :artistUserSeq
+              and c.deleted = false
+            """)
+    boolean existsArtistComment(@Param("videoSeq") Long videoSeq,
+                                @Param("artistUserSeq") Integer artistUserSeq);
 }

@@ -17,6 +17,8 @@ import com.ssafy.motif.domain.core.video.VideoFeedRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.function.Supplier;
+
 /**
  * "이 대상에 댓글을 볼 수 있는가, 그리고 이 대상의 아티스트는 누구인가" —
  * <b>§9 전체가 공유하는 단일 판정</b> (API 명세 §9).
@@ -76,13 +78,58 @@ public class CommentTargetGuard {
         if (!video.commentEnabled()) {
             throw new BusinessException(CommentErrorCode.COMMENT_DISABLED, "videoSeq: " + videoSeq);
         }
-        // VideoFeedRow 에는 artist_seq 가 없다(§8.1 항목이 쓰지 않는 칸이다). §8 의 투영에
-        // 칸을 더하는 대신 여기서 한 번 더 읽는다 — 그 record 는 병렬로 열려 있는 §8
-        // 티켓들이 함께 쓰고, 칸을 더하면 리베이스에서 되돌아온다.
+        return videoArtistUserSeq(videoSeq);
+    }
+
+    /**
+     * 영상의 아티스트 {@code user_seq}.
+     *
+     * <p>{@code VideoFeedRow} 에는 {@code artist_seq} 가 없다(§8.1 항목이 쓰지 않는
+     * 칸이다). §8 의 투영에 칸을 더하는 대신 여기서 한 번 더 읽는다 — 그 record 는
+     * 병렬로 열려 있는 §8 티켓들이 함께 쓰고, 칸을 더하면 리베이스에서 되돌아온다.
+     */
+    private Integer videoArtistUserSeq(Long videoSeq) {
         return participationVideoRepository.findById(videoSeq)
                 .map(ParticipationVideo::getArtistSeq)
                 .map(this::artistUserSeq)
                 .orElse(NO_ARTIST);
+    }
+
+    /**
+     * 참여 영상 — <b>댓글 잠금은 보지 않는다</b> (§9.4 삭제 전용).
+     *
+     * <p>§9.4 실패표에 {@code COMMENT_DISABLED} 가 없다. 잠금은 <b>새 글을 막는
+     * 장치</b>지 이미 쓴 내 글을 못 지우게 하는 장치가 아니다 — 잠긴 뒤에 삭제까지
+     * 막히면 사용자가 자기 댓글을 영영 내릴 수 없다.
+     *
+     * <p>보이는지({@link VideoAccessGuard#requireVisible})는 그대로 묻는다.
+     */
+    public Integer requireVideoIgnoringCommentLock(Integer viewerSeq, Long videoSeq) {
+        videoAccessGuard.requireVisible(viewerSeq, videoSeq);
+        return videoArtistUserSeq(videoSeq);
+    }
+
+    /**
+     * 대상 판정을 걸되 <b>안 보이는 대상은 "그 댓글이 없다" 로 바꾼다</b>
+     * (§9.2·§9.4 — {@code /comments/{type}/{commentSeq}} 경로 전용).
+     *
+     * <p>§9.1·§9.3 은 대상을 경로로 직접 지목하므로 {@code VIDEO_NOT_FOUND} 처럼 대상의
+     * 코드로 답한다. 개별 댓글 경로는 {@code commentSeq} 만 들고 오므로 대상별 코드를
+     * 그대로 내보내면 <b>그 번호가 어느 테이블의 것인지</b>가 응답에서 읽힌다.
+     *
+     * <p><b>{@code COMMENT_DISABLED} 만 통과시킨다</b> — 잠금은 "보이지만 쓸 수 없다"
+     * 라서 숨길 것이 없다.
+     */
+    public Integer orCommentNotFound(Long commentSeq, Supplier<Integer> guard) {
+        try {
+            return guard.get();
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == CommentErrorCode.COMMENT_DISABLED) {
+                throw e;
+            }
+            throw new BusinessException(CommentErrorCode.COMMENT_NOT_FOUND,
+                    "commentSeq: " + commentSeq);
+        }
     }
 
     /** 공지 — 삭제된 공지는 없는 것으로 본다. */

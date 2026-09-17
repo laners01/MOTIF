@@ -53,6 +53,20 @@ public interface NoticeRepository extends JpaRepository<Notice, Integer> {
             """)
     List<ArtistCount> countByArtists(@Param("artistSeqs") Collection<Integer> artistSeqs);
 
+    /**
+     * 댓글 수 증감 (API 명세 §9.3·§9.4) — 거울 카운터.
+     *
+     * <p>규칙은 {@code ChallengeRepository.addCommentCount} 와 같다: 작성 {@code +1},
+     * 삭제는 실제로 지워진 행 수만큼 음수, 바닥은 0.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Notice n
+               set n.commentCount = n.commentCount + :delta
+             where n.noticeSeq = :noticeSeq and n.commentCount + :delta >= 0
+            """)
+    int addCommentCount(@Param("noticeSeq") Integer noticeSeq, @Param("delta") int delta);
+
     /** 삭제된 공지는 없는 것으로 본다 — 수정·삭제 대상 조회(§3.10.4·§3.10.5). */
     Optional<Notice> findByNoticeSeqAndDeletedFalse(Integer noticeSeq);
 

@@ -14,8 +14,11 @@ import lombok.NoArgsConstructor;
 /**
  * 챌린지 댓글 (DB SPEC v0.15 §20, changeSet 0006-01).
  *
- * <p><b>생성자가 없다 — 읽기 전용이다.</b> 행을 만드는 것은 §9.3 작성이고 그 API 가 아직
- * 없다. 삭제(§9.4)·좋아요(§9.5)도 각자의 티켓이 여기에 행위를 더한다.
+ * <p><b>만드는 길은 {@link #write} 하나다</b>(§9.3). <b>지우는 길은 여기 없다</b> —
+ * 삭제(§9.4)는 루트와 직계 답글을 함께 소프트 삭제해야 하고 그 수가 곧 응답의
+ * {@code deletedCount} 라서, 엔티티를 하나씩 들어 고치는 대신 리포지토리의 벌크
+ * UPDATE 가 한 문장으로 처리한다({@code softDelete}). 좋아요(§9.5)는 각자의 티켓이
+ * 행위를 더한다.
  *
  * <p><b>PK 필드 이름이 칼럼명과 다르다</b> — 칼럼은 테이블마다
  * {@code challenge_comment_seq}·{@code video_comment_seq}·{@code notice_comment_seq} 로
@@ -60,4 +63,25 @@ public class ChallengeComment extends BaseTimeEntity {
 
     @Column(name = "mod_usr_seq")
     private Integer modUsrSeq;
+
+    /**
+     * 댓글·답글 작성 (API 명세 §9.3).
+     *
+     * <p>{@code parentCommentSeq} 가 {@code null} 이면 루트다. <b>그 값이 루트인지,
+     * 같은 챌린지의 댓글인지는 여기서 묻지 않는다</b> — 다른 행을 읽어야 답할 수 있는
+     * 교차 행 규칙이라 서비스가 확인한다(changeSet 0006 주석도 같은 이유로 CHECK 를
+     * 걸지 않았다).
+     *
+     * <p>{@code likeCount}·{@code deleted} 는 DB 기본값(0·FALSE)과 같은 자바 기본값으로
+     * 시작한다.
+     */
+    public static ChallengeComment write(Integer challengeSeq, Integer userSeq,
+                                         Long parentCommentSeq, String content) {
+        ChallengeComment comment = new ChallengeComment();
+        comment.challengeSeq = challengeSeq;
+        comment.userSeq = userSeq;
+        comment.parentCommentSeq = parentCommentSeq;
+        comment.content = content;
+        return comment;
+    }
 }

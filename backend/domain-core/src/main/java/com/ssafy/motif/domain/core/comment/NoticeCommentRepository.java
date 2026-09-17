@@ -3,9 +3,11 @@ package com.ssafy.motif.domain.core.comment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -110,4 +112,31 @@ public interface NoticeCommentRepository extends JpaRepository<NoticeComment, Lo
             """, nativeQuery = true)
     List<Long> findLikedCommentSeqs(@Param("userSeq") Integer userSeq,
                                     @Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /** 살아 있는 직계 답글 seq (§9.4) — {@link ChallengeCommentRepository#findAliveReplySeqs} 참고. */
+    @Query("""
+            select c.commentSeq
+            from NoticeComment c
+            where c.parentCommentSeq = :parentSeq and c.deleted = false
+            """)
+    List<Long> findAliveReplySeqs(@Param("parentSeq") Long parentSeq);
+
+    /** 소프트 삭제 (§9.4) — {@link ChallengeCommentRepository#softDelete} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update NoticeComment c
+               set c.deleted = true, c.modDttm = :now, c.modUsrSeq = :modUsrSeq
+             where c.commentSeq in :commentSeqs and c.deleted = false
+            """)
+    int softDelete(@Param("commentSeqs") Collection<Long> commentSeqs,
+                   @Param("modUsrSeq") Integer modUsrSeq,
+                   @Param("now") Instant now);
+
+    /** 좋아요 하드 삭제 (§9.4) — {@link ChallengeCommentRepository#deleteLikes} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.notice_comment_likes
+             where notice_comment_seq in (:commentSeqs)
+            """, nativeQuery = true)
+    int deleteLikes(@Param("commentSeqs") Collection<Long> commentSeqs);
 }
