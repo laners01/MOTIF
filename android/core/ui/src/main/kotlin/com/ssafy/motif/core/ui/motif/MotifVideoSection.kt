@@ -1,20 +1,26 @@
-package com.ssafy.motif.feature.artistdetail.impl.artistdetail.component
+package com.ssafy.motif.core.ui.motif
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.ssafy.motif.core.model.artistdetail.ArtistMotif
 import com.ssafy.motif.core.ui.video.VideoCarousel
 
+/**
+ * 단일 모티프 영상을 자동 재생한다.
+ *
+ * 진입 시 자동 재생, 종료 시 반복, 로딩 중 썸네일 표시는 [VideoCarousel]이 처리한다.
+ */
 @Composable
-internal fun MotifVideoSection(
-    motif: ArtistMotif,
+fun MotifVideoSection(
+    videoId: String,
+    videoUrl: String,
+    thumbnailUrl: String,
     modifier: Modifier = Modifier,
 ) {
     VideoCarousel(
         itemCount = 1,
-        videoId = { motif.id.toString() },
-        videoUrl = { motif.videoUrl },
-        thumbnailUrl = { motif.thumbnailUrl },
+        videoId = { videoId },
+        videoUrl = { videoUrl },
+        thumbnailUrl = { thumbnailUrl },
         onItemClick = { },
         modifier = modifier,
         itemWidthFraction = 1f,      // 기본 0.8f는 캐러셀용 여백

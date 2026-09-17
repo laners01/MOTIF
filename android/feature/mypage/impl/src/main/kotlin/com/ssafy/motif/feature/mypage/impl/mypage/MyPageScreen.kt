@@ -3,6 +3,7 @@ package com.ssafy.motif.feature.mypage.impl.mypage
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
+import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,34 +151,57 @@ internal fun MyPageScreen(
                     item{}
                 }
             }
+            // 대표 모티프가 설정된 경우에만 프로필과 탭 사이에 노출한다.
+            uiState.representativeMotif?.let { motif ->
+                item {
+                    MotifVideoSection(
+                        videoId = motif.id.toString(),
+                        videoUrl = motif.videoUrl,
+                        thumbnailUrl = motif.thumbnailUrl,
+                        // 위 4dp는 닉네임과의 간격(4+16+4=24dp), 아래 12dp는 탭 글씨와의 간격(12+16=28dp)
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                    )
+                }
+            }
+
             stickyHeader{
-                TabRow(
-                    selectedTabIndex = uiState.selectedTab.ordinal,
-                    containerColor = MotifTheme.colors.background,
-                    divider = {},
-                    indicator = { tabPositions ->
-                        if(uiState.selectedTab.ordinal < tabPositions.size){
-                            TabRowDefaults.Indicator(
-                                modifier = Modifier
-                                    .tabIndicatorOffset(tabPositions[uiState.selectedTab.ordinal],)
-                                    .height(2.dp)
-                                    .width(50.dp),
-                                color = MotifTheme.colors.pink
-                            )
-                        }  },
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MotifTheme.colors.background)
+                        // 인디케이터가 TabRow 하단에 붙으므로 아래 여백은 TabRow 바깥에 준다.
+                        .padding(bottom = 24.dp),
                 ) {
-                    MyPageTab.entries.forEach { tab ->
-                        Tab(
-                            selected = uiState.selectedTab == tab,
-                            onClick = { onTabClick(tab) },
-                            selectedContentColor = MotifTheme.colors.typo,
-                            unselectedContentColor = MotifTheme.colors.gray400,
-                        ) {
-                            Text(
-                                text = tab.label,
-                                style = MotifTheme.typography.bodyR16,
-                                modifier = Modifier.padding(vertical = 16.dp),
-                            )
+                    TabRow(
+                        selectedTabIndex = uiState.selectedTab.ordinal,
+                        containerColor = MotifTheme.colors.background,
+                        divider = {},
+                        indicator = { tabPositions ->
+                            if(uiState.selectedTab.ordinal < tabPositions.size){
+                                TabRowDefaults.Indicator(
+                                    modifier = Modifier
+                                        .tabIndicatorOffset(tabPositions[uiState.selectedTab.ordinal],)
+                                        .height(2.dp)
+                                        .width(50.dp),
+                                    color = MotifTheme.colors.pink
+                                )
+                            }  },
+                    ) {
+                        MyPageTab.entries.forEach { tab ->
+                            Tab(
+                                selected = uiState.selectedTab == tab,
+                                onClick = { onTabClick(tab) },
+                                selectedContentColor = MotifTheme.colors.typo,
+                                unselectedContentColor = MotifTheme.colors.gray400,
+                            ) {
+                                Text(
+                                    text = tab.label,
+                                    style = MotifTheme.typography.bodyR16,
+                                    // 위 16dp는 영상과의 간격(12+16=28dp) 계산에 쓰인다.
+                                    // 아래 8dp 중 2dp는 인디케이터가 차지한다(실제 간격 6dp)
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                                )
+                            }
                         }
                     }
                 }

@@ -41,7 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifEmptyContent
-import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifVideoSection
+import com.ssafy.motif.core.ui.motif.MotifVideoSection
 
 @Composable
 fun ArtistDetailScreen(
@@ -132,7 +132,9 @@ internal fun ArtistDetailScreen(
                         if(motif !=null){
                             item{
                                 MotifVideoSection(
-                                    motif = motif,
+                                    videoId = motif.id.toString(),
+                                    videoUrl = motif.videoUrl,
+                                    thumbnailUrl = motif.thumbnailUrl,
                                     modifier = Modifier.padding(bottom = 12.dp),
                                 )
                             }
