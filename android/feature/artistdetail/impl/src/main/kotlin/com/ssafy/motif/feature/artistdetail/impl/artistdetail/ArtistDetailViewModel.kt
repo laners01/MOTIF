@@ -23,6 +23,7 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
             artistDetail = ArtistDetailMockData.artist,
             notices = ArtistDetailMockData.notices,
             challengeState = ChallengeUiState.Loading,
+            motifs = ArtistDetailMockData.motifs,
             ),
         )
     internal val uiState: StateFlow<ArtistDetailUiState> = _uiState.asStateFlow()
