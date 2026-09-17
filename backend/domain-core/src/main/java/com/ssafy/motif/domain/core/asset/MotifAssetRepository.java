@@ -217,48 +217,39 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
     }
 
     /**
-     * 팬 앱 에셋 목록 (API 명세 §11.1) — offset 페이지, 최신순 고정.
+     * 내가 구매한 에셋 (API 명세 §11.1) — <b>비페이지 전량</b>, 구매 최신순.
      *
-     * <p><b>{@code artistSeq} 가 모드를 가른다.</b> {@code null} 이면 <b>내가 구독한
-     * 아티스트</b>의 에셋만, 값이 있으면 구독 여부를 보지 않고 그 아티스트의 에셋만이다.
-     * 원본 명세 §11.1 은 "생략하면 전체 아티스트"였지만 숍의 기본 화면이 구독 기반이라
-     * 기본값을 바꿨다(S15P21D104-224 — {@code docs/api/detail/11-motif.md} §11.1 에 사유).
-     * 전체 카탈로그를 한 번에 주는 경로는 두지 않는다.
+     * <p><b>계약이 바뀌었다</b>(S15P21D104-219). 이 조회는 원래 "구독 아티스트의 에셋
+     * 전량"({@code searchCatalog})이었고 숍 첫 화면을 그리는 자리였다. 그 자리는
+     * {@link #searchShop}(§11.3)이 가져갔고, §11.1 은 <b>내 보유함</b>이 됐다 —
+     * {@code docs/api/detail/11-motif.md} §11.1 에 사유가 있다.
      *
-     * <p><b>왜 어드민 {@link #search} 와 나누나.</b> 저쪽은 운영 지표(구매 수·결과물 수·
-     * 가격)를 붙이고 비활성 에셋을 그대로 보여 준다. 여기는 그 세 값을 쓰지 않는 대신
-     * 호출자별 판정(구독·구매·패스)이 붙는다 — 합치면 어느 화면에도 필요 없는 칸을
-     * 서로에게 계산해 주는 쿼리가 된다.
+     * <p><b>{@code asset_purchases} 가 FROM 절이다.</b> 에셋에서 출발해 구매를
+     * {@code exists} 로 거르면 "구매 최신순"을 낼 수 없다 — 정렬 기준이 되는
+     * {@code reg_dttm} 이 서브쿼리 안에 갇힌다. 보유함은 "최근에 산 것" 순서가 자연스러운
+     * 화면이라 구매 행을 기준 축으로 둔다.
      *
-     * <p><b>세 판정을 전부 쿼리 안에서 한다.</b> 구독 필터·노출 필터·{@code myAccess} 는
-     * 모두 <b>페이지 대상 집합</b>을 바꾼다. 하나라도 애플리케이션에서 거르면
-     * {@code totalElements} 와 페이지 경계가 응답 항목 수와 어긋난다 — 20건을 요청했는데
-     * 3건만 오면서 {@code hasNext=true} 인 목록이 된다.
+     * <p>동률을 {@code purchase_seq} 로 끊는다. 같은 초에 두 건을 사면
+     * {@code reg_dttm} 만으로는 순서가 매번 달라진다.
      *
-     * <p><b>비활성 에셋은 개별 구매자에게만 보인다</b>(§11.1). 패스만 있는 사용자에게는
-     * 보이지 않으므로 노출 조건의 {@code exists} 는 구매만 본다 — {@code owned} 와 같은
-     * 서브쿼리지만 <b>하는 일이 다르다</b>. 저쪽은 "보여 줄까"이고 이쪽은 "무슨 권한인가"라,
-     * 노출 규칙이 바뀌어도 {@code myAccess} 는 그대로여야 한다.
+     * <p><b>보지 않는 것이 셋이다.</b>
+     * <ul>
+     *   <li>{@code is_active} — 판매가 중단돼도 산 것은 산 것이다(§4.7
+     *       {@code purchasedAssetCount} 와 같은 규칙).</li>
+     *   <li>구독 — 구독을 끊어도 산 것은 남는다.</li>
+     *   <li>{@code artists.is_deleted} — 같은 이유다. 이름·프로필은 행이 남아 있어
+     *       계속 조인된다.</li>
+     * </ul>
      *
-     * <p><b>패스 만료는 {@code current_timestamp} 로 비교한다</b> — DB 가 평가한다.
-     * 자바에서 시각을 꺼내 넘기면 앱 서버와 DB 의 시계 차만큼 만료 직전·직후 판정이
-     * 갈린다({@code MotifPassRepository.findActive} 와 같은 근거).
-     *
-     * <p><b>{@code PREMIUM} 의 패스 미커버는 여기서 판정하지 않는다.</b> 쿼리는 "그
-     * 아티스트의 유효 패스가 있는가"({@code passActive})까지만 답하고, 타입별 커버 규칙은
-     * 서비스가 {@code assetType} 과 함께 본다 — DB 없이 검증할 수 있는 자리에 둔다.
-     *
-     * <p>구독 모드에서 <b>삭제 아티스트를 뺀다</b>. 구독 행은 아티스트가 삭제돼도 남으므로
-     * ({@code SubscriptionRepository.findSubscribed} 와 같은 근거) 거르지 않으면 눌러도
-     * 404 가 나는 카드가 섞인다. {@code artistSeq} 모드에는 이 게이트가 없다 — 삭제
-     * 연쇄로 에셋이 전부 {@code is_active=FALSE} 가 되어 개별 구매자에게만 남는데,
-     * 산 것은 판매가 끊겨도 산 것이다(§4.7 {@code purchasedAssetCount} 와 같은 규칙).
+     * <p><b>패스는 여기 없다.</b> 패스로만 열리는 에셋은 산 것이 아니므로 대상이 아니고,
+     * 결과가 전부 개별 구매라 {@code myAccess} 를 계산할 이유도 없다 — 값이 하나뿐인
+     * 칸이 된다. 그 판정이 필요한 곳은 §11.2 상세와 §11.3 숍이다.
      *
      * <p>{@code cast(:artistSeq as integer)} 은 장식이 아니다 — 네이티브 쿼리에
      * {@code null} 을 그냥 바인딩하면 Postgres 가 파라미터 타입을 못 정해 쿼리 자체가
      * 실패한다. 별칭의 따옴표도 같은 이유다({@link #search} 참조).
      *
-     * @param artistSeq {@code null} 이면 구독 아티스트 전체
+     * @param artistSeq {@code null} 이면 전체 — 값이 있으면 그 아티스트에게서 산 것만
      */
     @Query(value = """
             select a.asset_seq         as "assetSeq",
@@ -270,62 +261,27 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
                    a.description       as "description",
                    a.thumbnail_key     as "thumbnailKey",
                    a.duration_ms       as "durationMs",
-                   a.asset_type        as "assetType",
-                   exists (select 1 from motif_core.asset_purchases p
-                            where p.asset_seq = a.asset_seq
-                              and p.user_seq = :userSeq
-                              and p.status = 'ACTIVE')            as "owned",
-                   exists (select 1 from motif_core.motif_passes mp
-                            where mp.user_seq = :userSeq
-                              and mp.artist_seq = a.artist_seq
-                              and mp.status = 'ACTIVE'
-                              and mp.expires_dttm > current_timestamp) as "passActive"
-              from motif_core.motif_assets a
+                   a.asset_type        as "assetType"
+              from motif_core.asset_purchases p
+              join motif_core.motif_assets a on a.asset_seq = p.asset_seq
               join motif_core.artists ar on ar.artist_seq = a.artist_seq
               join motif_core.users u on u.user_seq = ar.user_seq
               left join motif_core.artist_groups g on g.group_seq = ar.group_seq
-             where (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
-               and (cast(:artistSeq as integer) is not null
-                    or (ar.is_deleted = false
-                        and exists (select 1 from motif_core.subscriptions s
-                                     where s.user_seq = :userSeq
-                                       and s.artist_seq = a.artist_seq)))
-               and (a.is_active = true
-                    or exists (select 1 from motif_core.asset_purchases ap
-                                where ap.asset_seq = a.asset_seq
-                                  and ap.user_seq = :userSeq
-                                  and ap.status = 'ACTIVE'))
-             order by a.asset_seq desc
-            """,
-            countQuery = """
-            select count(*)
-              from motif_core.motif_assets a
-              join motif_core.artists ar on ar.artist_seq = a.artist_seq
-             where (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
-               and (cast(:artistSeq as integer) is not null
-                    or (ar.is_deleted = false
-                        and exists (select 1 from motif_core.subscriptions s
-                                     where s.user_seq = :userSeq
-                                       and s.artist_seq = a.artist_seq)))
-               and (a.is_active = true
-                    or exists (select 1 from motif_core.asset_purchases ap
-                                where ap.asset_seq = a.asset_seq
-                                  and ap.user_seq = :userSeq
-                                  and ap.status = 'ACTIVE'))
-            """,
-            nativeQuery = true)
-    Page<AssetCatalogRow> searchCatalog(@Param("userSeq") Integer userSeq,
-                                        @Param("artistSeq") Integer artistSeq,
-                                        Pageable pageable);
+             where p.user_seq = :userSeq
+               and p.status = 'ACTIVE'
+               and (cast(:artistSeq as integer) is null
+                    or a.artist_seq = cast(:artistSeq as integer))
+             order by p.reg_dttm desc, p.purchase_seq desc
+            """, nativeQuery = true)
+    List<AssetPurchasedRow> findPurchased(@Param("userSeq") Integer userSeq,
+                                          @Param("artistSeq") Integer artistSeq);
 
     /**
-     * {@link #searchCatalog} 한 행.
+     * {@link #findPurchased} 한 행.
      *
-     * <p>{@code owned}·{@code passActive} 는 <b>판정 재료</b>지 응답 값이 아니다 —
-     * 둘을 {@code myAccess} 하나로 접는 일은 서비스가 한다(§11.1 우선순위 OWNED &gt; PASS
-     * &gt; NONE).
+     * <p>권한 칸이 없다 — 전부 개별 구매라 물을 것이 없다.
      */
-    interface AssetCatalogRow {
+    interface AssetPurchasedRow {
 
         Integer getAssetSeq();
 
@@ -348,27 +304,95 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
         Integer getDurationMs();
 
         String getAssetType();
+    }
 
-        /** 개별 구매 보유 여부 — {@code getActive()} 와 같은 이유로 래퍼 게터다(투영 이름 매칭). */
+    /**
+     * 숍 전량 (API 명세 §11.3) — 아티스트 여러 명의 에셋을 <b>한 번에</b>, 최신순.
+     *
+     * <p><b>아티스트마다 부르면 그대로 N+1 이다.</b> 숍 첫 화면은 구독 수만큼 섹션을
+     * 그리므로, 구독 30명이면 조회가 30번이 된다. 그것을 없애려고 되살린 API 에서
+     * 같은 짓을 하면 의미가 없다.
+     *
+     * <p><b>조인이 없다.</b> 아티스트 이름·프로필·그룹명은 호출부가 이미
+     * {@code SubscriptionRepository.findSubscribed} 로 갖고 있고(섹션 순서의 출처이기도
+     * 하다), 패스 보유 여부도 {@code MotifPassPriceRepository.findActivePasses} 가 따로
+     * 답한다. 여기서 다시 조인하면 같은 값을 두 번 읽는다.
+     *
+     * <p>그래서 {@code passActive} 서브쿼리도 없다 — {@code myAccess} 는 이 결과의
+     * {@code owned} 와 패스 조회 결과를 호출부가 합쳐 정한다. 패스는 <b>아티스트당
+     * 하나</b>인데 에셋 행마다 다시 판정하면 같은 답을 에셋 수만큼 계산하게 된다.
+     *
+     * <p><b>비활성 에셋은 개별 구매자에게만 보인다</b>(§11.1 과 같은 노출 규칙).
+     * {@code owned} 와 같은 모양의 {@code exists} 지만 하는 일이 다르다 — 저쪽은
+     * "무슨 권한인가"이고 여기는 "보여 줄까"다.
+     *
+     * <p>{@code artistSeqs} 가 비면 부르지 않는다 — Postgres 에서 {@code in ()} 는 문법
+     * 오류다. 호출부가 구독 0건을 먼저 걸러 빈 목록으로 답한다.
+     */
+    @Query(value = """
+            select a.asset_seq     as "assetSeq",
+                   a.artist_seq    as "artistSeq",
+                   a.title         as "title",
+                   a.description   as "description",
+                   a.thumbnail_key as "thumbnailKey",
+                   a.duration_ms   as "durationMs",
+                   a.asset_type    as "assetType",
+                   exists (select 1 from motif_core.asset_purchases p
+                            where p.asset_seq = a.asset_seq
+                              and p.user_seq = :userSeq
+                              and p.status = 'ACTIVE')            as "owned"
+              from motif_core.motif_assets a
+             where a.artist_seq in (:artistSeqs)
+               and (a.is_active = true
+                    or exists (select 1 from motif_core.asset_purchases ap
+                                where ap.asset_seq = a.asset_seq
+                                  and ap.user_seq = :userSeq
+                                  and ap.status = 'ACTIVE'))
+             order by a.asset_seq desc
+            """, nativeQuery = true)
+    List<AssetShopRow> searchShop(@Param("userSeq") Integer userSeq,
+                                  @Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /**
+     * {@link #searchShop} 한 행.
+     *
+     * <p>{@code artistSeq} 는 응답 값이 아니라 <b>그룹핑 축</b>이다 — 호출부가 이 값으로
+     * 섹션에 나눠 담는다.
+     */
+    interface AssetShopRow {
+
+        Integer getAssetSeq();
+
+        Integer getArtistSeq();
+
+        String getTitle();
+
+        /** 소개 문구 — {@code title} 과 다른 칸이고 {@code null} 일 수 있다. */
+        String getDescription();
+
+        String getThumbnailKey();
+
+        Integer getDurationMs();
+
+        String getAssetType();
+
+        /** 개별 구매 보유 여부. 패스는 보지 않는다 — 그쪽은 아티스트 단위로 따로 온다. */
         Boolean getOwned();
-
-        /** 그 아티스트의 유효 패스 보유 여부. 에셋 타입은 보지 않는다. */
-        Boolean getPassActive();
     }
 
     /**
      * 팬 앱 에셋 상세 (API 명세 §11.2) — 단건.
      *
-     * <p><b>노출 규칙은 {@link #searchCatalog} 와 같다.</b> 판매 중단
+     * <p><b>노출 규칙은 {@link #searchShop} 과 같다.</b> 판매 중단
      * ({@code is_active=FALSE}) 에셋은 개별 구매자에게만 보인다 — 패스만 있어도 보이지
-     * 않는다. 목록에서 안 보이던 것이 상세로는 열리면 노출 규칙이 두 벌이 된다.
+     * 않는다. 숍에서 안 보이던 것이 상세로는 열리면 노출 규칙이 두 벌이 된다.
      *
      * <p><b>빈 결과가 곧 404 다.</b> "미존재"와 "판매 중단 + 비구매자"를 쿼리가 구분하지
      * 않는 것은 의도다(§1.8 존재 은닉) — 둘을 가르면 403 과 404 가 갈리면서 "그 에셋은
      * 존재한다"가 응답에서 읽힌다.
      *
      * <p><b>구독을 보지 않는다.</b> 상세는 아티스트 상세(§5)·딥링크로 들어오는 자리라
-     * 미구독이 정상이다({@code searchCatalog} 의 {@code artistSeq} 모드와 같다).
+     * 미구독이 정상이다 — 구독을 축으로 삼는 것은 숍({@link #searchShop})뿐이다.
      *
      * <p>가격은 <b>KR 활성 행 하나만</b> 붙인다({@code and p.is_active = true}). 어드민
      * {@link #search} 는 {@code priceActive} 를 따로 내보내 운영자가 꺼진 가격을 보게

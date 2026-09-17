@@ -2,7 +2,7 @@ package com.ssafy.motif.coreapi.domain.asset.controller;
 
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
-import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.asset.docs.AssetControllerDocs;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetCatalogItem;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetDetailResponse;
@@ -19,8 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 팬 앱 에셋 API (명세 §11.1 · §11.2). Base URL 은 {@code /api/v1}.
  *
- * <p><b>전부 인증이 필요하다</b> — 목록의 기본 모드가 "내 구독 아티스트"이고, 두 API 의
- * {@code myAccess} 와 노출 판정이 호출자 기준이라 principal 없이는 답이 없다.
+ * <p><b>전부 인증이 필요하다</b> — §11.1 은 "내가 산 것" 이고 §11.2 의 {@code myAccess}·
+ * 노출 판정도 호출자 기준이라 principal 없이는 답이 없다.
+ *
+ * <p>숍 첫 화면은 여기가 아니라 {@link ShopController}(§11.3)다.
  *
  * <p>경로가 {@code /api/v1/**} 이고 {@code /api/v1/admin/**} 이 아니므로 springdoc
  * {@code user} 그룹 문서에 자동으로 잡힌다({@code OpenApiConfig}).
@@ -36,23 +38,20 @@ public class AssetController implements AssetControllerDocs {
     private final AssetQueryService assetQueryService;
 
     /**
-     * §11.1 에셋 목록 — <b>offset 페이지</b>.
+     * §11.1 내 보유함 — <b>비페이지 전량</b>(§5.4 와 같은 봉투).
      *
-     * <p>커서가 아니다. 숍은 아티스트별 섹션을 훑는 화면이라 "페이지를 넘기는 동안 새
-     * 항목이 밀려드는" 피드가 아니고, 어드민 등록으로만 늘어나는 목록이다.
+     * <p><b>페이지 파라미터를 받지 않는다</b>(S15P21D104-219). 한 사람이 산 것이라 카탈로그
+     * 처럼 늘어나지 않고, 숍 첫 화면이던 자리는 §11.3 이 가져갔다.
      *
-     * <p>{@code artistSeq} 는 {@code required=false} 다 — <b>없는 것이 기본 모드</b>이지
-     * 잘못된 호출이 아니다.
+     * <p>{@code artistSeq} 는 {@code required=false} 다 — 없는 것이 기본(전체)이지 잘못된
+     * 호출이 아니다.
      */
     @Override
     @GetMapping
-    public ApiResponse<PageResponse<AssetCatalogItem>> assets(
+    public ApiResponse<ListResponse<AssetCatalogItem>> assets(
             @AuthenticationPrincipal AuthenticatedUser user,
-            @RequestParam(required = false) Integer artistSeq,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(
-                assetQueryService.assets(user.userSeq(), artistSeq, page, size));
+            @RequestParam(required = false) Integer artistSeq) {
+        return ApiResponse.success(assetQueryService.assets(user.userSeq(), artistSeq));
     }
 
     /**

@@ -4,15 +4,18 @@ import com.ssafy.motif.domain.core.asset.AssetType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 에셋 목록 항목 (API 명세 §11.1).
+ * 내 보유함 항목 (API 명세 §11.1) — <b>내가 구매한 에셋</b>.
  *
- * <p><b>가격이 없다.</b> 가격과 구매 가능 여부는 §11.2 상세의 몫이다 — 목록은 아티스트당
- * 수십 건이 한 번에 오는데 국가별 활성 가격 조인이 항목마다 따라붙을 이유가 없다.
+ * <p><b>가격이 없다.</b> 가격과 구매 가능 여부는 §11.2 상세의 몫이다.
  *
- * <p>항목마다 {@code artist} 요약이 붙는다. 기본 모드(구독 아티스트 전체)에서는 여러
- * 아티스트가 한 목록에 섞이므로 클라이언트가 이 값으로 섹션을 묶는다.
+ * <p><b>{@code myAccess} 도 없다.</b> 전부 개별 구매라 값이 {@code OWNED} 하나뿐인 칸이
+ * 된다 — 그 판정이 의미를 갖는 곳은 §11.2 상세와 §11.3 숍이다(S15P21D104-219).
+ *
+ * <p>항목마다 {@code artist} 요약이 붙는다. 여러 아티스트에게서 산 것이 한 목록에
+ * 섞이므로 클라이언트가 이 값으로 묶는다 — 섹션이 이미 아티스트를 말하는 §11.3 과 다른
+ * 점이다.
  */
-@Schema(description = "에셋 목록 항목 (§11.1)")
+@Schema(description = "내 보유함 항목 — 구매한 에셋 (§11.1)")
 public record AssetCatalogItem(
 
         @Schema(description = "에셋 식별자", example = "21")
@@ -34,10 +37,7 @@ public record AssetCatalogItem(
         Integer durationMs,
 
         @Schema(description = "에셋 종류", example = "NORMAL")
-        AssetType assetType,
-
-        @Schema(description = "내 이용 권한 — OWNED > PASS > NONE", example = "PASS")
-        MyAccess myAccess) {
+        AssetType assetType) {
 
     /**
      * README §3.5 공통 아티스트 요약 — 솔로면 {@code groupName} 이 {@code null} 이다.

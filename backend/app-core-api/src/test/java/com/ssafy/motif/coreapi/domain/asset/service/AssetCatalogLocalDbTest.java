@@ -1,8 +1,6 @@
 package com.ssafy.motif.coreapi.domain.asset.service;
 
-import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetCatalogItem;
-import com.ssafy.motif.coreapi.domain.asset.dto.MyAccess;
 import com.ssafy.motif.domain.core.artist.Artist;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
@@ -24,24 +22,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * §11.1 에셋 목록을 실제 DB 에 대고 검증한다 (S15P21D104-224).
+ * §11.1 내 보유함(구매한 에셋)을 실제 DB 에 대고 검증한다 (S15P21D104-219).
  *
- * <p><b>여기서 볼 것은 쿼리다.</b> 구독 필터 · 노출 필터 · 권한 판정이 한 네이티브
- * 쿼리에 들어 있어 세 조건이 서로를 가리는지는 DB 없이 확인할 수 없다. 우선순위 규칙
- * 자체는 {@code MyAccessTest} 가 DB 없이 고정한다.
+ * <p><b>"보지 않는 것" 이 계약이다.</b> 판매 중단 · 구독 해제 · 아티스트 삭제 — 셋 다
+ * 구매를 무효로 만들지 않는다. 조회가 {@code asset_purchases} 에서 출발하는지,
+ * 아니면 에셋 쪽 조건이 남아 있는지는 DB 없이 확인할 수 없다.
  *
- * <p><b>{@code cast(:artistSeq as integer)} 의 {@code null} 바인딩을 반드시 덮는다</b> —
- * 기본 모드가 곧 {@code artistSeq=null} 이라, 캐스트가 빠졌다면 <b>가장 흔한 호출</b>이
- * 500 이 되는 자리다({@code ArtistRepository.search} 의 {@code lower(bytea)} 사고와 같은 원인).
+ * <p>정렬도 여기서만 검증된다 — <b>구매 최신순</b>이지 에셋 최신순이 아니다. 오래된
+ * 에셋을 오늘 사면 맨 위로 온다.
  *
- * <p><b>로컬 compose DB 는 세 레인이 공유한다</b> — 단언은 이 테스트가 만든 아티스트의
- * 에셋으로만 좁힌다.
+ * <p><b>로컬 compose DB 는 세 레인이 공유한다</b> — 이 테스트는 자기가 만든 사용자로만
+ * 조회하므로 다른 레인의 데이터가 섞이지 않는다.
  *
  * <p>실행 전 {@code backend/local-infra && docker compose up -d --wait}.
  */
@@ -52,15 +49,10 @@ import static org.assertj.core.api.Assertions.tuple;
 class AssetCatalogLocalDbTest {
 
     /**
-     * 운영 CDN base URL ({@code application-prod.yml} 의 {@code motif.media.public-base-url}
-     * fallback 과 같은 값이다).
-     *
-     * <p><b>왜 주입하나.</b> 로컬·CI 프로필에는 이 값이 없어
-     * {@code PublicMediaUrlResolver} 가 모든 URL 을 조용히 {@code null} 로 돌려준다 —
-     * 그대로 두면 "키가 아니라 URL 로 나가는가"를 확인할 수 없고, 변환이 통째로 빠져도
-     * 테스트가 통과한다.
+     * 로컬·CI 프로필에는 CDN base URL 이 없어 {@code PublicMediaUrlResolver} 가 모든
+     * URL 을 {@code null} 로 돌려준다 — 그대로 두면 썸네일이 키인지 URL 인지 구분되지 않는다.
      */
-    static final String CDN = "https://d21so2cpi8si9r.cloudfront.net";
+    static final String CDN = "https://cdn.test";
 
     @Autowired
     private AssetQueryService assetQueryService;
@@ -77,207 +69,155 @@ class AssetCatalogLocalDbTest {
 
     private Integer adminUserSeq;
     private Integer fanSeq;
-    private Integer subscribedArtistSeq;
-    private Integer strangerArtistSeq;
+    private Integer artistSeq;
 
     @BeforeEach
     void setUp() {
         adminUserSeq = newUser().getUserSeq();
         fanSeq = newUser().getUserSeq();
-        subscribedArtistSeq = newArtist("카리나");
-        strangerArtistSeq = newArtist("윈터");
-        subscribe(subscribedArtistSeq);
+        artistSeq = newArtist("카리나");
     }
 
-    // --- 기본 모드 (artistSeq 생략) ------------------------------------------
+    // --- 대상 ------------------------------------------------------------------
 
     @Test
-    @DisplayName("쿼리 없이 부르면 구독 아티스트 에셋만 온다 — 미구독 아티스트는 빠진다")
-    void defaultModeReturnsSubscribedOnly() {
-        Integer mine = newAsset(subscribedArtistSeq, AssetType.NORMAL, true).getAssetSeq();
-        newAsset(strangerArtistSeq, AssetType.NORMAL, true);
+    @DisplayName("내가 산 에셋만 나온다 — 사지 않은 것은 빠진다")
+    void onlyPurchasedAssetsAppear() {
+        MotifAsset bought = newAsset(artistSeq, AssetType.NORMAL, true);
+        newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(bought.getAssetSeq());
 
-        assertThat(assets(null).list())
+        assertThat(assets(null))
                 .extracting(AssetCatalogItem::assetSeq)
-                .containsExactly(mine);
+                .containsExactly(bought.getAssetSeq());
     }
 
     @Test
-    @DisplayName("artistSeq 를 생략한 최초 호출이 500 이 아니다 — null 바인딩 캐스트 방어")
-    void defaultModeDoesNotBreakOnNullBinding() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
+    @DisplayName("구매가 0건이면 빈 목록이다")
+    void noPurchaseYieldsEmptyList() {
+        newAsset(artistSeq, AssetType.NORMAL, true);
 
-        PageResponse<AssetCatalogItem> page = assets(null);
-
-        assertThat(page.list()).hasSize(1);
-        assertThat(page.totalElements()).isEqualTo(1);
+        assertThat(assets(null)).isEmpty();
     }
 
     @Test
-    @DisplayName("구독이 0건이면 빈 목록이다 — 실패가 아니다")
-    void noSubscriptionYieldsEmptyPage() {
-        newAsset(strangerArtistSeq, AssetType.NORMAL, true);
-        Integer stranger = newUser().getUserSeq();
+    @DisplayName("남의 구매는 내 보유함에 없다")
+    void purchaseOfAnotherUserIsNotMine() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq(), newUser().getUserSeq());
 
-        PageResponse<AssetCatalogItem> page =
-                assetQueryService.assets(stranger, null, 0, 20);
-
-        assertThat(page.list()).isEmpty();
-        assertThat(page.totalElements()).isZero();
+        assertThat(assets(null)).isEmpty();
     }
 
     @Test
-    @DisplayName("삭제된 아티스트의 구독은 목록에서 빠진다 — 눌러도 404 인 카드를 만들지 않는다")
-    void deletedArtistIsExcludedFromSubscribedMode() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-        deleteArtist(subscribedArtistSeq);
+    @DisplayName("패스로만 열리는 에셋은 나오지 않는다 — 산 것이 아니다")
+    void passDoesNotPutAssetInLibrary() {
+        newAsset(artistSeq, AssetType.NORMAL, true);
+        grantPass(artistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
 
-        assertThat(assets(null).list()).isEmpty();
+        assertThat(assets(null)).isEmpty();
     }
 
     @Test
-    @DisplayName("구독 아티스트가 여럿이면 섞여서 최신순이다")
-    void multipleArtistsAreMixedByRecency() {
-        Integer another = newArtist("지젤");
-        subscribe(another);
+    @DisplayName("환불된 구매는 빠진다 — ACTIVE 만 보유다")
+    void refundedPurchaseIsExcluded() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq(), fanSeq, "REFUNDED");
 
-        Integer older = newAsset(subscribedArtistSeq, AssetType.NORMAL, true).getAssetSeq();
-        Integer newer = newAsset(another, AssetType.NORMAL, true).getAssetSeq();
+        assertThat(assets(null)).isEmpty();
+    }
 
-        assertThat(assets(null).list())
+    // --- 보지 않는 것 -----------------------------------------------------------
+
+    @Test
+    @DisplayName("판매가 중단돼도 내 보유는 남는다")
+    void inactiveAssetStaysInLibrary() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, false);
+        purchase(asset.getAssetSeq());
+
+        assertThat(assets(null))
                 .extracting(AssetCatalogItem::assetSeq)
-                .containsExactly(newer, older);
-    }
-
-    // --- artistSeq 모드 -------------------------------------------------------
-
-    @Test
-    @DisplayName("artistSeq 를 주면 미구독 아티스트도 조회된다 — 아티스트 상세에서 들어오는 경로다")
-    void artistModeIgnoresSubscription() {
-        Integer stranger = newAsset(strangerArtistSeq, AssetType.NORMAL, true).getAssetSeq();
-
-        assertThat(assets(strangerArtistSeq).list())
-                .extracting(AssetCatalogItem::assetSeq)
-                .containsExactly(stranger);
+                .containsExactly(asset.getAssetSeq());
     }
 
     @Test
-    @DisplayName("artistSeq 를 주면 그 아티스트 것만 온다 — 구독한 다른 아티스트가 섞이지 않는다")
-    void artistModeNarrowsToOneArtist() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-        Integer stranger = newAsset(strangerArtistSeq, AssetType.NORMAL, true).getAssetSeq();
+    @DisplayName("구독을 하지 않아도·끊어도 산 것은 남는다")
+    void subscriptionIsIrrelevant() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq());
+        subscriptionRepository.insertIfAbsent(fanSeq, artistSeq);
+        entityManager.clear();
 
-        assertThat(assets(strangerArtistSeq).list())
+        assertThat(assets(null)).hasSize(1);
+
+        subscriptionRepository.deleteIfPresent(fanSeq, artistSeq);
+        entityManager.clear();
+
+        assertThat(assets(null)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("아티스트가 삭제돼도 남고, 이름·프로필은 계속 나온다")
+    void deletedArtistStillAppears() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq());
+        entityManager.createNativeQuery(
+                        "update motif_core.artists set is_deleted = true where artist_seq = :seq")
+                .setParameter("seq", artistSeq)
+                .executeUpdate();
+        entityManager.clear();
+
+        List<AssetCatalogItem> items = assets(null);
+
+        assertThat(items).hasSize(1);
+        assertThat(items.getFirst().artist().name()).isEqualTo("카리나");
+    }
+
+    // --- 정렬 · 필터 ------------------------------------------------------------
+
+    @Test
+    @DisplayName("구매 최신순이다 — 오래된 에셋을 나중에 사면 위로 온다")
+    void orderedByPurchaseRecency() {
+        MotifAsset older = newAsset(artistSeq, AssetType.NORMAL, true);
+        MotifAsset newer = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(newer.getAssetSeq());          // 먼저 산 것
+        purchase(older.getAssetSeq());          // 나중에 산 것 — 에셋은 더 오래됐다
+
+        assertThat(assets(null))
                 .extracting(AssetCatalogItem::assetSeq)
-                .containsExactly(stranger);
+                .containsExactly(older.getAssetSeq(), newer.getAssetSeq());
+    }
+
+    @Test
+    @DisplayName("artistSeq 를 주면 그 아티스트에게서 산 것만 남는다")
+    void artistFilterNarrowsTheLibrary() {
+        Integer other = newArtist("윈터");
+        MotifAsset mine = newAsset(artistSeq, AssetType.NORMAL, true);
+        MotifAsset theirs = newAsset(other, AssetType.NORMAL, true);
+        purchase(mine.getAssetSeq());
+        purchase(theirs.getAssetSeq());
+
+        assertThat(assets(artistSeq))
+                .extracting(AssetCatalogItem::assetSeq)
+                .containsExactly(mine.getAssetSeq());
     }
 
     @Test
     @DisplayName("없는 artistSeq 는 빈 목록 200 이다 — 존재를 검증하지 않는다")
-    void unknownArtistYieldsEmptyPage() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-
-        assertThat(assets(Integer.MAX_VALUE).list()).isEmpty();
-    }
-
-    // --- 노출 규칙 -------------------------------------------------------------
-
-    @Test
-    @DisplayName("판매 중단 에셋은 안 보인다 — 구매도 패스도 없을 때")
-    void inactiveAssetIsHiddenWithoutPurchase() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, false);
-
-        assertThat(assets(null).list()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("판매 중단 에셋도 개별 구매자에게는 보인다 — 산 것은 판매가 끊겨도 산 것이다")
-    void inactiveAssetIsVisibleToBuyer() {
-        MotifAsset asset = newAsset(subscribedArtistSeq, AssetType.NORMAL, false);
+    void unknownArtistYieldsEmptyList() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
         purchase(asset.getAssetSeq());
 
-        assertThat(assets(null).list())
-                .extracting(AssetCatalogItem::assetSeq, AssetCatalogItem::myAccess)
-                .containsExactly(tuple(asset.getAssetSeq(), MyAccess.OWNED));
+        assertThat(assets(Integer.MAX_VALUE)).isEmpty();
     }
 
     @Test
-    @DisplayName("판매 중단 에셋은 패스만 있는 사용자에게는 안 보인다 — 노출은 구매만 연다")
-    void inactiveAssetStaysHiddenWithPassOnly() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, false);
-        grantPass(subscribedArtistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
+    @DisplayName("artistSeq 를 생략한 호출이 500 이 아니다 — null 바인딩 캐스트 방어")
+    void nullArtistSeqBindingIsSafe() {
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq());
 
-        assertThat(assets(null).list()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("비활성 에셋이 빠진 만큼 totalElements 도 줄어든다 — 페이지 경계가 항목 수와 맞는다")
-    void hiddenAssetsAreNotCounted() {
-        Integer visible = newAsset(subscribedArtistSeq, AssetType.NORMAL, true).getAssetSeq();
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, false);
-
-        PageResponse<AssetCatalogItem> page = assets(null);
-
-        assertThat(page.list()).extracting(AssetCatalogItem::assetSeq).containsExactly(visible);
-        assertThat(page.totalElements()).isEqualTo(1);
-        assertThat(page.hasNext()).isFalse();
-    }
-
-    // --- myAccess --------------------------------------------------------------
-
-    @Test
-    @DisplayName("유효 패스가 있으면 PASS 다")
-    void activePassGivesPass() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-        grantPass(subscribedArtistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
-
-        assertThat(assets(null).list().getFirst().myAccess()).isEqualTo(MyAccess.PASS);
-    }
-
-    @Test
-    @DisplayName("만료된 패스는 권한이 아니다 — status 만 보면 틀리는 구간")
-    void expiredPassIsNotAccess() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-        grantPass(subscribedArtistSeq, Instant.now().minus(1, ChronoUnit.DAYS));
-
-        assertThat(assets(null).list().getFirst().myAccess()).isEqualTo(MyAccess.NONE);
-    }
-
-    @Test
-    @DisplayName("다른 아티스트의 패스는 이 에셋을 열지 않는다")
-    void passOfAnotherArtistDoesNotCover() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-        grantPass(strangerArtistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
-
-        assertThat(assets(null).list().getFirst().myAccess()).isEqualTo(MyAccess.NONE);
-    }
-
-    @Test
-    @DisplayName("PREMIUM 은 유효 패스가 있어도 NONE 이다")
-    void premiumIsNotCoveredByPass() {
-        newAsset(subscribedArtistSeq, AssetType.PREMIUM, true);
-        grantPass(subscribedArtistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
-
-        assertThat(assets(null).list().getFirst().myAccess()).isEqualTo(MyAccess.NONE);
-    }
-
-    @Test
-    @DisplayName("SECRET 은 패스로 열린다 — NORMAL 과 같은 규칙")
-    void secretIsCoveredByPass() {
-        newAsset(subscribedArtistSeq, AssetType.SECRET, true);
-        grantPass(subscribedArtistSeq, Instant.now().plus(30, ChronoUnit.DAYS));
-
-        assertThat(assets(null).list().getFirst().myAccess()).isEqualTo(MyAccess.PASS);
-    }
-
-    @Test
-    @DisplayName("남이 산 에셋은 내 응답에서 NONE 이다 — 판정이 호출자 기준이다")
-    void accessIsPerCaller() {
-        MotifAsset asset = newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-        Integer otherFan = newUser().getUserSeq();
-        purchase(asset.getAssetSeq(), otherFan);
-
-        assertThat(assets(null).list().getFirst().myAccess()).isEqualTo(MyAccess.NONE);
+        assertThat(assetQueryService.assets(fanSeq, null).list()).hasSize(1);
     }
 
     // --- 항목 --------------------------------------------------------------------
@@ -285,46 +225,31 @@ class AssetCatalogLocalDbTest {
     @Test
     @DisplayName("항목의 artist 는 README §3.5 요약이다 — 솔로면 groupName 이 null")
     void itemCarriesArtistSummary() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq());
 
-        AssetCatalogItem.Artist artist = assets(null).list().getFirst().artist();
+        AssetCatalogItem.Artist artist = assets(null).getFirst().artist();
 
-        assertThat(artist.artistSeq()).isEqualTo(subscribedArtistSeq);
+        assertThat(artist.artistSeq()).isEqualTo(artistSeq);
         assertThat(artist.name()).isEqualTo("카리나");
         assertThat(artist.groupName()).isNull();
+        assertThat(artist.profileImageUrl()).isNull();
     }
 
     @Test
-    @DisplayName("썸네일은 키가 아니라 URL 로 나간다 — 에셋은 공개 등급이라 무서명이다")
+    @DisplayName("썸네일은 키가 아니라 URL 로 나간다")
     void thumbnailIsResolvedToUrl() {
-        MotifAsset asset = newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
+        MotifAsset asset = newAsset(artistSeq, AssetType.NORMAL, true);
+        purchase(asset.getAssetSeq());
 
-        AssetCatalogItem item = assets(null).list().getFirst();
-
-        assertThat(item.thumbnailUrl()).isEqualTo(CDN + "/" + asset.getThumbnailKey());
-    }
-
-    @Test
-    @DisplayName("프로필 이미지가 없으면 null 이다 — 항목은 그대로 온다")
-    void missingProfileImageIsNull() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-
-        assertThat(assets(null).list().getFirst().artist().profileImageUrl()).isNull();
-    }
-
-    @Test
-    @DisplayName("size 는 100 을 넘지 못한다 — §1.5 상한")
-    void sizeIsCappedAtHundred() {
-        newAsset(subscribedArtistSeq, AssetType.NORMAL, true);
-
-        assertThat(assetQueryService.assets(fanSeq, null, 0, 5_000).size())
-                .isEqualTo(100);
+        assertThat(assets(null).getFirst().thumbnailUrl())
+                .isEqualTo(CDN + "/" + asset.getThumbnailKey());
     }
 
     // --- 픽스처 -------------------------------------------------------------
 
-    private PageResponse<AssetCatalogItem> assets(Integer artistSeq) {
-        return assetQueryService.assets(fanSeq, artistSeq, 0, 20);
+    private List<AssetCatalogItem> assets(Integer artistSeq) {
+        return assetQueryService.assets(fanSeq, artistSeq).list();
     }
 
     private User newUser() {
@@ -362,38 +287,29 @@ class AssetCatalogLocalDbTest {
         return motifAssetRepository.saveAndFlush(asset);
     }
 
-    private void subscribe(Integer artistSeq) {
-        subscriptionRepository.insertIfAbsent(fanSeq, artistSeq);
-        entityManager.clear();
-    }
-
-    private void deleteArtist(Integer artistSeq) {
-        entityManager.createNativeQuery(
-                        "update motif_core.artists set is_deleted = true where artist_seq = :seq")
-                .setParameter("seq", artistSeq)
-                .executeUpdate();
-        entityManager.clear();
-    }
-
     /** 구매 도메인(§12)이 아직 없어 행을 직접 넣는다 — 검증 대상은 조회 쪽이다. */
     private void purchase(Integer assetSeq) {
-        purchase(assetSeq, fanSeq);
+        purchase(assetSeq, fanSeq, "ACTIVE");
     }
 
     private void purchase(Integer assetSeq, Integer userSeq) {
+        purchase(assetSeq, userSeq, "ACTIVE");
+    }
+
+    private void purchase(Integer assetSeq, Integer userSeq, String status) {
         long orderSeq = newOrder(userSeq, "ASSET", assetSeq, null);
         entityManager.createNativeQuery("""
                         insert into motif_core.asset_purchases (user_seq, asset_seq, order_seq, status)
-                        values (:userSeq, :assetSeq, :orderSeq, 'ACTIVE')
+                        values (:userSeq, :assetSeq, :orderSeq, :status)
                         """)
                 .setParameter("userSeq", userSeq)
                 .setParameter("assetSeq", assetSeq)
                 .setParameter("orderSeq", orderSeq)
+                .setParameter("status", status)
                 .executeUpdate();
         entityManager.clear();
     }
 
-    /** 패스도 마찬가지다 — 결제 흐름(§12)이 만들 행을 여기서는 직접 넣는다. */
     private void grantPass(Integer artistSeq, Instant expiresDttm) {
         long orderSeq = newOrder(fanSeq, "PASS", null, artistSeq);
         entityManager.createNativeQuery("""
