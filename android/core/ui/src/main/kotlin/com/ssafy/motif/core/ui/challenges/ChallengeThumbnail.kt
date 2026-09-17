@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.artistdetail.impl.artistdetail.component
+package com.ssafy.motif.core.ui.challenges
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,21 +19,21 @@ import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
 
 @Composable
-internal fun ChallengeThumbnail (
-    challenge: ArtistChallenge,
-    onClick: (Long) -> Unit,
+fun ChallengeThumbnail(
+    thumbnailUrl: String,
+    viewCount: Long,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ){
     Box(
         modifier = modifier
             .aspectRatio(9f/16f)
-            .clickable{onClick(challenge.id)},
+            .clickable(onClick = onClick),
     ){
         AsyncImage(
-            model = challenge.thumbnailUrl,
+            model = thumbnailUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.matchParentSize(),
@@ -52,7 +52,7 @@ internal fun ChallengeThumbnail (
                 modifier = Modifier.size(8.dp),
             )
             Text(
-                text = formatViewCount(challenge.view),
+                text = formatViewCount(viewCount),
                 style = MotifTheme.typography.captionSB8,
                 color = Color.White,
             )

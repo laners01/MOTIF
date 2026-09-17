@@ -1,16 +1,16 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
-import com.ssafy.motif.core.model.mypage.UserProfile
+import androidx.compose.runtime.Immutable
 
-internal sealed interface MyPageUiState {
-
-    data object Loading: MyPageUiState
-
-    data class Success(
-        val profile: UserProfile,
-    ): MyPageUiState
-
-    data class Error(
-        val exception: Throwable,
-    ): MyPageUiState
+enum class MyPageTab(val label: String){
+    Challenge("Challenges"),
+    Artist("Artists"),
+    Liked("Liked")
 }
+
+@Immutable
+internal data class MyPageUiState(
+    val profileState: ProfileUiState = ProfileUiState.Loading,
+    val selectedTab: MyPageTab = MyPageTab.Challenge,
+    val challengeState: MyChallengeUiState = MyChallengeUiState.Loading
+)
