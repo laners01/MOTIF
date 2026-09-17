@@ -15,12 +15,16 @@ import com.ssafy.motif.domain.core.comment.NoticeCommentRepository;
 import com.ssafy.motif.domain.core.comment.VideoComment;
 import com.ssafy.motif.domain.core.comment.VideoCommentRepository;
 import com.ssafy.motif.domain.core.notice.NoticeRepository;
+import com.ssafy.motif.domain.core.user.UserRepository;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
+import com.ssafy.motif.event.contract.CommentCreatedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -52,16 +56,20 @@ public class CommentCommandService {
     private final ParticipationVideoRepository participationVideoRepository;
     private final NoticeRepository noticeRepository;
     private final CommentTargetGuard targetGuard;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** §9.3 챌린지 댓글·답글 작성. */
     public CommentCreateResponse writeOnChallenge(Integer userSeq, Integer challengeSeq,
                                                   CommentCreateRequest request) {
-        targetGuard.requireChallenge(challengeSeq);
+        Integer ownerUserSeq = targetGuard.requireChallenge(challengeSeq);
 
         Long parentSeq = request.parentCommentSeq();
+        Integer recipientUserSeq = ownerUserSeq;
         if (parentSeq != null) {
             ChallengeComment parent = alive(challengeCommentRepository.findById(parentSeq),
                     ChallengeComment::isDeleted, parentSeq);
+            recipientUserSeq = parent.getUserSeq();
             requireRoot(parent.getParentCommentSeq());
             requireSameTarget(parent.getChallengeSeq(), challengeSeq);
             requireVisibleThread(challengeCommentRepository.findRootTargetSeq(parentSeq).isPresent(),
@@ -71,6 +79,8 @@ public class CommentCommandService {
         ChallengeComment saved = challengeCommentRepository.save(
                 ChallengeComment.write(challengeSeq, userSeq, parentSeq, request.content()));
         challengeRepository.addCommentCount(challengeSeq, 1);
+        publishCreated(CommentTargetType.CHALLENGE, challengeSeq.longValue(), saved.getCommentSeq(),
+                parentSeq, recipientUserSeq, userSeq, request.content());
 
         return new CommentCreateResponse(saved.getCommentSeq());
     }
@@ -86,9 +96,14 @@ public class CommentCommandService {
         Integer artistUserSeq = targetGuard.requireVideo(userSeq, videoSeq);
 
         Long parentSeq = request.parentCommentSeq();
+        // 영상의 "게시물 소유자" 는 아티스트가 아니라 올린 사람이다 — artistUserSeq 는
+        // has_artist_comment 판정용이라 알림 수신자로 쓰면 엉뚱한 사람에게 간다
+        Integer recipientUserSeq = participationVideoRepository.findById(videoSeq)
+                .map(video -> video.getUserSeq()).orElse(null);
         if (parentSeq != null) {
             VideoComment parent = alive(videoCommentRepository.findById(parentSeq),
                     VideoComment::isDeleted, parentSeq);
+            recipientUserSeq = parent.getUserSeq();
             requireRoot(parent.getParentCommentSeq());
             requireSameTarget(parent.getVideoSeq(), videoSeq);
             requireVisibleThread(videoCommentRepository.findRootTargetSeq(parentSeq).isPresent(),
@@ -101,6 +116,8 @@ public class CommentCommandService {
         if (userSeq.equals(artistUserSeq)) {
             participationVideoRepository.updateHasArtistComment(videoSeq, true);
         }
+        publishCreated(CommentTargetType.VIDEO, videoSeq, saved.getCommentSeq(),
+                parentSeq, recipientUserSeq, userSeq, request.content());
 
         return new CommentCreateResponse(saved.getCommentSeq());
     }
@@ -108,12 +125,14 @@ public class CommentCommandService {
     /** §9.3 공지 댓글·답글 작성. */
     public CommentCreateResponse writeOnNotice(Integer userSeq, Integer noticeSeq,
                                                CommentCreateRequest request) {
-        targetGuard.requireNotice(noticeSeq);
+        Integer ownerUserSeq = targetGuard.requireNotice(noticeSeq);
 
         Long parentSeq = request.parentCommentSeq();
+        Integer recipientUserSeq = ownerUserSeq;
         if (parentSeq != null) {
             NoticeComment parent = alive(noticeCommentRepository.findById(parentSeq),
                     NoticeComment::isDeleted, parentSeq);
+            recipientUserSeq = parent.getUserSeq();
             requireRoot(parent.getParentCommentSeq());
             requireSameTarget(parent.getNoticeSeq(), noticeSeq);
             requireVisibleThread(noticeCommentRepository.findRootTargetSeq(parentSeq).isPresent(),
@@ -123,6 +142,8 @@ public class CommentCommandService {
         NoticeComment saved = noticeCommentRepository.save(
                 NoticeComment.write(noticeSeq, userSeq, parentSeq, request.content()));
         noticeRepository.addCommentCount(noticeSeq, 1);
+        publishCreated(CommentTargetType.NOTICE, noticeSeq.longValue(), saved.getCommentSeq(),
+                parentSeq, recipientUserSeq, userSeq, request.content());
 
         return new CommentCreateResponse(saved.getCommentSeq());
     }
@@ -251,6 +272,40 @@ public class CommentCommandService {
     }
 
     /** 남의 댓글은 지울 수 없다 (§9.4 — 403). */
+    /** 푸시 본문에 들어가는 앞자락 — 공지 알림과 같은 60자다(§9.3 · 어드민 명세 §4). */
+    private static final int EVENT_PREVIEW_LENGTH = 60;
+
+    /**
+     * 댓글 알림 이벤트 (§9.3 · ADMIN-11). MQ 로 나가는 시점은 커밋 후다
+     * ({@link com.ssafy.motif.coreapi.domain.comment.CommentEventRelay}).
+     *
+     * <p><b>본인에게는 발행하지 않는다.</b> 자기 게시물에 자기가 댓글을 달거나 자기
+     * 댓글에 자기가 답글을 달면 알릴 것이 없다 — 대행에서 아티스트가 자기 공지에
+     * 댓글을 다는 경우가 여기 걸린다(ADMIN-11 자기 행위 규칙).
+     *
+     * <p>수신자를 못 찾으면(삭제된 영상 등) 조용히 건너뛴다 — 댓글 자체는 이미 규칙을
+     * 통과했으므로 알림 때문에 되돌리지 않는다.
+     */
+    private void publishCreated(CommentTargetType targetType, Long targetSeq, Long commentSeq,
+                                Long parentCommentSeq, Integer recipientUserSeq,
+                                Integer actorUserSeq, String content) {
+        if (recipientUserSeq == null || recipientUserSeq.equals(actorUserSeq)) {
+            return;
+        }
+        String actorNickname = userRepository.findById(actorUserSeq)
+                .map(user -> user.getNickname()).orElse(null);
+
+        eventPublisher.publishEvent(new CommentCreatedEvent(
+                UUID.randomUUID().toString(), Instant.now(),
+                targetType.name(), targetSeq, commentSeq, parentCommentSeq,
+                recipientUserSeq, actorNickname, preview(content)));
+    }
+
+    private static String preview(String content) {
+        return content.length() <= EVENT_PREVIEW_LENGTH
+                ? content : content.substring(0, EVENT_PREVIEW_LENGTH);
+    }
+
     private static void requireMine(Integer ownerSeq, Integer userSeq) {
         if (!ownerSeq.equals(userSeq)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "userSeq: " + userSeq);
