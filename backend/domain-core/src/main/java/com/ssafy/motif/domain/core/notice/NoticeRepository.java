@@ -97,8 +97,8 @@ public interface NoticeRepository extends JpaRepository<Notice, Integer> {
     /**
      * 공지 목록 한 페이지의 {@code isLiked} (API 명세 §5.5) — 내가 누른 것만 골라 온다.
      *
-     * <p><b>네이티브다.</b> {@code notice_likes} 는 아직 엔티티가 없고 좋아요 토글(§10.2)
-     * 티켓이 소유할 테이블이라 미리 매핑하지 않는다
+     * <p><b>네이티브다.</b> {@code notice_likes} 에는 엔티티가 없다 — 토글(§10.2)도 조회도
+     * 필요한 것이 <b>행의 존재 여부와 영향 행 수</b>뿐이라 매핑할 상태가 없다
      * ({@code ChallengeRepository.countActiveJobs} 와 같은 규칙).
      *
      * <p>공지마다 한 번씩 물으면 한 페이지(최대 100건)에 100번이다 — 페이지의 seq 를
@@ -111,6 +111,57 @@ public interface NoticeRepository extends JpaRepository<Notice, Integer> {
             """, nativeQuery = true)
     List<Integer> findLikedNoticeSeqs(@Param("userSeq") Integer userSeq,
                                       @Param("noticeSeqs") Collection<Integer> noticeSeqs);
+
+    /**
+     * 좋아요 대상 존재 판정 (API 명세 §10.2) — 삭제된 공지는 없는 것으로 본다(§1.8).
+     *
+     * <p>{@link #findByNoticeSeqAndDeletedFalse} 가 아니라 {@code exists} 인 이유: §10.2 는
+     * <b>204 라 돌려줄 값이 없다</b>. 본문·이미지가 달린 행을 영속성 컨텍스트에 실어 봐야
+     * 쓰는 곳이 없고, 뒤따르는 증감이 벌크 UPDATE 라 그 행은 곧 버려진다.
+     */
+    boolean existsByNoticeSeqAndDeletedFalse(Integer noticeSeq);
+
+    /**
+     * 좋아요 (§10.2) — 이미 누른 상태면 <b>0을 돌려준다</b>.
+     *
+     * <p><b>멱등이 애플리케이션 분기가 아니라 복합 PK 에서 나온다.</b> "이미 눌렀나" 를
+     * 먼저 묻고 갈라지면 묻는 시점과 쓰는 시점이 벌어져, 동시에 들어온 두 요청이
+     * {@code like_count} 를 두 번 올린다. 호출부는 <b>실제로 삽입된 행 수</b>만 보고
+     * 카운터를 움직인다({@code NoticeCommentRepository.insertLikeIfAbsent} 와 같은 방식).
+     *
+     * <p>네이티브인 이유는 {@code on conflict do nothing} 이 JPQL 에 없어서다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.notice_likes (notice_seq, user_seq)
+            values (:noticeSeq, :userSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertLikeIfAbsent(@Param("noticeSeq") Integer noticeSeq,
+                           @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 해제 (§10.2) — <b>하드 삭제</b>다. 누르지 않은 상태면 0을 돌려준다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.notice_likes
+             where notice_seq = :noticeSeq and user_seq = :userSeq
+            """, nativeQuery = true)
+    int deleteLikeIfPresent(@Param("noticeSeq") Integer noticeSeq,
+                            @Param("userSeq") Integer userSeq);
+
+    /**
+     * 좋아요 수 증감 (§10.2) — 거울 카운터. {@link #addCommentCount} 와 같은 규칙이다.
+     *
+     * <p>{@code like_count + :delta >= 0} 가드가 있어 음수로 내려가지 않는다 —
+     * {@code ck_notices_like_count} 위반으로 트랜잭션이 통째로 죽는 대신 0행 UPDATE 다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Notice n
+               set n.likeCount = n.likeCount + :delta
+             where n.noticeSeq = :noticeSeq and n.likeCount + :delta >= 0
+            """)
+    int addLikeCount(@Param("noticeSeq") Integer noticeSeq, @Param("delta") int delta);
 
     /**
      * {@code mod_dttm} 만 올린다 (§3.10.4 "mod_dttm 갱신").
