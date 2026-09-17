@@ -64,4 +64,33 @@ public class MotifResult extends BaseTimeEntity {
 
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
+
+    /**
+     * 문구 수정 (§11.8) — <b>{@code null} 은 "보내지 않았다"</b> 다.
+     *
+     * <p>빈 문자열과 구분한다. 문구는 nullable 이라 "지운다"(빈 문자열)와 "건드리지
+     * 않는다"({@code null})가 다른 요청이다({@code MotifAsset#update} 와 같은 규칙).
+     *
+     * <p>이 엔티티에서 사용자가 바꿀 수 있는 것은 이 칸 하나뿐이다. 나머지는 합성 잡이
+     * 채운 사실이라 {@code updatable = false} 로 막혀 있다.
+     */
+    public void updateDescription(String description) {
+        if (description != null) {
+            this.description = description;
+        }
+    }
+
+    /**
+     * 소프트 삭제 (§11.8).
+     *
+     * <p><b>S3 산출물을 지우지 않는다.</b> 되돌릴 수 있어야 하고, 잡 이력은 §13 의
+     * 소유다. 여기서 하는 일은 플래그 하나다.
+     *
+     * <p>대표 모티프였다면 {@code users.rep_motif_result_seq} 를 함께 비워야 하는데,
+     * 그건 <b>이 엔티티가 모르는 일</b>이라 서비스가 같은 트랜잭션에서 처리한다 —
+     * FK 가 없는 논리 참조라 DB 도 정리해 주지 않는다.
+     */
+    public void softDelete() {
+        this.deleted = true;
+    }
 }

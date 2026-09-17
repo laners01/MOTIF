@@ -4,6 +4,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.motif.dto.MotifResultDetailResponse;
 import com.ssafy.motif.coreapi.domain.motif.dto.MotifResultItem;
+import com.ssafy.motif.coreapi.domain.motif.dto.MotifResultUpdateRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 보관함 API 문서 계약 (명세 §11.5 · §11.6).
+ * 보관함 API 문서 계약 (명세 §11.5 · §11.6 · §11.8).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -191,6 +192,94 @@ public interface MotifResultControllerDocs {
                                     }""")))
     })
     ApiResponse<MotifResultDetailResponse> detail(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "결과물 식별자", example = "10") Long resultSeq);
+
+    String NOT_FOUND_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "MOTIF_RESULT_NOT_FOUND",
+              "message": "존재하지 않는 결과물입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "결과물 수정 — 문구·대표 설정 (§11.8)", description = """
+            **부분 수정**이다. 보낸 필드만 반영한다. 구 §4.5(대표 모티프 설정)가 여기로
+            통합됐다(R4) — 문구 수정과 대표 설정이 같은 대상에 대한 수정이기 때문이다.
+
+            | 필드 | 설명 |
+            |---|---|
+            | `description` | 결과물 문구. **최초 입력과 이후 수정 모두 이 API** 다. **빈 문자열이 "지움"** 이고 `null` 은 "안 보냈다" 다 |
+            | `isRep` | `true` 면 대표 지정, `false` 면 해제 |
+
+            **둘 다 생략하면 아무것도 바꾸지 않고 현재 상태를 돌려준다.** 다만 없는
+            결과물이면 그때도 404 다.
+
+            ### 대표 모티프는 사용자당 하나다
+
+            - `isRep: true` — `users.rep_motif_result_seq` 를 이 결과물로 **교체**한다.
+              **기존 대표는 자동으로 해제된다** — 칸이 하나뿐이라 따로 끄지 않는다.
+            - `isRep: false` — **현재 대표일 때만** 해제한다. 대표가 아닌 결과물에 `false`
+              를 보내면 아무 일도 일어나지 않는다(200).
+
+            ### 응답
+
+            `data` 는 **§11.6 상세(수정 반영본)** 와 같은 형태다. 조립 지점이 하나라
+            수정 직후 화면과 상세 화면이 갈리지 않는다.
+            """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "수정 반영본 (§11.6 과 같은 형태)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = DETAIL_SUCCESS_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제 · 타인 소유",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))
+    })
+    ApiResponse<MotifResultDetailResponse> update(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "결과물 식별자", example = "10") Long resultSeq,
+            MotifResultUpdateRequest request);
+
+    @Operation(summary = "결과물 삭제 (§11.8)", description = """
+            **소프트 삭제**다. `motif_results.is_deleted` 만 올리고 S3 산출물·합성 잡은
+            건드리지 않는다 — 되돌릴 수 있어야 하고 잡 이력은 §13 의 소유다.
+
+            삭제된 결과물은 §11.5 목록과 §11.6 상세에서 사라진다.
+
+            ### 대표였다면 함께 비운다
+
+            `users.rep_motif_result_seq` 를 **같은 트랜잭션에서** `NULL` 로 만든다. 이
+            참조는 순환 참조를 피하려고 FK 없이 둔 논리 참조라 DB 가 정리해 주지 않는다 —
+            빠뜨리면 마이페이지(§4.1)가 삭제된 결과물을 대표로 가리킨다.
+
+            ### 다시 지우면 404 다
+
+            멱등으로 200 을 주지 않는다. 조회가 삭제분을 빼고 있어 "이미 지웠다" 와
+            "없다" 를 구분할 방법이 없다.
+            """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "삭제 성공 — data 는 null",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 이미 삭제 · 타인 소유",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))
+    })
+    ApiResponse<Void> delete(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "결과물 식별자", example = "10") Long resultSeq);
 }
