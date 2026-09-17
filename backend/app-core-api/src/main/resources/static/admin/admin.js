@@ -172,6 +172,44 @@ function step(name, state) {
 }
 
 /*
+ * ── 활동 대행 컨텍스트 (ADMIN-11 · §1.7) ─────────────────────────────────
+ *
+ * 고른 아티스트를 브라우저에 두고 헤더에 띄운다(ADMIN-01). 서버에 두지 않는 이유는
+ * 어드민 토큰이 무상태이기 때문이다(§1.2) — 대행 API 는 요청마다 artistSeq 를 경로로
+ * 받으므로 서버가 "지금 누구로 활동 중" 을 알 필요가 없다. 세션을 새로 만들면 토큰만
+ * 있으면 되던 구조에 상태 저장소가 하나 붙는다.
+ *
+ * localStorage 라 탭을 옮겨도 남는다. 대행은 목록 화면과 상세 화면을 오가며 하는
+ * 작업이라 탭마다 다시 고르게 하면 엉뚱한 아티스트로 댓글이 달린다.
+ */
+
+const ACTING_KEY = 'motif.admin.acting-artist';
+
+/** 활동 중 아티스트 {artistSeq, name} 또는 null. */
+function actingArtist() {
+    try {
+        return JSON.parse(localStorage.getItem(ACTING_KEY));
+    } catch (e) {
+        return null;                              // 손상된 값은 없는 것으로 본다
+    }
+}
+
+/** null 을 넣으면 해제다. 헤더 표시는 여기서만 갱신한다. */
+function setActingArtist(artist) {
+    if (artist) localStorage.setItem(ACTING_KEY, JSON.stringify(artist));
+    else localStorage.removeItem(ACTING_KEY);
+    renderActing();
+}
+
+function renderActing() {
+    const el = $('acting');
+    if (!el) return;                              // 로그인 화면은 layout 을 쓰지 않는다
+    const artist = actingArtist();
+    el.textContent = artist ? `활동 중: ${artist.name}` : '';
+    el.hidden = !artist;
+}
+
+/*
  * nav 의 계정 표시와 로그아웃 (§3.1.2·§3.1.3).
  *
  * 두 API 는 588·608 에서 만들어졌는데 부르는 화면이 없어 <b>로그아웃할 방법이 없었다</b>.
@@ -182,6 +220,8 @@ function step(name, state) {
     const who = document.getElementById('who');
     const button = document.getElementById('logout');
     if (!who || !button) return;
+
+    renderActing();
 
     api('/auth/me')
             .then((me) => {
@@ -202,6 +242,8 @@ function step(name, state) {
             // 이미 만료된 세션이면 로그아웃도 실패한다. 그래도 로그인 화면으로 보낸다 —
             // 사용자가 원한 것은 "나가기" 지 "성공적인 로그아웃" 이 아니다
         }
+        // 다음 사람이 같은 브라우저로 로그인하면 남의 컨텍스트로 대행하게 된다
+        setActingArtist(null);
         location.href = '/admin/login';
     });
 })();

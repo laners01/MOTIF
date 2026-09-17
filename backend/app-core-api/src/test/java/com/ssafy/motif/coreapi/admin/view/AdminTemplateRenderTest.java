@@ -58,6 +58,21 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("활동 대행 — 컨텍스트 패널과 아티스트 행 템플릿이 들어간다")
+    void actAs() {
+        String html = render("admin/act-as");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 활동 대행</title>")
+                .contains("/admin/admin.js")
+                .contains("/admin/act-as.js")
+                .contains("id=\"current\"")
+                .contains("id=\"artists\"")
+                .contains("id=\"artist-row\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("신고 — 레이아웃 제목과 목록·미리보기 템플릿이 들어간다")
     void reports() {
         String html = render("admin/reports");
