@@ -171,4 +171,66 @@ public interface ChallengeControllerDocs {
     ApiResponse<ChallengeDetailResponse> detail(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "챌린지 seq", example = "11") Integer challengeSeq);
+
+    String LIKE_DESCRIPTION = """
+            챌린지 좋아요 (§7.3).
+
+            - **인증 필요.** 요청 본문 없음.
+            - **성공은 `204 No Content` 이고 본문이 없다**(§1.2 봉투 예외). `isLiked`·
+              `likeCount` 를 돌려주지 않으므로 클라이언트가 **낙관적으로 반영하고 실패 시
+              롤백**한다 — §8.3 영상 · §9.5 댓글 · §10.2 공지와 같은 계약이다.
+            - **멱등이다.** 이미 누른 상태에서 POST 를, 누르지 않은 상태에서 DELETE 를
+              보내도 204 이고 `likeCount` 는 움직이지 않는다.
+            - 해제는 **하드 삭제**다.
+
+            ### 초기 상태는 조회 API 가 준다
+
+            화면 진입 시의 `isLiked`·`likeCount` 는 §7.1 피드 또는 §7.2 상세가 싣는다.
+
+            ### 404 가 덮는 범위
+
+            미존재 챌린지와 **삭제된 챌린지**가 모두 `CHALLENGE_NOT_FOUND` 다(§1.8 —
+            삭제분은 없는 것으로 답한다).
+            """;
+
+    @Operation(summary = "챌린지 좋아요 (§7.3)", description = LIKE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "204", description = "반영됨 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제된 챌린지",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "CHALLENGE_NOT_FOUND",
+                                      "message": "존재하지 않는 챌린지입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-18T00:00:00.000Z"
+                                    }""")))
+    })
+    void like(@Parameter(hidden = true) AuthenticatedUser user,
+              @Parameter(description = "챌린지 식별자", example = "12") Integer challengeSeq);
+
+    @Operation(summary = "챌린지 좋아요 해제 (§7.3)", description = LIKE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "204", description = "반영됨 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제된 챌린지",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "CHALLENGE_NOT_FOUND",
+                                      "message": "존재하지 않는 챌린지입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-18T00:00:00.000Z"
+                                    }""")))
+    })
+    void unlike(@Parameter(hidden = true) AuthenticatedUser user,
+                @Parameter(description = "챌린지 식별자", example = "12") Integer challengeSeq);
+
 }
