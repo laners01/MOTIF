@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.component.HorizontalDivider
 import com.ssafy.motif.core.designsystem.component.IconButton
+import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.core.designsystem.component.ModifIconButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.component.bottomsheet.BottomSheet
@@ -70,14 +71,12 @@ import com.ssafy.motif.core.ui.formatter.formatCount
 import kotlinx.coroutines.launch
 
 /**
- * 챌린지에서 사용하는 댓글 BottomSheet.
- *
- * Scrim이 없으며 Sheet 바깥 영역과 상호작용할 수 있다.
+ * Scrim이 없으며 Sheet 바깥 영역과 상호작용할 수 있는 댓글 BottomSheet.
  */
 @Composable
 fun CommentBottomSheet(
     commentCount: Long,
-    content: CommentListState,
+    content: CommentUiState,
     onDismissRequest: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
@@ -109,7 +108,7 @@ fun CommentBottomSheet(
 @Composable
 fun ModalCommentBottomSheet(
     commentCount: Long,
-    content: CommentListState,
+    content: CommentUiState,
     onDismissRequest: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
@@ -139,7 +138,7 @@ fun ModalCommentBottomSheet(
 @Composable
 private fun CommentSheet(
     commentCount: Long,
-    content: CommentListState,
+    content: CommentUiState,
     onDismissRequest: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
@@ -164,11 +163,13 @@ private fun CommentSheet(
         inputHeightPx.toDp()
     }
 
-    val isRepliesPage = content is CommentListState.Replies
+    val isLoading = content is CommentUiState.Loading
+    val isRepliesPage = content is CommentUiState.Replies
 
     val sheetCount = when (content) {
-        is CommentListState.Comments -> commentCount
-        is CommentListState.Replies -> content.parentComment.replyCount
+        CommentUiState.Loading -> commentCount
+        is CommentUiState.Comments -> commentCount
+        is CommentUiState.Replies -> content.parentComment.replyCount
     }
 
     val dismissKeyboard: () -> Unit = {
@@ -229,21 +230,23 @@ private fun CommentSheet(
                 )
             }
 
-            CommentInput(
-                onSendClick = onCommentSendClick,
-                placeholder = stringResource(
-                    if (isRepliesPage) {
-                        R.string.reply_input_placeholder
-                    } else {
-                        R.string.comment_input_placeholder
-                    },
-                ),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .onSizeChanged { size ->
-                        inputHeightPx = size.height
-                    },
-            )
+            if (!isLoading) {
+                CommentInput(
+                    onSendClick = onCommentSendClick,
+                    placeholder = stringResource(
+                        if (isRepliesPage) {
+                            R.string.reply_input_placeholder
+                        } else {
+                            R.string.comment_input_placeholder
+                        },
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { size ->
+                            inputHeightPx = size.height
+                        },
+                )
+            }
         }
     }
 
@@ -274,7 +277,7 @@ private fun CommentSheet(
 
 @Composable
 private fun CommentSheetBody(
-    content: CommentListState,
+    content: CommentUiState,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
     bottomContentPadding: Dp,
@@ -286,8 +289,9 @@ private fun CommentSheetBody(
         targetState = content,
         contentKey = { currentContent ->
             when (currentContent) {
-                is CommentListState.Comments -> COMMENTS_CONTENT_KEY
-                is CommentListState.Replies -> REPLIES_CONTENT_KEY
+                CommentUiState.Loading -> LOADING_CONTENT_KEY
+                is CommentUiState.Comments -> COMMENTS_CONTENT_KEY
+                is CommentUiState.Replies -> REPLIES_CONTENT_KEY
             }
         },
         transitionSpec = {
@@ -299,24 +303,28 @@ private fun CommentSheetBody(
         modifier = modifier,
         label = "CommentSheetContent",
     ) { currentContent ->
-        val listState = when (currentContent) {
-            is CommentListState.Comments -> commentsListState
-            is CommentListState.Replies -> rememberLazyListState()
-        }
+        when (currentContent) {
+            CommentUiState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingWheel()
+                }
+            }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                top = 20.dp,
-                end = 20.dp,
-                bottom = 20.dp + bottomContentPadding,
-            ),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            when (currentContent) {
-                is CommentListState.Comments -> {
+            is CommentUiState.Comments -> {
+                LazyColumn(
+                    state = commentsListState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        top = 20.dp,
+                        end = 20.dp,
+                        bottom = 20.dp + bottomContentPadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
                     items(
                         items = currentContent.comments,
                         key = { comment -> comment.id },
@@ -332,8 +340,22 @@ private fun CommentSheetBody(
                         )
                     }
                 }
+            }
 
-                is CommentListState.Replies -> {
+            is CommentUiState.Replies -> {
+                val repliesListState = rememberLazyListState()
+
+                LazyColumn(
+                    state = repliesListState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        top = 20.dp,
+                        end = 20.dp,
+                        bottom = 20.dp + bottomContentPadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
                     item(
                         key = currentContent.parentComment.id,
                     ) {
@@ -376,7 +398,11 @@ private fun CommentKeyboardScrim(
 
     Box(
         modifier = modifier
-            .background(Color.Black.copy(alpha = KEYBOARD_SCRIM_ALPHA))
+            .background(
+                Color.Black.copy(
+                    alpha = KEYBOARD_SCRIM_ALPHA,
+                ),
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -487,13 +513,26 @@ private tailrec fun Context.findActivity(): Activity? =
     }
 
 private fun commentSheetTransition(
-    initialContent: CommentListState,
-    targetContent: CommentListState,
+    initialContent: CommentUiState,
+    targetContent: CommentUiState,
 ): ContentTransform {
+    if (
+        initialContent is CommentUiState.Loading ||
+        targetContent is CommentUiState.Loading
+    ) {
+        return fadeIn(
+            animationSpec = tween(PAGE_TRANSITION_DURATION),
+        ).togetherWith(
+            fadeOut(
+                animationSpec = tween(PAGE_TRANSITION_DURATION),
+            ),
+        )
+    }
+
     val direction =
         if (
-            initialContent is CommentListState.Comments &&
-            targetContent is CommentListState.Replies
+            initialContent is CommentUiState.Comments &&
+            targetContent is CommentUiState.Replies
         ) {
             1
         } else {
@@ -519,6 +558,31 @@ private fun commentSheetTransition(
                         animationSpec = tween(PAGE_TRANSITION_DURATION),
                     ),
         )
+}
+
+@Preview(
+    name = "CommentBottomSheet - Loading",
+    showBackground = true,
+)
+@Composable
+private fun CommentBottomSheetLoadingPreview() {
+    MotifTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.DarkGray),
+        ) {
+            CommentBottomSheet(
+                commentCount = 128L,
+                content = CommentUiState.Loading,
+                onDismissRequest = {},
+                onLikeClick = {},
+                onReplyClick = {},
+                onBackClick = {},
+                onCommentSendClick = {},
+            )
+        }
+    }
 }
 
 @Preview(
@@ -573,7 +637,7 @@ private fun CommentBottomSheetPreview() {
         ) {
             CommentBottomSheet(
                 commentCount = comments.size.toLong(),
-                content = CommentListState.Comments(
+                content = CommentUiState.Comments(
                     comments = comments,
                 ),
                 onDismissRequest = {},
@@ -639,7 +703,7 @@ private fun ModalCommentBottomSheetPreview() {
         ) {
             ModalCommentBottomSheet(
                 commentCount = 10L,
-                content = CommentListState.Replies(
+                content = CommentUiState.Replies(
                     parentComment = parentComment,
                     replies = replies,
                 ),
@@ -655,6 +719,7 @@ private fun ModalCommentBottomSheetPreview() {
 
 private const val COMMENT_SHEET_FRACTION = 0.6f
 private const val PAGE_TRANSITION_DURATION = 250
+private const val LOADING_CONTENT_KEY = "loading"
 private const val COMMENTS_CONTENT_KEY = "comments"
 private const val REPLIES_CONTENT_KEY = "replies"
 private const val KEYBOARD_SCRIM_ALPHA = 0.45f
