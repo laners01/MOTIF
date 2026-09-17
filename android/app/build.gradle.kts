@@ -23,6 +23,8 @@ dependencies {
     implementation(projects.feature.ranking.impl)
     implementation(projects.feature.artistdetail.api)
     implementation(projects.feature.artistdetail.impl)
+    implementation(projects.feature.mypage.api)
+    implementation(projects.feature.mypage.impl)
 
     implementation(projects.core.data)
     implementation(projects.core.designsystem)

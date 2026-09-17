@@ -16,6 +16,7 @@ import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
+import com.ssafy.motif.feature.mypage.impl.navigation.myPageEntry
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
 import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
 
@@ -34,6 +35,7 @@ fun MotifApp(
         onboardingEntry(navigator)
         rankingEntry(navigator)
         artistDetailEntry(navigator)
+        myPageEntry(navigator)
     }
 
     Box(modifier.fillMaxSize()) {
