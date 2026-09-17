@@ -44,6 +44,52 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     Optional<Report> findByReporterSeqAndVideoSeq(Integer reporterSeq, Long videoSeq);
 
     /**
+     * 챌린지 댓글 신고 접수 (API 명세 §9.6).
+     *
+     * <p>중복 판정을 DB 가 하는 이유와 네이티브인 이유는 {@link #insertVideoReport} 에
+     * 적었다 — 대상 칸만 다르다.
+     *
+     * <p><b>대상 네 칸 중 하나만 채운다</b>({@code ck_reports_exactly_one_target}).
+     * 나머지 세 칸은 문장에 넣지 않아 NULL 로 남고, 그 NULL 덕에 UNIQUE 4종이 서로
+     * 간섭하지 않는다(PostgreSQL 기본 NULLS DISTINCT — changeSet 0008 주석).
+     * <b>그래서 타입이 다르면 같은 번호를 각각 신고할 수 있다</b>: 챌린지 댓글 501 과
+     * 공지 댓글 501 은 다른 대상이다.
+     *
+     * @return 1 이면 접수됐다. <b>0 이면 이미 신고한 대상</b>이라 호출부가 409 로 답한다
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.reports (reporter_seq, challenge_comment_seq, reason_code)
+            values (:reporterSeq, :commentSeq, :reasonCode)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertChallengeCommentReport(@Param("reporterSeq") Integer reporterSeq,
+                                     @Param("commentSeq") Long commentSeq,
+                                     @Param("reasonCode") String reasonCode);
+
+    /** 참여 영상 댓글 신고 접수 (§9.6) — {@link #insertChallengeCommentReport} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.reports (reporter_seq, video_comment_seq, reason_code)
+            values (:reporterSeq, :commentSeq, :reasonCode)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertVideoCommentReport(@Param("reporterSeq") Integer reporterSeq,
+                                 @Param("commentSeq") Long commentSeq,
+                                 @Param("reasonCode") String reasonCode);
+
+    /** 공지 댓글 신고 접수 (§9.6) — {@link #insertChallengeCommentReport} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.reports (reporter_seq, notice_comment_seq, reason_code)
+            values (:reporterSeq, :commentSeq, :reasonCode)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertNoticeCommentReport(@Param("reporterSeq") Integer reporterSeq,
+                                  @Param("commentSeq") Long commentSeq,
+                                  @Param("reasonCode") String reasonCode);
+
+    /**
      * 어드민 신고 목록 (어드민 명세 §3.13.1) — S15P21D104-578.
      *
      * <p><b>접수순 고정이다.</b> 오래 방치된 신고가 먼저 보여야 한다 — 최신순이면

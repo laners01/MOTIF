@@ -6,6 +6,7 @@ import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateRequest;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentDeleteResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentReportRequest;
 import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -18,7 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 댓글 API 문서 계약 (명세 §9.1 · §9.2 · §9.3 · §9.4 · §9.5).
+ * 댓글 API 문서 계약 (명세 §9 전량).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -545,4 +546,71 @@ public interface CommentControllerDocs {
     void unlike(@Parameter(hidden = true) AuthenticatedUser user,
                 @Parameter(description = "challenge | video | notice", example = "challenge") String type,
                 @Parameter(description = "댓글 식별자", example = "501") Long commentSeq);
+
+    @Operation(
+            summary = "댓글 신고 (§9.6)",
+            description = """
+                    댓글·답글을 신고 접수한다. **접수만 한다** — 신고했다고 댓글이 숨겨지거나
+                    카운터가 바뀌지 않는다. 판단과 조치는 어드민의 일이다(어드민 §3.13).
+
+                    - **인증 필요.** 성공은 **200** 이고 `data` 는 `null` 이다(§8.7 과 같다).
+                      접수 번호를 돌려주지 않는다.
+                    - **1인 1대상 1회.** 같은 댓글을 다시 신고하면 409 `ALREADY_REPORTED` 다
+                      (DB UNIQUE 로 강제한다).
+                    - `reasonCode` 는 **문자열**이다. 사유 코드표가 아직 미결이라
+                      (원본 §16 #4 — §8.7·§9.6·§13.3 공통) 서버는 공백 여부와 길이(30자)만 본다.
+                    - **본인 댓글도 신고할 수 있다**(기본안) — 막을 근거 코드가 §15 표에 없다.
+
+                    ### 잠긴 영상의 댓글도 신고된다
+
+                    §9.6 실패표에 `COMMENT_DISABLED` 가 없다 — 문제가 되어 잠긴 게시물일수록
+                    신고가 필요한데 막으면 어드민에게 알릴 길이 사라진다. (§9.5 좋아요는
+                    잠기면 생성·해제 모두 막힌다.)
+
+                    ### 타입이 다르면 같은 번호도 다른 대상이다
+
+                    `reports` 는 4개 대상 칸 중 **정확히 하나만** 채운다. 챌린지 댓글 501 과
+                    공지 댓글 501 은 서로 다른 대상이라 각각 신고할 수 있다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "접수됨",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": null,
+                              "timestamp": "2026-09-10T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제된 댓글 · 대상 비노출 · 알 수 없는 type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "COMMENT_NOT_FOUND",
+                                      "message": "존재하지 않는 댓글입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "이미 신고한 대상",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "ALREADY_REPORTED",
+                                      "message": "이미 신고한 대상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<Void> report(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "challenge | video | notice", example = "challenge") String type,
+            @Parameter(description = "댓글 식별자", example = "501") Long commentSeq,
+            CommentReportRequest request);
 }
