@@ -15,4 +15,10 @@ internal data class MyPageUiState(
     val challengeState: MyChallengeUiState = MyChallengeUiState.Loading,
     val artistState: MyArtistUiState = MyArtistUiState.Loading,
     val flippedArtistId: Long? = null,
+    val nicknameEdit: NicknameEditUiState? = null,
+)
+
+internal data class NicknameEditUiState(
+    val value: String,
+    val isValid: Boolean,
 )
