@@ -72,5 +72,7 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 활동 대행 컨텍스트 선택 (ADMIN-11 · §1.7). 대행 API 는 409·574 로 있었는데
         // 아티스트를 고를 화면이 없어 어드민 UI 로는 대행할 길이 없었다
         registry.addViewController(AdminPaths.VIEW + "/act-as").setViewName("admin/act-as");
+        // 참여 영상 탐색 + 댓글 대행 (ADMIN-11). 탐색 API(575)도 부르는 화면이 없었다
+        registry.addViewController(AdminPaths.VIEW + "/act-as/videos").setViewName("admin/act-as-videos");
     }
 }
