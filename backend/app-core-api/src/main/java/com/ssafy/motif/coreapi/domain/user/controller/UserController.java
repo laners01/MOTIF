@@ -4,6 +4,7 @@ import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.user.docs.UserControllerDocs;
+import com.ssafy.motif.coreapi.domain.user.dto.MotifPassItem;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
@@ -15,6 +16,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
 import com.ssafy.motif.coreapi.domain.user.service.UserCommandService;
+import com.ssafy.motif.coreapi.domain.user.service.UserMotifPassQueryService;
 import com.ssafy.motif.coreapi.domain.user.service.UserProfileImageService;
 import com.ssafy.motif.coreapi.domain.user.service.UserQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -30,7 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 사용자·마이페이지 API (명세 §4). Base URL 은 {@code /api/v1}.
+ * 사용자·마이페이지 API (명세 §4 · §11.9). Base URL 은 {@code /api/v1}.
  *
  * <p>§4.9 활동만 남았다 — 별개 티켓이라 여기 매핑이 없다.
  *
@@ -49,6 +51,7 @@ public class UserController implements UserControllerDocs {
     private final UserQueryService userQueryService;
     private final UserCommandService userCommandService;
     private final UserProfileImageService userProfileImageService;
+    private final UserMotifPassQueryService userMotifPassQueryService;
 
     /** §4.1 마이페이지 원콜. */
     @Override
@@ -63,6 +66,23 @@ public class UserController implements UserControllerDocs {
     public ApiResponse<ListResponse<SubscriptionCardItem>> mySubscriptions(
             @AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.success(userQueryService.subscriptions(user.userSeq()));
+    }
+
+    /**
+     * §11.9 내 패스 일람 — 비페이지 전량.
+     *
+     * <p><b>§11 도메인이지만 여기 있다</b> — 경로가 {@code /users/me} 아래이고, 이 레포는
+     * 경로가 컨트롤러를 정한다(§11.4 를 {@code ArtistController} 에 넣은 것과 같은 기준).
+     * 대신 서비스는 {@link UserQueryService} 에 섞지 않고 따로 뒀다.
+     *
+     * <p>결제 이력 성격이라 <b>만료·환불된 패스도 함께</b> 온다. "지금 쓸 수 있나" 는
+     * §11.4·§4.7 의 {@code passActive} 가 답한다.
+     */
+    @Override
+    @GetMapping("/me/motif-passes")
+    public ApiResponse<ListResponse<MotifPassItem>> myMotifPasses(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.success(userMotifPassQueryService.passes(user.userSeq()));
     }
 
     /** §4.6 타 사용자 프로필 — 뷰어에서 작성자를 눌렀을 때의 Bottom Sheet. */

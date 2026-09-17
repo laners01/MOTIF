@@ -37,8 +37,9 @@ public record UserMeResponse(
     @Schema(description = "대표 모티프")
     public record RepMotif(
             Long resultSeq,
-            @Schema(description = "HLS 마스터 재생목록 (core-api 경로 — §1.7)",
-                    example = "/api/v1/media/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8")
+            @Schema(description = "HLS 마스터 재생목록 — 프리픽스 서명이 붙는다 (§1.7 · ADR-0012)",
+                    example = "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f"
+                            + "/master.m3u8?Policy=...&Signature=...&Key-Pair-Id=...")
             String videoUrl,
             @Schema(description = "CloudFront signed URL")
             String thumbnailUrl) {

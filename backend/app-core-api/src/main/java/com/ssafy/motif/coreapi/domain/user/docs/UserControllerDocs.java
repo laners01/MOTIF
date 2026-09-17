@@ -2,6 +2,7 @@ package com.ssafy.motif.coreapi.domain.user.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.MotifPassItem;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
@@ -23,7 +24,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 사용자·마이페이지 API 문서 계약 (명세 §4).
+ * 사용자·마이페이지 API 문서 계약 (명세 §4 · §11.9).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -31,7 +32,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * <p>§4.2 예시의 닉네임 오류 문구는 {@link com.ssafy.motif.coreapi.global.validation.Nickname}
  * 가 소유한다 — 텍스트 블록 안이라 상수를 끼워 넣지 못해 옮겨 적은 사본이다.
  */
-@Tag(name = "사용자 (USER)", description = "명세 §4 — 마이페이지")
+@Tag(name = "사용자 (USER)", description = "명세 §4 — 마이페이지 · §11.9 내 패스 일람")
 public interface UserControllerDocs {
 
     @Operation(
@@ -47,13 +48,14 @@ public interface UserControllerDocs {
                       전체 목록·더보기는 **§4.8**
                     - `videoCount` 는 불요로 철회됐다(R2)
 
-                    ### 영상 주소가 CDN 이 아닌 이유
-                    `repMotif.videoUrl` 은 **core-api** 를 가리킨다
-                    (`/api/v1/media/{jobUuid}/master.m3u8`). 모티프 결과물은 §1.7 **보호
-                    등급**이고, HLS 는 재생목록 안에서 조각을 추가로 요청하는데 URL 서명이
-                    거기까지 따라붙지 않는다 — core-api 가 재생목록을 다시 써서 조각 주소에
-                    서명을 박아 내린다. **플레이어가 이 주소를 직접 GET 하므로
-                    `Authorization` 헤더가 실리도록 데이터 소스를 설정해야 한다.**
+                    ### 영상 주소에 서명이 붙는 이유 *(ADR-0012)*
+                    `repMotif.videoUrl` 은 **CDN 절대 주소 + 프리픽스 서명**
+                    (`Policy`·`Signature`·`Key-Pair-Id`)이다. 모티프 결과물은 §1.7 **보호
+                    등급**이고, HLS 는 재생목록 안에서 조각을 추가로 요청하는데 상대 경로에는
+                    서명이 따라붙지 않는다 — 그래서 **영상 하나의 프리픽스 전체에 통하는**
+                    서명을 한 벌 낸다. **클라이언트(OkHttp 인터셉터)가 조각·자식 재생목록
+                    요청에 같은 파라미터를 붙여야 한다.** 만료(10분) 시 403 이면
+                    `POST /api/v1/media/{jobUuid}/signature` 로 새 파라미터를 받는다.
 
                     ### 썸네일
                     `thumb.jpg` 는 그 자체로 끝나는 단일 파일이라 리라이팅 없이 서명 URL 을
@@ -84,7 +86,7 @@ public interface UserControllerDocs {
                                                 "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
                                                 "repMotif": {
                                                   "resultSeq": 10,
-                                                  "videoUrl": "/api/v1/media/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
+                                                  "videoUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                   "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
                                                 },
                                                 "videos": [
@@ -307,6 +309,68 @@ public interface UserControllerDocs {
                                     }""")))
     })
     ApiResponse<ListResponse<SubscriptionCardItem>> mySubscriptions(
+            @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(summary = "내 패스 일람 (§11.9)", description = """
+            내가 보유했거나 보유했던 모티프 패스 **전량**이다. 결제 이력 성격이라
+            **만료·환불된 것도 함께** 온다.
+
+            - **인증 필요.** 본인 것만.
+            - 파라미터가 없고 페이지네이션도 없다. 봉투는 `ListResponse` 다.
+            - 정렬은 **만료 늦은 순**(`expires_dttm DESC`) — 유효한 패스가 자연히 위로 온다.
+            - 회원×아티스트당 한 행이다(`uq_motif_passes_user_artist`). 같은 아티스트의
+              패스를 다시 사면 기존 행을 재활성한다.
+
+            ### status 만 보면 틀린다
+
+            **실제 이용 가능 판정은 `status='ACTIVE' AND expiresDttm > now`** 다. 만료
+            배치가 아직 없어 **기간이 지난 `ACTIVE` 행**이 정상적으로 존재하고, 이 API 는
+            그 원시값을 **그대로** 내려준다.
+
+            판정이 필요한 화면은 §11.4(아티스트별 패스)나 §4.7(구독 카드)의 `passActive` 를
+            쓴다 — 세 곳이 각자 계산하면 같은 패스가 화면마다 다르게 보인다.
+
+            ### canceledDttm
+
+            **취소 의사 기록**이고 이용 판정에 참여하지 않는다. 패스 취소 API 는 현재 구현
+            범위가 아니다(§11.10).
+
+            ### 삭제된 아티스트
+
+            그 아티스트의 패스도 **나온다**. §4.6·§4.7 은 삭제 아티스트를 빼지만 그쪽은
+            "지금 갈 수 있는 곳" 목록이고, 여기는 돈을 낸 기록이다.
+            """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공 — 패스가 없으면 빈 배열",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "artist": {
+                                              "artistSeq": 3,
+                                              "name": "카리나",
+                                              "groupName": "aespa",
+                                              "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                                            },
+                                            "status": "ACTIVE",
+                                            "startedDttm": "2026-09-01T00:00:00.000Z",
+                                            "expiresDttm": "2026-10-01T00:00:00.000Z",
+                                            "durationMonths": 1,
+                                            "canceledDttm": null
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<MotifPassItem>> myMotifPasses(
             @Parameter(hidden = true) AuthenticatedUser user);
 
     @Operation(

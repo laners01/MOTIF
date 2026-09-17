@@ -182,7 +182,7 @@ public interface VideoControllerDocs {
                                 "videoSeq": 88,
                                 "challengeSeq": 11,
                                 "description": "수정한 문구",
-                                "videoUrl": "/api/v1/media/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                                "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=...&Signature=...&Key-Pair-Id=...",
                                 "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=…",
                                 "durationMs": 15000,
                                 "author": {
