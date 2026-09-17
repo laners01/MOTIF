@@ -1,7 +1,6 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
-import com.ssafy.motif.core.model.comment.Comment
-import com.ssafy.motif.core.model.comment.Reply
+import com.ssafy.motif.core.ui.comment.CommentListState
 
 internal sealed interface CommentSheetUiState {
 
@@ -11,9 +10,7 @@ internal sealed interface CommentSheetUiState {
 
     data class Success(
         val commentCount: Long,
-        val comments: List<Comment>,
-        val repliesByCommentId: Map<Long, List<Reply>>,
-        val expandedCommentIds: Set<Long>,
+        val content: CommentListState,
     ) : CommentSheetUiState
 
     data class Error(
