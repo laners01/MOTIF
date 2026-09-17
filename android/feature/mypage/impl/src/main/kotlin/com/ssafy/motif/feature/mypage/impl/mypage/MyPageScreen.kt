@@ -27,9 +27,9 @@ import com.ssafy.motif.core.designsystem.component.TabRowDefaults
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults.tabIndicatorOffset
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyProfileSection
+import com.ssafy.motif.feature.mypage.impl.mypage.component.SubscribedArtistCard
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.items
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +53,7 @@ fun MyPageScreen(
         onTabClick = viewModel::selectTab,
         onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
         onCreateClick = viewModel::onCreateClick,
+        onArtistCardClick = viewModel::onArtistCardClick,
         modifier = modifier,
     )
 }
@@ -64,6 +65,7 @@ internal fun MyPageScreen(
     onTabClick:(MyPageTab) -> Unit,
     onLoadMoreChallenges:() -> Unit,
     onCreateClick:() -> Unit,
+    onArtistCardClick:(Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
 
@@ -197,7 +199,41 @@ internal fun MyPageScreen(
                         is MyChallengeUiState.Error -> { item { } }
                     }
                  }
-                MyPageTab.Artist -> { item { } }   // 모델 없음
+                MyPageTab.Artist -> {
+                    when (val state = uiState.artistState) {
+                        MyArtistUiState.Loading -> { item { ChallengeLoadingContent() } }
+
+                        is MyArtistUiState.Success -> {
+                            items(
+                                items = state.artists.chunked(2),
+                                key = { row -> row.first().id },
+                            ) { row ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 24.dp)
+                                        .padding(bottom = 18.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                ) {
+                                    row.forEach { artist ->
+                                        SubscribedArtistCard(
+                                            artist = artist,
+                                            isFlipped = uiState.flippedArtistId == artist.id,
+                                            onClick = { onArtistCardClick(artist.id) },
+                                            onSeeMoreClick = { },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                    repeat(2 - row.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+
+                        is MyArtistUiState.Error -> { item { } }
+                    }
+                }
                 MyPageTab.Liked -> { item { } }    // 모델 없음
             }
 

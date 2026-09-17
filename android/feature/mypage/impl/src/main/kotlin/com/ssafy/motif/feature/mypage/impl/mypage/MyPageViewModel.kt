@@ -49,6 +49,28 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
     init{
         loadProfile()
         loadChallenges()
+        loadArtists()
+    }
+
+    private fun loadArtists() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(artistState = MyArtistUiState.Loading) }
+
+            _uiState.update {
+                it.copy(
+                    artistState = MyArtistUiState.Success(
+                        artists = MyPageMockData.subscribedArtists,
+                    ),
+                )
+            }
+        }
+    }
+    fun onArtistCardClick(artistId: Long) {
+        _uiState.update { state ->
+            state.copy(
+                flippedArtistId = if (state.flippedArtistId == artistId) null else artistId,
+            )
+        }
     }
     private fun loadChallenges(){
         viewModelScope.launch {

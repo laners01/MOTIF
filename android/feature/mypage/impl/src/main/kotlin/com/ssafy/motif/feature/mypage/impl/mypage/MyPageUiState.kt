@@ -12,5 +12,7 @@ enum class MyPageTab(val label: String){
 internal data class MyPageUiState(
     val profileState: ProfileUiState = ProfileUiState.Loading,
     val selectedTab: MyPageTab = MyPageTab.Challenge,
-    val challengeState: MyChallengeUiState = MyChallengeUiState.Loading
+    val challengeState: MyChallengeUiState = MyChallengeUiState.Loading,
+    val artistState: MyArtistUiState = MyArtistUiState.Loading,
+    val flippedArtistId: Long? = null,
 )
