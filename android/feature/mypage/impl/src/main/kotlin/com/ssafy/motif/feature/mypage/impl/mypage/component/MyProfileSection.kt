@@ -34,7 +34,7 @@ internal fun MyProfileSection(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 23.dp, top = 20.dp, bottom = 20.dp),
+            .padding(start = 20.dp, end = 23.dp, top = 20.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ){
