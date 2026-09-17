@@ -214,4 +214,144 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
 
         Instant getRegDttm();
     }
+
+    /**
+     * 팬 앱 에셋 목록 (API 명세 §11.1) — offset 페이지, 최신순 고정.
+     *
+     * <p><b>{@code artistSeq} 가 모드를 가른다.</b> {@code null} 이면 <b>내가 구독한
+     * 아티스트</b>의 에셋만, 값이 있으면 구독 여부를 보지 않고 그 아티스트의 에셋만이다.
+     * 원본 명세 §11.1 은 "생략하면 전체 아티스트"였지만 숍의 기본 화면이 구독 기반이라
+     * 기본값을 바꿨다(S15P21D104-224 — {@code docs/api/detail/11-motif.md} §11.1 에 사유).
+     * 전체 카탈로그를 한 번에 주는 경로는 두지 않는다.
+     *
+     * <p><b>왜 어드민 {@link #search} 와 나누나.</b> 저쪽은 운영 지표(구매 수·결과물 수·
+     * 가격)를 붙이고 비활성 에셋을 그대로 보여 준다. 여기는 그 세 값을 쓰지 않는 대신
+     * 호출자별 판정(구독·구매·패스)이 붙는다 — 합치면 어느 화면에도 필요 없는 칸을
+     * 서로에게 계산해 주는 쿼리가 된다.
+     *
+     * <p><b>세 판정을 전부 쿼리 안에서 한다.</b> 구독 필터·노출 필터·{@code myAccess} 는
+     * 모두 <b>페이지 대상 집합</b>을 바꾼다. 하나라도 애플리케이션에서 거르면
+     * {@code totalElements} 와 페이지 경계가 응답 항목 수와 어긋난다 — 20건을 요청했는데
+     * 3건만 오면서 {@code hasNext=true} 인 목록이 된다.
+     *
+     * <p><b>비활성 에셋은 개별 구매자에게만 보인다</b>(§11.1). 패스만 있는 사용자에게는
+     * 보이지 않으므로 노출 조건의 {@code exists} 는 구매만 본다 — {@code owned} 와 같은
+     * 서브쿼리지만 <b>하는 일이 다르다</b>. 저쪽은 "보여 줄까"이고 이쪽은 "무슨 권한인가"라,
+     * 노출 규칙이 바뀌어도 {@code myAccess} 는 그대로여야 한다.
+     *
+     * <p><b>패스 만료는 {@code current_timestamp} 로 비교한다</b> — DB 가 평가한다.
+     * 자바에서 시각을 꺼내 넘기면 앱 서버와 DB 의 시계 차만큼 만료 직전·직후 판정이
+     * 갈린다({@code MotifPassRepository.findActive} 와 같은 근거).
+     *
+     * <p><b>{@code PREMIUM} 의 패스 미커버는 여기서 판정하지 않는다.</b> 쿼리는 "그
+     * 아티스트의 유효 패스가 있는가"({@code passActive})까지만 답하고, 타입별 커버 규칙은
+     * 서비스가 {@code assetType} 과 함께 본다 — DB 없이 검증할 수 있는 자리에 둔다.
+     *
+     * <p>구독 모드에서 <b>삭제 아티스트를 뺀다</b>. 구독 행은 아티스트가 삭제돼도 남으므로
+     * ({@code SubscriptionRepository.findSubscribed} 와 같은 근거) 거르지 않으면 눌러도
+     * 404 가 나는 카드가 섞인다. {@code artistSeq} 모드에는 이 게이트가 없다 — 삭제
+     * 연쇄로 에셋이 전부 {@code is_active=FALSE} 가 되어 개별 구매자에게만 남는데,
+     * 산 것은 판매가 끊겨도 산 것이다(§4.7 {@code purchasedAssetCount} 와 같은 규칙).
+     *
+     * <p>{@code cast(:artistSeq as integer)} 은 장식이 아니다 — 네이티브 쿼리에
+     * {@code null} 을 그냥 바인딩하면 Postgres 가 파라미터 타입을 못 정해 쿼리 자체가
+     * 실패한다. 별칭의 따옴표도 같은 이유다({@link #search} 참조).
+     *
+     * @param artistSeq {@code null} 이면 구독 아티스트 전체
+     */
+    @Query(value = """
+            select a.asset_seq         as "assetSeq",
+                   a.artist_seq        as "artistSeq",
+                   u.nickname          as "artistName",
+                   g.group_name        as "groupName",
+                   u.profile_image_key as "artistProfileImageKey",
+                   a.title             as "title",
+                   a.description       as "description",
+                   a.thumbnail_key     as "thumbnailKey",
+                   a.duration_ms       as "durationMs",
+                   a.asset_type        as "assetType",
+                   exists (select 1 from motif_core.asset_purchases p
+                            where p.asset_seq = a.asset_seq
+                              and p.user_seq = :userSeq
+                              and p.status = 'ACTIVE')            as "owned",
+                   exists (select 1 from motif_core.motif_passes mp
+                            where mp.user_seq = :userSeq
+                              and mp.artist_seq = a.artist_seq
+                              and mp.status = 'ACTIVE'
+                              and mp.expires_dttm > current_timestamp) as "passActive"
+              from motif_core.motif_assets a
+              join motif_core.artists ar on ar.artist_seq = a.artist_seq
+              join motif_core.users u on u.user_seq = ar.user_seq
+              left join motif_core.artist_groups g on g.group_seq = ar.group_seq
+             where (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
+               and (cast(:artistSeq as integer) is not null
+                    or (ar.is_deleted = false
+                        and exists (select 1 from motif_core.subscriptions s
+                                     where s.user_seq = :userSeq
+                                       and s.artist_seq = a.artist_seq)))
+               and (a.is_active = true
+                    or exists (select 1 from motif_core.asset_purchases ap
+                                where ap.asset_seq = a.asset_seq
+                                  and ap.user_seq = :userSeq
+                                  and ap.status = 'ACTIVE'))
+             order by a.asset_seq desc
+            """,
+            countQuery = """
+            select count(*)
+              from motif_core.motif_assets a
+              join motif_core.artists ar on ar.artist_seq = a.artist_seq
+             where (cast(:artistSeq as integer) is null or a.artist_seq = cast(:artistSeq as integer))
+               and (cast(:artistSeq as integer) is not null
+                    or (ar.is_deleted = false
+                        and exists (select 1 from motif_core.subscriptions s
+                                     where s.user_seq = :userSeq
+                                       and s.artist_seq = a.artist_seq)))
+               and (a.is_active = true
+                    or exists (select 1 from motif_core.asset_purchases ap
+                                where ap.asset_seq = a.asset_seq
+                                  and ap.user_seq = :userSeq
+                                  and ap.status = 'ACTIVE'))
+            """,
+            nativeQuery = true)
+    Page<AssetCatalogRow> searchCatalog(@Param("userSeq") Integer userSeq,
+                                        @Param("artistSeq") Integer artistSeq,
+                                        Pageable pageable);
+
+    /**
+     * {@link #searchCatalog} 한 행.
+     *
+     * <p>{@code owned}·{@code passActive} 는 <b>판정 재료</b>지 응답 값이 아니다 —
+     * 둘을 {@code myAccess} 하나로 접는 일은 서비스가 한다(§11.1 우선순위 OWNED &gt; PASS
+     * &gt; NONE).
+     */
+    interface AssetCatalogRow {
+
+        Integer getAssetSeq();
+
+        Integer getArtistSeq();
+
+        String getArtistName();
+
+        /** 솔로 아티스트는 {@code null} (README §3.5). */
+        String getGroupName();
+
+        String getArtistProfileImageKey();
+
+        String getTitle();
+
+        /** 소개 문구 — {@code title} 과 다른 칸이고 {@code null} 일 수 있다. */
+        String getDescription();
+
+        String getThumbnailKey();
+
+        Integer getDurationMs();
+
+        String getAssetType();
+
+        /** 개별 구매 보유 여부 — {@code getActive()} 와 같은 이유로 래퍼 게터다(투영 이름 매칭). */
+        Boolean getOwned();
+
+        /** 그 아티스트의 유효 패스 보유 여부. 에셋 타입은 보지 않는다. */
+        Boolean getPassActive();
+    }
 }
