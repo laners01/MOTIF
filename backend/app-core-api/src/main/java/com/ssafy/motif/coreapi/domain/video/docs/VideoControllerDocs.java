@@ -15,7 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 참여 영상 API 문서 계약 (명세 §8.2 · §8.6 · §8.7 · §8.9).
+ * 참여 영상 API 문서 계약 (명세 §8.2 · §8.6 · §8.7 · §8.9 · §8.10).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -245,6 +245,66 @@ public interface VideoControllerDocs {
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq,
             VideoUpdateRequest request);
+
+    @Operation(
+            summary = "게시 영상 삭제 (§8.10)",
+            description = """
+                    본인이 게시한 참여 영상을 내린다 (명세 §8.10). 요청 본문이 없다.
+
+                    - **인증 필요. 본인 영상만 지울 수 있다.**
+                    - **소프트 삭제다.** 행은 남고 비노출로 바뀐다 — §8.1 피드 · §8.2 단건 ·
+                      §4.1/§4.8 내 그리드 · §6.1 HOT 에서 모두 사라진다.
+                    - 삭제되면 그 챌린지의 **참여 수(`participantCount`)가 1 내려간다** — 처음
+                      지울 때 한 번만이다.
+                    - **이미 삭제된 영상은 404** 다(멱등 200 이 아니다). "없는 영상" 과 "이미 지운
+                      영상" 을 §1.8 이 구분하지 않기 때문이다.
+                    - **좋아요·댓글·신고 이력은 지우지 않는다.** 신고 이력은 어드민 처리 근거다.
+                    - **산출물(S3)은 지우지 않는다.** 명세가 소프트 삭제만 정의한다.
+
+                    ### 404 가 403 보다 앞선다
+
+                    §8.9 와 같다 — 남의 **`PRIVATE`** 영상은 404, 남의 `PUBLIC` 영상이어야 403 이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "삭제됨",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": null,
+                              "timestamp": "2026-09-17T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "남의 PUBLIC 영상 (남의 PRIVATE 은 404 다)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "FORBIDDEN",
+                                      "message": "권한이 없습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · **이미 삭제된 영상** · 삭제 사용자의 콘텐츠 · 타인의 PRIVATE · 삭제된 챌린지 소속",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<Void> delete(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
 
     @Operation(
             summary = "영상 신고 (§8.7)",

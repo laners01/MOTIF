@@ -5,6 +5,7 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.video.VideoErrorCode;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
+import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.video.ParticipationVideo;
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 참여 영상에 붙는 쓰기 (API 명세 §8.6 · §8.9).
+ * 참여 영상에 붙는 쓰기 (API 명세 §8.6 · §8.9 · §8.10).
  *
  * <p><b>{@link VideoQueryService} 와 나란한 별개 서비스다.</b> 그쪽은
  * {@code @Transactional(readOnly = true)} 로 선언돼 있어 쓰기를 한 줄이라도 섞으면 그
@@ -35,6 +36,7 @@ public class VideoCommandService {
     private final VideoAccessGuard accessGuard;
     private final ParticipationVideoRepository participationVideoRepository;
     private final CompositeJobRepository compositeJobRepository;
+    private final ChallengeRepository challengeRepository;
 
     /** 수정 응답은 §8.2 와 <b>같은 경로</b>로 읽는다 — 이유는 {@link #update} javadoc 에 있다. */
     private final VideoQueryService videoQueryService;
@@ -62,9 +64,7 @@ public class VideoCommandService {
     /**
      * §8.9 게시 정보 수정 — 보낸 필드만 반영한다.
      *
-     * <p><b>404 가 403 보다 앞선다.</b> 남의 {@code PRIVATE} 영상에 PATCH 하면 403 이
-     * 아니라 404 다 — 403 은 "그 영상이 존재한다" 를 알려 준다(§1.8 존재 은닉). 403 은
-     * <b>보이는데 내 것이 아닐 때</b>, 즉 남의 {@code PUBLIC} 영상에만 나간다.
+     * <p>권한 규칙은 {@link #requireMine} 이 갖는다 — 404 가 403 보다 앞선다.
      *
      * <p><b>빈 요청은 200 이다.</b> 아무것도 바꾸지 않고 현재 상태를 돌려준다 —
      * "보낸 필드만 반영" 의 자연스러운 극단이고, 이걸 막을 코드가 §15 표에 없다.
@@ -75,10 +75,7 @@ public class VideoCommandService {
      * 변경이 flush 되므로 수정 반영본이 나온다).
      */
     public VideoItem update(Integer userSeq, Long videoSeq, VideoUpdateRequest request) {
-        VideoFeedRow row = accessGuard.requireVisible(userSeq, videoSeq);
-        if (!row.userSeq().equals(userSeq)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, "videoSeq: " + videoSeq);
-        }
+        requireMine(userSeq, videoSeq);
 
         if (!request.isEmpty()) {
             ParticipationVideo video = participationVideoRepository.findById(videoSeq)
@@ -93,6 +90,50 @@ public class VideoCommandService {
         }
 
         return videoQueryService.detail(userSeq, videoSeq);
+    }
+
+    /**
+     * §8.10 게시 영상 삭제 — <b>소프트 삭제</b>.
+     *
+     * <p>권한 규칙은 §8.9 와 같다 — 404 가 403 보다 앞선다({@link #update} javadoc).
+     *
+     * <p><b>이미 삭제된 영상은 404 다</b>(멱등 200 이 아니다). {@link VideoAccessGuard}
+     * 가 삭제분을 404 로 만드는데 여기서만 예외를 두면 "없는 영상" 과 "이미 지운 영상" 이
+     * 다른 코드로 갈린다 — §1.8 은 그 둘을 구분하지 않는다.
+     *
+     * <p>그래서 {@code softDelete} 가 0행을 돌려주는 경우는 <b>동시 요청</b>뿐이고,
+     * 그때 참여 수를 내리지 않는 것이 이 분기의 전부다. 두 요청이 모두 카운터를 내리면
+     * {@code ck_challenges_participant_count} 가 막아 두 번째가 500 이 된다.
+     *
+     * <p><b>산출물은 지우지 않는다.</b> 명세가 소프트 삭제만 적었고, S3 삭제·CloudFront
+     * 무효화 수단이 레포에 없다(§8.9 와 같은 상태). 영상 행이 남으므로
+     * {@code challengeSeq} 도 그대로 읽을 수 있다.
+     *
+     * <p><b>어드민 신고 인용(§3.13.3)과 조합을 공유하지 않는다.</b> 그쪽은 응답에 카운터
+     * 변화량을 실어야 해서 반환이 다르다. 멱등의 핵심인 "0행이면 카운터를 안 내린다" 는
+     * {@code softDelete} 가 이미 강제한다.
+     */
+    public void delete(Integer userSeq, Long videoSeq) {
+        VideoFeedRow row = requireMine(userSeq, videoSeq);
+
+        if (participationVideoRepository.softDelete(videoSeq, userSeq) == 1) {
+            challengeRepository.decrementParticipantCount(row.challengeSeq());
+        }
+    }
+
+    /**
+     * 보이는 영상이면서 내 것인가 — §8.9·§8.10 이 함께 쓴다.
+     *
+     * <p><b>404 가 403 보다 앞선다.</b> 남의 {@code PRIVATE} 영상은 403 이 아니라 404 다
+     * — 403 은 "그 영상이 존재한다" 를 알려 준다(§1.8 존재 은닉). 403 은 <b>보이는데 내
+     * 것이 아닐 때</b>, 즉 남의 {@code PUBLIC} 영상에만 나간다.
+     */
+    private VideoFeedRow requireMine(Integer userSeq, Long videoSeq) {
+        VideoFeedRow row = accessGuard.requireVisible(userSeq, videoSeq);
+        if (!row.userSeq().equals(userSeq)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "videoSeq: " + videoSeq);
+        }
+        return row;
     }
 
     /**
