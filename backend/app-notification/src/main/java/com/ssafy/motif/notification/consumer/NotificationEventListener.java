@@ -1,7 +1,9 @@
 package com.ssafy.motif.notification.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.motif.domain.notif.token.DeviceTokenRepository;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
+import com.ssafy.motif.event.contract.CommentCreatedEvent;
 import com.ssafy.motif.event.contract.CompositeJobDoneEvent;
 import com.ssafy.motif.event.contract.NoticeCreatedEvent;
 import com.ssafy.motif.event.topology.Queues;
@@ -54,6 +56,7 @@ public class NotificationEventListener {
     private static final String MDC_KEY = "requestId";
 
     private final SubscriberTokenQuery subscriberTokenQuery;
+    private final DeviceTokenRepository deviceTokenRepository;
     private final FcmSender fcmSender;
     private final EventIdempotencyGuard idempotency;
     /** MQ 직렬화 전용 매퍼(snake_case) — {@code MqConfig} 가 만든 것과 같아야 한다. */
@@ -82,6 +85,22 @@ public class NotificationEventListener {
                             PushMessage.newNotice(event.artistName(), event.contentPreview(),
                                     event.noticeSeq())));
                 }
+                // §9.3 — 내 게시물 댓글 (S15P21D104-316)
+                case RoutingKeys.COMMENT_CREATED -> {
+                    CommentCreatedEvent event = read(message, CommentCreatedEvent.class);
+                    handle(event.eventId(), routingKey, () -> toOne(event.recipientUserSeq(),
+                            PushMessage.newComment(event.targetType(), event.targetSeq(),
+                                    event.commentSeq(), event.actorNickname(),
+                                    event.contentPreview())));
+                }
+                // §9.3 — 내 댓글의 답글 (S15P21D104-322)
+                case RoutingKeys.REPLY_CREATED -> {
+                    CommentCreatedEvent event = read(message, CommentCreatedEvent.class);
+                    handle(event.eventId(), routingKey, () -> toOne(event.recipientUserSeq(),
+                            PushMessage.newReply(event.targetType(), event.targetSeq(),
+                                    event.commentSeq(), event.actorNickname(),
+                                    event.contentPreview())));
+                }
                 case RoutingKeys.COMPOSITE_DONE -> {
                     CompositeJobDoneEvent event = read(message, CompositeJobDoneEvent.class);
                     log.info("composite.done 수신: jobUuid={} eventId={}",
@@ -96,6 +115,17 @@ public class NotificationEventListener {
         } finally {
             MDC.remove(MDC_KEY);
         }
+    }
+
+    /**
+     * 수신자가 한 명인 알림 — 그 사람의 활성 기기 전부로 간다(기기 수만큼 발송된다).
+     *
+     * <p>"본인 제외" 는 여기서 거르지 않는다 — 발행측이 아예 쏘지 않는다
+     * ({@code CommentCommandService}). 걸러진 것과 안 온 것이 로그에서 같아 보이면
+     * 알림이 빠졌을 때 어디를 봐야 할지 알 수 없다.
+     */
+    private int toOne(Integer userSeq, PushMessage message) {
+        return fcmSender.send(message, deviceTokenRepository.findActiveTokensOf(userSeq));
     }
 
     private int fanout(Integer artistSeq, PushMessage message) {

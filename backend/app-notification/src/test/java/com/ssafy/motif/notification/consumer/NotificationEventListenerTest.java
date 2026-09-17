@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
+import com.ssafy.motif.event.contract.CommentCreatedEvent;
 import com.ssafy.motif.event.contract.NoticeCreatedEvent;
 import com.ssafy.motif.event.topology.RoutingKeys;
+import com.ssafy.motif.domain.notif.token.DeviceTokenRepository;
 import com.ssafy.motif.notification.fanout.SubscriberTokenQuery;
 import com.ssafy.motif.notification.push.FcmSender;
 import com.ssafy.motif.notification.push.PushMessage;
@@ -52,6 +54,7 @@ class NotificationEventListenerTest {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     private SubscriberTokenQuery subscriberTokenQuery;
+    private DeviceTokenRepository deviceTokenRepository;
     private FcmSender fcmSender;
     private EventIdempotencyGuard idempotency;
     private NotificationEventListener listener;
@@ -59,13 +62,15 @@ class NotificationEventListenerTest {
     @BeforeEach
     void setUp() {
         subscriberTokenQuery = mock(SubscriberTokenQuery.class);
+        deviceTokenRepository = mock(DeviceTokenRepository.class);
         fcmSender = mock(FcmSender.class);
         idempotency = mock(EventIdempotencyGuard.class);
         listener = new NotificationEventListener(
-                subscriberTokenQuery, fcmSender, idempotency, MAPPER);
+                subscriberTokenQuery, deviceTokenRepository, fcmSender, idempotency, MAPPER);
 
         given(idempotency.claim(anyString())).willReturn(true);
         given(subscriberTokenQuery.activeTokensOfSubscribers(anyInt())).willReturn(List.of("tok-1"));
+        given(deviceTokenRepository.findActiveTokensOf(anyInt())).willReturn(List.of("tok-1"));
         given(fcmSender.send(any(), any())).willReturn(1);
     }
 
@@ -80,6 +85,33 @@ class NotificationEventListenerTest {
         assertThat(sent.body()).isEqualTo("Whiplash");
         assertThat(sent.data()).containsEntry("challengeSeq", "11");
         verify(subscriberTokenQuery).activeTokensOfSubscribers(3);
+    }
+
+    @Test
+    @DisplayName("comment.created — NEW_COMMENT 로 수신자 본인의 기기에만 간다")
+    void commentCreated() {
+        listener.onEvent(message(comment("evt-c", null)), RoutingKeys.COMMENT_CREATED, null);
+
+        PushMessage sent = captureSent();
+        assertThat(sent.type()).isEqualTo(PushMessage.TYPE_NEW_COMMENT);
+        assertThat(sent.title()).isEqualTo("팬1님이 댓글을 남겼어요");
+        assertThat(sent.body()).isEqualTo("영상 잘 봤어요");
+        // 게시물 종류에 따라 대상 키 이름이 갈린다(§14.3)
+        assertThat(sent.data()).containsEntry("videoSeq", "500").containsEntry("commentSeq", "900");
+        // 구독자 팬아웃이 아니다 — 수신자 한 명의 기기만 본다
+        verify(deviceTokenRepository).findActiveTokensOf(42);
+        verify(subscriberTokenQuery, Mockito.never()).activeTokensOfSubscribers(anyInt());
+    }
+
+    @Test
+    @DisplayName("comment.replied — NEW_REPLY 로 나가고 parentCommentSeq 가 실린 이벤트다")
+    void replyCreated() {
+        listener.onEvent(message(comment("evt-r", 800L)), RoutingKeys.REPLY_CREATED, null);
+
+        PushMessage sent = captureSent();
+        assertThat(sent.type()).isEqualTo(PushMessage.TYPE_NEW_REPLY);
+        assertThat(sent.title()).isEqualTo("팬1님이 답글을 남겼어요");
+        assertThat(sent.data()).containsEntry("commentSeq", "900");
     }
 
     @Test
@@ -145,6 +177,12 @@ class NotificationEventListenerTest {
         ArgumentCaptor<PushMessage> captor = ArgumentCaptor.forClass(PushMessage.class);
         verify(fcmSender).send(captor.capture(), any());
         return captor.getValue();
+    }
+
+    /** 참여 영상 댓글. {@code parentCommentSeq} 가 있으면 답글이다. */
+    private static CommentCreatedEvent comment(String eventId, Long parentCommentSeq) {
+        return new CommentCreatedEvent(eventId, Instant.now(), "VIDEO", 500L, 900L,
+                parentCommentSeq, 42, "팬1", "영상 잘 봤어요");
     }
 
     private Message message(Object payload) {
