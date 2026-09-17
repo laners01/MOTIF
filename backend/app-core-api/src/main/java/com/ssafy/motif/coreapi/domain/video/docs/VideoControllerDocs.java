@@ -3,6 +3,7 @@ package com.ssafy.motif.coreapi.domain.video.docs;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 참여 영상 API 문서 계약 (명세 §8.2 · §8.6 · §8.7).
+ * 참여 영상 API 문서 계약 (명세 §8.2 · §8.6 · §8.7 · §8.9).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -138,6 +139,112 @@ public interface VideoControllerDocs {
     ApiResponse<Void> hide(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
+
+    @Operation(
+            summary = "게시 정보 수정 (§8.9)",
+            description = """
+                    뷰어 Bottom Sheet 의 "수정". **부분 수정이라 보낸 필드만 반영한다** (명세 §8.9).
+
+                    - **인증 필요. 본인 영상만 고칠 수 있다.**
+                    - 고칠 수 있는 것은 `description` · `visibility` · `commentEnabled` 셋뿐이다.
+                      제목은 개념 자체가 없다(R3 — 컬럼이 삭제됐다).
+                    - **필드를 생략하면 그대로 둔다.** `description` 에 빈 문자열을 보내면 **지운다** —
+                      생략과 다르다.
+                    - 셋 다 생략하면 아무것도 바꾸지 않고 **현재 상태를 돌려준다**(200).
+                    - 응답은 **§8.2 항목(수정 반영본)** 이다.
+
+                    ### 404 가 403 보다 앞선다
+
+                    남의 **`PRIVATE`** 영상에 보내면 403 이 아니라 **404** 다 — 403 을 주면 "그 영상이
+                    존재한다"가 읽힌다(§1.8 존재 은닉). 403 은 **보이는데 내 것이 아닐 때**,
+                    즉 남의 `PUBLIC` 영상에만 나간다.
+
+                    ### visibility 를 바꾸면 videoUrl 도 바뀐다
+
+                    등급을 정하는 것은 `visibility` 가 아니라 **키 프리픽스**다(§1.7).
+
+                    - **`PUBLIC → PRIVATE`**: 이후 발급되는 URL 이 **core-api 보호 경로**로 바뀐다.
+                      다만 **이미 발급된 무서명 CDN URL 은 살아 있다** — 공개 사본 삭제와 CloudFront
+                      무효화는 아직 구현돼 있지 않다. "즉시 차단"을 약속하지 않는다.
+                    - **`PRIVATE → PUBLIC`**: 공개 사본을 만드는 주체(§8.8 게시)가 아직 없어서,
+                      `videoUrl` 은 당분간 **보호 경로 그대로**다. `visibility` 는 `PUBLIC` 이지만
+                      **타인은 아직 재생할 수 없다.** 복사가 붙는 티켓에서 닫힌다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "수정됨 — data 는 §8.2 항목(수정 반영본)",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": {
+                                "videoSeq": 88,
+                                "challengeSeq": 11,
+                                "description": "수정한 문구",
+                                "videoUrl": "/api/v1/media/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                                "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=…",
+                                "durationMs": 15000,
+                                "author": {
+                                  "userSeq": 5,
+                                  "nickname": "팬123",
+                                  "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg"
+                                },
+                                "viewCount": 3400,
+                                "likeCount": 120,
+                                "commentCount": 15,
+                                "hasArtistLike": true,
+                                "hasArtistComment": false,
+                                "isLiked": false,
+                                "commentEnabled": false,
+                                "visibility": "PRIVATE",
+                                "isMine": true,
+                                "regDttm": "2026-09-01T10:00:00.000Z"
+                              },
+                              "timestamp": "2026-09-17T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "description 1000자 초과 · visibility 가 PUBLIC|PRIVATE 이 아님",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "잘못된 요청 값입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "남의 PUBLIC 영상 (남의 PRIVATE 은 404 다)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "FORBIDDEN",
+                                      "message": "권한이 없습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · 삭제 영상 · 삭제 사용자의 콘텐츠 · 타인의 PRIVATE · 삭제된 챌린지 소속",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<VideoItem> update(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq,
+            VideoUpdateRequest request);
 
     @Operation(
             summary = "영상 신고 (§8.7)",

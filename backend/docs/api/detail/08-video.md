@@ -415,6 +415,14 @@ HTTP/1.1 204 No Content
 
 수정 가능한 것은 `description` · `visibility` · `commentEnabled` 셋뿐이다. 제목은 개념 자체가 없다(R3).
 
+**셋 다 선택이고 `null`(= 생략)은 "안 바꿈" 이다 (기본안).** 세 필드 모두 `null` 을 유효한 값으로
+쓰지 않으므로 — `description` 은 NOT NULL 이고 **빈 문자열**이 "지움" 이다 — `JsonNullable` 같은
+장치 없이 생략과 값을 구분할 수 있다. **셋 다 생략하면 아무것도 바꾸지 않고 현재 상태를 200 으로
+돌려준다** (이걸 막을 코드가 §15 표에 없다).
+
+`description` 상한은 **1000자 (기본안)** 다. DB 는 TEXT 라 무제한이고, 상한이 없으면 본문 크기
+제한이 서버 전역 설정에만 걸린다. §8.8 게시가 같은 값을 써야 한다.
+
 ### 성공 응답 (200)
 
 `data` 는 **§8.2 항목(수정 반영본)** 이다.
@@ -464,12 +472,40 @@ HTTP/1.1 204 No Content
 `result_video_key` 는 방향과 무관하게 `private/` 를 계속 가리킨다. 재생 중인
 클라이언트가 404 를 만나지 않게 하기 위해서다 — 공개 트리는 사본이고 정본이 아니다.
 
+### 지금 구현된 범위 **(기본안)**
+
+**S3 사본 복사·삭제와 CloudFront 무효화는 아직 없다.** `MediaObjectStore` 에 있는 것은
+presign·HEAD 뿐이고 무효화 클라이언트도 없다. 무엇보다 `public/` 트리를 만드는 주체가
+**§8.8 게시**인데 그 API 가 없어, 현재 산출물은 전부 `private/` 에만 있다. 복사기는 §8.8 이
+소유해야 한다 — 여기서 만들면 그쪽이 같은 것을 다시 만든다.
+
+그래서 **키(`participation_videos.video_key`·`thumbnail_key`)만 비대칭으로 움직인다.**
+
+| 방향 | 키 | 이유 |
+|---|---|---|
+| `PUBLIC → PRIVATE` | **정본(`private/`)으로 되돌린다** | 이 값만 두면 비공개로 내린 영상이 계속 무서명 CDN URL 로 나간다. 정본 위치는 계산하지 않고 `composite_jobs.result_video_key`·`result_thumbnail_key` 에서 읽는다 — 워커가 실제로 쓴 자리다 |
+| `PRIVATE → PUBLIC` | **그대로 둔다** | 공개 사본이 없어 가리킬 자리가 없다. 키만 바꾸면 CDN 이 404 다. 보호 경로로 두면 적어도 본인은 재생된다 |
+
+`PRIVATE → PUBLIC` 이 남기는 "`visibility=PUBLIC` 인데 키는 `private/`" 는 **비정상이 아니다** —
+`MediaKeys.isProtected` 가 "정상적으로 존재한다" 고 적어 둔 바로 그 상태다. 그동안 **타인은
+재생할 수 없다**(재생목록 인가가 소유자 기준). 복사가 붙는 티켓에서 닫힌다.
+
+남는 한계는 하나다 — **`PUBLIC → PRIVATE` 이후에도 이미 발급된 무서명 URL 은 살아 있다.**
+공개 URL 에는 만료가 없고(서명이 없다) 객체도 그대로다. 보호 등급으로 이미 발급된 것들은
+서명 TTL(재생목록 10분·이미지 6시간)로 알아서 죽고, core-api 재생 경로는 요청마다 인가를
+다시 하므로 **즉시** 닫힌다.
+
 ### 실패 응답
 
 | HTTP | code | 조건 |
 |---|---|---|
-| 404 | `VIDEO_NOT_FOUND` | 대상 없음 |
-| 403 | `FORBIDDEN` | 본인 영상이 아님 |
+| 400 | `INVALID_PARAMETER` | `description` 1000자 초과 · `visibility` 가 `PUBLIC`\|`PRIVATE` 이 아님 |
+| 404 | `VIDEO_NOT_FOUND` | 대상 없음 + **남의 `PRIVATE`** |
+| 403 | `FORBIDDEN` | 보이는데 본인 영상이 아님 (= 남의 `PUBLIC`) |
+
+**404 가 403 보다 앞선다 (기본안).** 남의 `PRIVATE` 영상에 PATCH 하면 403 이 아니라 404 다 —
+403 을 주면 "그 영상이 존재한다"가 응답에서 읽힌다(§1.8 존재 은닉). 403 은 이미 보이는 영상,
+즉 남의 `PUBLIC` 에만 나간다.
 
 ---
 

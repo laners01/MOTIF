@@ -160,6 +160,15 @@ public final class VideoTestData {
          */
         public Long insert() {
             String uuid = UUID.randomUUID().toString();
+
+            // 잡의 결과 키는 언제나 보호 등급이다 — 공개 트리는 게시가 만드는 '사본' 이고
+            // composite_jobs 는 정본을 가리킨다(MediaKeys#forPublishedChallenge). 여기서
+            // prefix 를 같이 쓰면 "정본이 public/ 에 있는" 존재하지 않는 상태가 만들어져,
+            // §8.9 의 PUBLIC → PRIVATE 되돌리기가 엉뚱한 자리를 가리킨다
+            String originKey = "private/challenge/" + uuid + "/master.m3u8";
+            String originThumbKey = "private/challenge/" + uuid + "/thumb.jpg";
+
+            // 참여 영상이 가리키는 자리는 게시 시점 등급을 따른다
             String resultKey = prefix + uuid + "/master.m3u8";
             String thumbKey = prefix + uuid + "/thumb.jpg";
 
@@ -168,7 +177,8 @@ public final class VideoTestData {
                         (job_uuid, job_type, user_seq, challenge_seq, raw_video_key, status,
                          result_video_key, result_thumbnail_key)
                     values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, 'DONE', ?5, ?6)
-                    """, uuid, owner, challengeSeq, "raw/" + uuid + ".mp4", resultKey, thumbKey);
+                    """, uuid, owner, challengeSeq, "raw/" + uuid + ".mp4",
+                    originKey, originThumbKey);
             long jobSeq = ((Number) entityManager
                     .createNativeQuery("""
                             select job_seq from motif_core.composite_jobs
