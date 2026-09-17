@@ -85,6 +85,13 @@ tasks.register('localDbTest', Test) {
     description = '로컬 compose DB 를 쓰는 통합 테스트 (@Tag("local-db"))'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
+    // 컨텍스트마다 Hikari 풀이 따로 뜬다 — @SpringBootTest 가 58개이고 그중 19개가
+    // @RecordApplicationEvents·@TestPropertySource 처럼 컨텍스트를 가르는 것을 달고 있어
+    // 기본 풀(10)로는 compose Postgres 의 max_connections(100) 를 넘긴다. 넘는 순간
+    // 그 컨텍스트가 "remaining connection slots" 으로 죽는데, 실패가 그때 로드되던
+    // 아무 테스트에 찍혀서 실행할 때마다 다른 클래스가 깨진 것처럼 보인다.
+    systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
+    systemProperty 'spring.datasource.hikari.minimum-idle', '0'
     useJUnitPlatform {
         includeTags 'local-db'
     }
