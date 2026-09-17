@@ -13,6 +13,7 @@ import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 참여 영상 API (명세 §8.2 · §8.6 · §8.7 · §8.9). Base URL 은 {@code /api/v1}.
+ * 참여 영상 API (명세 §8.2 · §8.6 · §8.7 · §8.9 · §8.10). Base URL 은 {@code /api/v1}.
  *
  * <p>챌린지 경로 아래인 §8.1 피드는 {@code ChallengeVideoController} 가 따로 갖는다 —
  * 경로가 달라 한 {@code @RequestMapping} 에 묶이지 않는다.
@@ -30,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isMine} 과
  * 타인 {@code PRIVATE} 은닉이 전부 호출자 기준이다.
  *
- * <p>§8.3 좋아요 · §8.5 조회 · §8.8 게시 · §8.10 삭제는 아직 매핑이 없다.
+ * <p>§8.3 좋아요 · §8.5 조회 · §8.8 게시는 아직 매핑이 없다.
  *
  * <p>Swagger 문서는 {@link VideoControllerDocs} 가 갖는다.
  */
@@ -79,6 +80,21 @@ public class VideoController implements VideoControllerDocs {
             @PathVariable Long videoSeq,
             @Valid @RequestBody VideoUpdateRequest request) {
         return ApiResponse.success(videoCommandService.update(user.userSeq(), videoSeq, request));
+    }
+
+    /**
+     * §8.10 게시 영상 삭제 — 소프트 삭제라 200 이고 {@code data} 는 없다.
+     *
+     * <p>204 를 쓰지 않는 이유는 봉투 규약이다(§1.4) — 모든 성공 응답이
+     * {@code result}·{@code code}·{@code message} 를 갖는다.
+     */
+    @Override
+    @DeleteMapping("/{videoSeq}")
+    public ApiResponse<Void> delete(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long videoSeq) {
+        videoCommandService.delete(user.userSeq(), videoSeq);
+        return ApiResponse.success();
     }
 
     /**
