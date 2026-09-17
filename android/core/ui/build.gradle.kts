@@ -12,6 +12,7 @@ dependencies {
     implementation(projects.core.model)
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
     implementation(libs.coil.kt.compose)
 
     implementation(libs.androidx.media3.exoplayer)
