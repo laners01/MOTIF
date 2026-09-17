@@ -1,6 +1,7 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
 import com.ssafy.motif.core.model.mypage.MyChallenge
+import com.ssafy.motif.core.model.mypage.SubscribedArtist
 import com.ssafy.motif.core.model.mypage.UserProfile
 
 internal object MyPageMockData {
@@ -32,4 +33,59 @@ internal object MyPageMockData {
             createdAt = CHALLENGE_BASE_TIME - index * ONE_DAY_MILLIS,
         )
     }
+
+    // 패스 보유/미보유, 이미지 유무, 수치 0인 경우를 모두 포함한다.
+    val subscribedArtists: List<SubscribedArtist> = listOf(
+        SubscribedArtist(
+            id = 1L,
+            name = "KARINA",
+            profileImageUrl = "android.resource://com.ssafy.motif/drawable/yeji",
+            hasMotifPass = true,
+            subscribedDays = 421,
+            challengeCount = 8L,
+            ownedMotifCount = 12L,
+            totalMotifCount = 28L,
+        ),
+        SubscribedArtist(
+            id = 2L,
+            name = "Ryujin",
+            profileImageUrl = PROFILE_IMAGE,
+            hasMotifPass = false,
+            subscribedDays = 42,
+            challengeCount = 0L,
+            ownedMotifCount = 0L,
+            totalMotifCount = 15L,
+        ),
+        SubscribedArtist(
+            id = 3L,
+            name = "Lia",
+            profileImageUrl = PROFILE_IMAGE,
+            hasMotifPass = true,
+            subscribedDays = 128,
+            challengeCount = 5L,
+            ownedMotifCount = 7L,
+            totalMotifCount = 7L,
+        ),
+        SubscribedArtist(
+            id = 4L,
+            name = "Chaeryeong",
+            // 이미지 미등록. 기본 프로필 노출 확인용
+            profileImageUrl = null,
+            hasMotifPass = false,
+            subscribedDays = 7,
+            challengeCount = 2L,
+            ownedMotifCount = 1L,
+            totalMotifCount = 9L,
+        ),
+        SubscribedArtist(
+            id = 5L,
+            name = "Yuna",
+            profileImageUrl = PROFILE_IMAGE,
+            hasMotifPass = true,
+            subscribedDays = 1_024,
+            challengeCount = 37L,
+            ownedMotifCount = 23L,
+            totalMotifCount = 31L,
+        ),
+    )
 }
