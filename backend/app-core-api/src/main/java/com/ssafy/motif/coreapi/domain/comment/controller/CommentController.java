@@ -1,0 +1,77 @@
+package com.ssafy.motif.coreapi.domain.comment.controller;
+
+import com.ssafy.motif.common.annotation.ApiController;
+import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.domain.comment.docs.CommentControllerDocs;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
+import com.ssafy.motif.coreapi.domain.comment.service.CommentQueryService;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 댓글 API (명세 §9.1). Base URL 은 {@code /api/v1}.
+ *
+ * <p><b>경로가 세 리소스 하위로 갈리지만 컨트롤러는 하나다.</b> 명세 §9 가 세 대상의
+ * 댓글을 하나의 계약으로 못박았으므로 응답 형태·정렬·비노출 규칙이 한자리에 있어야
+ * 한다. {@code ChallengeController}·{@code VideoController} 에 나눠 넣으면 같은 계약이
+ * 세 파일로 흩어지고, 그 셋은 서로 다른 티켓이 병렬로 고치는 파일이다.
+ *
+ * <p>개별 조작(§9.2 답글 · §9.4 삭제 · §9.5 좋아요 · §9.6 신고)은
+ * {@code /comments/{type}/{commentSeq}} 를 쓴다 — 그쪽 매핑은 각 티켓이 여기 더한다.
+ *
+ * <p><b>인증이 필요하다</b>(🔓 아님) — {@code isLiked}·{@code isMine} 뿐 아니라
+ * <b>정렬 2순위</b>가 호출자 기준이다.
+ *
+ * <p>Swagger 문서는 {@link CommentControllerDocs} 가 갖는다.
+ */
+@ApiController
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1")
+public class CommentController implements CommentControllerDocs {
+
+    private final CommentQueryService commentQueryService;
+
+    /** §9.1 챌린지 루트 댓글. */
+    @Override
+    @GetMapping("/challenges/{challengeSeq}/comments")
+    public ApiResponse<PageResponse<CommentItem>> challengeComments(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer challengeSeq,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                commentQueryService.challengeComments(user.userSeq(), challengeSeq, page, size));
+    }
+
+    /** §9.1 참여 영상 루트 댓글 — 잠긴 영상은 목록도 403 이다. */
+    @Override
+    @GetMapping("/videos/{videoSeq}/comments")
+    public ApiResponse<PageResponse<CommentItem>> videoComments(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long videoSeq,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                commentQueryService.videoComments(user.userSeq(), videoSeq, page, size));
+    }
+
+    /** §9.1 공지 루트 댓글. */
+    @Override
+    @GetMapping("/notices/{noticeSeq}/comments")
+    public ApiResponse<PageResponse<CommentItem>> noticeComments(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer noticeSeq,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                commentQueryService.noticeComments(user.userSeq(), noticeSeq, page, size));
+    }
+}
