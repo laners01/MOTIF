@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.video.docs.VideoControllerDocs;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
 import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoReportService;
@@ -13,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 참여 영상 API (명세 §8.2). Base URL 은 {@code /api/v1}.
+ * 참여 영상 API (명세 §8.2 · §8.6 · §8.7 · §8.9). Base URL 은 {@code /api/v1}.
  *
  * <p>챌린지 경로 아래인 §8.1 피드는 {@code ChallengeVideoController} 가 따로 갖는다 —
  * 경로가 달라 한 {@code @RequestMapping} 에 묶이지 않는다.
@@ -28,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isMine} 과
  * 타인 {@code PRIVATE} 은닉이 전부 호출자 기준이다.
  *
- * <p>§8.3 좋아요 · §8.5 조회 · §8.8~§8.10 게시·수정·삭제는 아직 매핑이 없다.
+ * <p>§8.3 좋아요 · §8.5 조회 · §8.8 게시 · §8.10 삭제는 아직 매핑이 없다.
  *
  * <p>Swagger 문서는 {@link VideoControllerDocs} 가 갖는다.
  */
@@ -63,6 +65,20 @@ public class VideoController implements VideoControllerDocs {
             @PathVariable Long videoSeq) {
         videoCommandService.hide(user.userSeq(), videoSeq);
         return ApiResponse.success();
+    }
+
+    /**
+     * §8.9 게시 정보 수정 — 부분 수정이라 PUT 이 아니라 PATCH 다.
+     *
+     * <p>응답은 §8.2 항목(수정 반영본)이다.
+     */
+    @Override
+    @PatchMapping("/{videoSeq}")
+    public ApiResponse<VideoItem> update(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long videoSeq,
+            @Valid @RequestBody VideoUpdateRequest request) {
+        return ApiResponse.success(videoCommandService.update(user.userSeq(), videoSeq, request));
     }
 
     /**
