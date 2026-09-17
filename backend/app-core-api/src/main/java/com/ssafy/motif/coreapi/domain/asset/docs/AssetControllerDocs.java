@@ -3,16 +3,19 @@ package com.ssafy.motif.coreapi.domain.asset.docs;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetCatalogItem;
+import com.ssafy.motif.coreapi.domain.asset.dto.AssetDetailResponse;
+import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 에셋 API 문서 계약 (명세 §11.1).
+ * 에셋 API 문서 계약 (명세 §11.1 · §11.2).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -111,4 +114,94 @@ public interface AssetControllerDocs {
             Integer artistSeq,
             @Parameter(description = "0-base 페이지", example = "0") int page,
             @Parameter(description = "페이지 크기 — 최대 100", example = "20") int size);
+
+    String DETAIL_DESCRIPTION = """
+            구매 화면의 데이터다. 목록(§11.1)이 주지 않는 세 가지가 여기 있다 —
+            **미리보기 영상 · 가격 · 구매 가능 여부**.
+
+            - **인증 필요.** `myAccess` 와 노출 판정이 호출자 기준이다.
+            - **구독을 보지 않는다.** 아티스트 상세(§5)·딥링크로 들어오는 자리라 미구독이
+              정상 경로다.
+
+            ### previewVideoUrl
+
+            **공개 CDN 의 HLS 마스터 재생목록**이다(§1.7). 에셋 미리보기는 `assets/`
+            프리픽스라 공개 등급이고 조각도 무서명이라, 보호 등급 재생목록 주소
+            (`/api/v1/media/…`)를 쓰지 않는다.
+
+            가공이 끝나기 전에는 **업로드 MP4 키가 그대로** 들어 있고 썸네일은 404 다 —
+            어드민 등록 직후의 짧은 구간이다.
+
+            ### price · purchasable
+
+            `price` 는 **KR 활성 가격**이다. 없으면 `null` 이고 `purchasable` 도 `false` 다.
+            `price.amount` 는 **문자열**이다 — `NUMERIC(10,2)` 를 부동소수로 보내지 않는다.
+
+            `purchasable` 은 아래를 모두 만족할 때만 `true` 다 *(기본안)*.
+
+            | 조건 | 이유 |
+            |---|---|
+            | 판매 중(`is_active=TRUE`) | 내려간 상품은 살 수 없다 |
+            | KR 활성 가격 존재 | 값이 없으면 결제를 시작할 수 없다 |
+            | `myAccess != OWNED` | 이미 산 것은 다시 못 산다 — DB 가 (회원, 에셋) ACTIVE 구매를 하나로 막는다 |
+
+            **`myAccess=PASS` 는 `true` 다.** 패스는 만료되므로 지금 열려 있어도 영구
+            보유를 따로 사는 선택이 남아 있어야 한다.
+
+            ### 안 보이는 에셋은 전부 404
+
+            판매 중단(`is_active=FALSE`) 에셋은 **개별 구매자만** 조회할 수 있다. 패스만
+            보유한 사용자도 404 다 — 목록(§11.1)의 노출 규칙과 같은 판정이다. 403 을 주면
+            "그 에셋은 존재한다" 가 응답에서 읽히므로 미존재와 같은 코드를 쓴다(§1.8).
+            """;
+
+    String DETAIL_SUCCESS_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "assetSeq": 21,
+                "artist": {
+                  "artistSeq": 3,
+                  "name": "카리나",
+                  "groupName": "aespa",
+                  "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                },
+                "title": "9월 신규 에셋",
+                "previewVideoUrl": "https://cdn.motif.io/assets/2b7f1c93/master.m3u8",
+                "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93/thumb.jpg",
+                "description": "9월 신규 에셋 소개 문구",
+                "durationMs": 9800,
+                "assetType": "NORMAL",
+                "price": { "amount": "3900.00", "currency": "KRW" },
+                "purchasable": true,
+                "myAccess": "NONE"
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "에셋 상세 (§11.2)", description = DETAIL_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = DETAIL_SUCCESS_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · 판매 중단 에셋에 대한 비구매자 조회",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "ASSET_NOT_FOUND",
+                                      "message": "존재하지 않는 에셋입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<AssetDetailResponse> detail(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "에셋 식별자", example = "21") Integer assetSeq);
 }

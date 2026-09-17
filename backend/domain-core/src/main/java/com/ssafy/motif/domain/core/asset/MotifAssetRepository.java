@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer> {
 
@@ -352,6 +353,121 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
         Boolean getOwned();
 
         /** 그 아티스트의 유효 패스 보유 여부. 에셋 타입은 보지 않는다. */
+        Boolean getPassActive();
+    }
+
+    /**
+     * 팬 앱 에셋 상세 (API 명세 §11.2) — 단건.
+     *
+     * <p><b>노출 규칙은 {@link #searchCatalog} 와 같다.</b> 판매 중단
+     * ({@code is_active=FALSE}) 에셋은 개별 구매자에게만 보인다 — 패스만 있어도 보이지
+     * 않는다. 목록에서 안 보이던 것이 상세로는 열리면 노출 규칙이 두 벌이 된다.
+     *
+     * <p><b>빈 결과가 곧 404 다.</b> "미존재"와 "판매 중단 + 비구매자"를 쿼리가 구분하지
+     * 않는 것은 의도다(§1.8 존재 은닉) — 둘을 가르면 403 과 404 가 갈리면서 "그 에셋은
+     * 존재한다"가 응답에서 읽힌다.
+     *
+     * <p><b>구독을 보지 않는다.</b> 상세는 아티스트 상세(§5)·딥링크로 들어오는 자리라
+     * 미구독이 정상이다({@code searchCatalog} 의 {@code artistSeq} 모드와 같다).
+     *
+     * <p>가격은 <b>KR 활성 행 하나만</b> 붙인다({@code and p.is_active = true}). 어드민
+     * {@link #search} 는 {@code priceActive} 를 따로 내보내 운영자가 꺼진 가격을 보게
+     * 하지만, 팬에게는 꺼진 가격이 없는 것과 같다. {@code left join} 이라 가격 없는
+     * 에셋도 상세가 열린다 — 그때 {@code purchasable} 이 {@code false} 다.
+     *
+     * <p>목록과 SQL 이 닮았지만 합치지 않는다. 저쪽은 페이지·정렬이 있고 이쪽은 가격
+     * 조인이 붙는다 — 한 쿼리로 묶으면 목록이 항목마다 가격을 조인하게 된다.
+     */
+    @Query(value = """
+            select a.asset_seq         as "assetSeq",
+                   a.artist_seq        as "artistSeq",
+                   u.nickname          as "artistName",
+                   g.group_name        as "groupName",
+                   u.profile_image_key as "artistProfileImageKey",
+                   a.title             as "title",
+                   a.description       as "description",
+                   a.video_key         as "videoKey",
+                   a.thumbnail_key     as "thumbnailKey",
+                   a.duration_ms       as "durationMs",
+                   a.asset_type        as "assetType",
+                   a.is_active         as "active",
+                   p.amount            as "priceAmount",
+                   p.currency          as "priceCurrency",
+                   exists (select 1 from motif_core.asset_purchases ap
+                            where ap.asset_seq = a.asset_seq
+                              and ap.user_seq = :userSeq
+                              and ap.status = 'ACTIVE')            as "owned",
+                   exists (select 1 from motif_core.motif_passes mp
+                            where mp.user_seq = :userSeq
+                              and mp.artist_seq = a.artist_seq
+                              and mp.status = 'ACTIVE'
+                              and mp.expires_dttm > current_timestamp) as "passActive"
+              from motif_core.motif_assets a
+              join motif_core.artists ar on ar.artist_seq = a.artist_seq
+              join motif_core.users u on u.user_seq = ar.user_seq
+              left join motif_core.artist_groups g on g.group_seq = ar.group_seq
+              left join motif_core.motif_asset_prices p
+                     on p.asset_seq = a.asset_seq
+                    and p.is_active = true
+                    and p.country_seq = (select c.country_seq from motif_core.countries c
+                                          where c.country_code = :countryCode)
+             where a.asset_seq = :assetSeq
+               and (a.is_active = true
+                    or exists (select 1 from motif_core.asset_purchases ap2
+                                where ap2.asset_seq = a.asset_seq
+                                  and ap2.user_seq = :userSeq
+                                  and ap2.status = 'ACTIVE'))
+            """, nativeQuery = true)
+    Optional<AssetDetailRow> findDetail(@Param("userSeq") Integer userSeq,
+                                        @Param("assetSeq") Integer assetSeq,
+                                        @Param("countryCode") String countryCode);
+
+    /**
+     * {@link #findDetail} 한 행.
+     *
+     * <p>{@code videoKey} 는 <b>가공 단계에 따라 가리키는 것이 다르다</b> — 등록 직후에는
+     * 업로드 MP4({@code assets/{uuid}.mp4}), 가공이 끝나면 app-media 가 마스터 재생목록
+     * ({@code assets/{uuid}/master.m3u8})으로 덮어쓴다. 어느 쪽이든 {@code assets/}
+     * 프리픽스라 공개 등급이고, 호출부는 키를 조립하지 않고 이 값을 그대로 URL 로 바꾼다.
+     *
+     * <p>가격 두 칸은 KR 활성 행이 없으면 {@code null} 이다. {@code active} 는 응답 값이
+     * 아니라 {@code purchasable} 판정 재료다 — 판매 중단 에셋은 구매자에게만 보이는데,
+     * 보인다고 다시 살 수 있는 것은 아니다.
+     */
+    interface AssetDetailRow {
+
+        Integer getAssetSeq();
+
+        Integer getArtistSeq();
+
+        String getArtistName();
+
+        /** 솔로 아티스트는 {@code null} (README §3.5). */
+        String getGroupName();
+
+        String getArtistProfileImageKey();
+
+        String getTitle();
+
+        String getDescription();
+
+        String getVideoKey();
+
+        String getThumbnailKey();
+
+        Integer getDurationMs();
+
+        String getAssetType();
+
+        /** 판매 중 여부 — {@code purchasable} 판정에만 쓰고 응답에는 없다. */
+        Boolean getActive();
+
+        BigDecimal getPriceAmount();
+
+        String getPriceCurrency();
+
+        Boolean getOwned();
+
         Boolean getPassActive();
     }
 }

@@ -5,23 +5,22 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.asset.docs.AssetControllerDocs;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetCatalogItem;
+import com.ssafy.motif.coreapi.domain.asset.dto.AssetDetailResponse;
 import com.ssafy.motif.coreapi.domain.asset.service.AssetQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 팬 앱 에셋 API (명세 §11.1). Base URL 은 {@code /api/v1}.
+ * 팬 앱 에셋 API (명세 §11.1 · §11.2). Base URL 은 {@code /api/v1}.
  *
- * <p><b>인증이 필요하다</b> — 기본 모드가 "내 구독 아티스트"이고 항목의 {@code myAccess}
- * 도 호출자 기준이라 principal 없이는 답이 없다.
- *
- * <p>§11.2 상세는 아직 없다 — 같은 {@code /motif/assets} 경로라도 별개 티켓이라 여기
- * 매핑이 없다.
+ * <p><b>전부 인증이 필요하다</b> — 목록의 기본 모드가 "내 구독 아티스트"이고, 두 API 의
+ * {@code myAccess} 와 노출 판정이 호출자 기준이라 principal 없이는 답이 없다.
  *
  * <p>경로가 {@code /api/v1/**} 이고 {@code /api/v1/admin/**} 이 아니므로 springdoc
  * {@code user} 그룹 문서에 자동으로 잡힌다({@code OpenApiConfig}).
@@ -54,5 +53,18 @@ public class AssetController implements AssetControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(
                 assetQueryService.assets(user.userSeq(), artistSeq, page, size));
+    }
+
+    /**
+     * §11.2 에셋 상세 — 구매 화면의 데이터.
+     *
+     * <p>목록과 달리 <b>구독을 보지 않는다</b>. 아티스트 상세(§5)·딥링크로 들어오는
+     * 자리라 미구독이 정상 경로다.
+     */
+    @Override
+    @GetMapping("/{assetSeq}")
+    public ApiResponse<AssetDetailResponse> detail(@AuthenticationPrincipal AuthenticatedUser user,
+                                                   @PathVariable Integer assetSeq) {
+        return ApiResponse.success(assetQueryService.detail(user.userSeq(), assetSeq));
     }
 }

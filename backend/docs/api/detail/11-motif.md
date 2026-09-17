@@ -170,8 +170,8 @@ Authorization: Bearer {accessToken}
     "assetSeq": 21,
     "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
     "title": "9월 신규 에셋",
-    "previewVideoUrl": "https://cdn.motif.io/assets/2b7f1c93.mp4",
-    "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
+    "previewVideoUrl": "https://cdn.motif.io/assets/2b7f1c93/master.m3u8",
+    "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93/thumb.jpg",
     "description": "9월 신규 에셋 소개 문구",
     "durationMs": 9800,
     "assetType": "NORMAL",
@@ -188,7 +188,31 @@ Authorization: Bearer {accessToken}
 | `previewVideoUrl` | **공개 CDN URL** — 미리보기는 공개 등급이다(§1.7) |
 | `price` | KR 활성 가격. **없으면 `null`** |
 | `price.amount` | **문자열**이다 — `NUMERIC(10,2)` 를 부동소수로 보내지 않는다 |
-| `purchasable` | 가격이 없으면 `false` |
+| `purchasable` | 지금 구매할 수 있는가. 아래 세 조건을 모두 만족할 때만 `true` |
+
+### previewVideoUrl — 키를 조립하지 않는다
+
+`motif_assets.video_key` 를 그대로 URL 로 바꾼 값이다.
+
+- 가공이 끝나면 app-media 가 `video_key` 를 **마스터 재생목록으로 덮어쓴다**
+  (`MediaJobProcessor.recordKeys`). 서버가 `master.m3u8` 을 붙일 이유가 없다.
+- 가공 전에는 업로드 MP4 키(`assets/{uuid}.mp4`)가 그대로 들어 있고 썸네일은 404 다 —
+  어드민 등록 직후의 짧은 구간이다.
+- **보호 등급 재생목록 주소(`/api/v1/media/…`)를 쓰지 않는다.** 에셋 미리보기는
+  `assets/` 프리픽스라 공개 등급이고 조각도 무서명이다. 보호 경로로 돌리면 CDN 캐시를
+  버린다.
+
+### purchasable *(기본안 — 원본은 "가격이 없으면 false" 만 정했다)*
+
+| 조건 | 이유 |
+|---|---|
+| `is_active=TRUE` | 내려간 상품은 살 수 없다 |
+| KR 활성 가격 존재 | 값이 없으면 결제를 시작할 수 없다 |
+| `myAccess != OWNED` | 이미 산 것은 다시 못 산다 — `uq_asset_purchases_active` 가 (회원, 에셋) `ACTIVE` 구매를 하나로 막아 `true` 를 주면 눌렀을 때 실패한다 |
+
+**`myAccess=PASS` 는 `true` 다.** 패스는 만료되므로 지금 열려 있어도 영구 보유를 따로
+사는 선택이 남아 있어야 한다 — 패스가 끝나는 순간 구매 버튼이 갑자기 생기는 화면이 더
+이상하다.
 
 ### 실패 응답
 
@@ -207,6 +231,20 @@ Authorization: Bearer {accessToken}
 ```
 
 판매 중단(`is_active=FALSE`) 에셋은 **개별 구매자만** 단건 조회할 수 있다. 그 외에는 404 로 존재를 숨긴다.
+**패스만 보유한 사용자도 404 다** — §11.1 노출 규칙과 같은 판정이다. 403 을 주면 "그
+에셋은 존재한다" 가 응답에서 읽히므로 미존재와 같은 코드를 쓴다(§1.8).
+
+### 구현 메모 (S15P21D104-221)
+
+- 노출 필터·`owned`·`passActive` 는 §11.1 과 같은 판정이고, 여기에 KR 활성 가격
+  left join 이 붙는 단건 쿼리다(`MotifAssetRepository.findDetail`). **쿼리가 빈 결과면
+  곧 404** 라 "미존재"와 "판매 중단 + 비구매자"를 서비스가 구분하지 않는다.
+- §11.1 과 SQL 이 닮았지만 합치지 않는다 — 목록은 페이지·정렬이 있고 상세는 가격
+  조인이 붙는다. 한 쿼리로 묶으면 목록이 항목마다 가격을 조인하게 된다.
+- 가격 국가는 KR 고정(`AssetQueryService.PRICE_COUNTRY_CODE`). `AdminAssetService` 의
+  같은 값과 공유하지 않는다 — 그쪽은 어드민이 가격을 넣을 때의 기본 국가이고 여기는
+  팬에게 보여 줄 국가라, 나라가 늘면 정해지는 방식이 갈린다.
+- `amount` 는 `BigDecimal.toPlainString()` 이다. `toString()` 은 지수 표기를 낼 수 있다.
 
 ---
 
