@@ -27,10 +27,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -71,12 +73,14 @@ import com.ssafy.motif.core.ui.formatter.formatCount
 import kotlinx.coroutines.launch
 
 /**
- * Scrim이 없으며 Sheet 바깥 영역과 상호작용할 수 있는 댓글 BottomSheet.
+ * 챌린지에서 사용하는 댓글 BottomSheet.
+ *
+ * Scrim이 없으며 Sheet 바깥 영역과 상호작용할 수 있다.
  */
 @Composable
 fun CommentBottomSheet(
     commentCount: Long,
-    content: CommentUiState,
+    state: CommentUiState,
     onDismissRequest: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
@@ -90,7 +94,7 @@ fun CommentBottomSheet(
 ) {
     CommentSheet(
         commentCount = commentCount,
-        content = content,
+        state = state,
         onDismissRequest = onDismissRequest,
         onLikeClick = onLikeClick,
         onReplyClick = onReplyClick,
@@ -108,7 +112,7 @@ fun CommentBottomSheet(
 @Composable
 fun ModalCommentBottomSheet(
     commentCount: Long,
-    content: CommentUiState,
+    state: CommentUiState,
     onDismissRequest: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
@@ -116,13 +120,13 @@ fun ModalCommentBottomSheet(
     onCommentSendClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberBottomSheetState(
-        skipPartiallyExpanded = false,
+        skipPartiallyExpanded = true,
         partiallyExpandedFraction = COMMENT_SHEET_FRACTION,
     ),
 ) {
     CommentSheet(
         commentCount = commentCount,
-        content = content,
+        state = state,
         onDismissRequest = onDismissRequest,
         onLikeClick = onLikeClick,
         onReplyClick = onReplyClick,
@@ -138,7 +142,7 @@ fun ModalCommentBottomSheet(
 @Composable
 private fun CommentSheet(
     commentCount: Long,
-    content: CommentUiState,
+    state: CommentUiState,
     onDismissRequest: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
@@ -148,7 +152,31 @@ private fun CommentSheet(
     modal: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    CommentSoftInputModeEffect()
+    val context = LocalContext.current
+    val activity = remember(context) {
+        context.findActivity()
+    }
+
+    DisposableEffect(activity) {
+        val window = activity?.window
+
+        if (window == null) {
+            onDispose {}
+        } else {
+            val previousSoftInputMode =
+                window.attributes.softInputMode
+
+            window.setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING,
+            )
+
+            onDispose {
+                window.setSoftInputMode(
+                    previousSoftInputMode,
+                )
+            }
+        }
+    }
 
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -163,13 +191,11 @@ private fun CommentSheet(
         inputHeightPx.toDp()
     }
 
-    val isLoading = content is CommentUiState.Loading
-    val isRepliesPage = content is CommentUiState.Replies
+    val isRepliesPage = state.page is CommentPage.Replies
 
-    val sheetCount = when (content) {
-        CommentUiState.Loading -> commentCount
-        is CommentUiState.Comments -> commentCount
-        is CommentUiState.Replies -> content.parentComment.replyCount
+    val sheetCount = when (val page = state.page) {
+        CommentPage.Comments -> commentCount
+        is CommentPage.Replies -> page.parentComment.replyCount
     }
 
     val dismissKeyboard: () -> Unit = {
@@ -216,10 +242,14 @@ private fun CommentSheet(
                 .weight(1f),
         ) {
             CommentSheetBody(
-                content = content,
+                state = state,
                 onLikeClick = onLikeClick,
                 onReplyClick = onReplyClick,
-                bottomContentPadding = inputHeight,
+                bottomContentPadding = if (state.isLoading) {
+                    0.dp
+                } else {
+                    inputHeight
+                },
                 modifier = Modifier.fillMaxSize(),
             )
 
@@ -230,7 +260,7 @@ private fun CommentSheet(
                 )
             }
 
-            if (!isLoading) {
+            if (!state.isLoading) {
                 CommentInput(
                     onSendClick = onCommentSendClick,
                     placeholder = stringResource(
@@ -277,7 +307,7 @@ private fun CommentSheet(
 
 @Composable
 private fun CommentSheetBody(
-    content: CommentUiState,
+    state: CommentUiState,
     onLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
     bottomContentPadding: Dp,
@@ -286,102 +316,163 @@ private fun CommentSheetBody(
     val commentsListState = rememberLazyListState()
 
     AnimatedContent(
-        targetState = content,
-        contentKey = { currentContent ->
-            when (currentContent) {
-                CommentUiState.Loading -> LOADING_CONTENT_KEY
-                is CommentUiState.Comments -> COMMENTS_CONTENT_KEY
-                is CommentUiState.Replies -> REPLIES_CONTENT_KEY
+        targetState = state.page,
+        contentKey = { page ->
+            when (page) {
+                CommentPage.Comments -> COMMENTS_CONTENT_KEY
+                is CommentPage.Replies -> REPLIES_CONTENT_KEY
             }
         },
         transitionSpec = {
             commentSheetTransition(
-                initialContent = initialState,
-                targetContent = targetState,
+                initialPage = initialState,
+                targetPage = targetState,
             )
         },
         modifier = modifier,
         label = "CommentSheetContent",
-    ) { currentContent ->
-        when (currentContent) {
-            CommentUiState.Loading -> {
-                Box(
+    ) { page ->
+        when (page) {
+            CommentPage.Comments -> {
+                CommentsContent(
+                    comments = state.comments,
+                    listState = commentsListState,
+                    isLoading = state.isLoading,
+                    onLikeClick = onLikeClick,
+                    onReplyClick = onReplyClick,
+                    bottomContentPadding = bottomContentPadding,
                     modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            is CommentPage.Replies -> {
+                RepliesContent(
+                    parentComment = page.parentComment,
+                    replies = state.replies,
+                    isLoading = state.isLoading,
+                    onLikeClick = onLikeClick,
+                    bottomContentPadding = bottomContentPadding,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommentsContent(
+    comments: List<Comment>,
+    listState: LazyListState,
+    isLoading: Boolean,
+    onLikeClick: (Long) -> Unit,
+    onReplyClick: (Long) -> Unit,
+    bottomContentPadding: Dp,
+    modifier: Modifier = Modifier,
+) {
+    if (isLoading) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center,
+        ) {
+            LoadingWheel()
+        }
+        return
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 20.dp,
+            end = 20.dp,
+            bottom = 20.dp + bottomContentPadding,
+        ),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        items(
+            items = comments,
+            key = { comment ->
+                comment.id
+            },
+        ) { comment ->
+            CommentItem(
+                comment = comment,
+                onLikeClick = {
+                    onLikeClick(comment.id)
+                },
+                onReplyClick = {
+                    onReplyClick(comment.id)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RepliesContent(
+    parentComment: Comment,
+    replies: List<Comment>,
+    isLoading: Boolean,
+    onLikeClick: (Long) -> Unit,
+    bottomContentPadding: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 20.dp,
+            end = 20.dp,
+            bottom = 20.dp + bottomContentPadding,
+        ),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        item(
+            key = parentComment.id,
+        ) {
+            CommentItem(
+                comment = parentComment,
+                onLikeClick = {
+                    onLikeClick(parentComment.id)
+                },
+                onReplyClick = null,
+            )
+        }
+
+        if (isLoading) {
+            item(
+                key = REPLIES_LOADING_KEY,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(REPLIES_LOADING_HEIGHT),
                     contentAlignment = Alignment.Center,
                 ) {
                     LoadingWheel()
                 }
             }
-
-            is CommentUiState.Comments -> {
-                LazyColumn(
-                    state = commentsListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        top = 20.dp,
-                        end = 20.dp,
-                        bottom = 20.dp + bottomContentPadding,
+        } else {
+            items(
+                items = replies,
+                key = { reply ->
+                    reply.id
+                },
+            ) { reply ->
+                CommentItem(
+                    comment = reply,
+                    onLikeClick = {
+                        onLikeClick(reply.id)
+                    },
+                    onReplyClick = null,
+                    modifier = Modifier.padding(
+                        start = 48.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    items(
-                        items = currentContent.comments,
-                        key = { comment -> comment.id },
-                    ) { comment ->
-                        CommentItem(
-                            comment = comment,
-                            onLikeClick = {
-                                onLikeClick(comment.id)
-                            },
-                            onReplyClick = {
-                                onReplyClick(comment.id)
-                            },
-                        )
-                    }
-                }
-            }
-
-            is CommentUiState.Replies -> {
-                val repliesListState = rememberLazyListState()
-
-                LazyColumn(
-                    state = repliesListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 20.dp,
-                        top = 20.dp,
-                        end = 20.dp,
-                        bottom = 20.dp + bottomContentPadding,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    item(
-                        key = currentContent.parentComment.id,
-                    ) {
-                        CommentItem(
-                            comment = currentContent.parentComment,
-                            onLikeClick = {
-                                onLikeClick(currentContent.parentComment.id)
-                            },
-                            onReplyClick = null,
-                        )
-                    }
-
-                    items(
-                        items = currentContent.replies,
-                        key = { reply -> reply.id },
-                    ) { reply ->
-                        CommentItem(
-                            comment = reply,
-                            onLikeClick = {
-                                onLikeClick(reply.id)
-                            },
-                            onReplyClick = null,
-                            modifier = Modifier.padding(start = 48.dp),
-                        )
-                    }
-                }
+                )
             }
         }
     }
@@ -436,7 +527,9 @@ private fun CommentSheetHeader(
         ) {
             if (showBackButton) {
                 IconButton(
-                    painter = painterResource(MotifIcons.BarArrowLeft),
+                    painter = painterResource(
+                        MotifIcons.BarArrowLeft,
+                    ),
                     size = 20.dp,
                     onClick = onBackClick,
                     colors = ModifIconButtonDefaults.iconButtonColors(
@@ -444,7 +537,9 @@ private fun CommentSheetHeader(
                     ),
                 )
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(
+                    modifier = Modifier.width(16.dp),
+                )
             }
 
             Text(
@@ -453,7 +548,9 @@ private fun CommentSheetHeader(
                 style = MotifTheme.typography.titleSB18,
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(
+                modifier = Modifier.width(12.dp),
+            )
 
             Text(
                 text = count.formatCount(),
@@ -461,10 +558,14 @@ private fun CommentSheetHeader(
                 style = MotifTheme.typography.bodySB16,
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(
+                modifier = Modifier.weight(1f),
+            )
 
             IconButton(
-                painter = painterResource(MotifIcons.Close),
+                painter = painterResource(
+                    MotifIcons.Close,
+                ),
                 size = 28.dp,
                 onClick = onDismissClick,
                 colors = ModifIconButtonDefaults.iconButtonColors(
@@ -479,32 +580,6 @@ private fun CommentSheetHeader(
     }
 }
 
-@Composable
-private fun CommentSoftInputModeEffect() {
-    val context = LocalContext.current
-    val activity = remember(context) {
-        context.findActivity()
-    }
-
-    DisposableEffect(activity) {
-        val window = activity?.window
-
-        if (window == null) {
-            onDispose {}
-        } else {
-            val previousSoftInputMode = window.attributes.softInputMode
-
-            window.setSoftInputMode(
-                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING,
-            )
-
-            onDispose {
-                window.setSoftInputMode(previousSoftInputMode)
-            }
-        }
-    }
-}
-
 private tailrec fun Context.findActivity(): Activity? =
     when (this) {
         is Activity -> this
@@ -513,26 +588,13 @@ private tailrec fun Context.findActivity(): Activity? =
     }
 
 private fun commentSheetTransition(
-    initialContent: CommentUiState,
-    targetContent: CommentUiState,
+    initialPage: CommentPage,
+    targetPage: CommentPage,
 ): ContentTransform {
-    if (
-        initialContent is CommentUiState.Loading ||
-        targetContent is CommentUiState.Loading
-    ) {
-        return fadeIn(
-            animationSpec = tween(PAGE_TRANSITION_DURATION),
-        ).togetherWith(
-            fadeOut(
-                animationSpec = tween(PAGE_TRANSITION_DURATION),
-            ),
-        )
-    }
-
     val direction =
         if (
-            initialContent is CommentUiState.Comments &&
-            targetContent is CommentUiState.Replies
+            initialPage is CommentPage.Comments &&
+            targetPage is CommentPage.Replies
         ) {
             1
         } else {
@@ -541,21 +603,29 @@ private fun commentSheetTransition(
 
     return (
             slideInHorizontally(
-                animationSpec = tween(PAGE_TRANSITION_DURATION),
+                animationSpec = tween(
+                    PAGE_TRANSITION_DURATION,
+                ),
             ) { width ->
                 width * direction
             } +
                     fadeIn(
-                        animationSpec = tween(PAGE_TRANSITION_DURATION),
+                        animationSpec = tween(
+                            PAGE_TRANSITION_DURATION,
+                        ),
                     )
             ).togetherWith(
             slideOutHorizontally(
-                animationSpec = tween(PAGE_TRANSITION_DURATION),
+                animationSpec = tween(
+                    PAGE_TRANSITION_DURATION,
+                ),
             ) { width ->
                 -width * direction
             } +
                     fadeOut(
-                        animationSpec = tween(PAGE_TRANSITION_DURATION),
+                        animationSpec = tween(
+                            PAGE_TRANSITION_DURATION,
+                        ),
                     ),
         )
 }
@@ -574,7 +644,9 @@ private fun CommentBottomSheetLoadingPreview() {
         ) {
             CommentBottomSheet(
                 commentCount = 128L,
-                content = CommentUiState.Loading,
+                state = CommentUiState(
+                    isLoading = true,
+                ),
                 onDismissRequest = {},
                 onLikeClick = {},
                 onReplyClick = {},
@@ -586,7 +658,7 @@ private fun CommentBottomSheetLoadingPreview() {
 }
 
 @Preview(
-    name = "CommentBottomSheet",
+    name = "CommentBottomSheet - Comments",
     showBackground = true,
 )
 @Composable
@@ -637,8 +709,52 @@ private fun CommentBottomSheetPreview() {
         ) {
             CommentBottomSheet(
                 commentCount = comments.size.toLong(),
-                content = CommentUiState.Comments(
+                state = CommentUiState(
                     comments = comments,
+                ),
+                onDismissRequest = {},
+                onLikeClick = {},
+                onReplyClick = {},
+                onBackClick = {},
+                onCommentSendClick = {},
+            )
+        }
+    }
+}
+
+@Preview(
+    name = "ModalCommentBottomSheet - Replies Loading",
+    showBackground = true,
+)
+@Composable
+private fun ModalCommentBottomSheetRepliesLoadingPreview() {
+    val now = System.currentTimeMillis()
+
+    val parentComment = Comment(
+        id = 1L,
+        profileImageUrl = "",
+        nickname = "YEJI",
+        content = "다들 너무 잘 따라 해줘서 고마워요 🖤",
+        createdAt = now - 30 * 60_000L,
+        likeCount = 2_841L,
+        replyCount = 2L,
+        isLiked = true,
+        authorType = CommentAuthorType.ARTIST,
+    )
+
+    MotifTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.DarkGray),
+        ) {
+            ModalCommentBottomSheet(
+                commentCount = 10L,
+                state = CommentUiState(
+                    page = CommentPage.Replies(
+                        parentComment = parentComment,
+                    ),
+                    isLoading = true,
                 ),
                 onDismissRequest = {},
                 onLikeClick = {},
@@ -703,8 +819,10 @@ private fun ModalCommentBottomSheetPreview() {
         ) {
             ModalCommentBottomSheet(
                 commentCount = 10L,
-                content = CommentUiState.Replies(
-                    parentComment = parentComment,
+                state = CommentUiState(
+                    page = CommentPage.Replies(
+                        parentComment = parentComment,
+                    ),
                     replies = replies,
                 ),
                 onDismissRequest = {},
@@ -719,7 +837,9 @@ private fun ModalCommentBottomSheetPreview() {
 
 private const val COMMENT_SHEET_FRACTION = 0.6f
 private const val PAGE_TRANSITION_DURATION = 250
-private const val LOADING_CONTENT_KEY = "loading"
 private const val COMMENTS_CONTENT_KEY = "comments"
 private const val REPLIES_CONTENT_KEY = "replies"
+private const val REPLIES_LOADING_KEY = "replies_loading"
 private const val KEYBOARD_SCRIM_ALPHA = 0.45f
+
+private val REPLIES_LOADING_HEIGHT = 96.dp
