@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.domain.media;
 
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.global.media.CloudFrontUrlSigner;
 import com.ssafy.motif.coreapi.global.media.MediaPlaylistService;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
@@ -69,8 +70,43 @@ public class MediaPlaylistQueryService {
     private final CompositeJobRepository compositeJobRepository;
     private final ParticipationVideoRepository participationVideoRepository;
     private final MediaPlaylistService playlistService;
+    private final CloudFrontUrlSigner signer;
 
-    /** 마스터 재생목록 — 화질별 주소를 core-api 로 돌려 내린다. */
+    /**
+     * 프리픽스 서명 재발급 (ADR-0012) — 클라이언트가 만료된 파라미터를 갈아 끼울 때.
+     *
+     * <p><b>여기가 전환 이후의 인가 지점이다.</b> 재생목록·조각이 CDN 직통이 되면서
+     * 재생 중에는 core-api 를 지나지 않는데, 갱신만은 반드시 지난다 — 환불·정지·비공개
+     * 전환이 다음 갱신에서 반영되는 것은 그래서다.
+     *
+     * <p>거부는 {@link #master} 와 같은 판정·같은 404 다. 자격이 없는데 파라미터만
+     * 새로 받아 가는 경로를 만들지 않는다.
+     *
+     * @return 쿼리스트링({@code Policy=…&Signature=…&Key-Pair-Id=…})과 만료 시각
+     */
+    public SignedPrefix signature(Integer userSeq, String jobUuid) {
+        CompositeJob job = authorize(userSeq, jobUuid);
+        String prefix = MediaKeys.prefixOf(job.getResultVideoKey());
+        return new SignedPrefix(signer.signPrefix(prefix), signer.prefixSignatureExpiry());
+    }
+
+    /**
+     * 재발급 결과.
+     *
+     * @param query      조각 요청에 그대로 붙일 쿼리스트링
+     * @param expiresDttm 이 파라미터가 통하는 시각까지 — 클라이언트가 미리 갱신할 때 쓴다
+     */
+    public record SignedPrefix(String query, java.time.Instant expiresDttm) {
+    }
+
+    /**
+     * 마스터 재생목록 — 화질별 주소를 core-api 로 돌려 내린다.
+     *
+     * @deprecated ADR-0012 로 재생 경로가 CDN 직통으로 바뀌었다. 응답의 {@code videoUrl}
+     *             은 더 이상 이 주소를 가리키지 않는다 — 안드로이드 전환이 끝나면 이
+     *             엔드포인트와 리라이팅 계층을 함께 걷어낸다.
+     */
+    @Deprecated(since = "ADR-0012")
     public String master(Integer userSeq, String jobUuid) {
         String prefix = MediaKeys.prefixOf(authorize(userSeq, jobUuid).getResultVideoKey());
         try {

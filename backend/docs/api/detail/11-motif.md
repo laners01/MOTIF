@@ -172,7 +172,7 @@ Authorization: Bearer {accessToken}
   (`MediaJobProcessor.recordKeys`). 서버가 `master.m3u8` 을 붙일 이유가 없다.
 - 가공 전에는 업로드 MP4 키(`assets/{uuid}.mp4`)가 그대로 들어 있고 썸네일은 404 다 —
   어드민 등록 직후의 짧은 구간이다.
-- **보호 등급 재생목록 주소(`/api/v1/media/…`)를 쓰지 않는다.** 에셋 미리보기는
+- **서명을 붙이지 않는다.** 에셋 미리보기는
   `assets/` 프리픽스라 공개 등급이고 조각도 무서명이다. 보호 경로로 돌리면 CDN 캐시를
   버린다.
 

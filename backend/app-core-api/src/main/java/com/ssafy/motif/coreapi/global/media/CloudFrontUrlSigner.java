@@ -2,8 +2,10 @@ package com.ssafy.motif.coreapi.global.media;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import software.amazon.awssdk.services.cloudfront.CloudFrontUtilities;
 import software.amazon.awssdk.services.cloudfront.model.CannedSignerRequest;
+import software.amazon.awssdk.services.cloudfront.model.CustomSignerRequest;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -46,6 +48,10 @@ public class CloudFrontUrlSigner {
     private final Duration ttl;
     private final Duration imageTtl;
 
+    /** 프리픽스 서명의 Resource 를 만들 때 쓴다 — 서명 대상이 CDN 절대 주소여야 한다. */
+    @Value("${motif.media.public-base-url:}")
+    private String cdnBaseUrl;
+
     public CloudFrontUrlSigner(MediaSigningProperties properties) {
         this.keyPairId = properties.keyPairId();
         this.ttl = properties.ttl();
@@ -81,6 +87,72 @@ public class CloudFrontUrlSigner {
      */
     public String signImage(String resourceUrl) {
         return sign(resourceUrl, imageTtl);
+    }
+
+    /**
+     * 프리픽스 하나를 통째로 서명한다 — <b>custom policy</b> (ADR-0012).
+     *
+     * <p>{@link #sign}·{@link #signImage} 와 <b>다루는 단위가 다르다</b>. 저쪽은 URL
+     * 하나(canned policy)라 조각마다 서명이 달라지지만, 여기는 {@code {prefix}/*} 를
+     * Resource 로 삼아 <b>그 아래 전부에 통하는 파라미터 한 벌</b>을 낸다. HLS 는 재생목록
+     * 안의 상대 경로로 조각을 더 요청하는데, 클라이언트(OkHttp 인터셉터)가 그 요청마다
+     * 같은 파라미터를 붙일 수 있어야 재생이 성립한다.
+     *
+     * <p>반환값은 <b>쿼리스트링만</b>이다({@code Policy=…&Signature=…&Key-Pair-Id=…}).
+     * 어느 주소에 붙일지는 호출부가 정한다 — 마스터 재생목록에 붙여 내보내고, 조각에는
+     * 클라이언트가 같은 값을 붙인다.
+     *
+     * <p><b>범위를 영상 하나로 좁힌다.</b> 상위 경로(예: {@code private/motif/*})로 넓히면
+     * 파라미터가 새는 순간 그 범위가 통째로 열린다. 프리픽스 하나는 영상 하나다.
+     *
+     * <p>서명 파라미터는 CloudFront 예약값이라 <b>엣지에서 소비되고 캐시 키에 들어가지
+     * 않는다</b> — 사용자마다 값이 달라도 캐시 적중률은 유지된다.
+     *
+     * @param prefix S3 키의 산출물 프리픽스 — {@code private/motif/{uuid}} 꼴
+     * @throws IllegalStateException 개인키가 없을 때. {@link #sign} 과 같은 이유로
+     *                               무서명을 대신 돌려주지 않는다
+     */
+    public String signPrefix(String prefix) {
+        if (privateKey == null) {
+            throw new IllegalStateException(
+                    "CloudFront 개인키가 없어 보호 등급 URL 을 낼 수 없다 — "
+                            + "core-api-secret 의 CLOUDFRONT_PRIVATE_KEY 를 확인하라");
+        }
+        // Resource 에 와일드카드를 넣고 서명한 뒤 쿼리만 떼어 쓴다. 정책 JSON 조립과
+        // 서명은 SDK 에 맡긴다 — 직접 만들면 base64 변형 알파벳(+=/ → -_~)에서 틀리기 쉽다
+        var signed = utilities.getSignedUrlWithCustomPolicy(CustomSignerRequest.builder()
+                .resourceUrl(prefixResourceUrl(prefix))
+                .privateKey(privateKey)
+                .keyPairId(keyPairId)
+                .expirationDate(Instant.now().plus(ttl))
+                .build());
+        return queryOf(signed.url());
+    }
+
+    /** 이 프리픽스 서명이 언제까지 유효한가 — 클라이언트가 갱신 시점을 잡는 데 쓴다. */
+    public Instant prefixSignatureExpiry() {
+        return Instant.now().plus(ttl);
+    }
+
+    private String prefixResourceUrl(String prefix) {
+        String base = cdnBaseUrl.endsWith("/")
+                ? cdnBaseUrl.substring(0, cdnBaseUrl.length() - 1)
+                : cdnBaseUrl;
+        return base + "/" + prefix + "/*";
+    }
+
+    /**
+     * 서명 URL 에서 쿼리만 떼어낸다.
+     *
+     * <p>{@code *} 가 들어간 Resource 는 그대로 주소가 되지 못하므로 URL 자체는 버린다 —
+     * 필요한 것은 SDK 가 만든 파라미터 세 개뿐이다.
+     */
+    private static String queryOf(String signedUrl) {
+        int mark = signedUrl.indexOf('?');
+        if (mark < 0) {
+            throw new IllegalStateException("서명 파라미터가 없다: " + signedUrl);
+        }
+        return signedUrl.substring(mark + 1);
     }
 
     private String sign(String resourceUrl, Duration expiresIn) {

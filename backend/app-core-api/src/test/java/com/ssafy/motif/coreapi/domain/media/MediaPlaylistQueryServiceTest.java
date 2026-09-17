@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.domain.media;
 
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.global.media.CloudFrontUrlSigner;
 import com.ssafy.motif.coreapi.global.media.MediaPlaylistService;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
@@ -57,7 +58,8 @@ class MediaPlaylistQueryServiceTest {
         jobRepository = mock(CompositeJobRepository.class);
         videoRepository = mock(ParticipationVideoRepository.class);
         playlistService = mock(MediaPlaylistService.class);
-        service = new MediaPlaylistQueryService(jobRepository, videoRepository, playlistService);
+        service = new MediaPlaylistQueryService(jobRepository, videoRepository, playlistService,
+                mock(CloudFrontUrlSigner.class));
 
         given(playlistService.master(anyString(), anyString())).willReturn(BODY);
         given(playlistService.variant(anyString(), anyString())).willReturn(BODY);

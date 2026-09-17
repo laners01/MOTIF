@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.service.VideoFeedQueryService;
+import com.ssafy.motif.coreapi.global.media.MediaSigningTestSupport;
 import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.video.Visibility;
 import jakarta.persistence.EntityManager;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -43,6 +46,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @Transactional
 class ChallengeVideoFeedLocalDbTest {
+
+    @DynamicPropertySource
+    static void media(DynamicPropertyRegistry registry) {
+        MediaSigningTestSupport.register(registry);
+    }
 
     @Autowired
     private VideoFeedQueryService videoFeedQueryService;
@@ -169,23 +177,24 @@ class ChallengeVideoFeedLocalDbTest {
     }
 
     @Test
-    @DisplayName("보호 등급 영상만 core-api 재생목록 주소를 받는다 — 판정은 키 프리픽스다 (§1.7)")
+    @DisplayName("보호 등급 영상만 서명이 붙는다 — 판정은 키 프리픽스다 (§1.7 · ADR-0012)")
     void videoUrlFollowsTheKeyPrefix() {
         Long 공개 = video().owner(me).insert();
         Long 보호 = video().owner(me).privateVisibility().prefix("private/challenge/").insert();
 
         List<VideoItem> list = feed(null, 10).list();
 
+        // 조각까지 통하는 프리픽스 서명이라 Policy 다 — 단일 URL 서명(Expires)이 아니다
         assertThat(item(list, 보호).videoUrl())
-                .startsWith("/api/v1/media/")
-                .endsWith("/master.m3u8");
+                .startsWith(MediaSigningTestSupport.CDN + "/private/challenge/")
+                .contains("/master.m3u8?")
+                .contains("Policy=", "Signature=", "Key-Pair-Id=");
         assertThat(item(list, 보호).isMine()).isTrue();
 
-        // 공개 사본은 CDN 몫이다. 로컬·CI 에는 motif.media.public-base-url 이 없어 null 로
-        // 나오므로(PublicMediaUrlResolver) 값 자체가 아니라 "core-api 로 가지 않는다"를 본다
-        assertThat(item(list, 공개).videoUrl()).satisfiesAnyOf(
-                url -> assertThat(url).isNull(),
-                url -> assertThat(url).doesNotStartWith("/api/v1/media/"));
+        // 공개 사본은 서명이 없다. 붙이면 CDN 캐시를 사용자마다 쪼개는 셈이다
+        assertThat(item(list, 공개).videoUrl())
+                .startsWith(MediaSigningTestSupport.CDN + "/public/challenge/")
+                .endsWith("/master.m3u8");
     }
 
     // --- 커서 ---------------------------------------------------------------

@@ -2,7 +2,6 @@ package com.ssafy.motif.coreapi.domain.user.service;
 
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.ListResponse;
-import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
 import com.ssafy.motif.coreapi.domain.user.UserErrorCode;
 import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
@@ -14,8 +13,6 @@ import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
-import com.ssafy.motif.domain.core.job.CompositeJob;
-import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
 import com.ssafy.motif.domain.core.motif.MotifResultRepository;
 import com.ssafy.motif.domain.core.user.User;
@@ -49,9 +46,9 @@ import java.util.stream.Collectors;
  * 보고 가르면 PUBLIC 게시 직후처럼 "공개인데 키는 아직 {@code private/}" 인 행에서
  * 403 이 난다(§1.7 — 게시는 복사일 뿐 키를 바꾸지 않는다).
  *
- * <p><b>영상 주소는 다르다.</b> 모티프 결과물은 보호 등급이라 CDN 이 아니라 core-api
- * 재생목록 경로를 준다 — HLS 는 재생목록 안에서 조각을 더 요청하는데 서명이 거기까지
- * 따라가지 않기 때문이다.
+ * <p><b>영상 주소는 {@code resolvePlaylist} 다.</b> HLS 는 재생목록 안에서 조각을 더
+ * 요청하는데 단일 파일 서명은 거기까지 따라가지 않는다 — 보호 등급이면 프리픽스 전체에
+ * 통하는 서명이 붙는다(ADR-0012).
  *
  * <p>읽기 전용 트랜잭션이다 — 쓰기 경로가 없다.
  */
@@ -81,7 +78,6 @@ public class UserQueryService {
 
     private final UserRepository userRepository;
     private final MotifResultRepository motifResultRepository;
-    private final CompositeJobRepository compositeJobRepository;
     private final ParticipationVideoRepository participationVideoRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final MotifAssetRepository motifAssetRepository;
@@ -124,15 +120,11 @@ public class UserQueryService {
         if (result == null) {
             return null;
         }
-        // 재생목록 주소는 jobUuid 로 만든다 — 산출물 프리픽스와 같은 값이고, 순차 정수를
-        // 공개 네임스페이스에 드러내지 않으려는 규약이다(MediaKeys)
-        CompositeJob job = compositeJobRepository.findById(result.getJobSeq()).orElse(null);
-        if (job == null) {
-            return null;
-        }
+        // 재생목록 주소는 결과물의 video_key 로 만든다 — 그 값이 이미 마스터 재생목록
+        // 키다(app-media 가 가공 후 덮어쓴다). 잡을 따로 읽지 않는다(ADR-0012)
         return new UserMeResponse.RepMotif(
                 result.getResultSeq(),
-                MediaPlaylistQueryService.masterPlaylistUrl(job.getJobUuid()),
+                mediaUrlResolver.resolvePlaylist(result.getVideoKey()),
                 mediaUrlResolver.resolve(result.getThumbnailKey()));
     }
 

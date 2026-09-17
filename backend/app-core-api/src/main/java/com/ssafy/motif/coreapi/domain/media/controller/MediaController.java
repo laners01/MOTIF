@@ -1,8 +1,10 @@
 package com.ssafy.motif.coreapi.domain.media.controller;
 
 import com.ssafy.motif.common.annotation.ApiController;
+import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
 import com.ssafy.motif.coreapi.domain.media.docs.MediaControllerDocs;
+import com.ssafy.motif.coreapi.domain.media.dto.PlaybackSignatureResponse;
 import com.ssafy.motif.coreapi.global.media.MediaPlaylistService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -48,7 +51,33 @@ public class MediaController implements MediaControllerDocs {
 
     private final MediaPlaylistQueryService mediaPlaylistQueryService;
 
-    /** §1.7 마스터 재생목록. */
+    /**
+     * 재생 서명 재발급 (ADR-0012).
+     *
+     * <p>조각 요청이 403 이면 클라이언트가 이걸 불러 새 파라미터를 받아 재시도한다.
+     * 재생목록을 다시 받는 예전 복구 경로를 대신한다 — 이제 재생목록도 CDN 에서 오므로
+     * 거기에 같은 만료가 걸려 있다.
+     *
+     * <p><b>POST 인 이유</b>는 발급이 캐시돼선 안 되기 때문이다. 만료된 파라미터가
+     * 중간 캐시에서 계속 돌아오면 재생이 살아나지 않는다.
+     */
+    @Override
+    @PostMapping("/{jobUuid}/signature")
+    public ApiResponse<PlaybackSignatureResponse> signature(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String jobUuid) {
+        var signed = mediaPlaylistQueryService.signature(user.userSeq(), jobUuid);
+        return ApiResponse.success(
+                new PlaybackSignatureResponse(signed.query(), signed.expiresDttm()));
+    }
+
+    /**
+     * §1.7 마스터 재생목록.
+     *
+     * @deprecated ADR-0012 — 응답의 {@code videoUrl} 이 더 이상 여기를 가리키지 않는다.
+     *             안드로이드 전환 기간의 안전망으로만 남겨 둔다.
+     */
+    @Deprecated(since = "ADR-0012")
     @Override
     @GetMapping("/{jobUuid}/master.m3u8")
     public ResponseEntity<String> master(@AuthenticationPrincipal AuthenticatedUser user,

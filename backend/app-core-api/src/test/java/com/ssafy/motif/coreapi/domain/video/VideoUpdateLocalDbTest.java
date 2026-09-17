@@ -6,6 +6,7 @@ import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
 import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
+import com.ssafy.motif.coreapi.global.media.MediaSigningTestSupport;
 import com.ssafy.motif.domain.core.video.Visibility;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +38,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @Transactional
 class VideoUpdateLocalDbTest {
+
+    @DynamicPropertySource
+    static void media(DynamicPropertyRegistry registry) {
+        MediaSigningTestSupport.register(registry);
+    }
 
     @Autowired
     private VideoCommandService videoCommandService;
@@ -120,8 +128,9 @@ class VideoUpdateLocalDbTest {
 
         assertThat(updated.visibility()).isEqualTo(Visibility.PRIVATE);
         assertThat(updated.videoUrl())
-                .startsWith("/api/v1/media/")
-                .endsWith("/master.m3u8");
+                .startsWith(MediaSigningTestSupport.CDN + "/private/")
+                .contains("/master.m3u8?")
+                .contains("Policy=", "Signature=", "Key-Pair-Id=");
         assertThat(videoKey(영상)).startsWith("private/");
         assertThat(thumbnailKey(영상)).startsWith("private/");
     }
@@ -135,8 +144,10 @@ class VideoUpdateLocalDbTest {
 
         assertThat(updated.visibility()).isEqualTo(Visibility.PUBLIC);
         assertThat(videoKey(영상)).startsWith("private/");
-        // 키가 보호 등급이라 URL 도 보호 경로다 — MediaKeys 가 "정상" 이라고 적어 둔 상태
-        assertThat(updated.videoUrl()).startsWith("/api/v1/media/");
+        // 키가 보호 등급이라 서명이 붙는다 — MediaKeys 가 "정상" 이라고 적어 둔 상태
+        assertThat(updated.videoUrl())
+                .startsWith(MediaSigningTestSupport.CDN + "/private/")
+                .contains("Policy=");
     }
 
     @Test
