@@ -2,6 +2,7 @@ package com.ssafy.motif.coreapi.admin.actas;
 
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateRequest;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentCommandService;
 import com.ssafy.motif.coreapi.domain.video.VideoTestData;
@@ -45,6 +46,7 @@ class AdminActAsCommentLocalDbTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private AuthenticatedAdmin admin;
     private VideoTestData data;
     private Integer artistSeq;
     private Long videoSeq;
@@ -52,6 +54,7 @@ class AdminActAsCommentLocalDbTest {
     @BeforeEach
     void setUp() {
         data = new VideoTestData(entityManager);
+        admin = new AuthenticatedAdmin(1, data.newUser(), "운영자");
         artistSeq = data.newArtist();
         Integer challengeSeq = data.newChallenge(artistSeq, data.newSong(data.newUser()), false);
         videoSeq = data.video(challengeSeq, artistSeq).owner(data.newUser()).insert();
@@ -60,7 +63,7 @@ class AdminActAsCommentLocalDbTest {
     @Test
     @DisplayName("대행 작성은 아티스트 이름으로 남고 has_artist_comment 를 세운다")
     void writeOnVideoActsAsArtist() {
-        Long commentSeq = controller.writeOnVideo(artistSeq, videoSeq,
+        Long commentSeq = controller.writeOnVideo(admin, artistSeq, videoSeq,
                 new CommentCreateRequest("아티스트가 답니다", null)).data().commentSeq();
         entityManager.flush();
 
@@ -72,18 +75,18 @@ class AdminActAsCommentLocalDbTest {
     @Test
     @DisplayName("대행 삭제는 아티스트 본인 댓글만 — 타인 댓글은 403")
     void deleteOnlyOwnComment() {
-        Long mine = controller.writeOnVideo(artistSeq, videoSeq,
+        Long mine = controller.writeOnVideo(admin, artistSeq, videoSeq,
                 new CommentCreateRequest("아티스트 댓글", null)).data().commentSeq();
         Long others = commentCommandService.writeOnVideo(data.newUser(), videoSeq,
                 new CommentCreateRequest("팬 댓글", null)).commentSeq();
         entityManager.flush();
 
-        assertThatThrownBy(() -> controller.delete(artistSeq, "video", others))
+        assertThatThrownBy(() -> controller.delete(admin, artistSeq, "video", others))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
 
-        assertThat(controller.delete(artistSeq, "video", mine).data().deletedCount()).isEqualTo(1);
+        assertThat(controller.delete(admin, artistSeq, "video", mine).data().deletedCount()).isEqualTo(1);
         entityManager.flush();
         assertThat(hasArtistComment()).isFalse();
     }
