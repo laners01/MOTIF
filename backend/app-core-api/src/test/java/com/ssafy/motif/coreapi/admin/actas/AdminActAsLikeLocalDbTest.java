@@ -1,8 +1,9 @@
 package com.ssafy.motif.coreapi.admin.actas;
 
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateRequest;
+import com.ssafy.motif.coreapi.domain.comment.service.CommentCommandService;
 import com.ssafy.motif.coreapi.domain.video.VideoTestData;
-import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 영상 좋아요 대행 (어드민 명세 §3.12 · ADMIN-11) — S15P21D104-408.
+ * 영상 좋아요 대행 (어드민 명세 §3.12 · ADMIN-11) — S15P21D104-408 · 573.
  *
  * <p>대행의 값어치가 여기 있다 — 어드민이 눌렀는데 <b>아티스트가 누른 것으로</b> 기록돼
  * {@code has_artist_like} 가 서야 한다. 액터 치환이 빠지면 어드민 계정의 좋아요가 되어
@@ -27,24 +28,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("local-db")
 @SpringBootTest
 @Transactional
-class AdminActAsVideoLikeLocalDbTest {
+class AdminActAsLikeLocalDbTest {
 
     @Autowired
     private AdminActAsLikeController controller;
     @Autowired
     private ActAsArtistResolver actAsArtistResolver;
     @Autowired
-    private ParticipationVideoRepository participationVideoRepository;
+    private CommentCommandService commentCommandService;
     @PersistenceContext
     private EntityManager entityManager;
 
+    private VideoTestData data;
     private AuthenticatedAdmin admin;
     private Integer artistSeq;
     private Long videoSeq;
 
     @BeforeEach
     void setUp() {
-        VideoTestData data = new VideoTestData(entityManager);
+        data = new VideoTestData(entityManager);
         admin = new AuthenticatedAdmin(1, data.newUser(), "운영자");
         artistSeq = data.newArtist();
         Integer challengeSeq = data.newChallenge(artistSeq, data.newSong(data.newUser()), false);
@@ -72,6 +74,36 @@ class AdminActAsVideoLikeLocalDbTest {
 
         assertThat(flag()).isFalse();
         assertThat(count()).isZero();
+    }
+
+    @Test
+    @DisplayName("댓글 좋아요 대행도 아티스트 이름으로 남는다 — 카운터가 오른다")
+    void likeCommentActsAsArtist() {
+        Integer fan = data.newUser();
+        Long commentSeq = commentCommandService
+                .writeOnVideo(fan, videoSeq, new CommentCreateRequest("팬 댓글", null)).commentSeq();
+
+        controller.likeComment(admin, artistSeq, "video", commentSeq);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(commentLikeCount(commentSeq)).isEqualTo(1);
+        assertThat(commentLikeOwner(commentSeq))
+                .isEqualTo(actAsArtistResolver.actorUserSeq(artistSeq));
+    }
+
+    private int commentLikeCount(Long commentSeq) {
+        return ((Number) entityManager.createNativeQuery(
+                        "select like_count from motif_core.video_comments where video_comment_seq = ?1")
+                .setParameter(1, commentSeq)
+                .getSingleResult()).intValue();
+    }
+
+    private Integer commentLikeOwner(Long commentSeq) {
+        return ((Number) entityManager.createNativeQuery(
+                        "select user_seq from motif_core.video_comment_likes where video_comment_seq = ?1")
+                .setParameter(1, commentSeq)
+                .getSingleResult()).intValue();
     }
 
     private Integer likeOwner() {
