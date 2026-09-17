@@ -1,12 +1,17 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.core.designsystem.component.Surface
+import com.ssafy.motif.feature.mypage.impl.mypage.component.MyProfileSection
 
 @Composable
 fun MyPageScreen(
@@ -27,9 +32,24 @@ internal fun MyPageScreen(
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
         when (uiState) {
-            MyPageUiState.Loading -> { /* 4번에서 */ }
-            is MyPageUiState.Success -> { /* 4번에서 프로필 영역 */ }
-            is MyPageUiState.Error -> { /* 4번에서 */ }
+            MyPageUiState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingWheel()
+                }
+            }
+
+            is MyPageUiState.Success -> {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    MyProfileSection(profile = uiState.profile)
+                }
+            }
+
+            is MyPageUiState.Error -> {
+                // TODO 프로필 조회 실패 UI
+            }
         }
     }
 }
