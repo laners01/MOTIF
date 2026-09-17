@@ -1,10 +1,7 @@
 package com.ssafy.motif.coreapi.domain.video.service;
 
-import com.ssafy.motif.coreapi.domain.media.MediaKeys;
-import com.ssafy.motif.coreapi.domain.media.MediaPlaylistQueryService;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
-import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.domain.core.video.VideoFeedRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,17 +22,14 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class VideoItemAssembler {
 
-    /** 썸네일·프로필처럼 <b>그 자체로 끝나는</b> 단일 파일 주소용 — 등급 판정은 이쪽이 한다. */
-    private final MediaUrlResolver mediaUrlResolver;
-
     /**
-     * 공개 사본이 준비된 영상의 재생목록용.
+     * 주소는 전부 여기서 만든다 — 썸네일·프로필은 {@code resolve}, 재생목록은
+     * {@code resolvePlaylist}.
      *
-     * <p>재생목록에 {@link MediaUrlResolver} 를 쓰면 <b>HLS 에 단일 파일 서명을 붙이는</b>
-     * 잘못된 경로가 열린다 — 재생목록만 열리고 조각 요청이 403 이 된다(§6.1 과 같은
-     * 이유). 보호 등급 쪽은 서명이 아니라 core-api 주소로 간다.
+     * <p>둘을 나눠 부르는 이유는 <b>HLS 가 단일 파일이 아니기 때문이다</b>. 재생목록에
+     * 단일 파일 서명을 붙이면 재생목록만 열리고 조각 요청이 403 이 된다(ADR-0012).
      */
-    private final PublicMediaUrlResolver publicMediaUrlResolver;
+    private final MediaUrlResolver mediaUrlResolver;
 
     /**
      * @param userSeq 요청자 — {@code isMine} 판정에만 쓴다
@@ -67,19 +61,13 @@ public class VideoItemAssembler {
     }
 
     /**
-     * 재생목록 주소 — <b>키 프리픽스가 등급이다</b>.
+     * 재생목록 주소 — <b>판정은 {@link MediaUrlResolver} 한 곳이다</b>.
      *
-     * <p>{@code visibility} 로 가르지 않는다. 게시는 공개 사본을 {@code public/} 으로
-     * 복사할 뿐 키를 바꾸지 않아, {@code PUBLIC} 인데 키는 아직 {@code private/} 인 행이
-     * 정상적으로 존재한다({@code MediaKeys#isProtected} javadoc). 거기에 무서명 URL 을
-     * 만들면 403 이다.
-     *
-     * <p>보호 등급은 CDN 이 아니라 core-api 를 가리킨다 — 조각까지 서명이 붙은
-     * 재생목록을 거기서 다시 써서 낸다(§1.7).
+     * <p>등급을 여기서 가르지 않는다. 키 프리픽스가 등급이고({@code MediaKeys#isProtected}),
+     * 보호 등급이면 리졸버가 프리픽스 서명을 붙여 준다(ADR-0012). 예전에는 이 분기를
+     * 호출부마다 들고 있었는데, 그러면 새 화면이 생길 때마다 등급 판정이 하나씩 늘어난다.
      */
     private String videoUrl(VideoFeedRow row) {
-        return MediaKeys.isProtected(row.videoKey())
-                ? MediaPlaylistQueryService.masterPlaylistUrl(row.jobUuid())
-                : publicMediaUrlResolver.resolve(row.videoKey());
+        return mediaUrlResolver.resolvePlaylist(row.videoKey());
     }
 }

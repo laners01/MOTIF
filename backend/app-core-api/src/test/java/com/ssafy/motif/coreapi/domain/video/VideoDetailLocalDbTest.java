@@ -4,6 +4,7 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.service.VideoFeedQueryService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
+import com.ssafy.motif.coreapi.global.media.MediaSigningTestSupport;
 import com.ssafy.motif.domain.core.video.Visibility;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +38,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest
 @Transactional
 class VideoDetailLocalDbTest {
+
+    @DynamicPropertySource
+    static void media(DynamicPropertyRegistry registry) {
+        MediaSigningTestSupport.register(registry);
+    }
 
     @Autowired
     private VideoQueryService videoQueryService;
@@ -95,7 +103,7 @@ class VideoDetailLocalDbTest {
     }
 
     @Test
-    @DisplayName("내 PRIVATE 은 200 이고 core-api 재생목록 주소를 받는다 (§1.7)")
+    @DisplayName("내 PRIVATE 은 200 이고 서명 붙은 재생 주소를 받는다 (§1.7 · ADR-0012)")
     void myPrivateVideoIsVisible() {
         Long 내비공개 = video().owner(me).privateVisibility().insert();
 
@@ -104,8 +112,9 @@ class VideoDetailLocalDbTest {
         assertThat(item.visibility()).isEqualTo(Visibility.PRIVATE);
         assertThat(item.isMine()).isTrue();
         assertThat(item.videoUrl())
-                .startsWith("/api/v1/media/")
-                .endsWith("/master.m3u8");
+                .startsWith(MediaSigningTestSupport.CDN + "/private/")
+                .contains("/master.m3u8?")
+                .contains("Policy=", "Signature=", "Key-Pair-Id=");
     }
 
     @Test

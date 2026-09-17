@@ -91,11 +91,14 @@ class UserQueryServiceTest {
 
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
                 "KTESTKEYPAIRID", generatePkcs8Pem(), Duration.ofMinutes(10), Duration.ofHours(6)));
+        // 프리픽스 서명(ADR-0012)은 CDN base URL 을 Resource 로 쓴다 — @Value 주입이
+        // 없는 단위 테스트라 직접 넣는다
+        ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
         MediaUrlResolver resolver = new MediaUrlResolver(
-                new PublicMediaUrlResolver(CDN), new ProtectedMediaUrlResolver(CDN, signer));
+                new PublicMediaUrlResolver(CDN), new ProtectedMediaUrlResolver(CDN, signer), signer);
 
         service = new UserQueryService(userRepository, motifResultRepository,
-                compositeJobRepository, participationVideoRepository, subscriptionRepository,
+                participationVideoRepository, subscriptionRepository,
                 motifAssetRepository, motifPassPriceRepository, resolver);
 
         givenUser(user(null, null));
@@ -140,8 +143,8 @@ class UserQueryServiceTest {
     }
 
     @Test
-    @DisplayName("대표 모티프의 videoUrl 은 core-api 재생목록 경로이고 썸네일은 서명된다")
-    void repMotifUsesPlaylistPathAndSignedThumbnail() {
+    @DisplayName("대표 모티프의 videoUrl 은 프리픽스 서명이 붙은 CDN 주소다 (ADR-0012)")
+    void repMotifUsesSignedCdnPlaylistAndSignedThumbnail() {
         givenUser(user(null, 10L));
         givenRepMotif("private/motif/" + JOB_UUID + "/thumb.jpg");
 
@@ -149,7 +152,9 @@ class UserQueryServiceTest {
 
         assertThat(repMotif.resultSeq()).isEqualTo(10L);
         assertThat(repMotif.videoUrl())
-                .isEqualTo("/api/v1/media/" + JOB_UUID + "/master.m3u8");
+                .startsWith(CDN + "/private/motif/" + JOB_UUID + "/master.m3u8?")
+                // 조각까지 통하는 프리픽스 서명이라 Policy 다 — 단일 URL 서명(Expires)이 아니다
+                .contains("Policy=", "Signature=", "Key-Pair-Id=KTESTKEYPAIRID");
         assertThat(repMotif.thumbnailUrl())
                 .startsWith(CDN + "/private/motif/" + JOB_UUID + "/thumb.jpg?")
                 .contains("Signature=", "Key-Pair-Id=KTESTKEYPAIRID");
@@ -505,14 +510,12 @@ class UserQueryServiceTest {
         ReflectionTestUtils.setField(result, "resultSeq", 10L);
         ReflectionTestUtils.setField(result, "userSeq", ME);
         ReflectionTestUtils.setField(result, "jobSeq", 5L);
+        // 재생 주소는 결과물의 video_key 로 만든다 — 잡을 읽지 않는다(ADR-0012)
+        ReflectionTestUtils.setField(result, "videoKey",
+                "private/motif/" + JOB_UUID + "/master.m3u8");
         ReflectionTestUtils.setField(result, "thumbnailKey", thumbnailKey);
         given(motifResultRepository.findByResultSeqAndUserSeqAndDeletedFalse(10L, ME))
                 .willReturn(Optional.of(result));
-
-        CompositeJob job = newInstance(CompositeJob.class);
-        ReflectionTestUtils.setField(job, "jobSeq", 5L);
-        ReflectionTestUtils.setField(job, "jobUuid", UUID.fromString(JOB_UUID));
-        given(compositeJobRepository.findById(5L)).willReturn(Optional.of(job));
     }
 
     private static User user(String profileImageKey, Long repMotifResultSeq) {

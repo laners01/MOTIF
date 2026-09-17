@@ -42,7 +42,7 @@ Authorization: Bearer {accessToken}
     "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
     "repMotif": {
       "resultSeq": 10,
-      "videoUrl": "/api/v1/media/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
+      "videoUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
       "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
     },
     "videos": [
@@ -58,8 +58,8 @@ Authorization: Bearer {accessToken}
 |---|---|---|
 | `profileImageUrl` | string \| null | **무서명 공개 CDN URL.** 미설정이면 `null` |
 | `repMotif` | object \| null | 대표 모티프. **미설정이면 `null`** |
-| `repMotif.videoUrl` | string | **HLS 마스터 재생목록** 주소. 모티프 결과물은 보호 등급이라 CDN 이 아니라 **core-api** 를 가리킨다 — `/api/v1/media/{jobUuid}/master.m3u8` (§1.7). 진입 시 자동재생·음소거 |
-| `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 단일 파일이라 리라이팅 없이 **CloudFront signed URL** 을 바로 낸다 |
+| `repMotif.videoUrl` | string | **HLS 마스터 재생목록** 주소. 모티프 결과물은 보호 등급이라 **CDN 절대 주소 + 프리픽스 서명 파라미터**다(ADR-0012). 클라이언트가 조각·자식 재생목록 요청에 같은 파라미터를 붙인다. 진입 시 자동재생·음소거 |
+| `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 단일 파일이라 **URL 하나짜리 signed URL**(만료 6시간)을 바로 낸다 |
 | `videos` | array | 내 참여 영상 **최신 9개** 경량 프리뷰(3×3). **없으면 빈 배열 `[]`** |
 | `videos[].visibility` | string | `PUBLIC` \| `PRIVATE`. 본인 화면이라 둘 다 포함한다 |
 | `videos[].viewCount` | number | 전 영상 그리드 공통 규칙 |

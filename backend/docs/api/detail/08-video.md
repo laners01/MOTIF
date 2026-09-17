@@ -178,8 +178,9 @@ Authorization: Bearer {accessToken}
 
 `videoUrl` 의 등급은 **키 프리픽스가 정한다** — `visibility` 로 가르지 않는다(§1.7).
 게시는 공개 사본을 `public/` 으로 복사할 뿐 키를 바꾸지 않아 `PUBLIC` 인데 키는 아직
-`private/` 인 행이 정상적으로 존재한다. 보호 등급이면 CDN 이 아니라 **core-api**
-(`/api/v1/media/{jobUuid}/master.m3u8`)를 가리킨다.
+`private/` 인 행이 정상적으로 존재한다. 보호 등급이면 CDN 절대 주소에 **프리픽스 서명
+파라미터**(`Policy`·`Signature`·`Key-Pair-Id`)가 붙는다(ADR-0012) — 클라이언트가 조각
+요청에 같은 값을 붙인다. 공개 등급이면 서명이 없다.
 
 ### 목록에서 제외하는 것
 

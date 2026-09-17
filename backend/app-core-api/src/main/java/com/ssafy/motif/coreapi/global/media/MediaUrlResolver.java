@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
  * <p>판정 근거는 {@link MediaKeys#isProtected} 하나뿐이다 — {@code visibility} 를 보지
  * 않는 이유는 그쪽 javadoc 에 있다.
  *
- * <p><b>단일 파일 전용이다.</b> 썸네일·프로필처럼 그 자체로 끝나는 주소에만 쓴다.
- * HLS 재생목록은 안에서 조각을 더 요청하므로 여기서 만든 URL 을 그대로 내리면 조각
- * 요청이 403 이 된다 — 그쪽은 {@code MediaController} 가 재생목록을 다시 써서 낸다.
+ * <p><b>{@link #resolve} 는 단일 파일 전용이다.</b> 썸네일·프로필처럼 그 자체로 끝나는
+ * 주소에만 쓴다. HLS 재생목록은 안에서 조각을 더 요청하므로 여기서 만든 URL 을 그대로
+ * 내리면 조각 요청이 403 이 된다 — 재생목록은 {@link #resolvePlaylist} 다(ADR-0012).
  */
 @Component
 @RequiredArgsConstructor
@@ -26,6 +26,7 @@ public class MediaUrlResolver {
 
     private final PublicMediaUrlResolver publicResolver;
     private final ProtectedMediaUrlResolver protectedResolver;
+    private final CloudFrontUrlSigner signer;
 
     /** 키가 없으면 {@code null}(항목 자체가 없는 경우). */
     public String resolve(String key) {
@@ -35,5 +36,35 @@ public class MediaUrlResolver {
         return MediaKeys.isProtected(key)
                 ? protectedResolver.resolve(key)
                 : publicResolver.resolve(key);
+    }
+
+    /**
+     * 마스터 재생목록 키 → <b>재생 주소</b> (ADR-0012).
+     *
+     * <p>{@link #resolve} 와 나누는 이유는 <b>HLS 가 단일 파일이 아니기 때문이다</b>.
+     * 재생목록은 안에서 조각을 더 요청하는데 그 주소는 상대 경로라, URL 하나짜리 서명
+     * ({@link #resolve})을 붙여 내리면 조각 요청이 전부 403 이 된다.
+     *
+     * <p>보호 등급이면 <b>프리픽스 전체에 통하는 서명</b>을 붙여 준다 — 클라이언트(OkHttp
+     * 인터셉터)가 같은 파라미터를 조각·자식 재생목록에 붙여 요청한다. 공개 등급이면
+     * 서명이 없다.
+     *
+     * <p><b>등급 판정은 여전히 키 프리픽스 하나다.</b> 호출부가 {@code visibility} 로
+     * 가르지 않는다 — PUBLIC 게시는 공개 사본을 복사할 뿐 키를 바꾸지 않아
+     * "{@code PUBLIC} 인데 키는 아직 {@code private/}" 인 행이 정상적으로 존재한다
+     * ({@link MediaKeys#isProtected} javadoc).
+     *
+     * @param masterKey {@code …/master.m3u8} 로 끝나는 키
+     */
+    public String resolvePlaylist(String masterKey) {
+        if (masterKey == null || masterKey.isBlank()) {
+            return null;
+        }
+        // 주소 자체는 두 등급이 같은 CDN 배포다 — 보호 여부는 서명이 붙느냐로만 갈린다
+        String url = publicResolver.resolve(masterKey);
+        if (url == null || !MediaKeys.isProtected(masterKey)) {
+            return url;
+        }
+        return url + "?" + signer.signPrefix(MediaKeys.prefixOf(masterKey));
     }
 }
