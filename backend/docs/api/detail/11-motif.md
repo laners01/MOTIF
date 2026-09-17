@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 11.1 | GET | `/api/v1/motif/assets` | 필요 | 에셋 목록 — **기본은 내 구독 아티스트** |
 | 11.2 | GET | `/api/v1/motif/assets/{assetSeq}` | 필요 | 에셋 상세 |
-| 11.3 | — | (삭제) 숍 집계 API | — | 클라이언트가 §4.7 + §11.1 조합 |
+| 11.3 | GET | `/api/v1/motif/shop` | 필요 | **숍 전량** — 구독 아티스트 × 에셋 *(부활)* |
 | 11.4 | GET | `/api/v1/artists/{artistSeq}/motif-pass` | 필요 | 아티스트별 패스 정보 |
 | 11.5 | GET | `/api/v1/motif/results` | 필요 | 보관함 목록 (§5.8 공용) |
 | 11.6 | GET | `/api/v1/motif/results/{resultSeq}` | 필요 | 결과물 상세(재생) |
@@ -130,14 +130,10 @@ Authorization: Bearer {accessToken}
 
 ### 숍 화면 구성 방법
 
-구 §11.3 집계 API 는 삭제됐다. 클라이언트가 조합한다.
+**숍 첫 화면은 §11.3 한 번이다.** 섹션·패스·에셋이 그 응답에 다 들어 있다.
+상단 공용 배너만 §11.11 로 따로 받는다.
 
-1. **§4.7** 로 구독 아티스트 목록 + 아티스트별 패스 보유 여부를 받아 섹션을 만든다
-2. 각 섹션의 에셋은 **이 API 의 `artistSeq` 필터**로 조회한다
-3. 상단 공용 배너는 **§11.11**
-
-쿼리 없이 부른 목록을 `artist.artistSeq` 로 묶어 그려도 같은 화면이 나온다 — 섹션별
-조회와 전체 조회 중 무엇을 쓸지는 클라이언트가 정한다.
+이 API(§11.1)는 숍이 아니라 **내 보유함**이다 — 아래 (변경) 블록 참조.
 
 ### 실패 응답
 
@@ -582,6 +578,102 @@ Authorization: Bearer {accessToken}
 
 패스 취소 기능과 `canceled_dttm` 개념은 **기획상 유지**하되 이번 구현 범위에서는 API 를 만들지 않는다. 자동결제를 재도입하면 갱신 차단 판정에 재사용한다.
 
-## 11.3 (삭제) 숍 집계 API
+## 11.3 GET /api/v1/motif/shop — 숍 전량 *(부활)*
 
-`GET /motif/shop` 은 **제거됐다**(v0.8). §11.1 의 "숍 화면 구성 방법" 참조.
+> **(변경) 삭제 철회** (S15P21D104-219)
+>
+> 원본 `MOTIF_API_명세서_v0_11.md` §11.3 은 이 API 를 **제거**하고 "클라가 §4.7 + §11.1
+> 을 조합한다"로 정했다. 되살린다.
+>
+> - **근거** — 숍 첫 화면에서 구독 수만큼 §11.1 을 호출하게 되어 왕복이 아티스트 수에
+>   비례한다. 조합 비용이 클라이언트가 아니라 네트워크에 붙는다.
+> - 서버는 조회 3번으로 끝난다(구독·에셋·패스). 아티스트 수와 무관하다.
+> - 원본 명세서 파일은 수정하지 않았다.
+
+내가 구독한 아티스트가 섹션이고, 각 섹션에 그 아티스트의 에셋이 **전량** 들어 있다.
+
+### 요청
+
+```http
+GET /api/v1/motif/shop
+Authorization: Bearer {accessToken}
+```
+
+**파라미터가 없고 페이지네이션도 없다.** 봉투는 `ListResponse`(§5.4)다.
+
+### 성공 응답 (200)
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "list": [
+      {
+        "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
+        "passActive": true,
+        "expiresDttm": "2026-10-01T00:00:00.000Z",
+        "assets": [
+          {
+            "assetSeq": 21,
+            "title": "9월 신규 에셋",
+            "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93/thumb.jpg",
+            "description": "9월 신규 에셋 소개 문구",
+            "durationMs": 9800,
+            "assetType": "NORMAL",
+            "myAccess": "OWNED"
+          }
+        ]
+      }
+    ]
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `artist` | README §3.5 공통 아티스트 요약 |
+| `passActive` · `expiresDttm` | 그 아티스트의 패스 보유 여부. 미보유면 `false` / `null` |
+| `assets[].myAccess` | **구매 여부가 여기 있다** — `OWNED` 가 개별 구매 |
+
+**섹션 안의 에셋에는 `artist` 가 없다** — 섹션이 이미 아티스트를 말하고 있다(§11.1 과 다른 점).
+**가격도 없다** — 가격과 구매 가능 여부는 §11.2 상세다.
+
+### 정렬
+
+| 축 | 기준 |
+|---|---|
+| 아티스트 | **구독 최신순** — §4.6·§4.7 과 같은 기준이다. 같은 목록이 화면마다 다른 순서면 안 된다 |
+| 에셋 | **최신순**(`asset_seq DESC`) — §11.1 과 같은 정렬 |
+
+### 노출 규칙 · myAccess
+
+§11.1 과 같다.
+
+| 대상 | 노출 |
+|---|---|
+| `is_active=TRUE` | 모든 사용자 |
+| `is_active=FALSE` (판매 중단) | **개별 구매 보유자에게만**. 패스만 있으면 보이지 않는다 |
+
+우선순위 `OWNED > PASS > NONE`, `PREMIUM` 은 패스로 열리지 않고 `SECRET` 은 `NORMAL` 과
+동일하다. 삭제된 아티스트는 구독 조회 단계에서 빠진다.
+
+### 실패 응답
+
+**도메인 분기 없음.** 구독이 0건이면 빈 배열 200.
+
+**에셋이 0건인 구독 아티스트는 섹션이 나오고 `assets` 가 빈 배열이다.** 섹션을 빼면
+"구독했는데 숍에 없는 아티스트" 가 생겨 §4.7 구독 목록과 어긋난다.
+
+### 구현 메모
+
+- 조회 3번 고정 — `SubscriptionRepository.findSubscribed`(순서의 출처) ·
+  `MotifAssetRepository.searchShop`(에셋 한 번에) ·
+  `MotifPassPriceRepository.findActivePasses`(아티스트별 패스). 앞 둘은 §4.6·§4.7 이
+  이미 쓰던 메서드다.
+- 에셋 쿼리에 아티스트·패스를 **조인하지 않는다**. 이름·프로필은 구독 조회가 이미
+  갖고 있고 패스는 아티스트당 하나라, 에셋 행마다 다시 판정하면 같은 답을 에셋 수만큼
+  계산하게 된다. `myAccess` 는 행의 `owned` 와 패스 맵을 서비스가 합쳐 정한다.
+- 구독이 0건이면 뒤 두 조회를 **부르지 않는다** — Postgres 에서 `in ()` 은 문법 오류다.

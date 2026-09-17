@@ -357,6 +357,80 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
     }
 
     /**
+     * 숍 전량 (API 명세 §11.3) — 아티스트 여러 명의 에셋을 <b>한 번에</b>, 최신순.
+     *
+     * <p><b>아티스트마다 부르면 그대로 N+1 이다.</b> 숍 첫 화면은 구독 수만큼 섹션을
+     * 그리므로, 구독 30명이면 조회가 30번이 된다. 그것을 없애려고 되살린 API 에서
+     * 같은 짓을 하면 의미가 없다.
+     *
+     * <p><b>조인이 없다.</b> 아티스트 이름·프로필·그룹명은 호출부가 이미
+     * {@code SubscriptionRepository.findSubscribed} 로 갖고 있고(섹션 순서의 출처이기도
+     * 하다), 패스 보유 여부도 {@code MotifPassPriceRepository.findActivePasses} 가 따로
+     * 답한다. 여기서 다시 조인하면 같은 값을 두 번 읽는다.
+     *
+     * <p>그래서 {@code passActive} 서브쿼리도 없다 — {@code myAccess} 는 이 결과의
+     * {@code owned} 와 패스 조회 결과를 호출부가 합쳐 정한다. 패스는 <b>아티스트당
+     * 하나</b>인데 에셋 행마다 다시 판정하면 같은 답을 에셋 수만큼 계산하게 된다.
+     *
+     * <p><b>비활성 에셋은 개별 구매자에게만 보인다</b>(§11.1 과 같은 노출 규칙).
+     * {@code owned} 와 같은 모양의 {@code exists} 지만 하는 일이 다르다 — 저쪽은
+     * "무슨 권한인가"이고 여기는 "보여 줄까"다.
+     *
+     * <p>{@code artistSeqs} 가 비면 부르지 않는다 — Postgres 에서 {@code in ()} 는 문법
+     * 오류다. 호출부가 구독 0건을 먼저 걸러 빈 목록으로 답한다.
+     */
+    @Query(value = """
+            select a.asset_seq     as "assetSeq",
+                   a.artist_seq    as "artistSeq",
+                   a.title         as "title",
+                   a.description   as "description",
+                   a.thumbnail_key as "thumbnailKey",
+                   a.duration_ms   as "durationMs",
+                   a.asset_type    as "assetType",
+                   exists (select 1 from motif_core.asset_purchases p
+                            where p.asset_seq = a.asset_seq
+                              and p.user_seq = :userSeq
+                              and p.status = 'ACTIVE')            as "owned"
+              from motif_core.motif_assets a
+             where a.artist_seq in (:artistSeqs)
+               and (a.is_active = true
+                    or exists (select 1 from motif_core.asset_purchases ap
+                                where ap.asset_seq = a.asset_seq
+                                  and ap.user_seq = :userSeq
+                                  and ap.status = 'ACTIVE'))
+             order by a.asset_seq desc
+            """, nativeQuery = true)
+    List<AssetShopRow> searchShop(@Param("userSeq") Integer userSeq,
+                                  @Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    /**
+     * {@link #searchShop} 한 행.
+     *
+     * <p>{@code artistSeq} 는 응답 값이 아니라 <b>그룹핑 축</b>이다 — 호출부가 이 값으로
+     * 섹션에 나눠 담는다.
+     */
+    interface AssetShopRow {
+
+        Integer getAssetSeq();
+
+        Integer getArtistSeq();
+
+        String getTitle();
+
+        /** 소개 문구 — {@code title} 과 다른 칸이고 {@code null} 일 수 있다. */
+        String getDescription();
+
+        String getThumbnailKey();
+
+        Integer getDurationMs();
+
+        String getAssetType();
+
+        /** 개별 구매 보유 여부. 패스는 보지 않는다 — 그쪽은 아티스트 단위로 따로 온다. */
+        Boolean getOwned();
+    }
+
+    /**
      * 팬 앱 에셋 상세 (API 명세 §11.2) — 단건.
      *
      * <p><b>노출 규칙은 {@link #searchCatalog} 와 같다.</b> 판매 중단
