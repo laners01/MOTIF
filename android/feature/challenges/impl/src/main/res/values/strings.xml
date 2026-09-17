@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="challenge_description_title">설명</string>
+    <string name="challenge_description_close">닫기</string>
+    <string name="challenge_description_like">좋아요</string>
+    <string name="challenge_description_view">조회수</string>
+    <string name="challenge_description_date">%1$d월 %2$d일</string>
+    <string name="challenge_description_year">%1$d년</string>
+</resources>
