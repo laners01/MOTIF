@@ -39,6 +39,7 @@ async function pick(file) {
     videoKey = null;
     meta = null;
     $('meta').textContent = '';
+    resetThumbPick();       // 앞서 고른 영상의 시각이 남지 않게 한다
     step('upload', null);
     refresh();
     if (!file) return;
@@ -60,6 +61,9 @@ async function pick(file) {
         showError($('err'), new Error(reason));
         return;
     }
+    // 규격을 통과한 뒤에 연다 — 거절된 영상의 슬라이더를 띄워 두면 그 값이 다음
+    // 요청에 실린다. 도입부가 검은 에셋에서 기본 1.5초를 피하는 것이 이 UI 의 전부다
+    initThumbPick($('preview'), meta.durationMs);
 
     step('upload', 'doing');
     try {
@@ -93,6 +97,9 @@ async function submit() {
                 durationMs: meta.durationMs,
                 width: meta.width,
                 height: meta.height,
+                // 선택 — 없으면 워커가 1.5초를 쓴다. 서버가 durationMs 와 대조해
+                // 영상 밖이면 THUMBNAIL_AT_OUT_OF_RANGE 로 막는다(§4.8)
+                thumbnailAtMs: thumbnailAtMs(),
                 // NUMERIC(10,2) 라 문자열로 보낸다 — 부동소수를 태우지 않는다(DB §31)
                 price: {amount: `${Number($('amount').value).toFixed(2)}`, currency: 'KRW'},
             },

@@ -135,6 +135,42 @@ class VideoRulesTest {
             assertThat(reasonsOf(() -> rules.checkAsset(new Meta(ASSET_MAX_MS + 1, 1920, 1080))))
                     .containsExactly(VideoRules.DURATION_EXCEEDED);
         }
+
+        @Test
+        @DisplayName("썸네일 시각을 안 보내면 검사하지 않는다 — 워커 기본값 1.5초")
+        void 썸네일_시각_생략() {
+            assertThatCode(() -> rules.checkAsset(new Meta(10_000, 1920, 1080), null))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("영상 안이면 통과한다")
+        void 썸네일_시각_통과() {
+            assertThatCode(() -> rules.checkAsset(new Meta(10_000, 1920, 1080), 9_999L))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("길이와 같으면 이미 영상 밖이다 — 챌린지와 같은 배타적 경계다")
+        void 썸네일_시각_경계() {
+            assertThat(reasonsOf(() -> rules.checkAsset(new Meta(10_000, 1920, 1080), 10_000L)))
+                    .containsExactly(VideoRules.THUMBNAIL_AT_OUT_OF_RANGE);
+        }
+
+        @Test
+        @DisplayName("음수면 막는다 — 폼 값이라 임의의 수가 올 수 있다")
+        void 썸네일_시각_음수() {
+            assertThat(reasonsOf(() -> rules.checkAsset(new Meta(10_000, 1920, 1080), -1L)))
+                    .containsExactly(VideoRules.THUMBNAIL_AT_OUT_OF_RANGE);
+        }
+
+        @Test
+        @DisplayName("20초짜리 에셋에 30초를 보내면 방향 위반과 함께 모아서 던진다")
+        void 썸네일_시각_다른_위반과_함께() {
+            assertThat(reasonsOf(() -> rules.checkAsset(new Meta(20_000, 1080, 1920), 30_000L)))
+                    .containsExactly(VideoRules.LANDSCAPE_REQUIRED,
+                            VideoRules.THUMBNAIL_AT_OUT_OF_RANGE);
+        }
     }
 
     @Nested

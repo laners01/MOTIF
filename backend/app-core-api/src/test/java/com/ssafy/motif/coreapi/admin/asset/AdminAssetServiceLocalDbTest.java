@@ -133,7 +133,7 @@ class AdminAssetServiceLocalDbTest {
 
         assertThatThrownBy(() -> adminAssetService.create(
                 admin, new AssetCreateRequest(999_999, "9월 신규 에셋", null, AssetType.NORMAL,
-                        VIDEO_KEY, 9800, 1920, 1080,
+                        VIDEO_KEY, 9800, 1920, 1080, null,
                         new AssetPriceRequest(new BigDecimal("3900.00"), "KRW", null))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
@@ -280,8 +280,9 @@ class AdminAssetServiceLocalDbTest {
     // --- 픽스처 -------------------------------------------------------------
 
     private AssetCreateRequest request(BigDecimal amount) {
+        // 썸네일 시각은 생략 — 워커 기본값(1.5초)이 쓰인다 (§4.8)
         return new AssetCreateRequest(artistSeq, "9월 신규 에셋", "소개 문구", AssetType.NORMAL,
-                VIDEO_KEY, 9800, 1920, 1080, new AssetPriceRequest(amount, "KRW", null));
+                VIDEO_KEY, 9800, 1920, 1080, null, new AssetPriceRequest(amount, "KRW", null));
     }
 
     private long countPricesOf(Integer assetSeq) {
