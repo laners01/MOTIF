@@ -100,6 +100,7 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
     fun onCommentLikeClick(commentId: Long) { }
     fun onReplyClick(commentId: Long) { }      // expandedCommentIds 토글
     fun onReplyLikeClick(replyId: Long) { }
+    fun onCreateMotifClick() { }
 
     fun toggleAlarm(){
         _uiState.update { state ->
