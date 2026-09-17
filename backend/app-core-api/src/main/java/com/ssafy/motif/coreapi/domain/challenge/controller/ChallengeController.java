@@ -6,6 +6,7 @@ import com.ssafy.motif.coreapi.domain.challenge.docs.ChallengeControllerDocs;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
+import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeLikeService;
 import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -36,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChallengeController implements ChallengeControllerDocs {
 
     private final ChallengeQueryService challengeQueryService;
+    private final ChallengeLikeService challengeLikeService;
 
     /**
      * §7.1 숏폼 피드 — 커서.
@@ -61,4 +67,27 @@ public class ChallengeController implements ChallengeControllerDocs {
             @PathVariable Integer challengeSeq) {
         return ApiResponse.success(challengeQueryService.detail(user.userSeq(), challengeSeq));
     }
+
+    /**
+     * §7.3 좋아요 — <b>204 No Content</b>. 응답 본문이 없다(§1.2 봉투 예외).
+     *
+     * <p>§8.3 영상 · §9.5 댓글 · §10.2 공지 좋아요와 같은 계약이다.
+     */
+    @Override
+    @PostMapping("/{challengeSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void like(@AuthenticationPrincipal AuthenticatedUser user,
+                     @PathVariable Integer challengeSeq) {
+        challengeLikeService.like(user.userSeq(), challengeSeq);
+    }
+
+    /** §7.3 좋아요 해제 — 204. 누르지 않은 상태에서 불러도 204 다(멱등). */
+    @Override
+    @DeleteMapping("/{challengeSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlike(@AuthenticationPrincipal AuthenticatedUser user,
+                       @PathVariable Integer challengeSeq) {
+        challengeLikeService.unlike(user.userSeq(), challengeSeq);
+    }
+
 }

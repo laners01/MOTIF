@@ -49,6 +49,48 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
             """)
     int addCommentCount(@Param("challengeSeq") Integer challengeSeq, @Param("delta") int delta);
 
+    /**
+     * 살아 있는 챌린지인가 (§7.3) — 엔티티를 읽지 않는다.
+     *
+     * <p>{@link #findByChallengeSeqAndDeletedFalse} 가 아니라 {@code exists} 인 이유는
+     * §10.2 와 같다: 좋아요는 204 라 돌려줄 값이 없고, 뒤따르는 증감이 벌크 UPDATE 라
+     * 영속성 컨텍스트에 실은 행은 곧 버려진다.
+     */
+    boolean existsByChallengeSeqAndDeletedFalse(Integer challengeSeq);
+
+    /**
+     * 좋아요 (§7.3) — 이미 누른 상태면 <b>0을 돌려준다</b>.
+     *
+     * <p>멱등이 복합 PK 에서 나온다({@code NoticeRepository.insertLikeIfAbsent} 와 같은
+     * 방식). 네이티브인 이유는 {@code on conflict do nothing} 이 JPQL 에 없어서다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.challenge_likes (challenge_seq, user_seq)
+            values (:challengeSeq, :userSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertLikeIfAbsent(@Param("challengeSeq") Integer challengeSeq,
+                           @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 해제 (§7.3) — <b>하드 삭제</b>다. 누르지 않은 상태면 0을 돌려준다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.challenge_likes
+             where challenge_seq = :challengeSeq and user_seq = :userSeq
+            """, nativeQuery = true)
+    int deleteLikeIfPresent(@Param("challengeSeq") Integer challengeSeq,
+                            @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 수 증감 (§7.3) — 거울 카운터. 규칙은 {@link #addCommentCount} 와 같다. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Challenge c
+               set c.likeCount = c.likeCount + :delta
+             where c.challengeSeq = :challengeSeq and c.likeCount + :delta >= 0
+            """)
+    int addLikeCount(@Param("challengeSeq") Integer challengeSeq, @Param("delta") int delta);
+
     /** 아티스트 목록·상세의 {@code challengeCount} (어드민 §3.5.1) — 페이지 전체를 한 번에. */
     @Query("""
             select new com.ssafy.motif.domain.core.artist.ArtistCount(c.artistSeq, count(c))
