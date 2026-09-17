@@ -19,21 +19,58 @@ import java.util.Map;
  *                  "target 식별자" 를 타입마다 다른 이름으로 싣기로 했다
  */
 public record PushMessage(String type, String title, String body,
-                          String targetKey, Object targetValue) {
+                          String targetKey, Object targetValue, Long commentSeq) {
 
     public static final String TYPE_NEW_CHALLENGE = "NEW_CHALLENGE";
     public static final String TYPE_NEW_NOTICE = "NEW_NOTICE";
+    public static final String TYPE_NEW_COMMENT = "NEW_COMMENT";
+    public static final String TYPE_NEW_REPLY = "NEW_REPLY";
+
+    /** 게시물 종류 → §14.3 대상 식별자 이름. 이벤트의 {@code targetType} 을 그대로 받는다. */
+    private static final Map<String, String> TARGET_KEY = Map.of(
+            "CHALLENGE", "challengeSeq",
+            "VIDEO", "videoSeq",
+            "NOTICE", "noticeSeq");
 
     /** §3.7.2 컨슈머 동작 — 어드민 명세 §4 표가 문구까지 고정했다. */
     public static PushMessage newChallenge(String artistName, String songTitle, Integer challengeSeq) {
         return new PushMessage(TYPE_NEW_CHALLENGE,
-                artistName + "의 새 챌린지", songTitle, "challengeSeq", challengeSeq);
+                artistName + "의 새 챌린지", songTitle, "challengeSeq", challengeSeq, null);
     }
 
     /** §3.10.2 컨슈머 동작. body 는 발행자가 이미 60자로 자른 미리보기다. */
     public static PushMessage newNotice(String artistName, String contentPreview, Integer noticeSeq) {
         return new PushMessage(TYPE_NEW_NOTICE,
-                artistName + " 공지", contentPreview, "noticeSeq", noticeSeq);
+                artistName + " 공지", contentPreview, "noticeSeq", noticeSeq, null);
+    }
+
+    /**
+     * §9.3 댓글 — 게시물 소유자에게. 제목 문구는 <b>(기본안)</b> 이다(명세가 고정하지 않았다).
+     *
+     * @param targetType 이벤트의 {@code CHALLENGE}·{@code VIDEO}·{@code NOTICE}
+     */
+    public static PushMessage newComment(String targetType, Long targetSeq, Long commentSeq,
+                                         String actorNickname, String contentPreview) {
+        return new PushMessage(TYPE_NEW_COMMENT,
+                actorNickname + "님이 댓글을 남겼어요", contentPreview,
+                targetKey(targetType), targetSeq, commentSeq);
+    }
+
+    /** §9.3 답글 — 부모 댓글 작성자에게. */
+    public static PushMessage newReply(String targetType, Long targetSeq, Long commentSeq,
+                                       String actorNickname, String contentPreview) {
+        return new PushMessage(TYPE_NEW_REPLY,
+                actorNickname + "님이 답글을 남겼어요", contentPreview,
+                targetKey(targetType), targetSeq, commentSeq);
+    }
+
+    /** 모르는 종류는 던진다 — 대상 키가 비면 앱이 어디로 갈지 알 수 없다. */
+    private static String targetKey(String targetType) {
+        String key = TARGET_KEY.get(targetType);
+        if (key == null) {
+            throw new IllegalArgumentException("알 수 없는 게시물 종류: " + targetType);
+        }
+        return key;
     }
 
     /**
@@ -47,6 +84,11 @@ public record PushMessage(String type, String title, String body,
         data.put("body", body == null ? "" : body);
         data.put("sentDttm", Instant.now().toString());
         data.put(targetKey, String.valueOf(targetValue));
+        // 댓글 알림만 싣는다 — 앱이 스레드 안 그 위치로 스크롤해야 한다(323).
+        // §14.3 골격의 "대상 식별자" 에 더해지는 값이라 additive 다
+        if (commentSeq != null) {
+            data.put("commentSeq", String.valueOf(commentSeq));
+        }
         return data;
     }
 }
