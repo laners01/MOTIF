@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('공지 댓글 대행', ~{::main})}">
+<body>
+<!--/* 공지 탐색 + 댓글 스레드 대행 (ADMIN-11 · §3.10.1). 로직은 act-as-notices.js. */-->
+<main>
+    <p class="err" id="no-acting" hidden>
+        활동 중인 아티스트가 없습니다. <a href="/admin/act-as">활동 대행</a>에서 먼저 고르세요.
+    </p>
+
+    <section id="browse" hidden>
+        <p>
+            <label style="display:inline">아티스트 번호
+                <input type="number" id="artist-seq" min="1" style="width:8em">
+            </label>
+            <button type="button" id="reload">조회</button>
+            <button type="button" id="mine">활동 중 아티스트 공지</button>
+        </p>
+        <p class="err" id="err" hidden></p>
+
+        <table>
+            <thead>
+            <tr><th>#</th><th>아티스트</th><th>본문</th><th>이미지</th><th>♥</th><th>댓글</th><th>등록</th><th></th></tr>
+            </thead>
+            <tbody id="notices"></tbody>
+        </table>
+        <p class="muted" id="page-hint"></p>
+        <p>
+            <button type="button" id="prev" disabled>이전</button>
+            <button type="button" id="next" disabled>다음</button>
+        </p>
+
+        <p class="muted">
+            삭제된 공지는 나오지 않는다 — 댓글 대행 대상이 아니다(§9.3 실패표).
+            스레드는 <strong>활동 중 아티스트의 시점</strong>으로 조회하므로 본인 댓글이 맨 위에 오고
+            삭제 버튼도 본인 것에만 붙는다.
+            <strong>자기 공지에 단 댓글은 알림이 나가지 않는다</strong> — 게시물 소유자가 본인이라
+            자기 행위 규칙에 걸린다(ADMIN-11). 팬 댓글에 답글을 달면 그 팬에게 간다.
+        </p>
+    </section>
+
+    <template id="notice-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="artist"></td>
+            <td class="preview"></td>
+            <td class="images"></td>
+            <td class="likes"></td>
+            <td class="comments"></td>
+            <td class="reg"></td>
+            <td><button type="button" class="open">댓글</button></td>
+        </tr>
+    </template>
+    <template id="thread-row">
+        <tr class="detail-panel">
+            <td colspan="8">
+                <div class="thread"></div>
+            </td>
+        </tr>
+    </template>
+    <template id="comment-node">
+        <div class="comment">
+            <p>
+                <strong class="who"></strong>
+                <span class="body"></span>
+                <span class="meta muted"></span>
+            </p>
+            <p>
+                <button type="button" class="replies">답글 펼치기</button>
+                <button type="button" class="reply">답글</button>
+                <button type="button" class="del">삭제</button>
+                <span class="msg muted"></span>
+            </p>
+            <div class="children"></div>
+        </div>
+    </template>
+
+    <script src="/admin/act-as-thread.js" defer></script>
+    <script src="/admin/act-as-notices.js" defer></script>
+</main>
+</body>
+</html>
