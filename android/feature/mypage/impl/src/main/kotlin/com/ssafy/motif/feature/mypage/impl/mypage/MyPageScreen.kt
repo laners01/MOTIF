@@ -35,8 +35,8 @@ internal fun MyPageScreen(
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
-        when (uiState) {
-            MyPageUiState.Loading -> {
+        when (val profileState = uiState.profileState) {
+            ProfileUiState.Loading -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -45,15 +45,15 @@ internal fun MyPageScreen(
                 }
             }
 
-            is MyPageUiState.Success -> {
+            is ProfileUiState.Success -> {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    MyProfileSection(profile = uiState.profile,
+                    MyProfileSection(profile = profileState.profile,
                         onNotificationClick = onNotificationClick,
                         onSettingsClick = onSettingsClick,)
                 }
             }
 
-            is MyPageUiState.Error -> {
+            is ProfileUiState.Error -> {
                 // TODO 프로필 조회 실패 UI
             }
         }
