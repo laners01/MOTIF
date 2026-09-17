@@ -69,5 +69,8 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 바로 위 신고와 같다. API(581·582)는 있었는데 화면이 없어 운영자가 브라우저로
         // 회원을 정지할 길이 없었다
         registry.addViewController(AdminPaths.VIEW + "/users").setViewName("admin/users");
+        // 활동 대행 컨텍스트 선택 (ADMIN-11 · §1.7). 대행 API 는 409·574 로 있었는데
+        // 아티스트를 고를 화면이 없어 어드민 UI 로는 대행할 길이 없었다
+        registry.addViewController(AdminPaths.VIEW + "/act-as").setViewName("admin/act-as");
     }
 }
