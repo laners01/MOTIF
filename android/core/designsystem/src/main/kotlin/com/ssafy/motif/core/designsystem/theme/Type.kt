@@ -45,6 +45,7 @@ data class MotifTypography(
     val titleB22: TextStyle,
     val titleB20: TextStyle,
     val titleSB20: TextStyle,
+    val titleR20: TextStyle,
     val titleB18: TextStyle,
     val titleM18: TextStyle,
     val titleSB18: TextStyle,
@@ -92,6 +93,12 @@ data class MotifTypography(
             titleSB20 = TextStyle(
                 fontFamily = pretendardFontFamily,
                 fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                lineHeight = 24.sp,
+            ),
+            titleR20 = TextStyle(
+                fontFamily = pretendardFontFamily,
+                fontWeight = FontWeight.Normal,
                 fontSize = 20.sp,
                 lineHeight = 24.sp,
             ),
