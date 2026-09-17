@@ -73,6 +73,22 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("참여 영상 대행 — 목록·스레드·댓글 노드 템플릿이 들어간다")
+    void actAsVideos() {
+        String html = render("admin/act-as-videos");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 참여 영상 대행</title>")
+                .contains("/admin/admin.js")
+                .contains("/admin/act-as-videos.js")
+                .contains("id=\"no-acting\"")
+                .contains("id=\"videos\"")
+                .contains("id=\"thread-row\"")
+                .contains("id=\"comment-node\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("신고 — 레이아웃 제목과 목록·미리보기 템플릿이 들어간다")
     void reports() {
         String html = render("admin/reports");
