@@ -18,6 +18,21 @@ public final class RoutingKeys {
     public static final String COMPOSITE_PATTERN = "composite.*";
     /** evt.notification, evt.ranking. */
     public static final String COMMENT_PATTERN = "comment.*";
+
+    /** 루트 댓글 작성 — 게시물 소유자에게 (API §9.3). */
+    public static final String COMMENT_CREATED = "comment.created";
+
+    /**
+     * 답글 작성 — 부모 댓글 작성자에게 (API §9.3).
+     *
+     * <p><b>명세 문구는 {@code reply.created} 지만 그 키는 쓸 수 없다.</b>
+     * {@code evt.notification} 바인딩이 {@code comment.*} 하나고(infra
+     * {@code 20-rabbitmq/configmap-definitions.yaml}), 토픽 {@code *} 는 한 단어만
+     * 받으므로 {@code reply.created} 는 어디에도 걸리지 않는다 — 발행은 성공하고
+     * 메시지만 조용히 사라진다({@code user.suspended} 가 그 상태다).
+     * 바인딩을 늘리려면 브로커 재기동이 필요해서 키를 기존 패턴 안으로 넣는다.
+     */
+    public static final String REPLY_CREATED = "comment.replied";
     /** evt.notification. */
     public static final String NOTICE_CREATED = "notice.created";
     /** evt.notification. */
