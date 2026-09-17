@@ -8,10 +8,12 @@ import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateRequest;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentCreateResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentDeleteResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
+import com.ssafy.motif.coreapi.domain.comment.dto.CommentReportRequest;
 import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentCommandService;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentLikeService;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentQueryService;
+import com.ssafy.motif.coreapi.domain.comment.service.CommentReportService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,15 +30,16 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 댓글 API (명세 §9.1). Base URL 은 {@code /api/v1}.
+ * 댓글 API (명세 §9 전량). Base URL 은 {@code /api/v1}.
  *
  * <p><b>경로가 세 리소스 하위로 갈리지만 컨트롤러는 하나다.</b> 명세 §9 가 세 대상의
  * 댓글을 하나의 계약으로 못박았으므로 응답 형태·정렬·비노출 규칙이 한자리에 있어야
  * 한다. {@code ChallengeController}·{@code VideoController} 에 나눠 넣으면 같은 계약이
  * 세 파일로 흩어지고, 그 셋은 서로 다른 티켓이 병렬로 고치는 파일이다.
  *
- * <p>개별 조작은 {@code /comments/{type}/{commentSeq}} 를 쓴다 — §9.2 답글이 여기 있고
- * §9.4 삭제 · §9.5 좋아요 · §9.6 신고는 각 티켓이 더한다.
+ * <p>개별 조작(§9.2 답글 · §9.4 삭제 · §9.5 좋아요 · §9.6 신고)은
+ * {@code /comments/{type}/{commentSeq}} 를 쓴다 — 댓글 PK 가 테이블마다 따로 도는
+ * 시퀀스라 {@code type} 없이는 어느 테이블의 번호인지 알 수 없다.
  *
  * <p><b>인증이 필요하다</b>(🔓 아님) — {@code isLiked}·{@code isMine} 뿐 아니라
  * <b>정렬 2순위</b>가 호출자 기준이다.
@@ -52,6 +55,7 @@ public class CommentController implements CommentControllerDocs {
     private final CommentQueryService commentQueryService;
     private final CommentCommandService commentCommandService;
     private final CommentLikeService commentLikeService;
+    private final CommentReportService commentReportService;
 
     /** §9.1 챌린지 루트 댓글. */
     @Override
@@ -166,6 +170,23 @@ public class CommentController implements CommentControllerDocs {
                        @PathVariable String type,
                        @PathVariable Long commentSeq) {
         commentLikeService.unlike(user.userSeq(), type, commentSeq);
+    }
+
+    /**
+     * §9.6 신고 — 접수만 하고 {@code data} 는 없다.
+     *
+     * <p>201 이 아니라 200 이다(명세 §9.6, §8.7 과 같다). 신고는 클라이언트가 다시
+     * 가리킬 리소스를 만들지 않는다 — 접수 번호도 돌려주지 않는다.
+     */
+    @Override
+    @PostMapping("/comments/{type}/{commentSeq}/report")
+    public ApiResponse<Void> report(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String type,
+            @PathVariable Long commentSeq,
+            @Valid @RequestBody CommentReportRequest request) {
+        commentReportService.report(user.userSeq(), type, commentSeq, request.reasonCode());
+        return ApiResponse.success();
     }
 
     /** §9.4 삭제 — 본인 댓글만. 루트를 지우면 직계 답글도 함께 지워진다. */
