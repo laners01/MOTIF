@@ -65,5 +65,9 @@ public class AdminViewConfig implements WebMvcConfigurer {
         // 화면으로 빼지 않는다: 처리 버튼이 어느 신고의 것인지 헷갈리고, 목록으로
         // 돌아오는 길을 따로 만들어야 한다
         registry.addViewController(AdminPaths.VIEW + "/reports").setViewName("admin/reports");
+        // 회원 — 검색·상세·정지/해제 한 화면 (§1.7, §3.14). 상세를 행으로 펼치는 이유는
+        // 바로 위 신고와 같다. API(581·582)는 있었는데 화면이 없어 운영자가 브라우저로
+        // 회원을 정지할 길이 없었다
+        registry.addViewController(AdminPaths.VIEW + "/users").setViewName("admin/users");
     }
 }
