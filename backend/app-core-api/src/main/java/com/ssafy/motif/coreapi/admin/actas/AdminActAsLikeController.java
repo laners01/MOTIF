@@ -4,6 +4,7 @@ import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.coreapi.admin.AdminPaths;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
+import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeLikeService;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentLikeService;
 import com.ssafy.motif.coreapi.domain.notice.service.NoticeLikeService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoLikeService;
@@ -32,8 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>응답은 사용자 API 와 같은 <b>204</b> 다. 어드민 화면도 낙관적으로 반영하고 실패 시
  * 되돌린다({@code admin.js} 의 {@code api()} 가 204 를 이미 처리한다).
  *
- * <p>챌린지 좋아요(§7.3)는 <b>사용자 API 가 아직 없어서</b> 여기에 없다 — 대행은 사용자
- * 서비스 메서드를 액터만 바꿔 부르는 것이라 원본이 없으면 만들 수 없다.
+ * <p>ADMIN-11 파급 표의 좋아요 3종(챌린지·참여 영상·공지)과 댓글 좋아요가 전부 여기 있다.
  */
 @Tag(name = "Admin Act-As Like", description = "아티스트 대행 — 좋아요 (어드민 명세 §3.12)")
 @ApiController
@@ -44,6 +44,7 @@ public class AdminActAsLikeController {
 
     private final ActAsArtistResolver actAsArtistResolver;
     private final VideoLikeService videoLikeService;
+    private final ChallengeLikeService challengeLikeService;
     private final NoticeLikeService noticeLikeService;
     private final CommentLikeService commentLikeService;
     private final AdminAuditLogger auditLogger;
@@ -113,6 +114,29 @@ public class AdminActAsLikeController {
                               @PathVariable Long commentSeq) {
         commentLikeService.unlike(actAsArtistResolver.actorUserSeq(artistSeq), type, commentSeq);
         auditLogger.actAs(admin, artistSeq, "UNLIKE_COMMENT", commentSeq, AdminAuditLogger.RESULT_OK);
+    }
+
+
+    @Operation(summary = "챌린지 좋아요 대행", description = "§7.3 과 같다. 204.")
+    @PostMapping("/challenges/{challengeSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void likeChallenge(@AuthenticationPrincipal AuthenticatedAdmin admin,
+                              @PathVariable Integer artistSeq,
+                              @PathVariable Integer challengeSeq) {
+        challengeLikeService.like(actAsArtistResolver.actorUserSeq(artistSeq), challengeSeq);
+        auditLogger.actAs(admin, artistSeq, "LIKE_CHALLENGE", challengeSeq,
+                AdminAuditLogger.RESULT_OK);
+    }
+
+    @Operation(summary = "챌린지 좋아요 해제 대행", description = "§7.3 과 같다. 멱등이다.")
+    @DeleteMapping("/challenges/{challengeSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlikeChallenge(@AuthenticationPrincipal AuthenticatedAdmin admin,
+                                @PathVariable Integer artistSeq,
+                                @PathVariable Integer challengeSeq) {
+        challengeLikeService.unlike(actAsArtistResolver.actorUserSeq(artistSeq), challengeSeq);
+        auditLogger.actAs(admin, artistSeq, "UNLIKE_CHALLENGE", challengeSeq,
+                AdminAuditLogger.RESULT_OK);
     }
 
 }

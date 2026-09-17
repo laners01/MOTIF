@@ -106,6 +106,34 @@ class AdminActAsLikeLocalDbTest {
                 .getSingleResult()).intValue();
     }
 
+    @Test
+    @DisplayName("챌린지 좋아요 대행도 아티스트 이름으로 남는다")
+    void likeChallengeActsAsArtist() {
+        Integer challengeSeq = data.newChallenge(artistSeq, data.newSong(data.newUser()), false);
+
+        controller.likeChallenge(admin, artistSeq, challengeSeq);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(challengeLikeOwner(challengeSeq))
+                .isEqualTo(actAsArtistResolver.actorUserSeq(artistSeq));
+        assertThat(challengeLikeCount(challengeSeq)).isEqualTo(1);
+    }
+
+    private Integer challengeLikeOwner(Integer challengeSeq) {
+        return ((Number) entityManager.createNativeQuery(
+                        "select user_seq from motif_core.challenge_likes where challenge_seq = ?1")
+                .setParameter(1, challengeSeq)
+                .getSingleResult()).intValue();
+    }
+
+    private int challengeLikeCount(Integer challengeSeq) {
+        return ((Number) entityManager.createNativeQuery(
+                        "select like_count from motif_core.challenges where challenge_seq = ?1")
+                .setParameter(1, challengeSeq)
+                .getSingleResult()).intValue();
+    }
+
     private Integer likeOwner() {
         return ((Number) entityManager.createNativeQuery(
                         "select user_seq from motif_core.video_likes where video_seq = ?1")
