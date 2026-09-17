@@ -94,6 +94,20 @@ public class User extends BaseTimeEntity {
     }
 
     /**
+     * 대표 모티프 지정·해제 (API 명세 §11.8).
+     *
+     * <p><b>여기가 대표 단일성이 지켜지는 자리다.</b> 칸이 하나뿐이라 새 값을 덮어쓰면
+     * 이전 대표는 그대로 해제된다 — "이전 대표를 찾아 끄는" 코드를 두지 않는다. 그렇게
+     * 짜면 조회와 해제 사이에 다른 요청이 대표를 바꿨을 때 남의 지정을 되돌린다.
+     *
+     * <p>{@code null} 이 해제다. {@link #getRepMotifResultSeq()} 가 가리키는 결과물이
+     * 삭제될 때도 이 메서드로 비운다 — FK 가 없는 논리 참조라 DB 가 정리해 주지 않는다.
+     */
+    public void changeRepMotif(Long repMotifResultSeq) {
+        this.repMotifResultSeq = repMotifResultSeq;
+    }
+
+    /**
      * 소프트 삭제 — 아티스트 삭제 연쇄 (어드민 명세 §3.5.5).
      *
      * <p>{@code artists} 와 {@code users} 는 한 쌍이라({@code uq_artists_user}) 둘 중
