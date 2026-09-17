@@ -20,8 +20,8 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
         ArtistDetailUiState(
             artistDetail = ArtistDetailMockData.artist,
             notices = ArtistDetailMockData.notices,
-            challengeState = ChallengeUiState.Loading,
             motifs = ArtistDetailMockData.motifs,
+            challengeState = ChallengeUiState.Loading,
         ),
     )
 
@@ -183,9 +183,7 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
             }
 
             val page = when (val page = commentUiState.page) {
-                CommentPage.Comments -> {
-                    page
-                }
+                CommentPage.Comments -> page
 
                 is CommentPage.Replies -> {
                     if (page.parentComment.id == commentId) {
