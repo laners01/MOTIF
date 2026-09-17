@@ -76,5 +76,7 @@ public class AdminViewConfig implements WebMvcConfigurer {
         registry.addViewController(AdminPaths.VIEW + "/act-as/videos").setViewName("admin/act-as-videos");
         // 공지 댓글 대행 (ADMIN-11). 스레드 로직은 영상 화면과 act-as-thread.js 를 공유한다
         registry.addViewController(AdminPaths.VIEW + "/act-as/notices").setViewName("admin/act-as-notices");
+        // 챌린지 탐색 + 좋아요·댓글 대행 (ADMIN-11). 탐색 3종 중 마지막이다
+        registry.addViewController(AdminPaths.VIEW + "/act-as/challenges").setViewName("admin/act-as-challenges");
     }
 }

@@ -14,7 +14,7 @@ const acting = actingArtist();
 const AS = acting ? `/as-artist/${acting.artistSeq}` : null;
 
 /** 대상 종류 → 댓글 목록·작성 경로의 리소스 이름. 답글·삭제는 type 을 그대로 쓴다(§9.2·§9.4). */
-const RESOURCE = {video: 'videos', notice: 'notices'};
+const RESOURCE = {challenge: 'challenges', video: 'videos', notice: 'notices'};
 
 /** 행 아래에 스레드 패널을 펼친다. 별도 화면을 두면 목록으로 돌아오는 길이 필요하다. */
 function toggleThread(tr, target) {
