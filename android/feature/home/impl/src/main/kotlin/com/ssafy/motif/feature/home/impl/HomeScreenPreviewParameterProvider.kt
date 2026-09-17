@@ -8,7 +8,8 @@ import com.ssafy.motif.core.model.home.FanRadarArtist
 import com.ssafy.motif.core.model.home.Motif
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.model.home.Onstage
-import com.ssafy.motif.feature.home.impl.model.CommentSheetUiState
+import com.ssafy.motif.core.ui.comment.CommentPage
+import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.feature.home.impl.model.FanRadarUiState
 import com.ssafy.motif.feature.home.impl.model.FeedAppendUiState
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedUiState
@@ -20,7 +21,7 @@ internal data class HomeScreenPreviewData(
     val onstageUiState: OnstageUiState,
     val fanRadarUiState: FanRadarUiState,
     val myArtistFeedUiState: MyArtistFeedUiState,
-    val commentSheetUiState: CommentSheetUiState,
+    val commentUiState: CommentUiState = CommentUiState(),
 ) {
     override fun toString(): String = name
 }
@@ -35,14 +36,12 @@ internal class HomeScreenPreviewParameterProvider :
                 onstageUiState = previewOnstageUiState,
                 fanRadarUiState = previewFanRadarUiState,
                 myArtistFeedUiState = previewMyArtistFeedUiState,
-                commentSheetUiState = CommentSheetUiState.Hidden,
             ),
             HomeScreenPreviewData(
                 name = "Loading",
                 onstageUiState = OnstageUiState.Loading,
                 fanRadarUiState = FanRadarUiState.Loading,
                 myArtistFeedUiState = MyArtistFeedUiState.Loading,
-                commentSheetUiState = CommentSheetUiState.Hidden,
             ),
             HomeScreenPreviewData(
                 name = "Error",
@@ -61,7 +60,6 @@ internal class HomeScreenPreviewParameterProvider :
                         "피드를 불러오지 못했습니다.",
                     ),
                 ),
-                commentSheetUiState = CommentSheetUiState.Hidden,
             ),
             HomeScreenPreviewData(
                 name = "Feed Loading More",
@@ -72,14 +70,13 @@ internal class HomeScreenPreviewParameterProvider :
                     hasNext = true,
                     appendState = FeedAppendUiState.Loading,
                 ),
-                commentSheetUiState = CommentSheetUiState.Hidden,
             ),
             HomeScreenPreviewData(
                 name = "Comment Sheet",
                 onstageUiState = previewOnstageUiState,
                 fanRadarUiState = previewFanRadarUiState,
                 myArtistFeedUiState = previewMyArtistFeedUiState,
-                commentSheetUiState = previewCommentSheetUiState,
+                commentUiState = previewCommentUiState,
             ),
         )
 }
@@ -153,11 +150,7 @@ private val previewNotices = listOf(
     Notice(
         id = 1L,
         artist = previewArtist,
-        content = """
-            안녕하세요. 예지입니다.
-            오늘도 좋은 하루 보내고 계신가요?
-            곧 새로운 모습으로 만나요 💛
-        """.trimIndent(),
+        content = "안녕하세요. 예지입니다. 오늘도 좋은 하루 보내고 계신가요? 곧 새로운 모습으로 만나요 💛",
         imageUrls = listOf(
             "https://picsum.photos/seed/notice1/800/800",
             "https://picsum.photos/seed/notice2/800/800",
@@ -196,36 +189,57 @@ private val previewMotifs = listOf(
     ),
 )
 
-private val previewMyArtistFeedItems =
-    mergeMyArtistFeedItems(
-        notices = previewNotices,
-        motifs = previewMotifs,
-    )
-
 private val previewComments = listOf(
     Comment(
         id = 1L,
         profileImageUrl = "https://picsum.photos/seed/comment1/200",
-        nickname = "yeji_lover",
-        content = "이번 사진 너무 좋아요 💛",
-        createdAt = 0L,
-        likeCount = 742L,
-        replyCount = 2L,
-        isLiked = false,
-        authorType = CommentAuthorType.USER,
+        nickname = "YEJI",
+        content = "다들 너무 잘 따라 해줘서 고마워요 🖤",
+        createdAt = System.currentTimeMillis() - 30 * 60_000L,
+        likeCount = 2_841L,
+        replyCount = 32L,
+        isLiked = true,
+        authorType = CommentAuthorType.ARTIST,
     ),
     Comment(
         id = 2L,
         profileImageUrl = "https://picsum.photos/seed/comment2/200",
-        nickname = "midzy_01",
-        content = "공지 기다리고 있었어요!",
-        createdAt = 0L,
+        nickname = "motif_me",
+        content = "이번 챌린지 진짜 재밌었어요!",
+        createdAt = System.currentTimeMillis() - 2 * 60 * 60_000L,
         likeCount = 124L,
+        replyCount = 3L,
+        isLiked = false,
+        authorType = CommentAuthorType.CURRENT_USER,
+    ),
+    Comment(
+        id = 3L,
+        profileImageUrl = "https://picsum.photos/seed/comment3/200",
+        nickname = "midzy_01",
+        content = "다음 챌린지도 기다리고 있을게요 👀",
+        createdAt = System.currentTimeMillis() - 5 * 60 * 60_000L,
+        likeCount = 48L,
+        replyCount = 1L,
+        isLiked = false,
+        authorType = CommentAuthorType.USER,
+    ),
+    Comment(
+        id = 4L,
+        profileImageUrl = "https://picsum.photos/seed/comment4/200",
+        nickname = "always_itzy",
+        content = "마지막 포인트 안무가 제일 어렵네요 ㅋㅋ",
+        createdAt = System.currentTimeMillis() - 24 * 60 * 60_000L,
+        likeCount = 21L,
         replyCount = 0L,
         isLiked = true,
         authorType = CommentAuthorType.USER,
     ),
 )
+private val previewMyArtistFeedItems =
+    mergeMyArtistFeedItems(
+        notices = previewNotices,
+        motifs = previewMotifs,
+    )
 
 private val previewOnstageUiState =
     OnstageUiState.Success(
@@ -243,10 +257,8 @@ private val previewMyArtistFeedUiState =
         hasNext = true,
     )
 
-private val previewCommentSheetUiState =
-    CommentSheetUiState.Success(
-        commentCount = previewComments.size.toLong(),
+private val previewCommentUiState =
+    CommentUiState(
+        page = CommentPage.Comments,
         comments = previewComments,
-        repliesByCommentId = emptyMap(),
-        expandedCommentIds = emptySet(),
     )
