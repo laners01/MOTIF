@@ -92,6 +92,58 @@ function videoMeta(file, el = document.createElement('video')) {
     });
 }
 
+/*
+ * ── 썸네일 시각 스크럽 (§4.8) ─────────────────────────────────────────────
+ *
+ * 챌린지 원본과 모티프 에셋이 함께 쓴다. 썸네일 이미지를 따로 올리지 않는다 —
+ * 여기서 고른 지점을 워커가 원본에서 뽑으므로 화질이 원본 그대로다.
+ *
+ * 세 화면(challenge-new · asset-new · asset-edit)이 전부 규격 검증 때문에 이미
+ * <video> 를 띄워 두고 있어 스크럽 대상이 공짜로 있다. 복붙하지 않는 이유는 기본값
+ * 1.5초와 상한 보정이 서버·워커 규칙과 맞물려 있어서다 — 한쪽만 고치면 그 화면에서만
+ * 조용히 다른 프레임이 나온다.
+ *
+ * 화면은 #thumb-pick · #thumb-at · #thumb-at-label 세 요소를 갖는다.
+ */
+
+/** 워커 기본값과 같은 값(HlsPackager.THUMBNAIL_AT) — 첫 프레임은 페이드인·모션블러가 흔하다. */
+const THUMB_DEFAULT_SEC = 1.5;
+
+/**
+ * 슬라이더 범위를 이 영상 길이에 맞추고 스크럽을 연다.
+ *
+ * 상한을 길이보다 조금 앞에 두는 이유: 정확히 끝 지점은 마지막 프레임 다음이라
+ * ffmpeg 가 빈 프레임을 뱉고, 서버도 THUMBNAIL_AT_OUT_OF_RANGE 로 막는다(배타적 경계).
+ *
+ * @param video 화면에 이미 떠 있는 <video> — videoMeta 에 넘긴 그 요소다
+ */
+function initThumbPick(video, durationMs) {
+    const max = Math.max(0, durationMs / 1000 - 0.1);
+    const at = $('thumb-at');
+    at.max = max.toFixed(2);
+    at.value = Math.min(THUMB_DEFAULT_SEC, max).toFixed(2);
+    // addEventListener 가 아니다 — 파일을 다시 고를 때마다 핸들러가 쌓인다
+    at.oninput = () => showThumbAt(video);
+    $('thumb-pick').hidden = false;
+    showThumbAt(video);
+}
+
+/** 스크럽한 지점을 그대로 보여준다 — 등록 후 나올 썸네일이 이 프레임이다. */
+function showThumbAt(video) {
+    const v = Number($('thumb-at').value);
+    $('thumb-at-label').textContent = `${v.toFixed(2)}초`;
+    video.currentTime = v;
+}
+
+/** 파일을 다시 고르거나 취소했을 때 — 이전 영상의 값이 폼에 남지 않게 한다. */
+function resetThumbPick() {
+    $('thumb-pick').hidden = true;
+}
+
+/** 스크럽이 닫혀 있으면 undefined — 선택 필드라 없으면 워커 기본값(1.5초)이 쓰인다. */
+const thumbnailAtMs = () =>
+    ($('thumb-pick').hidden ? undefined : Math.round(Number($('thumb-at').value) * 1000));
+
 /** 목록 API(§1.5 offset 페이지) 를 <select> 에 채우고 항목 배열을 돌려준다. */
 async function fillSelect(select, path, valueKey, label) {
     const {list} = await api(path);

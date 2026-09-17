@@ -80,16 +80,25 @@ public class VideoRules {
         if (meta.durationMs() > properties.rules().challengeMaxDuration().toMillis()) {
             reasons.add(DURATION_EXCEEDED);
         }
-        // durationMs 와 같다면 마지막 프레임 다음이라 이미 영상 밖이다 — 경계는 배타적이다
-        if (thumbnailAtMs != null
-                && (thumbnailAtMs < 0 || thumbnailAtMs >= meta.durationMs())) {
-            reasons.add(THUMBNAIL_AT_OUT_OF_RANGE);
-        }
+        addThumbnailAtReason(reasons, meta, thumbnailAtMs);
         reject(reasons, "챌린지 원본 규격 위반");
     }
 
     /** 모티프 에셋 — 가로 · 최대 길이 이내 (§1.4). */
     public void checkAsset(Meta meta) {
+        checkAsset(meta, null);
+    }
+
+    /**
+     * 모티프 에셋 — 가로 · 최대 길이 이내 (§1.4) · 썸네일 시각이 영상 안 (§4.8).
+     *
+     * <p>썸네일 규칙이 챌린지와 <b>같다</b>. 방향이 반대라 규격 검사는 갈리지만, 썸네일
+     * 시각은 영상 길이만 보는 값이라 방향과 무관하다 — 그래서 검사를 복사하지 않고
+     * {@link #addThumbnailAtReason} 하나를 공유한다.
+     *
+     * @param thumbnailAtMs 선택 값이라 null 이면 검사하지 않는다 — 워커가 기본값 1500 을 쓴다
+     */
+    public void checkAsset(Meta meta, Long thumbnailAtMs) {
         List<String> reasons = baseReasons(meta);
         if (meta.width() > 0 && meta.height() > 0 && meta.width() <= meta.height()) {
             reasons.add(LANDSCAPE_REQUIRED);
@@ -97,6 +106,7 @@ public class VideoRules {
         if (meta.durationMs() > properties.rules().assetMaxDuration().toMillis()) {
             reasons.add(DURATION_EXCEEDED);
         }
+        addThumbnailAtReason(reasons, meta, thumbnailAtMs);
         reject(reasons, "에셋 영상 규격 위반");
     }
 
@@ -116,6 +126,15 @@ public class VideoRules {
                             .formatted(editedDurationMs, originDurationMs, diff, tolerance),
                     Map.of("editedDurationMs", editedDurationMs,
                             "originDurationMs", originDurationMs, "toleranceMs", tolerance));
+        }
+    }
+
+    /** 썸네일 시각이 영상 안인가 (§4.8) — 챌린지 원본·에셋 미리보기 공용. */
+    private static void addThumbnailAtReason(List<String> reasons, Meta meta, Long thumbnailAtMs) {
+        // durationMs 와 같다면 마지막 프레임 다음이라 이미 영상 밖이다 — 경계는 배타적이다
+        if (thumbnailAtMs != null
+                && (thumbnailAtMs < 0 || thumbnailAtMs >= meta.durationMs())) {
+            reasons.add(THUMBNAIL_AT_OUT_OF_RANGE);
         }
     }
 

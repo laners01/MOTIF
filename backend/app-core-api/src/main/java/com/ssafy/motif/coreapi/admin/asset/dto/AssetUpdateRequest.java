@@ -18,6 +18,12 @@ import jakarta.validation.constraints.Size;
  *
  * <p>영상을 바꿔도 <b>기존 결과물·구매는 영향받지 않는다</b> — 그것들은 합성 시점의
  * 키를 따로 들고 있다(§3.8.4).
+ *
+ * @param thumbnailAtMs 교체본에서 썸네일을 뽑을 시각(ms). <b>선택 — 없으면 워커 기본값
+ *                      1500</b>. {@code videoKey} 없이 이것만 보내는 것은 아무 일도 하지
+ *                      않는다 — 후처리는 영상 교체 분기에서만 발행되고, 이미 가공이 끝난
+ *                      에셋의 썸네일만 다시 뽑는 길은 아직 없다(워커의 멱등 가드가
+ *                      막는다 — {@code MediaJobProcessor.alreadyDone})
  */
 public record AssetUpdateRequest(
         @Size(max = 100) String title,
@@ -26,7 +32,8 @@ public record AssetUpdateRequest(
         String videoKey,
         @Positive Long durationMs,
         @Positive Integer width,
-        @Positive Integer height
+        @Positive Integer height,
+        Long thumbnailAtMs
 ) {
 
     /** 영상 교체 요청인가. 넷이 모두 있어야 성립한다 — 부분만 오면 서버가 대조할 수 없다. */

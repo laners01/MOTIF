@@ -26,6 +26,16 @@
         <!--/* videoMeta 에 이 요소를 넘겨 첫 프레임까지 보여준다 — 잘못 고른 파일을 여기서 알아챈다 */-->
         <video id="preview" width="360" controls muted hidden></video>
         <p class="muted" id="meta"></p>
+        <!--/* 썸네일 시각 — 이미지를 따로 올리지 않는다. 여기서 고른 지점을 워커가
+               원본에서 뽑으므로 화질이 원본 그대로다(§4.8). 규격 검증하려고 이미
+               띄워둔 그 <video> 를 그대로 스크럽한다 — 챌린지 등록과 같은 UI. */-->
+        <div id="thumb-pick" hidden>
+            <label>썸네일 시각
+                <input type="range" id="thumb-at" min="0" step="0.1" value="1.5">
+                <span class="muted" id="thumb-at-label">1.50초</span>
+            </label>
+            <p class="muted">비워두면 1.5초 지점을 쓴다 — 도입부가 페이드인·검은 화면이면 옮겨라.</p>
+        </div>
         <ol class="progress">
             <li data-step="upload">S3 업로드</li>
         </ol>

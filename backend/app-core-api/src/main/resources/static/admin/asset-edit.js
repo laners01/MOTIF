@@ -29,6 +29,7 @@ async function pick(file) {
     clearError($('err'));
     replacement = null;
     $('meta').textContent = '';
+    resetThumbPick();      // 교체를 취소하면 시각도 함께 거둔다 — 안 그러면 다음 저장에 실린다
     step('upload', null);
     refresh();
     if (!file) return;     // 파일 선택을 취소하면 "안 바꾼다" 로 돌아간다
@@ -50,6 +51,8 @@ async function pick(file) {
         showError($('err'), new Error(reason));
         return;
     }
+    // 규격을 통과한 뒤에 연다 — 등록 화면과 같은 이유다(그쪽 주석)
+    initThumbPick($('preview'), meta.durationMs);
 
     step('upload', 'doing');
     try {
@@ -118,6 +121,10 @@ async function submit() {
             body.durationMs = replacement.durationMs;
             body.width = replacement.width;
             body.height = replacement.height;
+            // 업로드가 끝난 뒤에도 스크럽할 수 있으므로 저장 시점의 값을 읽는다.
+            // videoKey 없이 이것만 보내면 서버가 아무것도 하지 않는다 — 후처리는
+            // 영상 교체 분기에서만 발행된다(AssetUpdateRequest javadoc)
+            body.thumbnailAtMs = thumbnailAtMs();
         }
         const replacedVideo = Boolean(body.videoKey);
         loaded = await api(`/motif-assets/${assetSeq}`, {method: "PATCH", body});

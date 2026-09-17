@@ -163,12 +163,13 @@ public class AdminAssetService {
         if (request.hasVideo()) {
             // 등록과 같은 순서 — 규격 먼저, HEAD 는 마지막. 왕복이 제일 비싸다(§1.4)
             videoRules.checkAsset(new VideoRules.Meta(
-                    request.durationMs(), request.width(), request.height()));
+                    request.durationMs(), request.width(), request.height()),
+                    request.thumbnailAtMs());
             requireUploaded(request.videoKey());
             asset.replaceVideo(request.videoKey(),
                     MediaKeys.forAssetThumbnail(request.videoKey()),
                     Math.toIntExact(request.durationMs()));
-            publishMediaJob(assetSeq, request.videoKey());
+            publishMediaJob(assetSeq, request.videoKey(), request.thumbnailAtMs());
         }
 
         auditLogger.write(admin, "UPDATE_ASSET", "ASSET", assetSeq, AdminAuditLogger.RESULT_OK);
@@ -193,7 +194,8 @@ public class AdminAssetService {
                     "미존재·삭제 아티스트: artistSeq=" + request.artistSeq());
         }
         // 트랜잭션 진입 전 검증 2종 (§1.4) — 규격 먼저 보고 HEAD 는 마지막에, 왕복이 제일 비싸다
-        videoRules.checkAsset(new VideoRules.Meta(request.durationMs(), request.width(), request.height()));
+        videoRules.checkAsset(new VideoRules.Meta(request.durationMs(), request.width(), request.height()),
+                request.thumbnailAtMs());
         requireUploaded(request.videoKey());
         Country country = country(DEFAULT_COUNTRY_CODE);
 
@@ -204,7 +206,7 @@ public class AdminAssetService {
         priceRepository.save(MotifAssetPrice.of(asset.getAssetSeq(), country.getCountrySeq(),
                 request.price().amount(), request.price().currency(), true, admin.userSeq()));
 
-        publishMediaJob(asset.getAssetSeq(), request.videoKey());
+        publishMediaJob(asset.getAssetSeq(), request.videoKey(), request.thumbnailAtMs());
 
         auditLogger.write(admin, "CREATE_ASSET", "ASSET", asset.getAssetSeq(), AdminAuditLogger.RESULT_OK);
         return new AssetCreateResponse(asset.getAssetSeq(), asset.getDurationMs(),
@@ -214,16 +216,21 @@ public class AdminAssetService {
     /**
      * 후처리 요청 — 렌디션·HLS·썸네일. 챌린지 등록과 같은 모양이다.
      *
-     * <p>썸네일 시각을 넘기지 않는다. 에셋 등록 화면에는 스크럽 UI 가 없어 어드민이
-     * 고를 값이 없고, 워커 기본값(1.5초)이면 ≤20초짜리 미리보기에 충분하다.
+     * <p><b>썸네일 시각은 등록·교체 화면이 고른다</b>(§4.8 챌린지와 같은 스크럽 UI).
+     * {@code null} 이면 워커 기본값 1.5초인데, 도입부가 페이드인이거나 검은 프레임인
+     * 에셋에서는 그 지점이 그대로 까만 썸네일이 된다 — 숍 카드가 통째로 검게 나오고
+     * 예외도 로그도 남지 않는다. 그래서 화면이 고를 수 있게 열어 뒀다.
+     *
+     * <p>값은 저장하지 않는다. 워커로 가는 일회성 지시라 {@code motif_assets} 에 칸이
+     * 없고, 챌린지 원본도 같은 방식이다.
      */
-    private void publishMediaJob(int assetSeq, String videoKey) {
+    private void publishMediaJob(int assetSeq, String videoKey, Long thumbnailAtMs) {
         mediaJobPublisher.publish(
                 MediaJobRequestedEvent.SOURCE_ASSET_PREVIEW,
                 assetSeq,
                 videoKey,                                   // assets/{uuid}.mp4
                 MediaKeys.forAssetPreview(videoKey),        // assets/{uuid}
-                null);
+                thumbnailAtMs);
     }
 
     /** §3.8.5 — 비활성화는 가격까지 내리고(DB §30), 재활성화는 가격을 되살리지 않는다. */

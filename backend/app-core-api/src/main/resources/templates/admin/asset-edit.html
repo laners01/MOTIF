@@ -44,6 +44,16 @@
         <p><input type="file" id="file" accept="video/mp4,video/quicktime"></p>
         <video id="preview" width="360" controls muted hidden></video>
         <p class="muted" id="meta"></p>
+        <!--/* 교체본의 썸네일 시각 — 등록 화면과 같은 UI(§4.8). 영상을 고르지 않으면
+               열리지 않는다: 이미 가공이 끝난 에셋의 썸네일만 다시 뽑는 길은 없다
+               (워커 멱등 가드 — MediaJobProcessor.alreadyDone). */-->
+        <div id="thumb-pick" hidden>
+            <label>썸네일 시각
+                <input type="range" id="thumb-at" min="0" step="0.1" value="1.5">
+                <span class="muted" id="thumb-at-label">1.50초</span>
+            </label>
+            <p class="muted">비워두면 1.5초 지점을 쓴다 — 도입부가 페이드인·검은 화면이면 옮겨라.</p>
+        </div>
         <ol class="progress">
             <li data-step="upload">S3 업로드</li>
         </ol>

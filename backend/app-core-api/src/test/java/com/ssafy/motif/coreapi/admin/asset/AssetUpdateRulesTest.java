@@ -23,7 +23,8 @@ class AssetUpdateRulesTest {
     private static AssetUpdateRequest request(String title, String description, AssetType type,
                                               String videoKey, Long durationMs,
                                               Integer width, Integer height) {
-        return new AssetUpdateRequest(title, description, type, videoKey, durationMs, width, height);
+        return new AssetUpdateRequest(title, description, type, videoKey, durationMs, width, height,
+                null);
     }
 
     @Test
