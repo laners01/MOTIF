@@ -6,7 +6,7 @@
 
 | # | Method | Path | 인증 | 비고 |
 |---|---|---|---|---|
-| 11.1 | GET | `/api/v1/motif/assets` | 필요 | 에셋 목록 — **기본은 내 구독 아티스트** |
+| 11.1 | GET | `/api/v1/motif/assets` | 필요 | **내 보유함** — 구매한 에셋 전량 |
 | 11.2 | GET | `/api/v1/motif/assets/{assetSeq}` | 필요 | 에셋 상세 |
 | 11.3 | GET | `/api/v1/motif/shop` | 필요 | **숍 전량** — 구독 아티스트 × 에셋 *(부활)* |
 | 11.4 | GET | `/api/v1/artists/{artistSeq}/motif-pass` | 필요 | 아티스트별 패스 정보 |
@@ -40,55 +40,51 @@
 
 ---
 
-## 11.1 GET /api/v1/motif/assets — 에셋 목록
+## 11.1 GET /api/v1/motif/assets — 내 보유함 (구매한 에셋)
 
-최신순 고정으로 offset 페이지네이션한다. **`artistSeq` 가 두 모드를 가른다.**
-
-> **(변경) 기본 동작 — 전체가 아니라 내 구독 아티스트** (S15P21D104-224)
+> **(변경) 숍 목록 → 보유함** (S15P21D104-219)
 >
-> 원본 `MOTIF_API_명세서_v0_11.md` §11.1 은 "`artistSeq` 를 생략하면 **전체 아티스트**
-> 에셋"이라고 적혀 있다. 이 티켓에서 기본 동작을 **내가 구독한 아티스트의 에셋**으로
-> 바꿨다.
+> 이 API 는 두 번 바뀌었다.
 >
-> - **근거** — 숍의 기본 화면이 구독 기반이다. 미구독 아티스트 에셋이 섞이면 §4.7 구독
->   카드로 만든 섹션과 목록의 아티스트 집합이 어긋난다.
-> - **전체 카탈로그를 한 번에 주는 경로는 두지 않는다.** 미구독 아티스트의 에셋은
->   아티스트 상세(§5)에서 `artistSeq` 로 들어온다 — 전체 목록이 필요한 화면이 없다.
-> - 원본 명세서 파일은 수정하지 않았다.
+> | 시점 | 대상 | 페이지 |
+> |---|---|---|
+> | 원본 v0.11 | 전체 아티스트 에셋 | offset |
+> | S15P21D104-224 | 내 구독 아티스트 에셋 | offset |
+> | **지금** | **내가 구매한 에셋** | **없음 (비페이지 전량)** |
+>
+> 숍 첫 화면을 그리던 자리는 **§11.3 `GET /api/v1/motif/shop`** 이 가져갔다. 구독 수만큼
+> 이 API 를 부르는 왕복을 없애려고 되살린 API 다.
+>
+> **깨지는 변경이다.** 봉투가 `PageResponse` → `ListResponse` 로 바뀌어
+> `page`·`size`·`totalElements`·`hasNext` 가 사라지고, 요청의 `page`·`size` 를 받지 않으며,
+> 항목에서 `myAccess` 가 빠졌다. 안드로이드가 함께 고쳐야 한다.
+>
+> 원본 명세서 파일은 수정하지 않았다.
 
 ### 요청
 
 ```http
-GET /api/v1/motif/assets?page=0&size=20&artistSeq=3
+GET /api/v1/motif/assets?artistSeq=3
 Authorization: Bearer {accessToken}
 ```
 
-| `artistSeq` | 대상 |
+`artistSeq` 를 생략하면 내가 산 것 전부, 주면 그 아티스트에게서 산 것만이다.
+**정렬은 구매 최신순 고정**이고 파라미터를 받지 않는다.
+
+### 대상 — 산 것은 산 것이다
+
+`asset_purchases.status='ACTIVE'` 인 내 구매만 나온다. 세 가지를 **보지 않는다**.
+
+| 보지 않는 것 | 이유 |
 |---|---|
-| **생략** | 내가 구독한 아티스트 전체의 에셋. 여러 아티스트가 한 목록에 **섞여** 최신순 |
-| **지정** | **구독 여부와 무관하게** 그 아티스트의 에셋만 |
+| `is_active` (판매 중단) | 판매가 끊겨도 내 보유는 남는다 (§4.7 `purchasedAssetCount` 와 같은 규칙) |
+| 구독 | 구독을 끊어도 산 것은 남는다 |
+| `artists.is_deleted` | 같은 이유. 이름·프로필은 행이 남아 있어 계속 나온다 |
 
-정렬 파라미터를 받지 않는다 — 최신순 고정이다.
+**패스로만 열리는 에셋은 나오지 않는다** — 산 것이 아니다. 패스로 무엇이 열리는지는
+§11.3 숍의 `myAccess` 가 답한다.
 
-### 구독 판정 (`artistSeq` 생략 시에만)
-
-- `subscriptions` 에 내 행이 있는 아티스트만.
-- **삭제된 아티스트는 제외한다.** 구독 행은 아티스트가 삭제돼도 남으므로(§4.6·§4.7
-  `findSubscribed` 와 같은 규칙) 거르지 않으면 눌러도 404 가 나는 카드가 섞인다.
-- 구독이 0건이면 빈 목록 200.
-
-`artistSeq` 를 지정한 경우에는 삭제 아티스트 게이트가 없다 — 삭제 연쇄로 그 아티스트의
-에셋이 전부 `is_active=FALSE` 가 되어 개별 구매자에게만 남는데, **산 것은 판매가 끊겨도
-산 것이다**(§4.7 `purchasedAssetCount` 와 같은 규칙).
-
-### 노출 규칙
-
-| 대상 | 노출 |
-|---|---|
-| `is_active=TRUE` | 모든 사용자 |
-| `is_active=FALSE` (판매 중단) | **개별 구매 보유자에게만**. 패스만 있거나 권한이 없으면 보이지 않는다 |
-
-### 성공 응답 (200) — offset 페이지
+### 성공 응답 (200) — 비페이지 전량
 
 ```json
 {
@@ -101,19 +97,12 @@ Authorization: Bearer {accessToken}
         "assetSeq": 21,
         "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
         "title": "9월 신규 에셋",
-        "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
+        "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93/thumb.jpg",
         "description": "9월 신규 에셋 소개 문구",
         "durationMs": 9800,
-        "assetType": "NORMAL",
-        "myAccess": "PASS"
+        "assetType": "NORMAL"
       }
-    ],
-    "page": 0,
-    "size": 20,
-    "totalElements": 42,
-    "totalPages": 3,
-    "hasNext": true,
-    "hasPrevious": false
+    ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
@@ -121,37 +110,26 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 설명 |
 |---|---|
-| `title` | 에셋 표시명 — **전용 컬럼 `motif_assets.title`**(DB v0.11 신설) |
+| `title` | 에셋 표시명 — 전용 컬럼 `motif_assets.title` |
 | `description` | 소개 문구. `title` 과 **다른 필드**이며 `null` 일 수 있다 |
 | `thumbnailUrl` | 공개 CDN URL |
-| `artist` | README §3.5 공통 아티스트 요약. **항목마다 붙는다** — 기본 모드에서 여러 아티스트가 섞이므로 클라이언트가 이 값으로 섹션을 묶는다 |
+| `artist` | README §3.5 공통 아티스트 요약. 여러 아티스트에게서 산 것이 섞이므로 항목마다 붙는다 |
 
-**목록에는 가격이 없다.** 가격과 구매 가능 여부는 §11.2 상세에서 준다.
-
-### 숍 화면 구성 방법
-
-**숍 첫 화면은 §11.3 한 번이다.** 섹션·패스·에셋이 그 응답에 다 들어 있다.
-상단 공용 배너만 §11.11 로 따로 받는다.
-
-이 API(§11.1)는 숍이 아니라 **내 보유함**이다 — 아래 (변경) 블록 참조.
+**가격이 없다** — §11.2 상세의 몫이다.
+**`myAccess` 가 없다** — 전부 개별 구매라 값이 `OWNED` 하나뿐인 칸이 된다.
 
 ### 실패 응답
 
-**도메인 분기 없음.** 노출 가능한 에셋이 0건이면 빈 목록 200. 구독이 0건이거나 없는
-`artistSeq` 를 넘겨도 마찬가지다 — **아티스트 존재를 검증하지 않는다**. 검증하면 없는
-번호로 존재 여부를 떠보는 경로가 열린다.
+**도메인 분기 없음.** 구매가 0건이거나 없는 `artistSeq` 를 넘기면 빈 목록 200 이다 —
+**아티스트 존재를 검증하지 않는다**.
 
-### 구현 메모 (S15P21D104-224)
+### 구현 메모 (S15P21D104-219)
 
-- 구독 필터 · 노출 필터 · `myAccess` 판정을 **한 네이티브 쿼리**에서 한다
-  (`MotifAssetRepository.searchCatalog`). 셋 다 페이지 대상 집합을 바꾸므로 하나라도
-  애플리케이션에서 거르면 `totalElements` 와 페이지 경계가 응답 항목 수와 어긋난다.
-- 패스 만료 비교는 DB 의 `current_timestamp` 다 — 자바 시계로 꺼내 비교하면 앱 서버와
-  DB 의 시계 차만큼 만료 직전·직후 판정이 갈린다.
-- `PREMIUM` 의 패스 미커버만 서비스(`MyAccess.of`)가 판정한다. 쿼리는 "그 아티스트의
-  유효 패스가 있는가"까지만 답한다 — DB 없이 고정할 수 있는 규칙이라 그쪽에 둔다.
-
----
+- `asset_purchases` 가 FROM 절이다(`MotifAssetRepository.findPurchased`). 에셋에서
+  출발해 구매를 `exists` 로 거르면 정렬 기준인 `reg_dttm` 이 서브쿼리에 갇혀
+  **구매 최신순을 낼 수 없다**. 동률은 `purchase_seq` 로 끊는다.
+- 페이지가 없어진 이유는 대상이 "한 사람이 산 것" 이라 카탈로그처럼 늘어나지 않고,
+  화면도 한 번에 펼쳐 놓기 때문이다.
 
 ## 11.2 GET /api/v1/motif/assets/{assetSeq} — 에셋 상세
 

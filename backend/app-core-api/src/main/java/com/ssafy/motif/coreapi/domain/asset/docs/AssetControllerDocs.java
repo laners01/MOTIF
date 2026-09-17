@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.domain.asset.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
-import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetCatalogItem;
 import com.ssafy.motif.coreapi.domain.asset.dto.AssetDetailResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
@@ -26,46 +26,37 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public interface AssetControllerDocs {
 
     String LIST_DESCRIPTION = """
-            **쿼리 없이 부르면 내가 구독한 아티스트들의 에셋**이 한 목록으로 온다.
-            `artistSeq` 를 주면 구독 여부와 무관하게 그 아티스트의 에셋만 본다.
+            **내가 구매한 에셋**을 전량 준다 — 보유함이다. `artistSeq` 를 주면 그
+            아티스트에게서 산 것만 본다.
 
-            > 원본 명세 §11.1 은 "생략하면 전체 아티스트"였다. 숍의 기본 화면이 구독
-            > 기반이라 기본 동작을 바꿨다(S15P21D104-224). **전체 카탈로그를 한 번에 주는
-            > 경로는 없다** — 미구독 아티스트의 에셋은 아티스트 상세(§5)에서 `artistSeq`
-            > 로 들어온다.
+            > **계약이 바뀌었다** (S15P21D104-219). 이 API 는 원래 "구독 아티스트의 에셋
+            > 전량" 이었고 숍 첫 화면을 그리는 자리였다. 그 자리는 **§11.3
+            > `GET /api/v1/motif/shop`** 이 가져갔다. 함께 바뀐 것:
+            > **페이지네이션이 없어졌고**(`page`·`size` 를 받지 않는다) 봉투가
+            > `PageResponse` → `ListResponse` 이며, 항목에서 `myAccess` 가 빠졌다.
 
-            - **인증 필요.** 구독 판정과 `myAccess` 가 호출자 기준이다.
-            - 최신순 고정이다. 정렬 파라미터를 받지 않는다.
-            - 기본 모드에서는 여러 아티스트가 **섞여서** 최신순으로 온다. 섹션 묶기는
-              항목의 `artist.artistSeq` 로 클라이언트가 한다.
-            - **목록에 가격이 없다.** 가격·구매 가능 여부는 §11.2 상세다.
+            - **인증 필요.** 대상이 "내가 산 것" 이다.
+            - **비페이지 전량.** 정렬은 **구매 최신순** 고정이고 파라미터를 받지 않는다.
+            - **가격이 없다.** 가격·구매 가능 여부는 §11.2 상세다.
+            - **`myAccess` 가 없다.** 전부 개별 구매라 값이 하나뿐인 칸이 된다.
 
-            ### 보이는 에셋
+            ### 대상 — 산 것은 산 것이다
 
-            | 대상 | 노출 |
+            `asset_purchases.status='ACTIVE'` 인 내 구매만 나온다. 세 가지를 **보지 않는다**.
+
+            | 보지 않는 것 | 이유 |
             |---|---|
-            | `is_active=TRUE` | 모든 사용자 |
-            | `is_active=FALSE` (판매 중단) | **개별 구매 보유자에게만**. 패스만 있으면 보이지 않는다 |
+            | `is_active` (판매 중단) | 판매가 끊겨도 내 보유는 남는다 |
+            | 구독 | 구독을 끊어도 산 것은 남는다 |
+            | 아티스트 삭제 | 같은 이유. 이름·프로필은 계속 나온다 |
 
-            기본 모드에서는 **삭제된 아티스트**의 에셋이 빠진다 — 구독 행은 아티스트가
-            삭제돼도 남기 때문에 거르지 않으면 눌러도 404 인 카드가 섞인다.
-
-            ### myAccess — 우선순위 `OWNED` > `PASS` > `NONE`
-
-            | 값 | 조건 |
-            |---|---|
-            | `OWNED` | 개별 구매 보유 (`asset_purchases.status='ACTIVE'`) |
-            | `PASS` | 그 아티스트의 유효 패스로 열린다 |
-            | `NONE` | 권한 없음 |
-
-            개별 구매와 패스가 동시에 유효하면 `OWNED` 다. **`PREMIUM` 은 패스로 열리지
-            않는다** — 유효 패스가 있어도 `NONE` 이다. `SECRET` 은 `NORMAL` 과 완전히 같아
-            패스가 커버한다.
+            **패스로만 열리는 에셋은 나오지 않는다** — 산 것이 아니다. 패스로 무엇이
+            열리는지는 §11.3 숍의 `myAccess` 가 답한다.
 
             ### 빈 목록
 
-            구독이 0건이거나, 없는 `artistSeq` 를 넘기거나, 보여 줄 에셋이 없으면
-            **빈 목록 200** 이다. 도메인 실패 분기가 없다.
+            구매가 0건이거나 없는 `artistSeq` 를 넘기면 **빈 목록 200** 이다.
+            도메인 실패 분기가 없다.
             """;
 
     String SUCCESS_EXAMPLE = """
@@ -84,36 +75,27 @@ public interface AssetControllerDocs {
                       "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
                     },
                     "title": "9월 신규 에셋",
-                    "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93.jpg",
+                    "thumbnailUrl": "https://cdn.motif.io/assets/2b7f1c93/thumb.jpg",
                     "description": "9월 신규 에셋 소개 문구",
                     "durationMs": 9800,
-                    "assetType": "NORMAL",
-                    "myAccess": "PASS"
+                    "assetType": "NORMAL"
                   }
-                ],
-                "page": 0,
-                "size": 20,
-                "totalElements": 42,
-                "totalPages": 3,
-                "hasNext": true,
-                "hasPrevious": false
+                ]
               },
               "timestamp": "2026-09-10T00:00:00.000Z"
             }""";
 
-    @Operation(summary = "에셋 목록 — 기본 구독 아티스트 (§11.1)", description = LIST_DESCRIPTION)
+    @Operation(summary = "내 보유함 — 구매한 에셋 (§11.1)", description = LIST_DESCRIPTION)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200", description = "성공 — 대상이 없으면 빈 목록",
+                    responseCode = "200", description = "성공 — 구매가 없으면 빈 목록",
                     content = @Content(mediaType = "application/json",
                             examples = @ExampleObject(value = SUCCESS_EXAMPLE)))
     })
-    ApiResponse<PageResponse<AssetCatalogItem>> assets(
+    ApiResponse<ListResponse<AssetCatalogItem>> assets(
             @Parameter(hidden = true) AuthenticatedUser user,
-            @Parameter(description = "아티스트 식별자 — 생략하면 내 구독 아티스트 전체", example = "3")
-            Integer artistSeq,
-            @Parameter(description = "0-base 페이지", example = "0") int page,
-            @Parameter(description = "페이지 크기 — 최대 100", example = "20") int size);
+            @Parameter(description = "아티스트 식별자 — 생략하면 전체", example = "3")
+            Integer artistSeq);
 
     String DETAIL_DESCRIPTION = """
             구매 화면의 데이터다. 목록(§11.1)이 주지 않는 세 가지가 여기 있다 —
