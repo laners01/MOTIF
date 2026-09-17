@@ -6,6 +6,7 @@ import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
@@ -21,12 +22,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 아티스트 API 문서 계약 (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7).
+ * 팬 앱 아티스트 API 문서 계약 (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §11.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
+ *
+ * <p>§11.4 패스는 §11 도메인이지만 경로가 {@code /artists/{artistSeq}} 아래라 여기 있다 —
+ * 근거는 {@code ArtistController} javadoc.
  */
-@Tag(name = "아티스트 (ARTIST)", description = "명세 §5 — 랭킹·상세·챌린지 그리드·공지 목록·구독")
+@Tag(name = "아티스트 (ARTIST)",
+        description = "명세 §5 — 랭킹·상세·챌린지 그리드·공지 목록·구독 · §11.4 모티프 패스")
 public interface ArtistControllerDocs {
 
     @Operation(
@@ -381,6 +386,69 @@ public interface ArtistControllerDocs {
                             schema = @Schema(implementation = FailResponseSchema.class)))
     })
     ApiResponse<SubscriptionResponse> unsubscribe(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(summary = "아티스트별 모티프 패스 (§11.4)", description = """
+            패스 구매 화면의 데이터다 — **배너 · 내 보유 상태 · 지금 파는 가격**.
+            구 경로 `/motif/shop/artists/{artistSeq}` 를 REST 관점에 맞게 바꾼 것이다.
+
+            - **인증 필요.** `passActive`·`expiresDttm` 이 호출자 기준이다.
+            - `prices` 는 **판매 중인** 개월 수별 가격이고 **개월 오름차순**이다. 꺼진
+              가격은 나오지 않는다 — 내보내면 눌러도 결제가 시작되지 않는 버튼이 생긴다.
+            - 가격이 0건이어도 200 이다(빈 배열). 판매 준비 중인 아티스트가 그렇다.
+
+            ### 보유 중이면 prices 가 빈 배열이다
+
+            현재 구현은 **만료 전 연장 구매를 지원하지 않는다**. 필드가 빠지지는 않는다 —
+            두 응답에 같은 타입을 쓸 수 있어야 한다.
+
+            ### 유효 판정
+
+            `status='ACTIVE' AND expires_dttm > now` 이고 **비교는 DB 가 한다**. `status`
+            만 보면 만료 배치가 돌기 전 구간에서 틀린다. §5.3 아티스트 상세의 `pass` 칸과
+            **같은 판정**이라 두 화면이 다른 말을 하지 않는다.
+
+            ### bannerImageUrl
+
+            `artists.motif_bg_image_key` 를 공개 CDN URL 로 바꾼 값이고 미설정이면 `null`
+            이다. **숍 공용 배너(§11.11)와는 별개**다.
+            """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공 — 미보유면 prices, 보유 중이면 빈 배열",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "artistSeq": 3,
+                                        "bannerImageUrl": "https://cdn.motif.io/artists/3f9c1a2b/motif-bg.jpg",
+                                        "passActive": false,
+                                        "expiresDttm": null,
+                                        "prices": [
+                                          { "durationMonths": 1, "amount": "9900.00", "currency": "KRW" },
+                                          { "durationMonths": 3, "amount": "27900.00", "currency": "KRW" }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "ARTIST_NOT_FOUND",
+                                      "message": "존재하지 않는 아티스트입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ArtistMotifPassResponse> motifPass(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
 }

@@ -20,6 +20,21 @@ public interface MotifPassPriceRepository extends JpaRepository<MotifPassPrice, 
             Integer artistSeq, Integer countrySeq, short durationMonths);
 
     /**
+     * 팬 앱 패스 화면의 {@code prices} (API 명세 §11.4) — <b>한 국가의 판매 중인 가격만</b>,
+     * 개월 오름차순.
+     *
+     * <p>{@link #findByArtistSeqOrderByCountrySeqAscDurationMonthsAsc} 와 나란히 두는
+     * 이유는 <b>보여 주는 대상이 다르기 때문</b>이다. 그쪽은 어드민 가격표(§3.9.1)라
+     * 전 국가·꺼진 행까지 그리드로 펼쳐야 하고, 여기는 구매 화면이라 <b>지금 살 수 있는
+     * 것</b>만이다. 꺼진 가격을 내보내면 누를 수 없는 버튼이 생긴다.
+     *
+     * <p>정렬이 개월순인 것은 화면이 1개월·3개월·6개월을 그 순서로 늘어놓기 때문이다 —
+     * 금액순으로 두면 국가에 따라 순서가 뒤집힌다.
+     */
+    List<MotifPassPrice> findByArtistSeqAndCountrySeqAndActiveTrueOrderByDurationMonthsAsc(
+            Integer artistSeq, Integer countrySeq);
+
+    /**
      * 아티스트 삭제 연쇄 — 그 아티스트의 활성 PASS 가격을 전부 내린다 (어드민 §3.5.5).
      *
      * <p>이미 팔린 PASS 는 건드리지 않는다 — 이 행은 "지금 파는 값"이고 취득한 PASS 의
