@@ -73,6 +73,21 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("회원 — 레이아웃 제목과 목록·상세 템플릿이 들어간다")
+    void users() {
+        String html = render("admin/users");
+
+        assertThat(html)
+                .contains("<title>MOTIF 어드민 · 회원 관리</title>")
+                .contains("/admin/admin.js")
+                .contains("/admin/users.js")
+                .contains("id=\"users\"")
+                .contains("id=\"user-row\"")
+                .contains("id=\"detail-row\"");
+        assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+    }
+
+    @Test
     @DisplayName("숍 배너 — 레이아웃 제목과 행 템플릿이 들어간다")
     void banners() {
         String html = render("admin/banners");

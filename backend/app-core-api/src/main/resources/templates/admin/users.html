@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('회원 관리', ~{::main})}">
+<body>
+<!--/* 회원 검색·상세·정지/해제(§3.14) — 한 화면. 로직은 users.js. */-->
+<main>
+    <p>
+        <label style="display:inline">닉네임
+            <input type="search" id="q" placeholder="부분 일치">
+        </label>
+        <label style="display:inline">회원 번호
+            <input type="number" id="user-seq" min="1" style="width:8em">
+        </label>
+        <label style="display:inline">역할
+            <select id="role">
+                <option value="">전체</option>
+                <option value="USER">일반</option>
+                <option value="ARTIST">아티스트</option>
+                <option value="ADMIN">어드민</option>
+            </select>
+        </label>
+        <label style="display:inline">상태
+            <select id="account-status">
+                <option value="">전체</option>
+                <option value="ACTIVE">활성</option>
+                <option value="SUSPENDED">정지</option>
+            </select>
+        </label>
+        <button type="button" id="reload">조회</button>
+    </p>
+    <p class="err" id="err" hidden></p>
+
+    <table>
+        <thead>
+        <tr><th>#</th><th></th><th>닉네임</th><th>역할</th><th>상태</th><th>가입일</th><th></th><th>결과</th></tr>
+        </thead>
+        <tbody id="users"></tbody>
+    </table>
+    <p class="muted" id="page-hint"></p>
+    <p>
+        <button type="button" id="prev" disabled>이전</button>
+        <button type="button" id="next" disabled>다음</button>
+    </p>
+
+    <p class="muted">
+        가입 역순 고정이다. <strong>탈퇴한 회원도 나온다</strong> — 콘텐츠가 남아 신고 처리 대상이
+        되기 때문이다(상태 칸에 표시). 아티스트·어드민은 로그인 계정이 없어 정지 대상이 아니다.
+        <strong>정지하면 refresh 토큰이 전부 폐기</strong>되어 재로그인이 막힌다. 이미 발급된
+        access 토큰은 만료까지 유효하다(§1.5). 해제해도 토큰은 복구되지 않는다 — 다시 로그인해야 한다.
+    </p>
+
+    <!--/* 상세는 행을 펼쳐서 보여준다 — 신고 화면과 같은 이유다. 별도 화면을 두면
+           목록으로 돌아오는 길이 필요하고, 정지 버튼이 누구 것인지 헷갈린다 */-->
+    <template id="user-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="avatar"></td>
+            <td class="nickname"></td>
+            <td class="role"></td>
+            <td class="status"></td>
+            <td class="reg"></td>
+            <td>
+                <button type="button" class="detail">상세</button>
+                <button type="button" class="suspend">정지</button>
+                <button type="button" class="unsuspend">해제</button>
+            </td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+    <template id="detail-row">
+        <tr class="detail-panel">
+            <td colspan="8">
+                <div class="user-detail"></div>
+            </td>
+        </tr>
+    </template>
+
+    <script src="/admin/users.js" defer></script>
+</main>
+</body>
+</html>
