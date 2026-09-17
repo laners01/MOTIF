@@ -5,7 +5,7 @@
  * 수정이 있다. 이 화면과 §3.8.3/§3.8.4 API 를 같은 티켓에서 메웠다(S15P21D104-401).
  */
 
-const MAX_DURATION_MS = 20_000;     // §1.4 asset-max-duration: 20s
+const MAX_DURATION_MS = 180_000;    // §1.4 asset-max-duration: 3m
 
 const assetSeq = Number(location.pathname.split('/')[3]);
 
@@ -20,7 +20,7 @@ function reject(m) {
         return `가로 영상만 등록할 수 있다 — 지금 ${m.width}×${m.height} 다`;
     }
     if (m.durationMs > MAX_DURATION_MS) {
-        return `20초 이내여야 한다 — 지금 ${(m.durationMs / 1000).toFixed(1)}초다`;
+        return `${MAX_DURATION_MS / 1000}초 이내여야 한다 — 지금 ${(m.durationMs / 1000).toFixed(1)}초다`;
     }
     return null;
 }

@@ -103,7 +103,7 @@ class AdminTemplateRenderTest {
     }
 
     @Test
-    @DisplayName("에셋 등록 — 가로·20초 제약과 가격 칸이 폼에 있다 (§3.8.2)")
+    @DisplayName("에셋 등록 — 가로·3분 제약과 가격 칸이 폼에 있다 (§3.8.2)")
     void assetNew() {
         String html = render("admin/asset-new");
         assertThat(html)
@@ -113,7 +113,7 @@ class AdminTemplateRenderTest {
                 .contains("id=\"preview\"")
                 .contains("id=\"amount\"");
         // 에셋은 가로다 — 챌린지(세로)와 반대라 화면 문구가 뒤바뀌면 운영자가 헛업로드한다
-        assertThat(html).contains("가로").contains("20초");
+        assertThat(html).contains("가로").contains("3분");
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
 

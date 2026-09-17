@@ -11,7 +11,7 @@
  * 실제로 확인했다(원본 12개 중 8개가 등록 안 된 고아). 그래서 업로드 전에 막는다.
  */
 
-const MAX_DURATION_MS = 20_000;     // §1.4 asset-max-duration: 20s
+const MAX_DURATION_MS = 180_000;    // §1.4 asset-max-duration: 3m
 
 /** 업로드가 끝난 S3 키. 등록 요청의 videoKey 다. */
 let videoKey = null;
@@ -29,7 +29,7 @@ function reject(m) {
         return `가로 영상만 등록할 수 있다 — 지금 ${m.width}×${m.height} 다`;
     }
     if (m.durationMs > MAX_DURATION_MS) {
-        return `20초 이내여야 한다 — 지금 ${(m.durationMs / 1000).toFixed(1)}초다`;
+        return `${MAX_DURATION_MS / 1000}초 이내여야 한다 — 지금 ${(m.durationMs / 1000).toFixed(1)}초다`;
     }
     return null;
 }

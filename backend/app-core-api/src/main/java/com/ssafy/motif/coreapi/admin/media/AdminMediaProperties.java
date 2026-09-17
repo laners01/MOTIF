@@ -26,7 +26,7 @@ public record AdminMediaProperties(MediaUploadProperties.Upload video, Rules rul
 
     /**
      * @param challengeMaxDuration 챌린지 원본 최대 길이 (명세 §1.4 — 60초)
-     * @param assetMaxDuration     모티프 에셋 최대 길이 (20초)
+     * @param assetMaxDuration     모티프 에셋 최대 길이 (3분)
      * @param editedTolerance      편집본과 원본의 허용 길이 차 (±500ms)
      */
     public record Rules(Duration challengeMaxDuration, Duration assetMaxDuration,
