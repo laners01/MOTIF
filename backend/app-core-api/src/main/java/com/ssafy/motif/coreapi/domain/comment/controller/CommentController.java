@@ -5,6 +5,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.comment.docs.CommentControllerDocs;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
+import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
@@ -23,8 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 한다. {@code ChallengeController}·{@code VideoController} 에 나눠 넣으면 같은 계약이
  * 세 파일로 흩어지고, 그 셋은 서로 다른 티켓이 병렬로 고치는 파일이다.
  *
- * <p>개별 조작(§9.2 답글 · §9.4 삭제 · §9.5 좋아요 · §9.6 신고)은
- * {@code /comments/{type}/{commentSeq}} 를 쓴다 — 그쪽 매핑은 각 티켓이 여기 더한다.
+ * <p>개별 조작은 {@code /comments/{type}/{commentSeq}} 를 쓴다 — §9.2 답글이 여기 있고
+ * §9.4 삭제 · §9.5 좋아요 · §9.6 신고는 각 티켓이 더한다.
  *
  * <p><b>인증이 필요하다</b>(🔓 아님) — {@code isLiked}·{@code isMine} 뿐 아니라
  * <b>정렬 2순위</b>가 호출자 기준이다.
@@ -73,5 +74,23 @@ public class CommentController implements CommentControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(
                 commentQueryService.noticeComments(user.userSeq(), noticeSeq, page, size));
+    }
+
+    /**
+     * §9.2 답글 펼치기.
+     *
+     * <p>{@code type} 을 {@code String} 으로 받는 이유는 {@code CommentTargetType} 에
+     * 적었다 — 모르는 값은 400 이 아니라 404 여야 한다.
+     */
+    @Override
+    @GetMapping("/comments/{type}/{commentSeq}/replies")
+    public ApiResponse<PageResponse<ReplyItem>> replies(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable String type,
+            @PathVariable Long commentSeq,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                commentQueryService.replies(user.userSeq(), type, commentSeq, page, size));
     }
 }

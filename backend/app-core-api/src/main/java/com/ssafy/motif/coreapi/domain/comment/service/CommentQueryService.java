@@ -1,7 +1,11 @@
 package com.ssafy.motif.coreapi.domain.comment.service;
 
+import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.domain.comment.CommentErrorCode;
+import com.ssafy.motif.coreapi.domain.comment.CommentTargetType;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
+import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.domain.core.comment.ChallengeCommentRepository;
@@ -19,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -79,6 +84,80 @@ public class CommentQueryService {
                 noticeCommentRepository::countRepliesByParents);
     }
 
+    /**
+     * §9.2 답글 펼치기 — <b>등록순 고정</b>.
+     *
+     * <p>세 단계다: ① {@code type} 을 푼다 ② 그 테이블에서 <b>루트</b> 댓글을 찾아 대상
+     * seq 를 얻는다 ③ 그 대상에 §9.1 과 <b>같은 접근 판정</b>을 건다. ②에서 미존재 ·
+     * 삭제 · 루트 아님 · 탈퇴 작성자가 한꺼번에 떨어지고(쿼리가 건다), ③에서 삭제된
+     * 챌린지 · 타인의 {@code PRIVATE} · 잠긴 영상이 걸린다.
+     */
+    public PageResponse<ReplyItem> replies(Integer viewerSeq, String type, Long commentSeq,
+                                           int page, int size) {
+        CommentTargetType targetType = CommentTargetType.from(type)
+                .orElseThrow(() -> commentNotFound(commentSeq));
+
+        return switch (targetType) {
+            case CHALLENGE -> {
+                Integer challengeSeq = challengeCommentRepository.findRootTargetSeq(commentSeq)
+                        .orElseThrow(() -> commentNotFound(commentSeq));
+                Integer artistUserSeq = visibleTarget(commentSeq,
+                        () -> targetGuard.requireChallenge(challengeSeq));
+                yield assembleReplies(
+                        challengeCommentRepository.findReplyPage(commentSeq, pageable(page, size)),
+                        viewerSeq, artistUserSeq,
+                        seqs -> challengeCommentRepository.findLikedCommentSeqs(viewerSeq, seqs));
+            }
+            case VIDEO -> {
+                Long videoSeq = videoCommentRepository.findRootTargetSeq(commentSeq)
+                        .orElseThrow(() -> commentNotFound(commentSeq));
+                Integer artistUserSeq = visibleTarget(commentSeq,
+                        () -> targetGuard.requireVideo(viewerSeq, videoSeq));
+                yield assembleReplies(
+                        videoCommentRepository.findReplyPage(commentSeq, pageable(page, size)),
+                        viewerSeq, artistUserSeq,
+                        seqs -> videoCommentRepository.findLikedCommentSeqs(viewerSeq, seqs));
+            }
+            case NOTICE -> {
+                Integer noticeSeq = noticeCommentRepository.findRootTargetSeq(commentSeq)
+                        .orElseThrow(() -> commentNotFound(commentSeq));
+                Integer artistUserSeq = visibleTarget(commentSeq,
+                        () -> targetGuard.requireNotice(noticeSeq));
+                yield assembleReplies(
+                        noticeCommentRepository.findReplyPage(commentSeq, pageable(page, size)),
+                        viewerSeq, artistUserSeq,
+                        seqs -> noticeCommentRepository.findLikedCommentSeqs(viewerSeq, seqs));
+            }
+        };
+    }
+
+    /**
+     * 대상 접근 판정을 걸되 <b>안 보이는 대상은 "댓글이 없다" 로 바꾼다</b> (§9.2 실패표).
+     *
+     * <p>§9.1 은 대상을 직접 지목하므로 {@code VIDEO_NOT_FOUND} 처럼 대상의 코드로 답한다.
+     * 여기는 {@code commentSeq} 만 들고 들어오는 경로라 대상별 코드를 그대로 내보내면
+     * <b>그 번호가 어느 테이블의 것인지</b>가 응답에서 읽힌다.
+     *
+     * <p><b>{@code COMMENT_DISABLED} 만 통과시킨다</b> — 명세 §9.2 가 403 으로 못박은
+     * 유일한 분기다. 잠금은 "보이지만 쓸 수 없다" 라서 숨길 것이 없다(대상이 안 보이면
+     * 그 판정에 닿기도 전에 위에서 404 가 난다).
+     */
+    private Integer visibleTarget(Long commentSeq, Supplier<Integer> guard) {
+        try {
+            return guard.get();
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == CommentErrorCode.COMMENT_DISABLED) {
+                throw e;
+            }
+            throw commentNotFound(commentSeq);
+        }
+    }
+
+    private static BusinessException commentNotFound(Long commentSeq) {
+        return new BusinessException(CommentErrorCode.COMMENT_NOT_FOUND,
+                "commentSeq: " + commentSeq);
+    }
+
     /** §1.5 상한(100)과 음수 방어는 {@code PageResponses} 가 갖는다 — 여기서 자르지 않는다. */
     private static Pageable pageable(int page, int size) {
         return PageResponses.pageable(page, size);
@@ -113,20 +192,53 @@ public class CommentQueryService {
                 row -> toItem(row, viewerSeq, artistUserSeq, liked, replyCounts));
     }
 
+    /**
+     * 답글 한 페이지 — {@link #assemble} 과 달리 답글 수를 세지 않는다.
+     *
+     * <p>답글에는 답글이 없으므로(깊이 2단 고정) 질의가 하나 적다.
+     */
+    private PageResponse<ReplyItem> assembleReplies(Page<CommentRow> rows, Integer viewerSeq,
+                                                    Integer artistUserSeq,
+                                                    Function<List<Long>, List<Long>> likedFinder) {
+        List<Long> commentSeqs = rows.getContent().stream().map(CommentRow::commentSeq).toList();
+        Set<Long> liked = commentSeqs.isEmpty()
+                ? Set.of()
+                : Set.copyOf(likedFinder.apply(commentSeqs));
+
+        return PageResponses.of(rows, row -> new ReplyItem(
+                row.commentSeq(),
+                row.content(),
+                author(row, artistUserSeq),
+                row.likeCount(),
+                liked.contains(row.commentSeq()),
+                row.authorUserSeq().equals(viewerSeq),
+                row.regDttm()));
+    }
+
     private CommentItem toItem(CommentRow row, Integer viewerSeq, Integer artistUserSeq,
                                Set<Long> liked, Map<Long, Long> replyCounts) {
         return new CommentItem(
                 row.commentSeq(),
                 row.content(),
-                new CommentItem.Author(
-                        row.authorUserSeq(),
-                        row.authorNickname(),
-                        mediaUrlResolver.resolve(row.authorProfileImageKey()),
-                        row.authorUserSeq().equals(artistUserSeq)),
+                author(row, artistUserSeq),
                 row.likeCount(),
                 liked.contains(row.commentSeq()),
                 replyCounts.getOrDefault(row.commentSeq(), 0L),
                 row.authorUserSeq().equals(viewerSeq),
                 row.regDttm());
+    }
+
+    /**
+     * 작성자 요약 — §9.1 항목과 §9.2 답글이 <b>같은 조립</b>을 쓴다.
+     *
+     * <p>{@code isArtist} 판정이 갈리면 같은 사람이 루트에서는 뱃지를 달고 답글에서는
+     * 안 다는 화면이 나온다.
+     */
+    private CommentItem.Author author(CommentRow row, Integer artistUserSeq) {
+        return new CommentItem.Author(
+                row.authorUserSeq(),
+                row.authorNickname(),
+                mediaUrlResolver.resolve(row.authorProfileImageKey()),
+                row.authorUserSeq().equals(artistUserSeq));
     }
 }

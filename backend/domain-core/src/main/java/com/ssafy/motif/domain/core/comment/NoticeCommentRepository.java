@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface NoticeCommentRepository extends JpaRepository<NoticeComment, Long> {
 
@@ -47,6 +48,46 @@ public interface NoticeCommentRepository extends JpaRepository<NoticeComment, Lo
                                   @Param("artistUserSeq") Integer artistUserSeq,
                                   @Param("viewerSeq") Integer viewerSeq,
                                   Pageable pageable);
+
+    /**
+     * 답글을 펼칠 <b>루트</b> 댓글이 매달린 공지 (§9.2).
+     *
+     * <p>무엇이 "행 없음" 으로 떨어지는지는
+     * {@link ChallengeCommentRepository#findRootTargetSeq} 에 적었다.
+     */
+    @Query("""
+            select c.noticeSeq
+            from NoticeComment c
+              join User u on u.userSeq = c.userSeq
+            where c.commentSeq = :commentSeq
+              and c.parentCommentSeq is null
+              and c.deleted = false
+              and u.deleted = false
+            """)
+    Optional<Integer> findRootTargetSeq(@Param("commentSeq") Long commentSeq);
+
+    /** 답글 한 페이지 (§9.2) — 등록순 고정. {@link ChallengeCommentRepository#findReplyPage} 참고. */
+    @Query(value = """
+            select new com.ssafy.motif.domain.core.comment.CommentRow(
+                       c.commentSeq, c.content,
+                       u.userSeq, u.nickname, u.profileImageKey,
+                       c.likeCount, c.regDttm)
+            from NoticeComment c
+              join User u on u.userSeq = c.userSeq
+            where c.parentCommentSeq = :parentSeq
+              and c.deleted = false
+              and u.deleted = false
+            order by c.regDttm asc, c.commentSeq asc
+            """,
+            countQuery = """
+            select count(c)
+            from NoticeComment c
+              join User u on u.userSeq = c.userSeq
+            where c.parentCommentSeq = :parentSeq
+              and c.deleted = false
+              and u.deleted = false
+            """)
+    Page<CommentRow> findReplyPage(@Param("parentSeq") Long parentSeq, Pageable pageable);
 
     /** 페이지의 답글 수 — {@link ChallengeCommentRepository#countRepliesByParents} 와 같은 규칙. */
     @Query("""

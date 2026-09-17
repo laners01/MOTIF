@@ -3,6 +3,7 @@ package com.ssafy.motif.coreapi.domain.comment.docs;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
+import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 댓글 API 문서 계약 (명세 §9.1).
+ * 댓글 API 문서 계약 (명세 §9.1 · §9.2).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -185,6 +186,99 @@ public interface CommentControllerDocs {
     ApiResponse<PageResponse<CommentItem>> noticeComments(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "공지 식별자", example = "7") Integer noticeSeq,
+            @Parameter(description = "0-base 페이지", example = "0") int page,
+            @Parameter(description = "페이지 크기 — 최대 100", example = "20") int size);
+
+    @Operation(
+            summary = "답글 펼치기 (§9.2)",
+            description = """
+                    §9.1 이 접어 둔 답글(`replyCount`)을 펼친다.
+
+                    - **인증 필요.** `isLiked`·`isMine` 이 호출자 기준이다.
+                    - **등록순 고정**이다 — 최신순이 아니다. 답글은 대화라서 쓴 순서대로 읽힌다.
+                    - 항목에 **`replyCount` 가 없다** — 답글에는 답글이 없다(깊이 2단 고정).
+                    - `totalElements` 는 §9.1 의 `replyCount` 와 **같은 값**이다.
+
+                    ### 경로의 `{type}`
+
+                    `challenge` | `video` | `notice` — **소문자**다. 댓글 PK 는 테이블마다 따로
+                    도는 시퀀스라 `{type}` 없이는 어느 테이블의 `501` 인지 알 수 없다.
+
+                    ### 404 는 여섯 가지를 한 코드로 답한다
+
+                    미존재 · 삭제된 댓글 · **루트가 아님**(답글의 답글을 펼치려는 요청) ·
+                    탈퇴 사용자가 쓴 루트(**스레드 전체 비노출**, §1.8) · **대상이 안 보임**
+                    (삭제된 챌린지·공지, 타인의 `PRIVATE` 영상) · 알 수 없는 `{type}` 이
+                    모두 `COMMENT_NOT_FOUND` 다.
+
+                    대상 쪽 코드(`VIDEO_NOT_FOUND` 등)로 가르지 않는 것은 의도다 — 이 경로는
+                    `commentSeq` 만 들고 오므로 대상별 코드를 주면 **그 번호가 어느 테이블의
+                    것인지**가 응답에서 읽힌다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": {
+                                "list": [
+                                  {
+                                    "commentSeq": 530,
+                                    "content": "😂😂😂",
+                                    "author": {
+                                      "userSeq": 9,
+                                      "nickname": "dancing_mandu",
+                                      "profileImageUrl": null,
+                                      "isArtist": false
+                                    },
+                                    "likeCount": 0,
+                                    "isLiked": false,
+                                    "isMine": false,
+                                    "regDttm": "2026-09-01T13:00:00.000Z"
+                                  }
+                                ],
+                                "page": 0,
+                                "size": 20,
+                                "totalElements": 2,
+                                "totalPages": 1,
+                                "hasNext": false,
+                                "hasPrevious": false
+                              },
+                              "timestamp": "2026-09-10T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "(참여 영상) 댓글 사용 중지",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "COMMENT_DISABLED",
+                                      "message": "댓글을 사용할 수 없는 게시물입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "미존재 · 삭제 · 루트 아님 · 탈퇴 작성자의 스레드 · 대상 비노출 · 알 수 없는 type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "COMMENT_NOT_FOUND",
+                                      "message": "존재하지 않는 댓글입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<PageResponse<ReplyItem>> replies(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "challenge | video | notice", example = "challenge") String type,
+            @Parameter(description = "루트 댓글 식별자", example = "501") Long commentSeq,
             @Parameter(description = "0-base 페이지", example = "0") int page,
             @Parameter(description = "페이지 크기 — 최대 100", example = "20") int size);
 }

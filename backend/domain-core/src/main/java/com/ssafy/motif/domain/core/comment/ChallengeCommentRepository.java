@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ChallengeCommentRepository extends JpaRepository<ChallengeComment, Long> {
 
@@ -65,6 +66,61 @@ public interface ChallengeCommentRepository extends JpaRepository<ChallengeComme
                                   @Param("artistUserSeq") Integer artistUserSeq,
                                   @Param("viewerSeq") Integer viewerSeq,
                                   Pageable pageable);
+
+    /**
+     * 답글을 펼칠 <b>루트</b> 댓글이 매달린 챌린지 (API 명세 §9.2).
+     *
+     * <p><b>"답글을 펼칠 수 있는가" 를 한 문장으로 답한다.</b> 미존재 · 삭제된 댓글 ·
+     * <b>루트가 아님</b>(답글의 답글을 펼치려는 요청) · <b>탈퇴 사용자가 쓴 루트</b>
+     * (§1.8 — 스레드 전체가 비노출이다)가 모두 "행 없음" 으로 떨어진다. 명세 §9.2 의
+     * 404 는 이 넷이 같은 {@code COMMENT_NOT_FOUND} 다.
+     *
+     * <p>돌려주는 것이 대상 seq 인 이유: 댓글이 보이는지와 <b>대상이 보이는지</b>는 다른
+     * 질문이고(잠긴 영상 · 삭제된 챌린지), 후자는 §9.1 과 같은 판정을 써야 한다.
+     */
+    @Query("""
+            select c.challengeSeq
+            from ChallengeComment c
+              join User u on u.userSeq = c.userSeq
+            where c.commentSeq = :commentSeq
+              and c.parentCommentSeq is null
+              and c.deleted = false
+              and u.deleted = false
+            """)
+    Optional<Integer> findRootTargetSeq(@Param("commentSeq") Long commentSeq);
+
+    /**
+     * 루트 댓글의 답글 한 페이지 (API 명세 §9.2) — <b>등록순 고정</b>.
+     *
+     * <p>최신순이 아니다. 답글은 대화라서 쓴 순서대로 읽혀야 한다.
+     *
+     * <p>{@code commentSeq asc} 타이브레이크는 §9.1 과 같은 이유다 — 같은 시각의 답글이
+     * 페이지 경계에서 중복되거나 빠지지 않게 한다.
+     *
+     * <p>정렬 그룹({@code artistUserSeq}·{@code viewerSeq})을 받지 않는다 — 세 그룹
+     * 우선순위는 <b>루트 목록만</b>의 규칙이다(§9.1). 답글은 등록순 하나뿐이다.
+     */
+    @Query(value = """
+            select new com.ssafy.motif.domain.core.comment.CommentRow(
+                       c.commentSeq, c.content,
+                       u.userSeq, u.nickname, u.profileImageKey,
+                       c.likeCount, c.regDttm)
+            from ChallengeComment c
+              join User u on u.userSeq = c.userSeq
+            where c.parentCommentSeq = :parentSeq
+              and c.deleted = false
+              and u.deleted = false
+            order by c.regDttm asc, c.commentSeq asc
+            """,
+            countQuery = """
+            select count(c)
+            from ChallengeComment c
+              join User u on u.userSeq = c.userSeq
+            where c.parentCommentSeq = :parentSeq
+              and c.deleted = false
+              and u.deleted = false
+            """)
+    Page<CommentRow> findReplyPage(@Param("parentSeq") Long parentSeq, Pageable pageable);
 
     /**
      * 페이지에 실린 루트 댓글들의 답글 수 (§9.1 {@code replyCount}) — 한 번에.
