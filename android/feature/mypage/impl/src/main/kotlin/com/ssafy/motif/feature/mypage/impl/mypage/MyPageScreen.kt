@@ -1,5 +1,8 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
@@ -58,6 +61,7 @@ fun MyPageScreen(
         onNicknameChange = viewModel::onNicknameChange,
         onNicknameEditDone = viewModel::onNicknameEditDone,
         onNicknameEditCancel = viewModel::onNicknameEditCancel,
+        onProfileImageSelected = viewModel::onProfileImageSelected,
         modifier = modifier,
     )
 }
@@ -74,8 +78,14 @@ internal fun MyPageScreen(
     onNicknameChange:(String) -> Unit,
     onNicknameEditDone:() -> Unit,
     onNicknameEditCancel:() -> Unit,
+    onProfileImageSelected:(String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) {uri ->
+        onProfileImageSelected(uri?.toString())
+    }
 
     val listState = rememberLazyListState()
 
@@ -126,6 +136,11 @@ internal fun MyPageScreen(
                             onNicknameEditDone = onNicknameEditDone,
                             onNicknameEditCancel = onNicknameEditCancel,
                             onNotificationClick = onNotificationClick,
+                            onProfileImageClick = {
+                                launcher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                )
+                            },
                             onSettingsClick = onSettingsClick,)
                     }
                 }

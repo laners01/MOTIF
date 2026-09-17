@@ -46,6 +46,7 @@ internal fun MyProfileSection(
     onNicknameEditCancel: () -> Unit,
     onNotificationClick:() -> Unit,
     onSettingsClick:() -> Unit,
+    onProfileImageClick:() -> Unit,
     modifier: Modifier = Modifier,
 ){
     Row(
@@ -64,7 +65,9 @@ internal fun MyProfileSection(
             fallback = painterResource(DesignSystemR.drawable.profile_square),
             modifier = Modifier
                 .size(28.dp)
-                .clip(CircleShape),
+                .clip(CircleShape)
+                .clickable(onClick = onProfileImageClick),
+
         )
         if(nicknameEdit == null){
             Text(

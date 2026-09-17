@@ -170,6 +170,21 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
     fun onNicknameEditCancel(){ // 폐기
         _uiState.update { it.copy(nicknameEdit = null) }
     }
+
+    fun onProfileImageSelected(uri: String?){
+        if(uri == null)return   //취소시 기존 이미지 유지
+
+        val current = (_uiState.value.profileState as? ProfileUiState.Success)
+            ?.profile?: return
+
+        _uiState.update{
+            it.copy(
+                profileState = ProfileUiState.Success(
+                    profile = current.copy(profileImageUrl = uri),
+                )
+            )
+        }
+    }
     companion object {
         private const val CHALLENGE_PAGE_SIZE = 9
         private const val MAX_NICKNAME_LENGTH = 20

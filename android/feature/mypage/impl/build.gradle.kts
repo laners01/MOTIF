@@ -13,4 +13,5 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtimeCompose)
     implementation(libs.coil.kt.compose)
     implementation(projects.feature.mypage.api)
+    implementation(libs.androidx.activity.compose)
 }
