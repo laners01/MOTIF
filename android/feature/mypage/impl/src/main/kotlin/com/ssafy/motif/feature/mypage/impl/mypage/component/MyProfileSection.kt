@@ -24,6 +24,7 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.mypage.UserProfile
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
+
 @Composable
 internal fun MyProfileSection(
     profile: UserProfile,

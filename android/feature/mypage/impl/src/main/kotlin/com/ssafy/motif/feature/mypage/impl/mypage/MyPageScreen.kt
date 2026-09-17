@@ -27,7 +27,12 @@ import com.ssafy.motif.core.designsystem.component.TabRowDefaults
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults.tabIndicatorOffset
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyProfileSection
-
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.items
+import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
+import androidx.compose.foundation.layout.Arrangement
 @Composable
 fun MyPageScreen(
     modifier: Modifier = Modifier,
@@ -139,7 +144,39 @@ internal fun MyPageScreen(
                 }
             }
             when (uiState.selectedTab) {
-                MyPageTab.Challenge -> { /* 4 참고 */ }
+                MyPageTab.Challenge -> {
+                    when (val state = uiState.challengeState) {
+                        MyChallengeUiState.Loading -> { item { ChallengeLoadingContent() } }
+
+                        is MyChallengeUiState.Success -> {
+                            items(
+                                items = state.challenges.chunked(3),
+                                key = { row -> row.first().id },
+                            ) { row ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
+                                    row.forEach { challenge ->
+                                        ChallengeThumbnail(
+                                            thumbnailUrl = challenge.thumbnailUrl,
+                                            viewCount = challenge.view,
+                                            onClick = { },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                    repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                                }
+                            }
+
+                            if (state.appendState is MyChallengeAppendUiState.Loading) {
+                                item { ChallengeLoadingMore() }
+                            }
+                        }
+
+                        is MyChallengeUiState.Error -> { item { } }
+                    }
+                 }
                 MyPageTab.Artist -> { item { } }   // 모델 없음
                 MyPageTab.Liked -> { item { } }    // 모델 없음
             }
@@ -159,6 +196,32 @@ private fun ProfileLoading(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 40.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        LoadingWheel()
+    }
+}
+@Composable
+private fun ChallengeLoadingContent(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 80.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        LoadingWheel()
+    }
+}
+@Composable
+private fun ChallengeLoadingMore(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
         LoadingWheel()
