@@ -53,6 +53,10 @@ function render(videos) {
             video.hasArtistComment && '댓글',
         ].filter(Boolean).join(' ');
 
+        const like = row.querySelector('.like');
+        renderVideoLike(like, video);
+        like.addEventListener('click', () => toggleVideoLike(like, video));
+
         const open = row.querySelector('.open');
         const tr = row.querySelector('tr');
         if (!video.commentEnabled) {
@@ -61,6 +65,37 @@ function render(videos) {
         }
         open.addEventListener('click', () => toggleThread(tr, {type: 'video', seq: video.videoSeq}));
         tbody.append(row);
+    }
+}
+
+/**
+ * 영상 좋아요 대행 (§8.3 · §3.12).
+ *
+ * <p>목록이 돌려주는 hasArtistLike 는 <b>활동 중 아티스트가 눌렀는가</b>와 같은 값이다 —
+ * 영상에 걸린 아티스트가 하나뿐이라 그렇다. 그래서 별도 isLiked 조회 없이 이것으로
+ * 버튼 상태를 그린다.
+ */
+function renderVideoLike(button, video) {
+    button.textContent = `${video.hasArtistLike ? '♥' : '♡'} ${video.likeCount}`;
+}
+
+async function toggleVideoLike(button, video) {
+    const next = !video.hasArtistLike;
+    button.disabled = true;
+    try {
+        await api(`${AS}/videos/${video.videoSeq}/like`, {method: next ? 'POST' : 'DELETE'});
+        video.hasArtistLike = next;
+        video.likeCount += next ? 1 : -1;
+        renderVideoLike(button, video);
+        // 배지도 같이 움직인다 — 목록의 "아티스트" 칸이 이 플래그다
+        button.closest('tr').querySelector('.badges').textContent = [
+            video.hasArtistLike && '♥',
+            video.hasArtistComment && '댓글',
+        ].filter(Boolean).join(' ');
+    } catch (e) {
+        showError($('err'), e);
+    } finally {
+        button.disabled = false;
     }
 }
 

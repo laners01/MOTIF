@@ -70,11 +70,46 @@ function node(comment, target, box, isReply = false) {
     else reply.addEventListener('click', () =>
             root.querySelector('.children').prepend(writeForm(target, comment.commentSeq, box)));
 
+    const like = el.querySelector('.like');
+    renderLike(like, comment.isLiked, comment.likeCount);
+    like.addEventListener('click', () => toggleCommentLike(like, comment, target, root));
+
     const del = el.querySelector('.del');
     if (!comment.isMine) del.remove();
     else del.addEventListener('click', () => remove(comment, target, box, root));
 
     return el;
+}
+
+/** ♥ 표시 — 서버가 카운터를 돌려주지 않으므로(204) 화면이 들고 있는 값을 쓴다. */
+function renderLike(button, liked, count) {
+    button.textContent = `${liked ? '♥' : '♡'} ${count}`;
+    button.dataset.liked = String(!!liked);
+}
+
+/**
+ * 좋아요 토글 대행 (§9.5 · §3.12).
+ *
+ * <p>낙관적으로 먼저 반영하고 실패하면 되돌린다 — 204 라 서버가 새 카운터를 주지 않는다.
+ * 스레드를 통째로 다시 받으면 열어 둔 답글과 작성 중인 글이 날아간다.
+ */
+async function toggleCommentLike(button, comment, target, root) {
+    const liked = button.dataset.liked === 'true';
+    const next = !liked;
+    button.disabled = true;
+    renderLike(button, next, comment.likeCount + (next ? 1 : -1));
+
+    try {
+        await api(`${AS}/comments/${target.type}/${comment.commentSeq}/like`,
+                {method: next ? 'POST' : 'DELETE'});
+        comment.likeCount += next ? 1 : -1;
+        comment.isLiked = next;
+    } catch (e) {
+        renderLike(button, liked, comment.likeCount);       // 되돌린다
+        showError(root.querySelector('.msg'), e);
+    } finally {
+        button.disabled = false;
+    }
 }
 
 async function loadReplies(root, comment, target, box) {
