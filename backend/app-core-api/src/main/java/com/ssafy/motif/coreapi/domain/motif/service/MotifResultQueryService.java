@@ -1,11 +1,15 @@
 package com.ssafy.motif.coreapi.domain.motif.service;
 
+import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.coreapi.domain.motif.MotifErrorCode;
+import com.ssafy.motif.coreapi.domain.motif.dto.MotifResultDetailResponse;
 import com.ssafy.motif.coreapi.domain.motif.dto.MotifResultItem;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.artist.ArtistCardRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
+import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
 import com.ssafy.motif.domain.core.motif.MotifResultRepository;
 import com.ssafy.motif.domain.core.user.UserRepository;
@@ -21,7 +25,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 모티프 보관함 조회 (API 명세 §11.5).
+ * 모티프 보관함 조회 (API 명세 §11.5 · §11.6).
  *
  * <p><b>조회 세 번으로 끝난다</b> — 목록 · 아티스트 요약(배치) · 내 대표 모티프 seq.
  * 항목마다 아티스트를 읽거나 대표 여부를 물으면 그대로 N+1 이다.
@@ -41,6 +45,7 @@ public class MotifResultQueryService {
 
     private final MotifResultRepository motifResultRepository;
     private final ArtistRepository artistRepository;
+    private final MotifAssetRepository motifAssetRepository;
     private final UserRepository userRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
@@ -82,6 +87,68 @@ public class MotifResultQueryService {
 
         String nextCursor = hasNext ? Cursors.encode(results.getLast().getResultSeq()) : null;
         return CursorResponse.forward(list, nextCursor);
+    }
+
+    /**
+     * §11.6 결과물 상세 — 재생 화면.
+     *
+     * <p><b>안 보이는 결과물은 전부 404 다</b> — 미존재 · 삭제 · 타인 소유가 같은
+     * {@code MOTIF_RESULT_NOT_FOUND} 다(§1.8 존재 은닉). 조회 메서드가 이미
+     * {@code userSeq} 를 걸고 있어 타인 소유가 자동으로 빈 결과가 된다.
+     *
+     * <p><b>잡을 읽지 않는다.</b> 재생 주소는 결과물의 {@code video_key} 로 만든다 —
+     * 그 값이 이미 마스터 재생목록 키다(ADR-0012).
+     *
+     * @throws BusinessException {@code MOTIF_RESULT_NOT_FOUND}
+     */
+    public MotifResultDetailResponse detail(Integer userSeq, Long resultSeq) {
+        MotifResult result = motifResultRepository
+                .findByResultSeqAndUserSeqAndDeletedFalse(resultSeq, userSeq)
+                .orElseThrow(() -> new BusinessException(MotifErrorCode.MOTIF_RESULT_NOT_FOUND));
+
+        ArtistCardRow card = artistRepository.findCards(List.of(result.getArtistSeq()))
+                .stream().findFirst().orElse(null);
+        Long repResultSeq = userRepository.findById(userSeq)
+                .map(user -> user.getRepMotifResultSeq())
+                .orElse(null);
+
+        return new MotifResultDetailResponse(
+                result.getResultSeq(),
+                // 프리픽스 서명 — 조각까지 이 한 벌로 통한다
+                mediaUrlResolver.resolvePlaylist(result.getVideoKey()),
+                // 단일 파일 서명 — 그 한 장만 열린다. 둘을 같은 메서드로 만들면
+                // 재생목록에 단일 서명이 붙어 조각이 403 이 된다
+                mediaUrlResolver.resolve(result.getThumbnailKey()),
+                result.getDescription(),
+                result.getDurationMs(),
+                asset(result.getAssetSeq()),
+                detailArtist(result.getArtistSeq(), card),
+                Objects.equals(repResultSeq, result.getResultSeq()),
+                result.getRegDttm());
+    }
+
+    /**
+     * 에셋 요약 — 판매가 중단됐거나 아티스트가 삭제됐어도 <b>상세는 열린다</b>.
+     *
+     * <p>§11.5 목록에 나오는 것이 상세에서 404 면 목록과 상세가 어긋난다. 내가 만든
+     * 결과물이라는 사실은 에셋의 판매 상태와 무관하다.
+     */
+    private MotifResultDetailResponse.Asset asset(Integer assetSeq) {
+        return motifAssetRepository.findById(assetSeq)
+                .map(asset -> new MotifResultDetailResponse.Asset(
+                        asset.getAssetSeq(), asset.getTitle()))
+                .orElseGet(() -> new MotifResultDetailResponse.Asset(assetSeq, null));
+    }
+
+    private MotifResultDetailResponse.Artist detailArtist(Integer artistSeq, ArtistCardRow card) {
+        if (card == null) {
+            return new MotifResultDetailResponse.Artist(artistSeq, null, null, null);
+        }
+        return new MotifResultDetailResponse.Artist(
+                card.artistSeq(),
+                card.name(),
+                card.groupName(),
+                mediaUrlResolver.resolve(card.profileImageKey()));
     }
 
     /**

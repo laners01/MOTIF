@@ -394,8 +394,8 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "resultSeq": 10,
-    "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
-    "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
+    "videoUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+    "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1790000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
     "description": null,
     "durationMs": 9800,
     "asset": { "assetSeq": 21, "title": "9월 신규 에셋" },
@@ -408,7 +408,21 @@ Authorization: Bearer {accessToken}
 ```
 
 - `description` 은 선택 사항이라 **`null` 일 수 있다** — 합성 직후 자동 생성 시 `NULL` 이고, 사용자가 §11.8 로 채운다.
-- 서명이 만료(10분)돼 조각 요청이 403 이면 **재생목록을 다시 받는다** — core-api 가 새 서명으로 내려준다. §5.3 자동재생 목록의 만료 대응 경로와 같다.
+- `asset` 은 `assetSeq`·`title` **둘뿐이다**. 썸네일·가격은 §11.2 상세다.
+
+### 두 URL 의 서명이 다르다 *(ADR-0012)*
+
+| 필드 | 서명 | 이유 |
+|---|---|---|
+| `videoUrl` | **프리픽스 서명**(`Policy`) | HLS 는 재생목록 안에서 조각을 더 요청한다. 클라이언트가 그 요청에도 **같은 파라미터**를 붙여야 한다 |
+| `thumbnailUrl` | **단일 파일 서명**(`Expires`) | 그 자체로 끝나는 주소다. 만료 6시간 |
+
+서명이 만료(10분)돼 조각 요청이 403 이면 **`POST /api/v1/media/{jobUuid}/signature`** 로
+새 파라미터를 받는다 — 이 API 를 다시 부를 필요가 없다.
+
+**`videoUrl` 은 키를 조립해 만들지 않는다.** `motif_results.video_key` 가 이미 마스터
+재생목록 키이고(app-media 가 가공 후 덮어쓴다), `MediaUrlResolver.resolvePlaylist` 가
+그 값을 그대로 받는다.
 
 ### 실패 응답
 
@@ -425,6 +439,19 @@ Authorization: Bearer {accessToken}
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
 ```
+
+403 으로 가르지 않는다 — `resultSeq` 는 찍어 볼 수 있는 값이라 "그건 남의 것" 이
+응답에서 읽히면 안 된다(§1.8).
+
+**삭제된 아티스트·판매 중단 에셋의 결과물은 열린다.** §11.5 목록에 나오는 것이 여기서
+404 면 목록과 상세가 어긋난다.
+
+### 구현 메모 (S15P21D104-228)
+
+- `findByResultSeqAndUserSeqAndDeletedFalse` 가 **이미 `userSeq` 를 걸어** 타인 소유가
+  자동으로 빈 결과가 된다. 서비스가 소유자 분기를 따로 두지 않는다.
+- **`CompositeJob` 을 읽지 않는다.** ADR-0012 이후 재생 주소는 `video_key` 로 만든다.
+- `MOTIF_RESULT_NOT_FOUND` 는 `MotifErrorCode` 가 갖는다 — §11.8 의 404 도 같은 코드다.
 
 ---
 
