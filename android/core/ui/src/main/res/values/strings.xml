@@ -4,4 +4,6 @@
     <string name="reply_input_placeholder">답글을 남겨보세요</string>
     <string name="comment_send_content_description">댓글 등록</string>
     <string name="comment_artist_badge">아티스트</string>
+    <string name="comment_sheet_comments_title">댓글</string>
+    <string name="comment_sheet_replies_title">답글</string>
 </resources>
