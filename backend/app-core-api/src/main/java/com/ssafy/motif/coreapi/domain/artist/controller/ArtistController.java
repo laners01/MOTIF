@@ -8,10 +8,12 @@ import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.artist.docs.ArtistControllerDocs;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
 import com.ssafy.motif.coreapi.domain.artist.dto.SubscriptionResponse;
+import com.ssafy.motif.coreapi.domain.artist.service.ArtistMotifPassQueryService;
 import com.ssafy.motif.coreapi.domain.artist.service.ArtistQueryService;
 import com.ssafy.motif.coreapi.domain.artist.service.ArtistRankingQueryService;
 import com.ssafy.motif.coreapi.domain.artist.service.SubscriptionCommandService;
@@ -27,17 +29,18 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 팬 앱 아티스트 API (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7).
+ * 팬 앱 아티스트 API (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §11.4).
  * Base URL 은 {@code /api/v1}.
  *
  * <p><b>전부 인증이 필요하다</b>(🔓 아님) — §5.3 은 {@code isSubscribed}·
  * {@code subscribedDays}·{@code pass} 를, §5.5 는 {@code isLiked} 를 호출자 기준으로
  * 채운다. §5.4 만 항목에 내 상태가 없지만 팬 앱 로그인 뒤 화면이라 공개로 열지 않는다.
  *
- * <p><b>매핑만 여기 모이고 서비스는 셋으로 갈린다.</b> 조회는
+ * <p><b>매핑만 여기 모이고 서비스는 넷으로 갈린다.</b> 조회는
  * {@link ArtistQueryService}(DB), 랭킹은 {@link ArtistRankingQueryService}(1차 출처가
  * 배치가 만든 Redis 스냅샷), 구독은 {@link SubscriptionCommandService}(유일한 쓰기 —
- * 읽기 전용 서비스에 섞지 않는다).
+ * 읽기 전용 서비스에 섞지 않는다), 패스는
+ * {@link ArtistMotifPassQueryService}(§11 도메인이라 조회 서비스에 섞지 않는다).
  *
  * <p>§5.2 검색·§5.9 자동완성은 아직 없다 — 같은 {@code /artists} 경로라도 별개 티켓이라
  * 여기 매핑이 없다.
@@ -56,6 +59,7 @@ public class ArtistController implements ArtistControllerDocs {
     private final ArtistQueryService artistQueryService;
     private final ArtistRankingQueryService artistRankingQueryService;
     private final SubscriptionCommandService subscriptionCommandService;
+    private final ArtistMotifPassQueryService artistMotifPassQueryService;
 
     /**
      * §5.1 아티스트 랭킹 — <b>offset 페이지</b>(§1.2).
@@ -142,5 +146,25 @@ public class ArtistController implements ArtistControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(
                 artistQueryService.notices(user.userSeq(), artistSeq, cursor, size));
+    }
+
+    /**
+     * §11.4 아티스트별 모티프 패스 — 구매 화면의 배너·보유 상태·판매 중인 가격.
+     *
+     * <p><b>§11 도메인이지만 여기 있다.</b> 경로가 {@code /artists/{artistSeq}} 아래이고,
+     * 이 레포는 경로가 컨트롤러를 정한다 — 한 경로를 두 클래스가 나눠 가지면 매핑을 찾을
+     * 때 두 곳을 봐야 한다. 대신 서비스는 {@link ArtistQueryService} 에 섞지 않고
+     * {@link ArtistMotifPassQueryService} 로 따로 뒀다(랭킹·구독과 같은 방식).
+     *
+     * <p>§5.3 상세의 {@code pass} 칸과 같은 판정을 쓴다 — 보유 여부를 두 곳이 각자
+     * 계산하지 않는다.
+     */
+    @Override
+    @GetMapping("/{artistSeq}/motif-pass")
+    public ApiResponse<ArtistMotifPassResponse> motifPass(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer artistSeq) {
+        return ApiResponse.success(
+                artistMotifPassQueryService.motifPass(user.userSeq(), artistSeq));
     }
 }

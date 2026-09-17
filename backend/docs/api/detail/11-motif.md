@@ -293,16 +293,41 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 규칙 |
 |---|---|
-| `bannerImageUrl` | `artists.motif_bg_image_key` → 공개 CDN URL. **숍 공용 배너(§11.11)와는 별개**다 |
-| `prices` | 현재 판매 중인 **개월 수별 활성 가격**. **필드는 항상 존재**하며 없으면 빈 배열 |
+| `bannerImageUrl` | `artists.motif_bg_image_key` → 공개 CDN URL. 미설정이면 `null`. **숍 공용 배너(§11.11)와는 별개**다 |
+| `prices` | 현재 판매 중인 **개월 수별 활성 가격**, **개월 오름차순**. **필드는 항상 존재**하며 없으면 빈 배열 |
+| `prices[].amount` | **문자열**이다 — `NUMERIC(10,2)` 를 부동소수로 보내지 않는다(§11.2 와 같은 계약) |
 
 **보유 중이면 `prices` 가 빈 배열이다** — 현재 구현은 만료 전 연장 구매를 지원하지 않는다.
+
+가격이 0건이어도 200 이다(빈 배열). 판매 준비 중인 아티스트가 그렇다. 꺼진 가격
+(`is_active=FALSE`)은 나오지 않는다 — 내보내면 눌러도 결제가 시작되지 않는 버튼이 생긴다.
+
+### 유효 판정
+
+`status='ACTIVE' AND expires_dttm > now` 이고 **비교는 DB 가 한다**. `status` 만 보면
+만료 배치가 돌기 전 구간에서 틀린다. `uq_motif_passes_user_artist` 로 (회원, 아티스트)당
+한 행이라 결과는 0 또는 1건이다.
+
+**§5.3 아티스트 상세의 `pass` 칸과 같은 판정이다** — `findActivePassExpiry` 하나를 두
+API 가 쓴다. 같은 질문에 두 곳이 답하면 상세 화면과 구매 화면이 서로 다른 말을 하는
+순간이 생긴다.
 
 ### 실패 응답
 
 | HTTP | code | 조건 |
 |---|---|---|
 | 404 | `ARTIST_NOT_FOUND` | 미존재·삭제 아티스트 |
+
+### 구현 메모
+
+- **매핑은 `ArtistController` 에 있다.** §11 도메인이지만 경로가 `/artists/{artistSeq}`
+  아래이고, 이 레포는 경로가 컨트롤러를 정한다. 서비스만
+  `ArtistMotifPassQueryService` 로 따로 뒀다 — 랭킹·구독이 이미 각자 서비스를 갖는
+  방식과 같다.
+- 보유 중이면 **가격을 조회하지 않는다**. 응답이 빈 배열로 정해져 있는데 쿼리를 쏠
+  이유가 없다.
+- 가격 국가는 KR 고정(`ArtistMotifPassQueryService.PRICE_COUNTRY_CODE`). 시드도 KR
+  1행뿐이다(changeSet 0013-02). §11.2·어드민의 같은 값과 공유하지 않는다.
 
 ---
 
