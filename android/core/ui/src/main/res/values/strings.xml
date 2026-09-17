@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="comment_input_placeholder">댓글을 남겨보세요</string>
+    <string name="reply_input_placeholder">답글을 남겨보세요</string>
+    <string name="comment_send_content_description">댓글 등록</string>
+</resources>
