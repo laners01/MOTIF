@@ -1,7 +1,9 @@
 package com.ssafy.motif.domain.core.motif;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface MotifResultRepository extends JpaRepository<MotifResult, Long> {
@@ -16,4 +18,37 @@ public interface MotifResultRepository extends JpaRepository<MotifResult, Long> 
      * <p>삭제분도 뺀다. 가리키던 결과물이 지워졌으면 대표 모티프는 없는 것으로 답한다.
      */
     Optional<MotifResult> findByResultSeqAndUserSeqAndDeletedFalse(Long resultSeq, Integer userSeq);
+
+    /*
+     * ── 보관함 목록 (API 명세 §11.5) — 커서 페이지, 최신순 ─────────────────────
+     *
+     * 커서 유무 × artistSeq 유무로 메서드가 넷이다. 한 쿼리에 "null 이면 전체" 분기를
+     * 넣지 않는 이유는 §5.5 공지 목록과 같다 — 타입 없는 null 을 바인딩하면 Postgres 가
+     * 파라미터 타입을 추론하지 못해 운영에서 500 이 난다. 파생 메서드는 그 null 이 아예
+     * 쿼리에 닿지 않게 한다.
+     *
+     * 정렬 키는 result_seq 다. reg_dttm 은 같은 초에 두 건이 만들어지면 페이지 경계가
+     * 흔들린다 — 커서가 막으려는 것이 바로 그 흔들림이다.
+     *
+     * 전부 본인 것(userSeq)과 삭제분 제외(deletedFalse)를 건다. 남의 보관함이 섞이는
+     * 경로를 메서드 이름으로 막아 둔다.
+     *
+     * 한 페이지에 limit+1 을 읽어 hasNext 를 판정하는 것은 호출부의 몫이다(§5.5 와 같다).
+     */
+
+    /** 최초 호출 — 커서 없음, 전체 아티스트. */
+    List<MotifResult> findByUserSeqAndDeletedFalseOrderByResultSeqDesc(
+            Integer userSeq, Pageable pageable);
+
+    /** 이어받기 — 전체 아티스트. */
+    List<MotifResult> findByUserSeqAndDeletedFalseAndResultSeqLessThanOrderByResultSeqDesc(
+            Integer userSeq, Long resultSeq, Pageable pageable);
+
+    /** 최초 호출 — 아티스트 필터(§5.8 진입점). */
+    List<MotifResult> findByUserSeqAndArtistSeqAndDeletedFalseOrderByResultSeqDesc(
+            Integer userSeq, Integer artistSeq, Pageable pageable);
+
+    /** 이어받기 — 아티스트 필터. */
+    List<MotifResult> findByUserSeqAndArtistSeqAndDeletedFalseAndResultSeqLessThanOrderByResultSeqDesc(
+            Integer userSeq, Integer artistSeq, Long resultSeq, Pageable pageable);
 }

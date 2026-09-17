@@ -62,6 +62,32 @@ public final class Cursors {
         }
     }
 
+    /**
+     * 정렬 키가 {@code BIGINT} 인 목록의 다음 페이지 토큰 (§11.5 보관함).
+     *
+     * <p>{@link #encode(Integer)} 와 <b>같은 형식</b>이다 — 숫자 하나를 그대로 담는다.
+     * 오버로드로 붙이는 이유가 그것이다. 이 API 만 따로 인코딩하면 토큰 형식이 두 벌이
+     * 되고, 클라이언트가 커서를 불투명하게 다루지 못하게 된다.
+     */
+    public static String encode(Long lastSeq) {
+        return ENCODER.encodeToString(String.valueOf(lastSeq).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 토큰 → {@code BIGINT} 정렬 키. 규칙은 {@link #decode(String)} 와 같다 —
+     * 빈 값은 최초 호출({@code null}), 망가진 토큰은 400 이다.
+     */
+    public static Long decodeLong(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(new String(DECODER.decode(cursor), StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER, "cursor: " + cursor);
+        }
+    }
+
     /** 스냅샷 순서 목록의 커서 위치 — {@code (버전, 이번 페이지 마지막 순위)} (§6.1). */
     public record Snapshot(long version, int lastRank) {
     }
