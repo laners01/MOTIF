@@ -18,7 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 댓글 API 문서 계약 (명세 §9.1 · §9.2 · §9.3 · §9.4).
+ * 댓글 API 문서 계약 (명세 §9.1 · §9.2 · §9.3 · §9.4 · §9.5).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -471,4 +471,78 @@ public interface CommentControllerDocs {
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "challenge | video | notice", example = "challenge") String type,
             @Parameter(description = "댓글 식별자", example = "501") Long commentSeq);
+
+    String LIKE_DESCRIPTION = """
+            댓글·답글 좋아요. **루트와 답글 모두** 누를 수 있다.
+
+            - **인증 필요.** 요청 본문 없음.
+            - **성공은 `204 No Content` 이고 본문이 없다**(§1.2 봉투 예외). `isLiked`·
+              `likeCount` 를 돌려주지 않으므로 클라이언트가 **낙관적으로 반영하고 실패 시
+              롤백**한다. 정확한 값이 필요하면 §9.1·§9.2 를 다시 받는다.
+            - **멱등이다.** 이미 누른 상태에서 POST 를, 누르지 않은 상태에서 DELETE 를
+              보내도 204 이고 `likeCount` 는 움직이지 않는다.
+            - 해제는 **하드 삭제**다.
+            - 자기 댓글에도 누를 수 있다(기본안 — 명세에 제한이 없다).
+
+            ### 404 가 덮는 범위
+
+            미존재 · 삭제된 댓글 · **탈퇴 사용자의 댓글** · **감춰진 스레드의 답글**
+            (루트 작성자가 탈퇴한 경우 — §1.8) · **대상이 안 보임**(삭제된 챌린지·공지,
+            타인의 `PRIVATE` 영상) · 알 수 없는 `{type}` 이 모두 `COMMENT_NOT_FOUND` 다.
+
+            ### 잠긴 영상은 해제도 막는다
+
+            `comment_enabled=FALSE` 면 **생성·해제 모두** 403 이다(명세 §9.5). 자기 댓글을
+            지우는 §9.4 와 다른 점이다 — 그쪽은 잠겨도 지울 수 있다.
+            """;
+
+    @Operation(summary = "댓글 좋아요 (§9.5)", description = LIKE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "204", description = "반영됨 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "(참여 영상) 댓글 사용 중지",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "COMMENT_DISABLED",
+                                      "message": "댓글을 사용할 수 없는 게시물입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제된 댓글 · 대상 비노출 · 알 수 없는 type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "COMMENT_NOT_FOUND",
+                                      "message": "존재하지 않는 댓글입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    void like(@Parameter(hidden = true) AuthenticatedUser user,
+              @Parameter(description = "challenge | video | notice", example = "challenge") String type,
+              @Parameter(description = "댓글 식별자", example = "501") Long commentSeq);
+
+    @Operation(summary = "댓글 좋아요 해제 (§9.5)", description = LIKE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "204", description = "반영됨 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "(참여 영상) 댓글 사용 중지 — 해제도 막는다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제된 댓글 · 대상 비노출 · 알 수 없는 type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    void unlike(@Parameter(hidden = true) AuthenticatedUser user,
+                @Parameter(description = "challenge | video | notice", example = "challenge") String type,
+                @Parameter(description = "댓글 식별자", example = "501") Long commentSeq);
 }

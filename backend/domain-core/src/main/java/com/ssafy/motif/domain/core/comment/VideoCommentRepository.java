@@ -118,6 +118,52 @@ public interface VideoCommentRepository extends JpaRepository<VideoComment, Long
     List<Long> findLikedCommentSeqs(@Param("userSeq") Integer userSeq,
                                     @Param("commentSeqs") Collection<Long> commentSeqs);
 
+    /**
+     * <b>보이는</b> 댓글이 매달린 참여 영상 (§9.5) — 루트·답글 가리지 않는다.
+     *
+     * <p>무엇이 "행 없음" 으로 떨어지는지는
+     * {@link ChallengeCommentRepository#findVisibleTargetSeq} 에 적었다.
+     */
+    @Query("""
+            select c.videoSeq
+            from VideoComment c
+              join User u on u.userSeq = c.userSeq
+              left join VideoComment p on p.commentSeq = c.parentCommentSeq
+              left join User pu on pu.userSeq = p.userSeq
+            where c.commentSeq = :commentSeq
+              and c.deleted = false
+              and u.deleted = false
+              and (c.parentCommentSeq is null or (p.deleted = false and pu.deleted = false))
+            """)
+    Optional<Long> findVisibleTargetSeq(@Param("commentSeq") Long commentSeq);
+
+    /** 좋아요 (§9.5) — {@link ChallengeCommentRepository#insertLikeIfAbsent} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.video_comment_likes (video_comment_seq, user_seq)
+            values (:commentSeq, :userSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertLikeIfAbsent(@Param("commentSeq") Long commentSeq, @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 해제 (§9.5) — {@link ChallengeCommentRepository#deleteLikeIfPresent} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.video_comment_likes
+             where video_comment_seq = :commentSeq and user_seq = :userSeq
+            """, nativeQuery = true)
+    int deleteLikeIfPresent(@Param("commentSeq") Long commentSeq,
+                            @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 수 증감 (§9.5) — {@link ChallengeCommentRepository#addLikeCount} 참고. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update VideoComment c
+               set c.likeCount = c.likeCount + :delta
+             where c.commentSeq = :commentSeq and c.likeCount + :delta >= 0
+            """)
+    int addLikeCount(@Param("commentSeq") Long commentSeq, @Param("delta") int delta);
+
     /** 살아 있는 직계 답글 seq (§9.4) — {@link ChallengeCommentRepository#findAliveReplySeqs} 참고. */
     @Query("""
             select c.commentSeq

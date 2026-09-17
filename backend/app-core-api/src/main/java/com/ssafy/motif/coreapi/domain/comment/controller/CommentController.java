@@ -10,6 +10,7 @@ import com.ssafy.motif.coreapi.domain.comment.dto.CommentDeleteResponse;
 import com.ssafy.motif.coreapi.domain.comment.dto.CommentItem;
 import com.ssafy.motif.coreapi.domain.comment.dto.ReplyItem;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentCommandService;
+import com.ssafy.motif.coreapi.domain.comment.service.CommentLikeService;
 import com.ssafy.motif.coreapi.domain.comment.service.CommentQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
@@ -50,6 +51,7 @@ public class CommentController implements CommentControllerDocs {
 
     private final CommentQueryService commentQueryService;
     private final CommentCommandService commentCommandService;
+    private final CommentLikeService commentLikeService;
 
     /** §9.1 챌린지 루트 댓글. */
     @Override
@@ -139,6 +141,31 @@ public class CommentController implements CommentControllerDocs {
             @Valid @RequestBody CommentCreateRequest request) {
         return ApiResponse.success(
                 commentCommandService.writeOnNotice(user.userSeq(), noticeSeq, request));
+    }
+
+    /**
+     * §9.5 좋아요 — <b>204 No Content</b>. 응답 본문이 없다(§1.2 봉투 예외).
+     *
+     * <p>{@code isLiked}·{@code likeCount} 를 돌려주지 않는다. 클라이언트가 낙관적으로
+     * 반영하고 실패 시 롤백한다 — 이 레포에서 봉투를 쓰지 않는 <b>첫 엔드포인트</b>다.
+     */
+    @Override
+    @PostMapping("/comments/{type}/{commentSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void like(@AuthenticationPrincipal AuthenticatedUser user,
+                     @PathVariable String type,
+                     @PathVariable Long commentSeq) {
+        commentLikeService.like(user.userSeq(), type, commentSeq);
+    }
+
+    /** §9.5 좋아요 해제 — 204. 누르지 않은 상태에서 불러도 204 다(멱등). */
+    @Override
+    @DeleteMapping("/comments/{type}/{commentSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlike(@AuthenticationPrincipal AuthenticatedUser user,
+                       @PathVariable String type,
+                       @PathVariable Long commentSeq) {
+        commentLikeService.unlike(user.userSeq(), type, commentSeq);
     }
 
     /** §9.4 삭제 — 본인 댓글만. 루트를 지우면 직계 답글도 함께 지워진다. */

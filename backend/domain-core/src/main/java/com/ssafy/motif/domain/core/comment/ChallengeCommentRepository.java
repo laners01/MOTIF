@@ -175,6 +175,75 @@ public interface ChallengeCommentRepository extends JpaRepository<ChallengeComme
     List<Long> findAliveReplySeqs(@Param("parentSeq") Long parentSeq);
 
     /**
+     * <b>보이는</b> 댓글이 매달린 챌린지 (API 명세 §9.5) — 루트·답글 가리지 않는다.
+     *
+     * <p>{@link #findRootTargetSeq} 와 달리 루트를 요구하지 않는다. 좋아요는 답글에도
+     * 달리기 때문이다. 대신 <b>답글이면 부모까지 보이는지</b> 확인한다 — 탈퇴 사용자가
+     * 쓴 루트는 스레드 전체가 감춰지므로(§1.8) 그 아래 답글도 화면에 없다. 없는 것에
+     * 좋아요가 눌리면 {@code like_count} 만 조용히 오른다.
+     *
+     * <p>미존재 · 삭제된 댓글 · 탈퇴 사용자의 댓글 · 감춰진 스레드의 답글이 모두 "행
+     * 없음" 으로 떨어진다 — §9.5 의 404 는 이 넷이 같은 {@code COMMENT_NOT_FOUND} 다.
+     */
+    @Query("""
+            select c.challengeSeq
+            from ChallengeComment c
+              join User u on u.userSeq = c.userSeq
+              left join ChallengeComment p on p.commentSeq = c.parentCommentSeq
+              left join User pu on pu.userSeq = p.userSeq
+            where c.commentSeq = :commentSeq
+              and c.deleted = false
+              and u.deleted = false
+              and (c.parentCommentSeq is null or (p.deleted = false and pu.deleted = false))
+            """)
+    Optional<Integer> findVisibleTargetSeq(@Param("commentSeq") Long commentSeq);
+
+    /**
+     * 좋아요 (API 명세 §9.5) — <b>이미 눌렀으면 아무것도 하지 않는다</b>.
+     *
+     * <p>멱등을 애플리케이션 분기로 만들지 않는다. "이미 눌렀나" 를 묻고 갈라지면 묻는
+     * 시점과 쓰는 시점이 벌어져, 동시에 들어온 두 요청이 {@code like_count} 를 두 번
+     * 움직인다. 복합 PK 가 판정자이고, <b>실제로 삽입된 행 수</b>만 호출부에 돌려준다
+     * ({@code SubscriptionRepository.insertIfAbsent} 와 같은 방식).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.challenge_comment_likes (challenge_comment_seq, user_seq)
+            values (:commentSeq, :userSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertLikeIfAbsent(@Param("commentSeq") Long commentSeq, @Param("userSeq") Integer userSeq);
+
+    /**
+     * 좋아요 해제 (§9.5) — <b>하드 삭제</b>이고, 누르지 않았으면 아무것도 하지 않는다.
+     *
+     * <p>지운 행 수를 돌려주는 것이 요점이다. 그것을 보지 않고 카운터를 내리면 해제를
+     * 두 번 받았을 때 {@code ck_challenge_comments_like_count CHECK (like_count >= 0)}
+     * 을 위반해 DB 가 예외를 던진다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.challenge_comment_likes
+             where challenge_comment_seq = :commentSeq and user_seq = :userSeq
+            """, nativeQuery = true)
+    int deleteLikeIfPresent(@Param("commentSeq") Long commentSeq,
+                            @Param("userSeq") Integer userSeq);
+
+    /**
+     * 좋아요 수 증감 (§9.5) — 거울 카운터.
+     *
+     * <p>UPDATE 한 문장이다. 엔티티를 읽어 ±1 하고 저장하면 동시 요청에 유실된다.
+     * 바닥 조건이 음수를 막는다({@code ChallengeRepository.addCommentCount} 와 같은 장치).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update ChallengeComment c
+               set c.likeCount = c.likeCount + :delta
+             where c.commentSeq = :commentSeq and c.likeCount + :delta >= 0
+            """)
+    int addLikeCount(@Param("commentSeq") Long commentSeq, @Param("delta") int delta);
+
+    /**
      * 소프트 삭제 — <b>실제로 바뀐 행 수</b>를 돌려준다 (§9.4 {@code deletedCount}).
      *
      * <p>루트와 직계 답글을 한 문장에 지운다. 엔티티를 하나씩 들어 고치면 몇 건이
