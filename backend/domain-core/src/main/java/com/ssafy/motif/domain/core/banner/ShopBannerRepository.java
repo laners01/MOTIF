@@ -13,6 +13,18 @@ public interface ShopBannerRepository extends JpaRepository<ShopBanner, Integer>
     /** §3.11.1 — 전량(비활성 포함), {@code display_order ASC}. */
     List<ShopBanner> findAllByOrderByDisplayOrderAsc();
 
+    /**
+     * 팬 앱 숍 배너 (API 명세 §11.11) — <b>활성만</b>, {@code display_order ASC}.
+     *
+     * <p>{@link #findAllByOrderByDisplayOrderAsc} 와 나란히 두는 이유는 <b>집합이 다르기
+     * 때문</b>이다. 어드민은 내려둔 배너까지 보고 순서를 잡아야 하지만(§3.11.1), 팬에게는
+     * 꺼진 배너가 없는 것과 같다.
+     *
+     * <p>필터를 자바로 빼지 않는다. "활성만" 은 응답 계약이라 조회에 박혀 있어야 하고,
+     * 비활성이 쌓일수록 읽는 양만 늘어난다.
+     */
+    List<ShopBanner> findByActiveTrueOrderByDisplayOrderAsc();
+
     boolean existsByDisplayOrder(short displayOrder);
 
     /** 등록 시 {@code displayOrder} 생략분에 줄 {@code MAX+1} 의 재료. 비어 있으면 empty. */

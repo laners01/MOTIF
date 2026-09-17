@@ -634,13 +634,37 @@ Authorization: Bearer {accessToken}
 ```
 
 - **비페이지 전량**, `is_active=TRUE` 만, `displayOrder` 오름차순.
-- 공개 콘텐츠라 CloudFront 일반 URL 이다.
+- 공개 콘텐츠라 **무서명** CloudFront URL 이다 — 서명을 붙이면 사용자마다 URL 이 갈려
+  CDN 캐시가 쪼개진다.
 - **클릭 액션(링크)이 없다** — 필요해지면 `linkType`/`linkTarget` 을 추가한다(기본안).
+  컬럼도 도입하지 않은 상태다(changeSet 0011-01).
 - 배너가 0건이면 빈 배열 200.
+
+### 어드민 §3.11.1 과 무엇이 다른가
+
+같은 테이블을 읽지만 **집합도 항목도 다르다**.
+
+| | 어드민 §3.11.1 | 팬 §11.11 |
+|---|---|---|
+| 대상 | **전량**(비활성 포함) — 내려둔 배너까지 보고 순서를 잡아야 한다 | **활성만** |
+| 항목 | `imageKey`·`isActive`·`regDttm` 등 운영 칸 포함 | `bannerSeq`·`imageUrl`·`displayOrder` 셋뿐 |
+
+그래서 조회도 DTO 도 공유하지 않는다 — 운영 칸이 팬 응답에 섞이면 내려둔 배너가 있다는
+사실과 S3 키가 그대로 드러난다(§11.1 ↔ §3.8.1 과 같은 규칙).
 
 ### 실패 응답
 
 **도메인 분기 없음.**
+
+### 구현 메모
+
+- 활성 필터는 **쿼리에 있다**(`findByActiveTrueOrderByDisplayOrderAsc`). 전량을 읽어
+  자바에서 거르면 비활성이 쌓일수록 읽는 양만 늘고, "활성만" 은 응답 계약이라 조회에
+  박혀 있어야 한다.
+- 컨트롤러가 **principal 을 받지 않는다** — 응답에 "내" 상태가 없다. 인증 자체는
+  `SecurityConfig` 의 catch-all 이 건다(§5.4 와 같은 판단).
+- 경로가 `/api/v1/shop/banners` 라 §11.3 숍 전량(`/api/v1/motif/shop`)과 컨트롤러가
+  갈린다.
 
 ---
 
