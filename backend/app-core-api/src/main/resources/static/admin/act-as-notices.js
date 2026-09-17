@@ -45,10 +45,42 @@ function render(notices) {
         row.querySelector('.comments').textContent = notice.commentCount;
         row.querySelector('.reg').textContent = new Date(notice.regDttm).toLocaleDateString('ko-KR');
 
+        const like = row.querySelector('.like');
+        renderNoticeLike(like, notice);
+        like.addEventListener('click', () => toggleNoticeLike(like, notice));
+
         const tr = row.querySelector('tr');
         row.querySelector('.open').addEventListener('click', () =>
                 toggleThread(tr, {type: 'notice', seq: notice.noticeSeq}));
         tbody.append(row);
+    }
+}
+
+/*
+ * 공지 좋아요 대행 (§10.2 · §3.12).
+ *
+ * 영상과 달리 "활동 중 아티스트가 눌렀는가" 를 목록이 알려 주지 않는다 — 공지에는
+ * has_artist_like 같은 칸이 없고 §3.10.1 응답에 isLiked 도 없다. 그래서 버튼은 누른
+ * 결과만 반영하고, 새로고침하면 다시 ♡ 로 보인다. 카운터는 서버 값이라 정확하다.
+ *
+ * ponytail: 초기 상태 미표시. 어드민 목록 응답에 isLiked 가 생기면 그때 그린다
+ */
+function renderNoticeLike(button, notice) {
+    button.textContent = `${notice.liked ? '♥' : '♡'} ${notice.likeCount}`;
+}
+
+async function toggleNoticeLike(button, notice) {
+    const next = !notice.liked;
+    button.disabled = true;
+    try {
+        await api(`${AS}/notices/${notice.noticeSeq}/like`, {method: next ? 'POST' : 'DELETE'});
+        notice.liked = next;
+        notice.likeCount += next ? 1 : -1;
+        renderNoticeLike(button, notice);
+    } catch (e) {
+        showError($('err'), e);
+    } finally {
+        button.disabled = false;
     }
 }
 
