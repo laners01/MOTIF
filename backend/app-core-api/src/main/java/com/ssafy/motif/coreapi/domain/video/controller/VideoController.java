@@ -7,11 +7,13 @@ import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
 import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
+import com.ssafy.motif.coreapi.domain.video.service.VideoLikeService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoReportService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,10 +22,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 참여 영상 API (명세 §8.2 · §8.6 · §8.7 · §8.9 · §8.10). Base URL 은 {@code /api/v1}.
+ * 참여 영상 API (명세 §8.2 · §8.3 · §8.6 · §8.7 · §8.9 · §8.10). Base URL 은 {@code /api/v1}.
  *
  * <p>챌린지 경로 아래인 §8.1 피드는 {@code ChallengeVideoController} 가 따로 갖는다 —
  * 경로가 달라 한 {@code @RequestMapping} 에 묶이지 않는다.
@@ -31,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isMine} 과
  * 타인 {@code PRIVATE} 은닉이 전부 호출자 기준이다.
  *
- * <p>§8.3 좋아요 · §8.5 조회 · §8.8 게시는 아직 매핑이 없다.
+ * <p>§8.5 조회 · §8.8 게시는 아직 매핑이 없다.
  *
  * <p>Swagger 문서는 {@link VideoControllerDocs} 가 갖는다.
  */
@@ -42,6 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VideoController implements VideoControllerDocs {
 
     private final VideoQueryService videoQueryService;
+    private final VideoLikeService videoLikeService;
     private final VideoCommandService videoCommandService;
     private final VideoReportService videoReportService;
 
@@ -111,5 +115,28 @@ public class VideoController implements VideoControllerDocs {
             @Valid @RequestBody VideoReportRequest request) {
         videoReportService.report(user.userSeq(), videoSeq, request.reasonCode());
         return ApiResponse.success();
+    }
+
+    /**
+     * §8.3 좋아요 — <b>204 No Content</b>. 응답 본문이 없다(§1.2 봉투 예외).
+     *
+     * <p>§9.5 댓글 · §10.2 공지 좋아요와 같은 계약이다 — 클라이언트가 낙관적으로 반영하고
+     * 실패 시 롤백한다.
+     */
+    @Override
+    @PostMapping("/{videoSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void like(@AuthenticationPrincipal AuthenticatedUser user,
+                     @PathVariable Long videoSeq) {
+        videoLikeService.like(user.userSeq(), videoSeq);
+    }
+
+    /** §8.3 좋아요 해제 — 204. 누르지 않은 상태에서 불러도 204 다(멱등). */
+    @Override
+    @DeleteMapping("/{videoSeq}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlike(@AuthenticationPrincipal AuthenticatedUser user,
+                       @PathVariable Long videoSeq) {
+        videoLikeService.unlike(user.userSeq(), videoSeq);
     }
 }

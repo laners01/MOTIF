@@ -456,4 +456,67 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
              where v.videoSeq = :videoSeq and v.hasArtistComment <> :value
             """)
     int updateHasArtistComment(@Param("videoSeq") Long videoSeq, @Param("value") boolean value);
+
+    /**
+     * 좋아요 (API 명세 §8.3) — 이미 누른 상태면 <b>0을 돌려준다</b>.
+     *
+     * <p>멱등이 복합 PK 에서 나온다. "이미 눌렀나" 를 먼저 묻고 갈라지면 묻는 시점과 쓰는
+     * 시점이 벌어져 동시 요청이 {@code like_count} 를 두 번 올린다 — 호출부는 실제로
+     * 삽입된 행 수만 보고 카운터를 움직인다({@code NoticeRepository.insertLikeIfAbsent}
+     * 와 같은 방식). 네이티브인 이유는 {@code on conflict do nothing} 이 JPQL 에 없어서다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            insert into motif_core.video_likes (video_seq, user_seq)
+            values (:videoSeq, :userSeq)
+            on conflict do nothing
+            """, nativeQuery = true)
+    int insertLikeIfAbsent(@Param("videoSeq") Long videoSeq, @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 해제 (§8.3) — <b>하드 삭제</b>다. 누르지 않은 상태면 0을 돌려준다. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            delete from motif_core.video_likes
+             where video_seq = :videoSeq and user_seq = :userSeq
+            """, nativeQuery = true)
+    int deleteLikeIfPresent(@Param("videoSeq") Long videoSeq, @Param("userSeq") Integer userSeq);
+
+    /** 좋아요 수 증감 (§8.3) — 거울 카운터. 규칙은 {@link #addCommentCount} 와 같다. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ParticipationVideo v
+               set v.likeCount = v.likeCount + :delta
+             where v.videoSeq = :videoSeq and v.likeCount + :delta >= 0
+            """)
+    int addLikeCount(@Param("videoSeq") Long videoSeq, @Param("delta") int delta);
+
+    /**
+     * {@code has_artist_like} 갱신 (§8.3).
+     *
+     * <p>{@link #updateHasArtistComment} 와 달리 <b>끌 때 세어 볼 것이 없다</b> — 영상에
+     * 걸린 아티스트는 하나뿐이라 그 사람이 해제하면 곧바로 거짓이다. 댓글은 답글까지
+     * 함께 지워져 "남은 아티스트 댓글" 을 확인해야 했다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ParticipationVideo v
+               set v.hasArtistLike = :value
+             where v.videoSeq = :videoSeq and v.hasArtistLike <> :value
+            """)
+    int updateHasArtistLike(@Param("videoSeq") Long videoSeq, @Param("value") boolean value);
+
+    /**
+     * 이 영상에 걸린 아티스트의 {@code users.user_seq} (§8.3 {@code has_artist_like} 판정용).
+     *
+     * <p>{@code participation_videos.artist_seq} 는 챌린지의 아티스트지 <b>영상을 올린
+     * 사람이 아니다</b>. 좋아요를 누른 사람이 그 아티스트인지 가르는 데만 쓴다 —
+     * 알림 수신자는 {@code user_seq}(게시자) 다.
+     */
+    @Query("""
+            select a.userSeq
+              from ParticipationVideo v
+              join Artist a on a.artistSeq = v.artistSeq
+             where v.videoSeq = :videoSeq
+            """)
+    Optional<Integer> findArtistUserSeq(@Param("videoSeq") Long videoSeq);
 }

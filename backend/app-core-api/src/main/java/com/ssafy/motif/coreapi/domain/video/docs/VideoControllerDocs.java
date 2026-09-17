@@ -381,4 +381,69 @@ public interface VideoControllerDocs {
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq,
             VideoReportRequest request);
+
+    String LIKE_DESCRIPTION = """
+            참여 영상 좋아요 (§8.3).
+
+            - **인증 필요.** 요청 본문 없음.
+            - **성공은 `204 No Content` 이고 본문이 없다**(§1.2 봉투 예외). `isLiked`·
+              `likeCount` 를 돌려주지 않으므로 클라이언트가 **낙관적으로 반영하고 실패 시
+              롤백**한다 — §9.5 댓글 · §10.2 공지 좋아요와 같은 계약이다.
+            - **멱등이다.** 이미 누른 상태에서 POST 를, 누르지 않은 상태에서 DELETE 를
+              보내도 204 이고 `likeCount` 는 움직이지 않는다.
+            - 해제는 **하드 삭제**다.
+
+            ### 아티스트가 누르면 `hasArtistLike` 가 함께 움직인다
+
+            그 영상이 속한 챌린지의 아티스트가 누르면 `has_artist_like` 가 켜지고 해제하면
+            꺼진다. 이 값은 §8.1 피드 정렬에 반영되므로 좋아요 한 건의 문제가 아니다.
+
+            ### 404 가 덮는 범위
+
+            §8.2 단건과 **같은 판정**이다 — 미존재 · 삭제 영상 · 삭제된 사용자의 콘텐츠 ·
+            삭제된 챌린지 소속 · **타인의 `PRIVATE`** 이 모두 `VIDEO_NOT_FOUND` 다.
+            여기만 느슨하면 좋아요 응답이 타인의 비공개 영상 존재를 알려 주는 탐지 수단이
+            된다(§1.8).
+            """;
+
+    @Operation(summary = "참여 영상 좋아요 (§8.3)", description = LIKE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "204", description = "반영됨 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 비노출 영상",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    void like(@Parameter(hidden = true) AuthenticatedUser user,
+              @Parameter(description = "참여 영상 식별자", example = "9001") Long videoSeq);
+
+    @Operation(summary = "참여 영상 좋아요 해제 (§8.3)", description = LIKE_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "204", description = "반영됨 (본문 없음)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 비노출 영상",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "VIDEO_NOT_FOUND",
+                                      "message": "존재하지 않는 영상입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-17T00:00:00.000Z"
+                                    }""")))
+    })
+    void unlike(@Parameter(hidden = true) AuthenticatedUser user,
+                @Parameter(description = "참여 영상 식별자", example = "9001") Long videoSeq);
+
 }
