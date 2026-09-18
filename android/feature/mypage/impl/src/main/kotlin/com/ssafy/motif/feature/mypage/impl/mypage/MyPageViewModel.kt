@@ -51,6 +51,7 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
         loadChallenges()
         loadArtists()
         loadRepresentativeMotif()
+        loadLiked()
     }
 
     private fun loadRepresentativeMotif() {
@@ -79,6 +80,62 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
             state.copy(
                 flippedArtistId = if (state.flippedArtistId == artistId) null else artistId,
             )
+        }
+    }
+
+    private fun loadLiked() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(likedState = MyLikedUiState.Loading) }
+
+            val firstPage = MyPageMockData.likedChallenges.take(LIKED_PAGE_SIZE)
+            _uiState.update {
+                it.copy(
+                    likedState = MyLikedUiState.Success(
+                        challenges = firstPage,
+                        hasNext = firstPage.size < MyPageMockData.likedChallenges.size,
+                    ),
+                )
+            }
+        }
+    }
+    fun onLikedFocusChange(index: Int) {
+        _uiState.update { it.copy(likedFocusedIndex = index) }
+
+        val current = _uiState.value.likedState as? MyLikedUiState.Success ?: return
+
+        // 끝에서 2장 남으면 미리 불러온다
+        if (index >= current.challenges.size - LIKED_LOAD_MORE_THRESHOLD) {
+            onLoadMoreLiked()
+        }
+    }
+
+    fun onLoadMoreLiked() {
+        val current = _uiState.value.likedState as? MyLikedUiState.Success ?: return
+        if (!current.hasNext) return
+        if (current.appendState !is MyLikedAppendUiState.Idle) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    likedState = current.copy(
+                        appendState = MyLikedAppendUiState.Loading,
+                    ),
+                )
+            }
+
+            val loaded = current.challenges.size
+            val next = MyPageMockData.likedChallenges
+                .drop(loaded)
+                .take(LIKED_PAGE_SIZE)
+
+            _uiState.update {
+                it.copy(
+                    likedState = MyLikedUiState.Success(
+                        challenges = current.challenges + next,
+                        hasNext = loaded + next.size < MyPageMockData.likedChallenges.size,
+                    ),
+                )
+            }
         }
     }
     private fun loadChallenges(){
@@ -197,6 +254,8 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
     companion object {
         private const val CHALLENGE_PAGE_SIZE = 9
         private const val MAX_NICKNAME_LENGTH = 20
+        private const val LIKED_PAGE_SIZE = 6
+        private const val LIKED_LOAD_MORE_THRESHOLD = 2
         private val NICKNAME_PATTERN = Regex("^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z._0-9]*\$")
     }
 }

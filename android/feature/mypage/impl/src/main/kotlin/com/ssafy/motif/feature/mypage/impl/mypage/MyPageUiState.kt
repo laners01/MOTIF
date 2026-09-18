@@ -15,9 +15,10 @@ internal data class MyPageUiState(
     val selectedTab: MyPageTab = MyPageTab.Challenge,
     val challengeState: MyChallengeUiState = MyChallengeUiState.Loading,
     val artistState: MyArtistUiState = MyArtistUiState.Loading,
+    val likedState: MyLikedUiState = MyLikedUiState.Loading,
+    val likedFocusedIndex: Int = 0,
     val flippedArtistId: Long? = null,
-    val nicknameEdit: NicknameEditUiState? = null,
-    // null이면 대표 모티프 미설정
+    val nicknameEdit: NicknameEditUiState? = null, // null이면 대표 모티프 미설정
     val representativeMotif: MyMotif? = null,
 )
 
@@ -25,3 +26,4 @@ internal data class NicknameEditUiState(
     val value: String,
     val isValid: Boolean,
 )
+
