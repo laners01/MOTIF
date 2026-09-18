@@ -1,6 +1,6 @@
 package com.ssafy.motif.core.model.mypage
 
-data class LikedMotif(
+data class LikedChallenge(
     val id: Long,
     val videoUrl:String,
     val thumbnailUrl: String,

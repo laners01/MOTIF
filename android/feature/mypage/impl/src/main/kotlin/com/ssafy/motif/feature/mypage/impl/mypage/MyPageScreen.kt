@@ -36,7 +36,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
+import com.ssafy.motif.core.model.mypage.LikedChallenge
 import com.ssafy.motif.core.ui.motif.MotifVideoSection
+import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeCarousel
+import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeInfo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +62,7 @@ fun MyPageScreen(
         onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
         onCreateClick = viewModel::onCreateClick,
         onArtistCardClick = viewModel::onArtistCardClick,
+        onLikedFocusChange = viewModel::onLikedFocusChange,
         onNicknameEditStart = viewModel::onNicknameEditStart,
         onNicknameChange = viewModel::onNicknameChange,
         onNicknameEditDone = viewModel::onNicknameEditDone,
@@ -76,6 +80,7 @@ internal fun MyPageScreen(
     onLoadMoreChallenges:() -> Unit,
     onCreateClick:() -> Unit,
     onArtistCardClick:(Long) -> Unit,
+    onLikedFocusChange:(Int) -> Unit,
     onNicknameEditStart:() -> Unit,
     onNicknameChange:(String) -> Unit,
     onNicknameEditDone:() -> Unit,
@@ -287,7 +292,26 @@ internal fun MyPageScreen(
                         is MyArtistUiState.Error -> { item { } }
                     }
                 }
-                MyPageTab.Liked -> { item { } }    // 모델 없음
+                MyPageTab.Liked -> {
+                    when (val state = uiState.likedState) {
+                        MyLikedUiState.Loading -> { item { ChallengeLoadingContent() } }
+
+                        is MyLikedUiState.Success -> {
+                            if (state.challenges.isNotEmpty()) {
+                                // 캐러셀은 통째로 한 항목이다. 세로 스크롤과 방향이 달라 충돌하지 않는다.
+                                item {
+                                    LikedChallengeContent(
+                                        challenges = state.challenges,
+                                        focusedIndex = uiState.likedFocusedIndex,
+                                        onFocusChange = onLikedFocusChange,
+                                    )
+                                }
+                            }
+                        }
+
+                        is MyLikedUiState.Error -> { item { } }
+                    }
+                }
             }
 
         }
@@ -297,6 +321,34 @@ internal fun MyPageScreen(
 
     }
 }
+@Composable
+private fun LikedChallengeContent(
+    challenges: List<LikedChallenge>,
+    focusedIndex: Int,
+    onFocusChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // TODO 썸네일 전용 LikedChallengeCarousel로 교체
+        LikedChallengeCarousel(
+            itemCount = challenges.size,
+            thumbnailUrl = { challenges[it].thumbnailUrl },
+            onSettledPageChange = onFocusChange,
+        )
+
+        // 추가 로드 직후 index가 목록 범위를 벗어날 수 있다.
+        challenges.getOrNull(focusedIndex)?.let { challenge ->
+            LikedChallengeInfo(
+                likeCount = challenge.likeCount,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun ProfileLoading(
     modifier: Modifier = Modifier,
