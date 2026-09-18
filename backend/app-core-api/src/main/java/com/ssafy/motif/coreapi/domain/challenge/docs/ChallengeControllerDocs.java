@@ -108,7 +108,11 @@ public interface ChallengeControllerDocs {
                       PRIVATE 영상의 조회 비노출(§1.8)과 카운트 집계는 분리된 규칙이다.
                     - `participants` 는 교체 가능한 인물 슬롯이다. `participantMask` 는 **단일 비트**
                       (1·2·4·8)이며 배열은 마스크 오름차순 = 화면 좌→우 순서다.
-                      `bbox` 는 **원본 영상 px · 좌상단 원점** 좌표로 촬영 가이드 오버레이용이다.
+                      `anchor` 는 촬영 전 선택 화면에서 프로필 원이 앉는 자리로 **썸네일 대비 0~1 비율**
+                      (`x`·`r` 가로, `y` 세로)이다 — 어드민이 아직 찍지 않은 옛 슬롯은 `null`.
+                    - `editedChallenges` 는 조합(`participantMask`, 비트 OR 합)별 선택 화면 이미지다.
+                      고른 슬롯 마스크를 OR 한 항목의 `previewImageUrl` 을 썸네일 자리에 띄우고,
+                      무선택(0)·`null`·항목 없음은 `thumbnailUrl` 로 폴백한다.
                       `profileImageUrl` 은 설명 시트의 참여자 아바타용이며 미등록이면 `null` 이다.
                     - **편집본이 0개인 챌린지가 있다.** 슬롯은 등록됐지만 AI 편집본이 아직 없는
                       상태로, 재생·표시는 정상이고 촬영만 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로
@@ -149,7 +153,7 @@ public interface ChallengeControllerDocs {
                                             "name": "윈터",
                                             "participantMask": 1,
                                             "profileImageUrl": "https://cdn.../profiles/7.jpg",
-                                            "bbox": { "leftTopX": 120, "leftTopY": 80, "rightBottomX": 460, "rightBottomY": 940 }
+                                            "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 }
                                           }
                                         ]
                                       },

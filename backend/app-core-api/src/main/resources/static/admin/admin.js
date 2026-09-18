@@ -248,3 +248,30 @@ function renderActing() {
     });
 })();
 
+
+/*
+ * ── 슬롯 프로필 원 (§3.7.2 anchor) ─────────────────────────────────────────
+ *
+ * 챌린지 등록·상세가 프레임/썸네일 위에 같은 모양으로 그린다 — 앱(시안 10-1)이 그릴
+ * 모습의 미리보기다. 좌표는 이미 표시 px 로 환산해 넘긴다(비율 × 표시 크기).
+ * 사진이 없으면(프로필 미등록·아티스트 미선택) 라벨(슬롯 번호·마스크)을 대신 넣는다.
+ */
+function dot(active, cx, cy, radius, imageUrl, label) {
+    const el = document.createElement('div');
+    el.className = active ? 'dot active' : 'dot';
+    Object.assign(el.style, {
+        left: `${cx - radius}px`,
+        top: `${cy - radius}px`,
+        width: `${radius * 2}px`,
+        height: `${radius * 2}px`,
+    });
+    if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = '';
+        el.append(img);
+    } else {
+        el.append(Object.assign(document.createElement('span'), {textContent: label}));
+    }
+    return el;
+}

@@ -13,5 +13,5 @@ import jakarta.validation.constraints.NotNull;
 @Schema(description = "인물 슬롯 (배열 순서 = 화면 좌→우)")
 public record ParticipantRequest(
         @NotNull Integer artistSeq,
-        @Valid @NotNull BboxRequest bbox) {
+        @Valid @NotNull AnchorRequest anchor) {
 }

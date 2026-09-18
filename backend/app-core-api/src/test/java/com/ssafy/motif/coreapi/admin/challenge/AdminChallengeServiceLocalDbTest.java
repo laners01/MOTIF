@@ -2,7 +2,7 @@ package com.ssafy.motif.coreapi.admin.challenge;
 
 import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.admin.challenge.dto.BboxRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
@@ -217,6 +217,7 @@ class AdminChallengeServiceLocalDbTest {
         long before = challengeCount();
         EditedChallengeRequest 미업로드 = new EditedChallengeRequest(
                 List.of(0), "edited/pending/" + UUID.randomUUID() + ".mp4",
+                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null);
 
         assertThatThrownBy(() -> create(List.of(slot(newArtist())), List.of(미업로드)))
@@ -299,12 +300,34 @@ class AdminChallengeServiceLocalDbTest {
         String newKey = newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4");
 
         EditedChallengeResponse response = adminChallengeService.replaceEditedKeys(ADMIN, editedSeq,
-                new EditedChallengeUpdateRequest(newKey, null, (long) ORIGIN_DURATION_MS));
+                new EditedChallengeUpdateRequest(newKey, null, null, (long) ORIGIN_DURATION_MS));
 
         assertThat(response.participantMask()).isEqualTo(1);
         assertThat(scalar("select 1 from motif_core.edited_challenges "
                 + "where edited_challenge_seq = ?1 and video_key = '" + newKey + "'", editedSeq))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("앵커 단독 수정은 잡 참조 중이어도 같은 행을 고친다 — 0017 이전 행을 채우는 통로 (§3.7.9)")
+    void 앵커_수정() {
+        Integer slotArtist = newArtist();
+        ChallengeSlotsResponse created = create(List.of(slot(slotArtist)), List.of(edited(0)));
+        newCompositeJob(created.challengeSeq(), created.editedChallenges().getFirst().editedChallengeSeq());
+
+        var detail = adminChallengeService.updateAnchor(ADMIN, created.challengeSeq(), slotArtist,
+                new AnchorRequest(0.7, 0.3, 0.12));
+
+        assertThat(detail.participants().getFirst().anchor().x()).isEqualTo(0.7);
+        assertThat(scalar("select 1 from motif_core.challenge_participants "
+                + "where challenge_seq = ?1 and anchor_x = 0.7 and anchor_r = 0.12", created.challengeSeq()))
+                .isEqualTo(1);
+
+        assertThatThrownBy(() -> adminChallengeService.updateAnchor(ADMIN, created.challengeSeq(), mainArtist,
+                new AnchorRequest(0.5, 0.5, 0.1)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(AdminErrorCode.PARTICIPANT_INVALID);
     }
 
     @Test
@@ -411,19 +434,20 @@ class AdminChallengeServiceLocalDbTest {
     }
 
     private ParticipantRequest slot(Integer artistSeq) {
-        return new ParticipantRequest(artistSeq, new BboxRequest(120, 80, 460, 940));
+        return new ParticipantRequest(artistSeq, new AnchorRequest(0.22, 0.36, 0.0995));
     }
 
     /** 편집본 키는 업로드된 것으로 친다 — 부재 케이스는 별도 테스트가 직접 만든다. */
     private EditedChallengeRequest edited(Integer... removedSlots) {
         return new EditedChallengeRequest(List.of(removedSlots),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4"),
+                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null);
     }
 
     private static EditedChallengeRequest withDuration(EditedChallengeRequest edited, long durationMs) {
         return new EditedChallengeRequest(edited.removedSlots(), edited.videoKey(),
-                edited.initialSceneKey(), durationMs);
+                edited.initialSceneKey(), edited.previewImageKey(), durationMs);
     }
 
     private String newUploadedKey(String key) {

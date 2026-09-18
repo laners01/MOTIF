@@ -118,6 +118,7 @@ S15P21D104-181
 | `BusinessException` 의 `data` — 실패 상세를 응답 `data` 로 | `module-common/.../exception/` | 588 |
 | `AdminIpFilter`(404) · `AdminAuthFilter`(쿠키+Bearer) · `AdminJwtProvider` · `AdminSecurityConfig`(@Order(1)) | `app-core-api/.../admin/security/` | 588 |
 | `AdminPaths` — 어드민 경로 상수 | `app-core-api/.../admin/` | 588 |
+| **슬롯 앵커**(`ChallengeParticipant.Anchor` · `AnchorRequest` · §3.7.9 `updateAnchor`) — bbox 는 삭제됨. **편집본 선택 화면** `EditedChallenge.previewImageKey` · presign `EDITED_PREVIEW`. 앱 §7.2 `anchor`·`editedChallenges[]` | `domain-core/.../challenge/` · `app-core-api/.../admin/challenge/` | S15P21D104-618 |
 | presign API `AdminMediaController`·`AdminMediaService`·`AdminMediaKind` | `app-core-api/.../admin/media/` | 588 |
 | 영상 검증 `VideoRules` (폼이 보낸 길이·해상도 대조) | `app-core-api/.../admin/media/` | 589 |
 | 감사 로그 `AdminAuditLogger` + logback `ADMIN_AUDIT` 어펜더 | `app-core-api/.../admin/audit/` · `logback-spring.xml` | 555 |

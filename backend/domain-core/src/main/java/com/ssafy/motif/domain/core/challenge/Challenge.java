@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
  * 노출 차단은 {@code isDeleted} 소프트 삭제 하나뿐이다.
  *
  * <p><b>{@code videoKey}·{@code artistSeq} 는 {@code updatable = false} 다.</b> 원본을
- * 바꾸면 슬롯 bbox 와 편집본 전부가 무효가 되므로 교체를 금지하고 삭제 후 재등록으로
+ * 바꾸면 슬롯 앵커와 편집본 전부가 무효가 되므로 교체를 금지하고 삭제 후 재등록으로
  * 처리한다(회의 확정 R1). 메인 아티스트도 DB 상 불변이다. 매핑으로 막아 두면
  * 수정 API 가 실수로 dirty checking 에 태워도 UPDATE 문에 실리지 않는다.
  *

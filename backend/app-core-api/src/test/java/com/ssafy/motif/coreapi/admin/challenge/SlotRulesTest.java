@@ -2,7 +2,7 @@ package com.ssafy.motif.coreapi.admin.challenge;
 
 import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.admin.challenge.dto.BboxRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import org.junit.jupiter.api.DisplayName;
@@ -107,15 +107,16 @@ class SlotRulesTest {
     }
 
     @Test
-    @DisplayName("bbox 는 우하단 > 좌상단 ≥ 0 — 위반을 한 번에 모아 던진다")
-    void bbox_규칙() {
-        ParticipantRequest 음수 = new ParticipantRequest(7, new BboxRequest(-1, 0, 10, 10));
-        ParticipantRequest 뒤집힘 = new ParticipantRequest(9, new BboxRequest(10, 10, 10, 20));
+    @DisplayName("앵커는 0≤x,y≤1 · 0<r≤0.5 비율 — 위반을 한 번에 모아 던진다")
+    void 앵커_규칙() {
+        ParticipantRequest 밖 = new ParticipantRequest(7, new AnchorRequest(1.2, 0.5, 0.1));
+        ParticipantRequest 반지름0 = new ParticipantRequest(9, new AnchorRequest(0.5, 0.5, 0.0));
+        ParticipantRequest 경계 = new ParticipantRequest(11, new AnchorRequest(0.0, 1.0, 0.5));
 
-        assertThatThrownBy(() -> SlotRules.checkParticipants(3, List.of(음수, 뒤집힘)))
+        assertThatThrownBy(() -> SlotRules.checkParticipants(3, List.of(밖, 반지름0, 경계)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(reasons((BusinessException) e))
-                        .containsExactly("BBOX_INVALID[0]", "BBOX_INVALID[1]"));
+                        .containsExactly("ANCHOR_INVALID[0]", "ANCHOR_INVALID[1]"));
     }
 
     @Test
@@ -129,12 +130,12 @@ class SlotRulesTest {
     }
 
     private static ParticipantRequest slot(int artistSeq) {
-        return new ParticipantRequest(artistSeq, new BboxRequest(0, 0, 100, 200));
+        return new ParticipantRequest(artistSeq, new AnchorRequest(0.5, 0.4, 0.0995));
     }
 
     private static EditedChallengeRequest edited(Integer... removedSlots) {
         return new EditedChallengeRequest(List.of(removedSlots),
-                "edited/1/v.mp4", "edited/1/s.jpg", null);
+                "edited/1/v.mp4", "edited/1/s.jpg", "edited/1/p.jpg", null);
     }
 
     @SuppressWarnings("unchecked")

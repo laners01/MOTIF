@@ -93,14 +93,14 @@ class ChallengeDetailLocalDbTest {
     }
 
     @Test
-    @DisplayName("슬롯은 마스크 오름차순 = 화면 좌→우 순서이고 bbox 가 함께 온다")
-    void participantsComeInMaskOrderWithBbox() {
+    @DisplayName("슬롯은 마스크 오름차순 = 화면 좌→우 순서이고 anchor 가 함께 온다")
+    void participantsComeInMaskOrderWithAnchor() {
         Integer winter = newArtist("윈터");
         Integer ningning = newArtist("닝닝");
         participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 2,
-                new ChallengeParticipant.Bbox(500, 80, 800, 940)));
+                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995)));
         participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 1,
-                new ChallengeParticipant.Bbox(120, 80, 460, 940)));
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
         entityManager.flush();
 
         ChallengeDetailResponse detail = challengeQueryService.detail(fanSeq, challengeSeq);
@@ -111,8 +111,8 @@ class ChallengeDetailLocalDbTest {
         assertThat(detail.participants())
                 .extracting(ChallengeDetailResponse.Participant::name)
                 .containsExactly("윈터", "닝닝");
-        assertThat(detail.participants().getFirst().bbox())
-                .isEqualTo(new ChallengeDetailResponse.Bbox(120, 80, 460, 940));
+        assertThat(detail.participants().getFirst().anchor())
+                .isEqualTo(new ChallengeDetailResponse.Anchor(0.22, 0.36, 0.0995));
     }
 
     @Test

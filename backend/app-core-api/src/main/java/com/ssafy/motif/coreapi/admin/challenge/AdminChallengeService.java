@@ -5,6 +5,7 @@ import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.error.ErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.audit.AdminAuditLogger;
+import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
@@ -32,6 +33,7 @@ import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeListRow;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantId;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.challenge.EditedChallenge;
@@ -236,16 +238,15 @@ public class AdminChallengeService {
         List<Integer> artistSeqs = new ArrayList<>();
         artistSeqs.add(challenge.getArtistSeq());
         participants.forEach(p -> artistSeqs.add(p.artistSeq()));
-        Map<Integer, String> names = artistRepository.findNames(Set.copyOf(artistSeqs)).stream()
-                .collect(Collectors.toMap(ArtistName::artistSeq, ArtistName::name));
+        Map<Integer, ArtistName> artists = artistRepository.findNames(Set.copyOf(artistSeqs)).stream()
+                .collect(Collectors.toMap(ArtistName::artistSeq, a -> a));
 
         Map<Integer, Long> jobRefs = jobRefCounts(edited);
         Song song = songRepository.findById(challenge.getSongSeq()).orElse(null);
 
         return new ChallengeDetailResponse(
                 seq,
-                new ChallengeDetailResponse.ArtistSummary(
-                        challenge.getArtistSeq(), names.get(challenge.getArtistSeq())),
+                artistSummary(challenge.getArtistSeq(), artists),
                 song == null ? null : new ChallengeDetailResponse.SongSummary(
                         song.getSongSeq(), song.getTitle(), song.getSingerName()),
                 challenge.getDescription(),
@@ -261,17 +262,30 @@ public class AdminChallengeService {
                 challenge.isDeleted(),
                 challenge.getRegDttm(),
                 participants.stream().map(p -> new ChallengeDetailResponse.Participant(
-                        new ChallengeDetailResponse.ArtistSummary(p.artistSeq(), names.get(p.artistSeq())),
+                        artistSummary(p.artistSeq(), artists),
                         p.getParticipantMask(),
-                        new ChallengeDetailResponse.BboxResponse(
-                                p.getBbox().getLeftTopX(), p.getBbox().getLeftTopY(),
-                                p.getBbox().getRightBottomX(), p.getBbox().getRightBottomY()))).toList(),
+                        anchorOf(p))).toList(),
                 edited.stream().map(e -> new ChallengeDetailResponse.Edited(
                         e.getEditedChallengeSeq(), e.getParticipantMask(),
                         mediaUrlResolver.resolve(e.getVideoKey()),
                         mediaUrlResolver.resolve(e.getInitialSceneKey()),
+                        mediaUrlResolver.resolve(e.getPreviewImageKey()),
                         jobRefs.getOrDefault(e.getEditedChallengeSeq(), 0L))).toList(),
                 challengeRepository.countActiveJobs(seq));
+    }
+
+    /** 프로필 URL 은 저장값이 아니라 조립 시점 변환이다 — 상세 화면이 슬롯 원 안에 넣는다. 삭제된 아티스트면 이름·사진이 비어 온다. */
+    private ChallengeDetailResponse.ArtistSummary artistSummary(Integer artistSeq, Map<Integer, ArtistName> artists) {
+        ArtistName a = artists.get(artistSeq);
+        return new ChallengeDetailResponse.ArtistSummary(artistSeq,
+                a == null ? null : a.name(),
+                a == null ? null : mediaUrlResolver.resolve(a.profileImageKey()));
+    }
+
+    /** 0017 이전 행은 앵커가 없다 — {@code null} 로 내려 화면이 "위치 지정" 을 재촉하게 한다. */
+    private static ChallengeDetailResponse.AnchorResponse anchorOf(ChallengeParticipant p) {
+        ChallengeParticipant.Anchor a = p.anchorOrNull();
+        return a == null ? null : new ChallengeDetailResponse.AnchorResponse(a.getX(), a.getY(), a.getR());
     }
 
     /** 참조 0 건인 편집본은 group by 결과에 행이 없다 — 호출부가 기본값 0 을 쓴다. */
@@ -330,17 +344,47 @@ public class AdminChallengeService {
         for (int i = 0; i < participants.size(); i++) {
             ParticipantRequest p = participants.get(i);
             participantRepository.save(ChallengeParticipant.of(
-                    challengeSeq, p.artistSeq(), SlotRules.participantMask(i),
-                    new ChallengeParticipant.Bbox(p.bbox().leftTopX(), p.bbox().leftTopY(),
-                            p.bbox().rightBottomX(), p.bbox().rightBottomY())));
+                    challengeSeq, p.artistSeq(), SlotRules.participantMask(i), toAnchor(p.anchor())));
         }
 
         List<EditedChallengeRequest> edited = slots.editedChallenges();
         List<Integer> masks = SlotRules.editedMasks(participants.size(), edited);
         for (int i = 0; i < edited.size(); i++) {
             editedChallengeRepository.save(EditedChallenge.of(challengeSeq, masks.get(i),
-                    edited.get(i).videoKey(), edited.get(i).initialSceneKey()));
+                    edited.get(i).videoKey(), edited.get(i).initialSceneKey(),
+                    edited.get(i).previewImageKey()));
         }
+    }
+
+    private static ChallengeParticipant.Anchor toAnchor(AnchorRequest a) {
+        return new ChallengeParticipant.Anchor(a.x(), a.y(), a.r());
+    }
+
+    /**
+     * 슬롯 앵커 단독 수정 (§3.7.9) — 같은 행 UPDATE 다.
+     *
+     * <p>§3.7.5 슬롯 교체는 편집본까지 다시 보내야 하고 합성 이력이 있으면 409 라, 0017 이전
+     * 행의 빈 앵커를 채울 길이 없다. 앵커는 마스크·편집본 완결성과 무관하므로 잡 참조 중이어도
+     * 허용된다 — 바뀌는 것은 선택 화면의 원 위치뿐이다.
+     */
+    @Transactional
+    public ChallengeDetailResponse updateAnchor(AuthenticatedAdmin admin, Integer challengeSeq,
+                                                Integer artistSeq, AnchorRequest anchor) {
+        Challenge challenge = requireChallenge(challengeSeq);
+        if (!SlotRules.validAnchor(anchor)) {
+            throw new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
+                    "앵커 규칙 위반: " + anchor, List.of("ANCHOR_INVALID"));
+        }
+        ChallengeParticipant slot = participantRepository
+                .findById(new ChallengeParticipantId(challengeSeq, artistSeq))
+                .orElseThrow(() -> new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
+                        "슬롯이 아닌 아티스트: challengeSeq=%d artistSeq=%d".formatted(challengeSeq, artistSeq),
+                        List.of("SLOT_NOT_FOUND")));
+        slot.updateAnchor(toAnchor(anchor));
+
+        auditLogger.write(admin, "UPDATE_SLOT_ANCHOR", "CHALLENGE",
+                challengeSeq, AdminAuditLogger.RESULT_OK);
+        return detailOf(challenge);
     }
 
     /**
@@ -395,25 +439,26 @@ public class AdminChallengeService {
                         "존재하지 않는 편집본: editedChallengeSeq=" + editedChallengeSeq));
         Challenge challenge = requireChallenge(edited.getChallengeSeq());
 
-        List<String> keys = Stream.of(request.videoKey(), request.initialSceneKey())
+        List<String> keys = Stream.of(request.videoKey(), request.initialSceneKey(), request.previewImageKey())
                 .filter(Objects::nonNull)
                 .toList();
         if (keys.isEmpty()) {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
-                    "videoKey·initialSceneKey 중 하나는 있어야 한다");
+                    "videoKey·initialSceneKey·previewImageKey 중 하나는 있어야 한다");
         }
         adminMediaService.requireUploaded(keys);
         if (request.durationMs() != null) {
             videoRules.checkEditedDuration(request.durationMs(), challenge.getDurationMs());
         }
 
-        edited.replaceKeys(request.videoKey(), request.initialSceneKey());
+        edited.replaceKeys(request.videoKey(), request.initialSceneKey(), request.previewImageKey());
 
         auditLogger.write(admin, "REPLACE_EDITED_KEYS", "EDITED_CHALLENGE",
                 editedChallengeSeq, AdminAuditLogger.RESULT_OK);
         return new EditedChallengeResponse(editedChallengeSeq, edited.getParticipantMask(),
                 mediaUrlResolver.resolve(edited.getVideoKey()),
-                mediaUrlResolver.resolve(edited.getInitialSceneKey()));
+                mediaUrlResolver.resolve(edited.getInitialSceneKey()),
+                mediaUrlResolver.resolve(edited.getPreviewImageKey()));
     }
 
     /** 등록 전 검증 전체 (§3.7.2 검증 1~5항) — 순서는 명세 그대로다. */
@@ -449,6 +494,7 @@ public class AdminChallengeService {
         slots.editedChallenges().forEach(edited -> {
             keys.add(edited.videoKey());
             keys.add(edited.initialSceneKey());
+            keys.add(edited.previewImageKey());
         });
         adminMediaService.requireUploaded(keys);
 

@@ -99,3 +99,14 @@ nav .who { color: var(--muted); font-size: 13px; }
 /* 대행 댓글 스레드 — 답글은 한 단만 들여쓴다(깊이 2단). */
 .comment { margin: 6px 0; }
 .comment .children { margin-left: 24px; }
+/* 슬롯 앵커 — 프레임·썸네일 위 프로필 원 자리(비율 좌표) */
+.frame .dot { position: absolute; border: 2px solid #fff; border-radius: 50%; box-sizing: border-box; overflow: hidden;
+              background: rgba(255,255,255,.35); pointer-events: none; }
+.frame .dot.active { border-color: #e6007e; background: rgba(230,0,126,.35); }
+.frame .dot span { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+                   font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000; }
+.frame > img { display: block; width: 100%; }
+.frame .dot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.thumb-frame { max-width: 270px; }
+td.media input[type=text] { width: 180px; display: block; margin-bottom: 4px; }
+td.media input[type=file] { width: 180px; font-size: 11px; }
