@@ -6,6 +6,7 @@ import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.domain.artist.docs.ArtistControllerDocs;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistCardResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
@@ -29,7 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 팬 앱 아티스트 API (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §11.4).
+ * 팬 앱 아티스트 API (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §5.10 · §11.4).
  * Base URL 은 {@code /api/v1}.
  *
  * <p><b>전부 인증이 필요하다</b>(🔓 아님) — §5.3 은 {@code isSubscribed}·
@@ -78,6 +79,23 @@ public class ArtistController implements ArtistControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(
                 artistRankingQueryService.ranking(user.userSeq(), filter, page, size));
+    }
+
+    /**
+     * §5.10 전체 아티스트 목록 — <b>구독자 수 내림차순 비페이지 전량</b>.
+     *
+     * <p>파라미터가 없다. 전량이라 {@code page}·{@code size}·{@code cursor} 가 없고, 정렬도
+     * 서버 고정이라 {@code sort} 를 받지 않는다(§5.1 과 같은 근거 — 열면 정렬 칼럼
+     * 화이트리스트가 필요해진다).
+     *
+     * <p>§5.1 랭킹과 경로가 나란하지만 별개 API 다 — 근거는
+     * {@link ArtistQueryService#list} javadoc.
+     */
+    @Override
+    @GetMapping
+    public ApiResponse<ListResponse<ArtistCardResponse>> list(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.success(artistQueryService.list(user.userSeq()));
     }
 
     /** §5.3 아티스트 상세. */

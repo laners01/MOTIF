@@ -4,11 +4,13 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistCardResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.Cursors;
+import com.ssafy.motif.domain.core.artist.ArtistCardRow;
 import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
@@ -34,7 +36,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 팬 앱 아티스트 조회 (명세 §5.3 · §5.4 · §5.5) — S15P21D104-67 · 76 · 79.
+ * 팬 앱 아티스트 조회 (명세 §5.3 · §5.4 · §5.5 · §5.10) — S15P21D104-67 · 76 · 79 · 34.
  *
  * <p><b>어드민 §3.5 와 나란한 별개 서비스다.</b> 같은 테이블을 읽지만 계약이 다르다 —
  * 어드민은 offset 페이지(§1.5)에 삭제분 포함 여부를 고르고 운영 칼럼(소속사·
@@ -59,6 +61,41 @@ public class ArtistQueryService {
     private final NoticeImageRepository noticeImageRepository;
     private final MotifPassPriceRepository motifPassPriceRepository;
     private final PublicMediaUrlResolver mediaUrlResolver;
+
+    /**
+     * §5.10 전체 아티스트 목록 — <b>구독자 수 내림차순 전량</b>, 비페이지.
+     *
+     * <p><b>§5.1 랭킹과 다른 API 다.</b> 저쪽은 배치가 만든 Redis 스냅샷이 1차 출처이고
+     * 정렬이 챌린지 반응 점수라 구독자 수순이 아니다 — 구독은 점수에 들어가지 않는다
+     * (§5.6). {@code size} 만 키워 재사용하면 화면이 요구하는 순서가 나오지 않는다.
+     *
+     * <p><b>정렬은 DB 가 한다</b>({@link ArtistRepository#findCardsBySubscriberCountDesc}).
+     * 여기서 다시 세우면 정렬 기준이 두 곳에 생긴다.
+     *
+     * <p><b>DB 조회는 2회로 고정이다</b> — 목록 1회, 구독 여부 1회. 항목마다 구독을 물으면
+     * 그대로 N+1 이고, 아티스트가 수백 규모라 그 차이가 그대로 응답 시간이 된다.
+     */
+    public ListResponse<ArtistCardResponse> list(Integer userSeq) {
+        List<ArtistCardRow> rows = artistRepository.findCardsBySubscriberCountDesc();
+        if (rows.isEmpty()) {
+            // 빈 컬렉션을 in 절에 넘기지 않는다 — findSubscribedArtistSeqs 는 네이티브
+            // 쿼리라 `in ()` 가 문법 오류로 터진다
+            return ListResponse.of(List.of());
+        }
+
+        List<Integer> artistSeqs = rows.stream().map(ArtistCardRow::artistSeq).toList();
+        Set<Integer> subscribed = Set.copyOf(
+                subscriptionRepository.findSubscribedArtistSeqs(userSeq, artistSeqs));
+
+        return ListResponse.of(rows.stream()
+                .map(row -> new ArtistCardResponse(
+                        row.artistSeq(),
+                        row.name(),
+                        row.groupName(),
+                        mediaUrlResolver.resolve(row.profileImageKey()),
+                        subscribed.contains(row.artistSeq())))
+                .toList());
+    }
 
     /** §5.3 아티스트 상세. */
     public ArtistDetailResponse detail(Integer userSeq, Integer artistSeq) {

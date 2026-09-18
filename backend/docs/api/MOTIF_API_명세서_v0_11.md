@@ -621,6 +621,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 | 5.7 | DELETE | `/artists/{artistSeq}/subscription` | 구독 취소 | ARTIST-DETAIL-01 |
 | 5.8 | GET | `/users/me/motif-results?artistSeq=` | 해당 아티스트와 만든 내 모티프(§11.5 재사용) | ARTIST-DETAIL-03 |
 | 5.9 | GET | `/artists/autocomplete` | 자동완성(타이핑 서제스트) **(R4 신설)** | ARTIST-02 |
+| 5.10 | GET | `/artists` | 전체 아티스트 목록(구독자 수순·전량) **(신설)** | 아티스트 탭 |
 
 ### 5.1 GET /artists/ranking
 
@@ -754,6 +755,24 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 | 404 | `ARTIST_NOT_FOUND` | 미존재·삭제 아티스트(구독 신규 생성 시) |
 
 - 구독 취소 UI 는 아티스트 상세에서만 노출(기능 명세)이나 API 는 공통. **패스 취소(§11.10)와 별개** — 이쪽은 무료 팔로우.
+
+### 5.10 GET /artists — 전체 아티스트 목록 **(신설)**
+
+파라미터 없음. **비페이지 — 전량 반환**, `artists.subscriber_count` **내림차순**(동점은 `artistSeq` ASC 고정). 비삭제만.
+
+**성공 응답 (200)** — `data`:
+
+```json
+{ "list": [ { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "...", "isSubscribed": true } ] }
+```
+
+- 항목은 §5.2 검색과 **같은 모양**(아티스트 요약 + `isSubscribed`)이다. 정렬 기준인 `subscriberCount` 는 싣지 않는다 — 개별 값은 §5.3 상세가 준다.
+
+- **§5.1 랭킹으로 대체할 수 없다.** 랭킹은 배치가 만든 Redis 스냅샷이 1차 출처이고 정렬이 챌린지 반응 점수라 구독자 수순이 아니다(구독은 점수에 들어가지 않는다 — §5.6). 이쪽은 DB 직조회다.
+
+- 아티스트가 수백 규모라 전량이 싸다(§5.9 와 같은 근거). 캐시를 두지 않는다. 0명이면 빈 배열 200.
+
+**실패 분기** — 공통 외 없음.
 
 ---
 

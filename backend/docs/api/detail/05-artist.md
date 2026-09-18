@@ -15,6 +15,7 @@
 | 5.7 | DELETE | `/api/v1/artists/{artistSeq}/subscription` | 필요 | |
 | 5.8 | GET | `/api/v1/users/me/motif-results?artistSeq=` | 필요 | §11.5 와 같은 API — [`11-motif.md`](11-motif.md) 참조 |
 | 5.9 | GET | `/api/v1/artists/autocomplete` | 필요 | |
+| 5.10 | GET | `/api/v1/artists` | 필요 | 전량·구독자 수순 **(신설)** |
 
 ## 이 절 전체에 걸리는 스키마 사실
 
@@ -503,6 +504,87 @@ Authorization: Bearer {accessToken}
 용도: 아티스트 상세 상단의 자동재생 목록(§5.3 `myMotifVideos`, 최신 5개) 너머의 **전체 결과물 열람**.
 
 계약은 [`11-motif.md`](11-motif.md) §11.5 를 본다.
+
+---
+
+## 5.10 GET /api/v1/artists — 전체 아티스트 목록 (구독자 수순) **(신설)**
+
+아티스트 탭의 전체 목록이다. **비페이지 — 전량 반환**, `artists.subscriber_count` **내림차순**.
+
+### §5.1 랭킹과 다른 API 다
+
+경로도 항목도 비슷해 보이지만 **데이터 출처와 정렬 기준이 다르다.**
+
+| | §5.1 랭킹 | §5.10 목록 |
+|---|---|---|
+| 1차 출처 | Redis 스냅샷(배치가 5분마다 적재) | **DB 직조회** |
+| 정렬 | 점수 — 챌린지 조회·참여를 등록 시각으로 감쇠 | **`subscriber_count` DESC** |
+| 페이지 | offset (`page`·`size`) | **없음 — 전량** |
+| 항목 | `rank`·`rankDelta` 가 붙는다 | 요약 + `isSubscribed` |
+
+§5.1 을 `size` 만 키워 재사용하면 **화면이 요구하는 순서가 나오지 않는다.** 랭킹은 구독을 점수에 넣지 않으므로(§5.6 문서: "구독해도 순위는 그대로") 구독자 수순 목록이 될 수 없다.
+
+### 요청
+
+```http
+GET /api/v1/artists
+Authorization: Bearer {accessToken}
+```
+
+파라미터가 **없다.** 전량 반환이라 `page`·`size`·`cursor` 가 없고, 정렬도 서버 고정이라 `sort` 를 받지 않는다(§5.1 과 같은 근거 — 열면 정렬 칼럼 화이트리스트가 필요해진다).
+
+### 성공 응답 (200) — 비페이지 전량
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "list": [
+      {
+        "artistSeq": 3,
+        "name": "카리나",
+        "groupName": "aespa",
+        "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+        "isSubscribed": true
+      },
+      {
+        "artistSeq": 7,
+        "name": "윈터",
+        "groupName": "aespa",
+        "profileImageUrl": null,
+        "isSubscribed": false
+      }
+    ]
+  },
+  "timestamp": "2026-09-18T00:00:00.000Z"
+}
+```
+
+**`artist` 요약**(README §3.5) + `isSubscribed` 다 — §5.2 검색 항목과 같은 모양이다.
+
+| 필드 | 설명 |
+|---|---|
+| `isSubscribed` | 요청자의 구독 여부. 이 목록에서 바로 구독 버튼을 그릴 수 있게 싣는다 |
+
+**`subscriberCount` 를 싣지 않는다.** 정렬 기준일 뿐 화면이 숫자를 쓰지 않는다 — 필요해지면 필드 추가만 하면 된다(카운트는 `artists.subscriber_count` 에 이미 있다). 개별 아티스트의 구독자 수는 §5.3 상세가 준다.
+
+### 서버 처리
+
+1. 비삭제 아티스트를 **`subscriber_count` DESC → `artistSeq` ASC** 로 정렬해 전량 읽는다 — 정렬을 DB 에 맡긴다
+2. 요청자의 구독 아티스트를 **1회 조회**해 `isSubscribed` 를 채운다. 항목마다 조회하면 N+1 이다
+3. `profileImageUrl` 은 공개 등급이다 — 서명하지 않는다(§1.7)
+
+**DB 조회는 2회로 고정이다** (목록 1회 + 구독 여부 1회).
+
+- **동점 정렬이 `artistSeq` ASC 인 이유**: 구독자 0인 신인이 여러 명이면 전원 동점인데, tie-break 가 없으면 Postgres 가 주는 순서가 요청마다 달라져 같은 화면이 새로고침마다 뒤바뀐다. §5.1 스냅샷의 동점 규칙과 같은 값을 쓴다.
+- **비삭제만 낸다.** 삭제 아티스트는 §1.8 대로 없는 것으로 본다 — 목록에 남기면 눌렀을 때 §5.3 이 404 다.
+- 아티스트가 **수백 규모**라 전량이 싸다(§5.9 가 캐시를 두지 않는 것과 같은 근거). 캐시를 두지 않는다.
+
+### 실패 응답
+
+**도메인 분기 없음.** 아티스트가 0명이면 빈 배열 200 이다.
 
 ---
 

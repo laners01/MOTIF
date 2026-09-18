@@ -134,6 +134,33 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
     List<ArtistCardRow> findCards(@Param("artistSeqs") Collection<Integer> artistSeqs);
 
     /**
+     * 전체 아티스트 목록 (명세 §5.10) — <b>구독자 수 내림차순 전량</b>, 비삭제만.
+     *
+     * <p>투영은 {@link #findCards} 와 같은 {@link ArtistCardRow} 다 — 필요한 칸이 정확히
+     * 같아서 새 record 를 만들지 않았다. 대신 <b>{@code subscriberCount} 를 칸으로 더하지
+     * 않는다</b>: §5.10 응답에 그 값이 없고, 정렬은 DB 가 한다. 한 칸을 더하면 이 투영을
+     * 쓰는 §5.1·§4.6 이 쓰지도 않을 값을 함께 끌어온다.
+     *
+     * <p><b>동점 tie-break 가 쿼리 안에 있어야 한다.</b> {@code subscriber_count} 만으로
+     * 정렬하면 구독자 0인 신인이 여러 명일 때 Postgres 가 주는 순서가 요청마다 달라져
+     * 같은 화면이 새로고침마다 뒤바뀐다. §5.1 스냅샷의 동점 규칙과 같은
+     * {@code artistSeq} ASC 를 쓴다.
+     *
+     * <p>{@link #search}(어드민 §3.5.1)와 나누어 둔 것은 정렬·필터·봉투가 전부 다르기
+     * 때문이다 — 저쪽은 {@code artistSeq DESC} offset 페이지에 삭제분 포함 옵션이 있다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.artist.ArtistCardRow(
+                       a.artistSeq, u.nickname, u.profileImageKey, g.groupName)
+            from Artist a
+              join User u on u.userSeq = a.userSeq
+              left join ArtistGroup g on g.groupSeq = a.groupSeq
+            where a.deleted = false
+            order by a.subscriberCount desc, a.artistSeq asc
+            """)
+    List<ArtistCardRow> findCardsBySubscriberCountDesc();
+
+    /**
      * 랭킹 스냅샷에 올릴 아티스트 전량 (명세 §5.1) — 비삭제만.
      *
      * <p><b>챌린지가 0개여도 포함한다.</b> 챌린지 쪽에서 집계해 얻은 목록만 쓰면 아직
