@@ -18,19 +18,21 @@ import java.time.Instant;
 /**
  * 회원이 보유한 모티프 패스 (DB SPEC v0.15 §35, changeSet 0009-06).
  *
- * <p><b>생성자가 없다 — 읽기 전용이다.</b> 발급은 결제 승인(§12)이 하고 만료 전이는
- * 배치(§3.16)가 한다. 둘 다 이 티켓 범위 밖이라 여기서는 어드민 회원 상세(§3.14.2)가
- * 읽기만 한다 ({@code ParticipationVideo}·{@code CompositeJob} 과 같은 규칙).
+ * <p><b>(회원, 아티스트)당 한 행이다</b>({@code uq_motif_passes_user_artist}). 최초 결제가
+ * {@code PAID} 가 될 때 {@link #issue} 로 만들고, 만료·환불 뒤 재구매는 새 행이 아니라
+ * <b>같은 행을 {@link #reactivate} 로 되살린다</b>(§35) — 그래서 {@code order_seq} 가
+ * "현재 이용 기간을 만든 주문"으로 바뀐다. 둘 다 결제 승인(API 명세 §12.2)만 부른다.
  *
  * <p><b>이용 판정은 {@code status} 만으로 하지 않는다.</b> 만료 전이 배치가 아직 없어
  * 기간이 지난 패스도 {@code ACTIVE} 로 남아 있다 — {@code status='ACTIVE'} 이고
  * {@code expires_dttm} 이 아직 지나지 않은 것이 유효한 패스다
- * ({@link MotifPassRepository#findActive}).
+ * ({@link MotifPassRepository#findActive}, {@code MotifPassPriceRepository.findActivePassExpiry}).
+ * 재활성 전에 "지금 유효한가"를 묻는 것도 그 조회의 몫이라 여기서는 다시 판정하지 않는다.
  *
  * <p>{@code canceledDttm} 은 <b>취소 의사 기록일 뿐 이용 판정에 불참한다</b>(DB §35) —
- * 다음 갱신을 하지 않겠다는 뜻이지 지금 못 쓴다는 뜻이 아니다.
+ * 다음 갱신을 하지 않겠다는 뜻이지 지금 못 쓴다는 뜻이 아니다. 재활성은 이 값을 지운다.
  *
- * <p>{@code uq_motif_passes_user_artist} 로 (회원, 아티스트)당 한 행이다.
+ * <p>{@code REFUNDED}·{@code EXPIRED} 전이는 어드민 환불·만료 배치의 몫이라 아직 메서드가 없다.
  */
 @Entity
 @Table(name = "motif_passes")
@@ -49,7 +51,8 @@ public class MotifPass extends BaseTimeEntity {
     @Column(name = "artist_seq", nullable = false, updatable = false)
     private Integer artistSeq;
 
-    @Column(name = "order_seq", nullable = false, updatable = false)
+    /** 현재 이용 기간을 만든 PAID 주문 — 재활성마다 바뀐다 (§35). */
+    @Column(name = "order_seq", nullable = false)
     private Long orderSeq;
 
     @Column(name = "duration_months", nullable = false)
@@ -67,4 +70,38 @@ public class MotifPass extends BaseTimeEntity {
 
     @Column(name = "canceled_dttm")
     private Instant canceledDttm;
+
+    /**
+     * 최초 발급 (§12.2 7단계) — 이 회원이 이 아티스트의 패스 행을 아직 갖고 있지 않을 때.
+     *
+     * @param expiresDttm {@code startedDttm + durationMonths 개월} — 개월 계산은 호출부가 한다
+     *                    (시간대가 필요해 엔티티가 정하지 않는다)
+     */
+    public static MotifPass issue(Integer userSeq, Integer artistSeq, Long orderSeq, short durationMonths,
+                                  Instant startedDttm, Instant expiresDttm) {
+        MotifPass pass = new MotifPass();
+        pass.userSeq = userSeq;
+        pass.artistSeq = artistSeq;
+        pass.renew(orderSeq, durationMonths, startedDttm, expiresDttm);
+        return pass;
+    }
+
+    /**
+     * 만료·환불 뒤 재구매 (§35) — 같은 행을 새 주문으로 되살린다.
+     *
+     * <p>유효한 패스를 다시 살 수 없다는 판정({@code PASS_ALREADY_ACTIVE})은 승인 서비스가
+     * DB 시각으로 먼저 끝내고 부른다 — 여기서 앱 시계로 다시 재면 두 판정이 갈릴 수 있다.
+     */
+    public void reactivate(Long orderSeq, short durationMonths, Instant startedDttm, Instant expiresDttm) {
+        renew(orderSeq, durationMonths, startedDttm, expiresDttm);
+    }
+
+    private void renew(Long orderSeq, short durationMonths, Instant startedDttm, Instant expiresDttm) {
+        this.orderSeq = orderSeq;
+        this.durationMonths = durationMonths;
+        this.startedDttm = startedDttm;
+        this.expiresDttm = expiresDttm;
+        this.status = PassStatus.ACTIVE;
+        this.canceledDttm = null;
+    }
 }
