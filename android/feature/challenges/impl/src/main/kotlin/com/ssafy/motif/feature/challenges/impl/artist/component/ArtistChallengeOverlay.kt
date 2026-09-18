@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.challenges.impl.component
+package com.ssafy.motif.feature.challenges.impl.artist.component
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,7 +40,7 @@ internal fun ArtistChallengeOverlay(
     onCaptureClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ShortFormOverlay(
+    _root_ide_package_.com.ssafy.motif.feature.challenges.impl.component.ShortFormOverlay(
         modifier = modifier,
         actions = {
             ChallengeShortFormActions(
@@ -183,7 +183,7 @@ private fun ChallengeShortFormActions(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        ShortFormAction(
+        _root_ide_package_.com.ssafy.motif.feature.challenges.impl.component.ShortFormAction(
             iconRes = if (challenge.isLiked) {
                 MotifIcons.FilledHeart
             } else {
@@ -199,14 +199,14 @@ private fun ChallengeShortFormActions(
             onClick = onLikeClick,
         )
 
-        ShortFormAction(
+        _root_ide_package_.com.ssafy.motif.feature.challenges.impl.component.ShortFormAction(
             iconRes = MotifIcons.Message,
             count = challenge.commentCount,
             contentDescription = "댓글",
             onClick = onCommentClick,
         )
 
-        ShortFormAction(
+        _root_ide_package_.com.ssafy.motif.feature.challenges.impl.component.ShortFormAction(
             iconRes = MotifIcons.Camera,
             count = challenge.participantCount,
             contentDescription = "챌린지 촬영",

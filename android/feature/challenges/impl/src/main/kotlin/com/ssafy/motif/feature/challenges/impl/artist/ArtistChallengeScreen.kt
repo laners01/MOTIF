@@ -1,4 +1,4 @@
-package com.ssafy.motif.feature.challenges.impl
+package com.ssafy.motif.feature.challenges.impl.artist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -6,9 +6,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,6 +24,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
@@ -34,14 +37,15 @@ import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.core.ui.video.VideoShortsFeed
 import com.ssafy.motif.core.ui.video.rememberVideoShortsState
-import com.ssafy.motif.feature.challenges.impl.component.ArtistChallengeOverlay
+import com.ssafy.motif.feature.challenges.impl.artist.component.ArtistChallengeOverlay
+import com.ssafy.motif.feature.challenges.impl.artist.component.ChallengeCollaboratorList
 import com.ssafy.motif.feature.challenges.impl.component.ChallengeBottomNavigation
 import com.ssafy.motif.feature.challenges.impl.component.ChallengeDetailBottomSheet
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ChallengeScreen(
+internal fun ArtistChallengeScreen(
     challenges: List<ArtistChallenge>,
     myProfileImageUrl: String,
     commentUiState: CommentUiState,
@@ -174,12 +178,24 @@ internal fun ChallengeScreen(
 
         descriptionChallenge?.let { challenge ->
             ChallengeDetailBottomSheet(
-                challenge = challenge,
+                description = challenge.description,
+                viewCount = challenge.viewCount,
+                likeCount = challenge.likeCount,
+                createdAt = challenge.createdAt,
                 sheetState = descriptionSheetState,
                 onDismissRequest = {
                     descriptionChallenge = null
                 },
-                onArtistClick = onArtistClick,
+                additionalContent = {
+                    if (challenge.challengeArtists.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        ChallengeCollaboratorList(
+                            artists = challenge.challengeArtists,
+                            onArtistClick = onArtistClick,
+                        )
+                    }
+                },
             )
         }
 
@@ -264,7 +280,7 @@ private fun Modifier.scaleForBottomSheet(
     showBackground = true,
 )
 @Composable
-private fun ChallengeScreenPreview() {
+private fun ArtistChallengeScreenPreview() {
     val context = LocalContext.current
 
     val profileImageUrl =
@@ -285,7 +301,7 @@ private fun ChallengeScreenPreview() {
     }
 
     MotifTheme {
-        ChallengeScreen(
+        ArtistChallengeScreen(
             challenges = previewChallenges(
                 profileImageUrl = profileImageUrl,
             ),
@@ -303,7 +319,7 @@ private fun ChallengeScreenPreview() {
             onReplyClick = { commentId ->
                 val parentComment = comments.firstOrNull { comment ->
                     comment.id == commentId
-                } ?: return@ChallengeScreen
+                } ?: return@ArtistChallengeScreen
 
                 commentUiState = commentUiState.copy(
                     page = CommentPage.Replies(
