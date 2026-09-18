@@ -4,6 +4,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistCardResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
@@ -22,7 +23,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 아티스트 API 문서 계약 (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §11.4).
+ * 팬 앱 아티스트 API 문서 계약
+ * (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §5.10 · §11.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -31,7 +33,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * 근거는 {@code ArtistController} javadoc.
  */
 @Tag(name = "아티스트 (ARTIST)",
-        description = "명세 §5 — 랭킹·상세·챌린지 그리드·공지 목록·구독 · §11.4 모티프 패스")
+        description = "명세 §5 — 전체 목록·랭킹·상세·챌린지 그리드·공지 목록·구독 · §11.4 모티프 패스")
 public interface ArtistControllerDocs {
 
     @Operation(
@@ -122,6 +124,71 @@ public interface ArtistControllerDocs {
             @Parameter(description = "구독 여부 필터", example = "ALL") RankingFilter filter,
             @Parameter(description = "0-base 페이지 번호", example = "0") int page,
             @Parameter(description = "페이지 크기 — 최대 100. 홈 TOP4 는 4", example = "20") int size);
+
+    @Operation(
+            summary = "전체 아티스트 목록 (§5.10) — 구독자 수순 전량",
+            description = """
+                    아티스트 탭의 전체 목록이다. **비페이지 전량 반환**이고 정렬은
+                    `artists.subscriber_count` **내림차순**이다.
+
+                    - **인증 필요.** `isSubscribed` 가 호출자 기준이다.
+                    - **파라미터가 없다** — `page`·`size`·`cursor` 도, `sort` 도 받지 않는다.
+                      정렬은 서버 고정이다.
+                    - **동점은 `artistSeq` 오름차순**이다. tie-break 가 없으면 구독자 0인 신인들의
+                      순서가 요청마다 달라져 같은 화면이 새로고침마다 뒤바뀐다.
+                    - 항목은 **아티스트 요약 + `isSubscribed`** 다. `name` 은 `users.nickname`,
+                      `groupName` 은 솔로면 `null` 이고, `profileImageUrl` 은 공개 등급이라
+                      서명하지 않는다(§1.7).
+                    - **`subscriberCount` 는 싣지 않는다** — 정렬 기준일 뿐이다. 개별 아티스트의
+                      구독자 수는 §5.3 상세가 준다.
+                    - 삭제된 아티스트는 빠진다(§1.8). 아티스트가 0명이면 **빈 배열 200** 이다.
+
+                    ### §5.1 랭킹과 다른 API 다
+                    | | §5.1 랭킹 | §5.10 목록 |
+                    |---|---|---|
+                    | 1차 출처 | Redis 스냅샷(배치가 5분마다) | **DB 직조회** |
+                    | 정렬 | 챌린지 조회·참여 점수(시간 감쇠) | **구독자 수** |
+                    | 페이지 | offset | **없음 — 전량** |
+
+                    §5.1 을 `size` 만 키워 재사용하면 **구독자 수순이 되지 않는다** — 랭킹 점수는
+                    구독을 보지 않는다(§5.6).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "아티스트 전량 (구독자 수 내림차순)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "isSubscribed": true
+                                          },
+                                          {
+                                            "artistSeq": 7,
+                                            "name": "윈터",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": null,
+                                            "isSubscribed": false
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-18T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "인증 실패 (§1.4 공통)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<ListResponse<ArtistCardResponse>> list(
+            @Parameter(hidden = true) AuthenticatedUser user);
 
     @Operation(
             summary = "아티스트 상세 (§5.3)",
