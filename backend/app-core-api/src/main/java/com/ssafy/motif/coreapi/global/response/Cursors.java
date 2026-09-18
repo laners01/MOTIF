@@ -4,6 +4,7 @@ import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 
 /**
@@ -13,9 +14,11 @@ import java.util.Base64;
  * 해석·조작하지 않는다고 못박는다. 정렬 키가 <b>PK 하나</b>인 목록(§5.5 아티스트 공지,
  * §7.1 챌린지 피드)은 {@link #encode}·{@link #decode} 를, 스냅샷 순서를 페이지하는
  * 목록(§6.1 HOT)은 {@link #encodeSnapshot}·{@link #decodeSnapshot} 을, 조회 시점에 점수를
- * 매겨 정렬하는 목록(§8.1 참여 영상 피드)은 {@link #encodeScore}·{@link #decodeScore} 를 쓴다.
+ * 매겨 정렬하는 목록(§8.1 참여 영상 피드)은 {@link #encodeScore}·{@link #decodeScore} 를,
+ * 상호작용 시각으로 정렬하는 목록(§4.9 내 활동)은
+ * {@link #encodeInteracted}·{@link #decodeInteracted} 를 쓴다.
  *
- * <p><b>세 형식을 하나로 합치지 않는다.</b> 단일 PK 토큰에 버전 칸을 더하면 §5.5·§7.1
+ * <p><b>네 형식을 하나로 합치지 않는다.</b> 단일 PK 토큰에 버전 칸을 더하면 §5.5·§7.1
  * 이 쓰지 않는 값을 채워야 하고, 이미 발급돼 클라이언트가 들고 있는 토큰이 디코드되지
  * 않는다(무한 스크롤 중인 화면이 400 을 만난다). 형식을 늘리는 쪽이 싸다.
  *
@@ -169,6 +172,55 @@ public final class Cursors {
             }
             return new Score(
                     Long.parseLong(decoded.substring(0, at)),
+                    Long.parseLong(decoded.substring(at + 1)));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER, "cursor: " + cursor);
+        }
+    }
+
+    /** 상호작용 시각 목록의 커서 위치 — {@code (마지막 항목의 상호작용 시각, 그 videoSeq)} (§4.9). */
+    public record Interacted(Instant at, long lastSeq) {
+    }
+
+    /**
+     * 상호작용 시각 목록의 다음 페이지 토큰 (§4.9).
+     *
+     * <p>{@link #encodeScore} 와 칸 수·타입이 같지만 <b>담는 값의 뜻이 다르다</b> —
+     * 점수는 조회할 때마다 다시 계산되는 값이고 이쪽은 이미 일어난 사건의 시각이다.
+     * 그래서 §8.1 이 감수하는 중복·누락이 여기에는 없다: 좋아요·댓글이 새로 달리면
+     * 그 카드는 목록 <b>맨 앞</b>으로 올라가고, 커서는 이미 지나온 구간을 가리키므로
+     * 뒤쪽 페이지가 흔들리지 않는다.
+     *
+     * <p>시각은 <b>epoch milli</b> 로 담는다. ISO 문자열로 담으면 구분자({@code :})가
+     * 값 안에 들어가 파싱이 깨진다.
+     *
+     * <p><b>seq 가 함께 들어가는 것이 요점이다.</b> 같은 밀리초에 상호작용한 카드가
+     * 둘이면 시각만으로는 경계가 잘리지 않는다 — 한 번의 요청으로 좋아요와 댓글이
+     * 동시에 들어오는 일이 있어 실제로 겹친다.
+     */
+    public static String encodeInteracted(Instant at, long lastSeq) {
+        return ENCODER.encodeToString(
+                (at.toEpochMilli() + DELIMITER + lastSeq).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 토큰 → {@code (상호작용 시각, videoSeq)}. {@code null}·빈 문자열은 "최초 호출" 이라
+     * {@code null} 을 준다.
+     *
+     * <p>{@link #decode} 와 같은 이유로 망가진 토큰은 400 이다.
+     */
+    public static Interacted decodeInteracted(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            String decoded = new String(DECODER.decode(cursor), StandardCharsets.UTF_8);
+            int at = decoded.indexOf(DELIMITER);
+            if (at < 0) {
+                throw new IllegalArgumentException("구분자가 없다");
+            }
+            return new Interacted(
+                    Instant.ofEpochMilli(Long.parseLong(decoded.substring(0, at))),
                     Long.parseLong(decoded.substring(at + 1)));
         } catch (IllegalArgumentException e) {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER, "cursor: " + cursor);

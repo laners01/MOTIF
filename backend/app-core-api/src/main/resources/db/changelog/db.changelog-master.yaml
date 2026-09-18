@@ -46,3 +46,5 @@ databaseChangeLog:
       file: db/changelog/sql/0014-admin-user-seq.sql
   - include:
       file: db/changelog/sql/0015-admin-seed.sql
+  - include:
+      file: db/changelog/sql/0016-activity-index.sql

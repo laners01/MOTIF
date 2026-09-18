@@ -516,7 +516,7 @@ Authorization: Bearer {accessToken}
       }
     ],
     "prevCursor": null,
-    "nextCursor": "eyJ0IjoiMjAyNi0wOC0yOFQxMjowMDowMFoiLCJ2Ijo4OH0",
+    "nextCursor": "MTc4NzkxODQwMDAwMDo4OA",
     "hasPrevious": false,
     "hasNext": true
   },
@@ -529,19 +529,66 @@ Authorization: Bearer {accessToken}
 | `liked` | 내가 좋아요를 눌렀는지 = 카드의 하트 표시 |
 | `video.likeCount` | 화면의 "♥ 1.2만" |
 | `myComment` | 내가 단 댓글. **좋아요만 한 영상이면 `null`** |
+| `myComment.replyCount` | **노출되는** 답글 수(삭제된 답글·삭제 사용자의 답글 제외 — §9.1 과 같은 집합) |
 | `myComment.parentComment` | 내 댓글이 답글이면 부모 요약, 루트면 `null` |
 | `replies` | **내 댓글에 달린 답글 최신 2개** 프리뷰. 전체는 `myComment.replyCount` 와 함께 게시물 댓글 화면으로 이동 |
-| `lastInteractedDttm` | 정렬 기준. 좋아요·댓글 중 **마지막 상호작용 시각** |
+| `lastInteractedDttm` | 정렬 기준. 좋아요·댓글 중 **마지막 상호작용 시각**. 영상의 등록 시각이 아니다 |
+
+**`parentComment` 의 모양** — 원본·이 문서 모두 `null` 예시만 있어 여기서 채운다 **(기본안)**.
+
+```json
+{
+  "commentSeq": 610,
+  "author": { "userSeq": 7, "nickname": "motif_fan", "profileImageUrl": "https://cdn.motif.io/profiles/9a8b7c6d.jpg" },
+  "content": "이 구간 안무가 진짜 어렵던데"
+}
+```
+
+`author` 는 `replies[].author` 와 **같은 요약**이다(`userSeq`·`nickname`·`profileImageUrl`). §9 의 작성자 요약과 달리 `isArtist` 가 없다 — 아티스트 뱃지는 댓글 목록의 정렬 1순위와 짝인 표시이고, 활동 카드에는 그 정렬도 뱃지도 없다.
 
 - 좋아요와 댓글이 **둘 다 있으면 카드 1장으로 병합**한다.
 - 같은 영상에 내 댓글이 여러 개면 **최신 1개**만 싣는다.
+- `replies` 는 **최신 2건을 고르고 등록순으로 싣는다.** 고르는 기준이 최신이어야 새 답글이 보이고, 싣는 순서가 대화 순서여야 읽힌다 — 위 예시의 13:00 → 14:00 이 그 결과다.
 - 내 댓글이 답글이면(depth 2 규칙) `replies` 는 **항상 빈 배열**이다 — 답글에는 답글을 달 수 없다.
-- 대상이 삭제·비노출되었거나 **댓글 사용 중지**된 영상의 카드는 목록에서 제외한다(ACTIVITY-02).
+- 대상이 삭제·비노출되었거나 **댓글 사용 중지**된 영상의 카드는 목록에서 제외한다(ACTIVITY-02). 제외 조건 전량은 아래 기본안 표에 있다.
+- **내 댓글만 삭제된 경우는 제외가 아니다** — 좋아요가 남아 있으면 카드는 남고 `myComment` 만 `null` 이 된다.
 - **최근 검색어는 이 API 와 무관하다** — 서버 API·DB 없이 Android 로컬에서만 처리한다.
+
+**나머지 두 모양** — 좋아요만 한 영상(`myComment=null`)과 내 댓글이 답글인 영상(`parentComment` 채움 · `replies=[]`). `data.list[]` 만 적는다.
+
+```json
+[
+  {
+    "video": { "videoSeq": 90, "thumbnailUrl": "https://cdn.motif.io/public/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg", "viewCount": 120, "likeCount": 8 },
+    "liked": true,
+    "myComment": null,
+    "replies": [],
+    "lastInteractedDttm": "2026-08-27T09:00:00.000Z"
+  },
+  {
+    "video": { "videoSeq": 89, "thumbnailUrl": "https://cdn.motif.io/public/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg", "viewCount": 940, "likeCount": 77 },
+    "liked": false,
+    "myComment": {
+      "commentSeq": 612,
+      "content": "저도 그렇게 생각해요",
+      "likeCount": 3,
+      "replyCount": 0,
+      "regDttm": "2026-08-26T18:00:00.000Z",
+      "parentComment": {
+        "commentSeq": 610,
+        "author": { "userSeq": 7, "nickname": "motif_fan", "profileImageUrl": "https://cdn.motif.io/profiles/9a8b7c6d.jpg" },
+        "content": "이 구간 안무가 진짜 어렵던데"
+      }
+    },
+    "replies": [],
+    "lastInteractedDttm": "2026-08-26T18:00:00.000Z"
+  }
+]
+```
 
 ### 실패 응답
 
-**도메인 분기 없음.**
+**도메인 분기 없음.** 공통 분기 외에는 망가진 `cursor` 의 `400 INVALID_PARAMETER` 뿐이다 — 조용히 첫 페이지로 되돌리지 않는다(무한 스크롤이 원인 없이 맨 위로 점프한다). 커서는 서버가 발급한 opaque 토큰이라 클라이언트가 만들거나 고치지 않는다(§1.9).
 
 ### 기본안
 
@@ -549,6 +596,13 @@ Authorization: Bearer {accessToken}
 |---|---|---|
 | 답글 프리뷰 개수 | 2개 | 원본 §4.9 기본안 (§16 #13 클라 확인 대기) |
 | 내 댓글 다건일 때 | 최신 1개 | 〃 |
+| 답글 프리뷰 표시 순서 | 최신 2건을 고르고 **등록순**으로 | 원본 예시가 이미 오름차순이다. 고르는 기준과 싣는 순서는 다른 질문이고, 둘을 최신순으로 맞추면 대화가 거꾸로 읽힌다 |
+| 커서 구성 | `(lastInteractedDttm, videoSeq)` | 보조 키가 없으면 같은 밀리초에 상호작용한 카드가 호출마다 자리를 바꿔 중복·누락이 난다. 한 번의 요청으로 좋아요와 댓글이 같이 들어오는 자리라 실제로 겹친다 |
+| "비노출" 의 범위 | 삭제 · 삭제 사용자/챌린지 소속 · **타인의 `PRIVATE`** 까지. `video_hides`(관심 없음)는 **제외하지 않는다** | 관심 없음은 §8.1 피드를 덜 보기 위한 신호지 "내가 한 일" 을 지우는 조작이 아니다. 좋아요를 눌러 둔 영상이 활동에서 사라지면 되돌릴 경로가 없다 |
+| `comment_enabled=FALSE` | **좋아요만 눌렀어도 카드째 제외** | 명세 문구 그대로다. 카드의 본체가 댓글 스레드라 열어도 보여 줄 것이 없다 |
+| 내 댓글이 삭제됐을 때 | 카드는 남기고 `myComment=null` | 카드까지 지우면 "좋아요는 그대로인데 활동에서 없어졌다" 가 된다 |
+| 부모가 삭제/탈퇴했을 때 | `parentComment=null`, 카드는 남는다 | 내가 단 답글은 그대로 있다. 사라진 것은 그 위 맥락뿐이다 |
+| `video_comments` 인덱스 | `(user_seq, reg_dttm DESC)` 를 **이 티켓에서 추가**(`0016`) | 좋아요 쪽은 `idx_video_likes_user_dttm` 이 이미 있는데 댓글 쪽은 대상 기준 인덱스뿐이라, 이 조회만 테이블 전체를 훑는다. §4.9 전용이라 별도 이슈로 뺄 이유가 없다 |
 
 ---
 
