@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MotifPassRepository extends JpaRepository<MotifPass, Integer> {
 
@@ -57,4 +58,14 @@ public interface MotifPassRepository extends JpaRepository<MotifPass, Integer> {
      * 와 같은 규칙).
      */
     List<MotifPass> findByUserSeqOrderByExpiresDttmDescPassSeqDesc(Integer userSeq);
+
+    /**
+     * (회원, 아티스트)의 패스 행 — {@code uq_motif_passes_user_artist} 로 0 또는 1건이다.
+     *
+     * <p>결제 승인(API 명세 §12.2)이 "새로 발급하나, 되살리나"를 가르는 조회다. 상태로 거르지
+     * 않는다 — 만료·환불된 행도 <b>같은 행을 재활성</b>해야 하므로 전부 집어야 한다(DB §35).
+     * 유효한 패스인지는 이 조회가 아니라 {@code MotifPassPriceRepository.findActivePassExpiry}
+     * 가 DB 시각으로 답한다.
+     */
+    Optional<MotifPass> findByUserSeqAndArtistSeq(Integer userSeq, Integer artistSeq);
 }

@@ -12,13 +12,14 @@ import lombok.RequiredArgsConstructor;
  * {@code ArtistErrorCode.ARTIST_NOT_FOUND})를 그대로 쓰고 여기 다시 만들지 않는다
  * ({@code code} 전역 유일 — README §3).
  *
- * <p>승인·취소(§12.2·§12.3)의 코드({@code AMOUNT_MISMATCH}·{@code ORDER_NOT_FOUND}·
- * {@code ORDER_EXPIRED} …)는 그 티켓이 여기에 덧붙인다. {@code PAYMENT_FAILED} 는
- * {@code CommonErrorCode} 가 이미 갖고 있다.
+ * <p>{@code PAYMENT_FAILED}(402) 는 {@code CommonErrorCode} 가 갖고 있다 — 명세 §1.4 가 도메인
+ * 공용 확장으로 묶은 코드라 여기 다시 만들지 않는다.
  */
 @Getter
 @RequiredArgsConstructor
 public enum OrderErrorCode implements ErrorCode {
+
+    // --- 12.1 · 12.2 재검증 ---------------------------------------------------------
 
     /** {@code is_active=FALSE} 또는 해당 국가의 활성 가격 없음 — ASSET·PASS 공통. */
     PRODUCT_NOT_ON_SALE(409, "PRODUCT_NOT_ON_SALE", "판매 중인 상품이 아닙니다."),
@@ -33,7 +34,24 @@ public enum OrderErrorCode implements ErrorCode {
     COVERED_BY_PASS(409, "COVERED_BY_PASS", "패스로 이용 중인 에셋입니다."),
 
     /** 유효 패스 보유 중 (PASS). 만료·환불 뒤의 재구매는 막지 않는다. */
-    PASS_ALREADY_ACTIVE(409, "PASS_ALREADY_ACTIVE", "이미 이용 중인 패스입니다.");
+    PASS_ALREADY_ACTIVE(409, "PASS_ALREADY_ACTIVE", "이미 이용 중인 패스입니다."),
+
+    // --- 12.2 승인 --------------------------------------------------------------------
+
+    /** 콜백 {@code amount} ≠ 주문 스냅샷 — 토스 승인을 부르기 <b>전에</b> 막는다 (§12.2 1단계). */
+    AMOUNT_MISMATCH(400, "AMOUNT_MISMATCH", "결제 금액이 주문과 다릅니다."),
+
+    /** 주문 없음·타인 주문 (§12.2·§12.3). 둘을 가르지 않는다 — 존재 은닉(§1.8). */
+    ORDER_NOT_FOUND(404, "ORDER_NOT_FOUND", "존재하지 않는 주문입니다."),
+
+    /**
+     * 더 이상 결제할 수 없는 주문 (§12.2) — 30분 만료, 또는 종료 상태
+     * ({@code EXPIRED}·{@code CANCELED}·{@code FAILED})의 승인 시도. 재시도는 새 주문이다.
+     */
+    ORDER_EXPIRED(409, "ORDER_EXPIRED", "만료된 주문입니다."),
+
+    /** 이미 {@code PAID}(·{@code REFUNDED}) 인 주문의 중복 승인 (§12.2). */
+    ORDER_ALREADY_PAID(409, "ORDER_ALREADY_PAID", "이미 결제된 주문입니다.");
 
     private final int status;
     private final String code;

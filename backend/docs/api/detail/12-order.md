@@ -179,7 +179,7 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 }
 ```
 
-`orderId` 는 경로의 `orderUuid` 와 같은 값이다(토스가 돌려준 것을 그대로 싣는다).
+`orderId` 는 경로의 `orderUuid` 와 같은 값이다(토스가 돌려준 것을 그대로 싣는다). **다르면 400 `INVALID_PARAMETER` 이고 `data` 에 `orderId` 필드 오류가 실린다 (기본안).** `amount` 가 숫자가 아니면 같은 400 에 `amount` 필드 오류다. 셋 다 필수이며 `paymentKey` 는 200자까지다(토스 계약).
 
 ### 서버 처리 순서 — 전부 필수
 
@@ -192,6 +192,28 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 1번의 금액 대조는 **컷 불가**다. 문자열이나 `equals` 로 비교하면 `3900` 과 `3900.00` 이 다르게 판정되므로 `compareTo` 를 쓴다.
 
 4번의 조건부 UPDATE 가 **중복 승인 방어**다 — 같은 주문으로 두 번 들어와도 두 번째는 0행이라 권한이 두 번 생기지 않는다.
+
+### 구현 순서 *(기본안 — 조건부 UPDATE 를 토스 호출 앞에 둔다)*
+
+위 순서에서 **4(조건부 UPDATE)가 3(토스 승인)보다 앞**이다. 같은 트랜잭션 안이라 커밋 전에는 밖에서 `PAID` 가 보이지 않고, UPDATE 가 잡은 행 잠금 덕에 같은 주문의 동시 승인이 직렬화되어 두 번째는 토스를 부르지 않고 409 로 끝난다. 원본 순서(승인 → UPDATE)로 하면 토스 승인 **뒤에** 만료·중복이 드러나 돈은 빠졌는데 권한이 없는 창이 생긴다. 토스가 거절하면 트랜잭션이 통째로 되돌아가 `PAID` 도 사라진다.
+
+| 단계 | 하는 일 | 실패 |
+|---|---|---|
+| 0 | 회원 단위 잠금(`pg_advisory_xact_lock`) — 같은 회원의 승인을 한 줄로 세운다 | — |
+| 1 | 본인 주문 조회 | 404 `ORDER_NOT_FOUND` (없음·타인 구분 없음) |
+| 2 | `orderId`·`amount` 대조 | 400 `INVALID_PARAMETER` / 400 `AMOUNT_MISMATCH` |
+| 3 | 상태 — `PAID`·`REFUNDED` / 종료 상태(`EXPIRED`·`CANCELED`·`FAILED`) / 기간 지난 `PENDING`(→ `EXPIRED` 전이) | 409 `ORDER_ALREADY_PAID` / 409 `ORDER_EXPIRED` / 409 `ORDER_EXPIRED` |
+| 4 | 판매 가능 재검증 — §12.1 과 같은 판정. 실패면 `PENDING → EXPIRED` | 409 `PRODUCT_NOT_ON_SALE` · `ALREADY_OWNED` · `COVERED_BY_PASS` · `PASS_ALREADY_ACTIVE` |
+| 5 | 조건부 UPDATE `PENDING → PAID` (`payment_provider='TOSS'`, `payment_key`, `approved_dttm=now()`) | 0행 → 다시 읽어 `PAID` 면 409 `ORDER_ALREADY_PAID`, 아니면 `EXPIRED` 전이 + 409 `ORDER_EXPIRED` |
+| 6 | 토스 승인 API — `POST /v1/payments/confirm`, Basic 인증, KRW 정수 금액 | 확정 거절 → 롤백 후 별도 트랜잭션에서 `FAILED`(+`fail_reason`, `payment_key`) → 402 `PAYMENT_FAILED` |
+| 7 | 권한 생성 — ASSET `asset_purchases(ACTIVE)` / PASS `motif_passes` 발급 또는 **같은 행 재활성** | — |
+
+- 종료 상태 주문의 승인 시도가 전부 `ORDER_EXPIRED` 인 것은 **기본안**이다 — §15 에 더 맞는 코드가 없어 새 코드를 만들지 않았다.
+- 재검증(4)에 보유·패스 판정이 들어가는 것도 **기본안**이다. 원본은 "판매 가능 상태"만 적었지만, 12.1 이 같은 상품의 `PENDING` 주문을 여러 개 허용하므로 두 주문이 연달아 승인되면 `uq_asset_purchases_active` 에서 터진다. 재검증에서 존재 코드(아티스트 삭제 등)는 `PRODUCT_NOT_ON_SALE` 로 답한다 — 주문은 있는데 상품이 사라진 것이다.
+- **결과 불명(타임아웃·5xx·우리 키 오류·토스 일시 오류 `PROVIDER_ERROR`)은 `FAILED` 로 기록하지 않는다.** 롤백 뒤 500 `INTERNAL_ERROR` 이고 주문은 `PENDING` 그대로다. 클라이언트가 같은 `paymentKey` 로 다시 부르면 토스가 멱등하게 답한다.
+- 토스가 `ALREADY_PROCESSED_PAYMENT` 를 주면 결제 조회(`GET /v1/payments/{paymentKey}`)로 `orderId`·금액·`DONE` 을 확인한 뒤 승인으로 간주한다 — 앞선 시도가 승인 뒤 끊긴 경우의 복구 경로다. 이 경로가 없으면 돈은 빠졌는데 402 가 나간다.
+- PASS 만료 `now + n개월` 은 **KST 달력**으로 더한다 — UTC 로 세면 월말 보정이 하루 어긋나는 날이 있다. 재활성은 `started·expires·duration_months·order_seq` 를 갈고 `status=ACTIVE`, `canceled_dttm=NULL` 로 되돌린다.
+- 토스에는 금액을 **정수**로 보낸다(`3900.00` → `3900`). KRW 는 소수가 없다.
 
 ### 성공 응답 (200) — PASS
 
@@ -227,7 +249,7 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 }
 ```
 
-`productType` 에 따라 `pass` 또는 `asset` 중 **하나만** 실린다.
+`productType` 에 따라 `pass` 또는 `asset` 중 **하나만** 실린다 — 다른 쪽 키는 응답에 없다(§6.3 과 같은 방식). `pass.expiresDttm` 은 새 이용 기간의 만료다.
 
 ### 실패 응답
 
@@ -236,9 +258,11 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 | 400 | `AMOUNT_MISMATCH` | 콜백 `amount` ≠ 주문 스냅샷 — **승인 호출 전에 차단** |
 | 402 | `PAYMENT_FAILED` | 토스 승인 거절. `data` 에 토스 실패 사유 |
 | 404 | `ORDER_NOT_FOUND` | 주문 없음·타인 주문 |
-| 409 | `ORDER_EXPIRED` | 30분 만료(조건부 UPDATE 0행) |
+| 409 | `ORDER_EXPIRED` | 30분 만료(조건부 UPDATE 0행) · 종료 상태(`EXPIRED`·`CANCELED`·`FAILED`) 주문의 승인 시도 *(기본안)* |
 | 409 | `ORDER_ALREADY_PAID` | 중복 승인 시도 |
-| 409 | `PRODUCT_NOT_ON_SALE` | 승인 직전 판매 중단 감지 |
+| 409 | `PRODUCT_NOT_ON_SALE` | 승인 직전 판매 중단 감지 — 재검증의 `ALREADY_OWNED`·`COVERED_BY_PASS`·`PASS_ALREADY_ACTIVE` 도 같은 자리다. 주문은 `EXPIRED` 로 바뀐다 |
+
+공통 400 `INVALID_PARAMETER` 는 필수값 누락 외에 `orderId` ≠ 경로 `orderUuid`, `amount` 가 숫자가 아닌 경우에도 난다 (기본안, 위 요청 절).
 
 ```json
 {
@@ -251,6 +275,15 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 ```
 
 **재시도는 새 주문**이다(§12.1 부터 다시). 실패한 주문을 다시 승인할 수 없다.
+
+### 구현 메모 (S15P21D104-265)
+
+- 서비스가 둘이다 — `OrderConfirmService`(파사드, 트랜잭션 없음)와 `OrderConfirmTransaction`(본체). 토스 거절은 본체의 트랜잭션을 되돌린 **뒤** 파사드가 새 트랜잭션으로 `FAILED` 를 쓴다. 한 빈에 두면 프록시를 타지 않아 두 트랜잭션을 가를 수 없다.
+- 만료·판매 중단 거절은 `OrderRejectedException`(`noRollbackFor`) — `EXPIRED` 전이가 남아야 한다. 토스 거절은 `PaymentRejectedException`(롤백).
+- 판정은 12.1 과 같은 `ProductAvailability` 다. 상태 전이는 전부 `OrderRepository` 의 네이티브 조건부 UPDATE(`markPaid`·`markExpired`·`markFailed`) — 명세의 SQL 을 그대로 옮기고 시각은 DB `now()` 다.
+- 토스 클라이언트는 `domain/order/payment/` — `TossPaymentClient`(인터페이스, 테스트가 가짜로 바꾼다) + `RestClient` 구현. 설정은 `motif.payment.toss.*`, 시크릿은 `TOSS_SECRET_KEY` 환경변수만. 키가 비면 기동은 되고 승인만 500 이다.
+- `AssetPurchase` 엔티티가 이 티켓에서 생겼고 `MotifPass` 에 발급·재활성이 붙었다. `MotifAssetRepository`·`MotifPassPriceRepository` 의 네이티브 보유·패스 조회는 옮기지 않았다(§4.7·§5.3·§11 코드를 건드림 — 별도 정리 이슈).
+- 자동 테스트는 가짜 토스로 돈다. 실토스 샌드박스 연동은 키를 받은 뒤 별도 확인이다.
 
 ---
 

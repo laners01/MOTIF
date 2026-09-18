@@ -1,6 +1,8 @@
 package com.ssafy.motif.coreapi.domain.order.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.coreapi.domain.order.dto.OrderConfirmRequest;
+import com.ssafy.motif.coreapi.domain.order.dto.OrderConfirmResponse;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderCreateRequest;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderCreateResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
@@ -14,8 +16,10 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.UUID;
+
 /**
- * 결제 API 문서 계약 (명세 §12 — 12.1).
+ * 결제 API 문서 계약 (명세 §12 — 12.1 · 12.2).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -181,4 +185,174 @@ public interface OrderControllerDocs {
     ApiResponse<OrderCreateResponse> create(
             @Parameter(hidden = true) AuthenticatedUser user,
             OrderCreateRequest request);
+
+    // ---------------------------------------------------------------------------------
+    // 12.2 결제 승인
+    // ---------------------------------------------------------------------------------
+
+    String CONFIRM_DESCRIPTION = """
+            결제 흐름의 **3단계**다. 클라이언트가 토스 위젯의 `successUrl` 콜백 파라미터
+            (`paymentKey` · `orderId` · `amount`)를 **그대로** 실어 보내면, 서버가 토스 승인 API 를
+            호출하고 같은 트랜잭션에서 권한(`asset_purchases` / `motif_passes`)을 만든다. 토스는
+            서버로 웹훅을 보내지 않으므로 **이 호출이 없으면 결제가 완료되지 않는다.**
+
+            - **인증 필요.** 본인 주문만 승인할 수 있다 — 타인 주문은 404.
+            - `orderId` 는 경로의 `orderUuid` 와 같아야 한다. 다르면 400 `INVALID_PARAMETER`.
+            - `amount` 는 문자열이고 주문 스냅샷과 **`BigDecimal.compareTo`** 로 대조한다 — `3900` 과
+              `3900.00` 은 같다. 다르면 토스를 부르지 않고 400 `AMOUNT_MISMATCH`.
+
+            ### 서버 처리 순서
+
+            1. 본인 주문 조회 → 404 `ORDER_NOT_FOUND`
+            2. 금액 대조 → 400 `AMOUNT_MISMATCH` (토스 호출 전 차단)
+            3. 상태 확인 — `PAID`·`REFUNDED` 는 409 `ORDER_ALREADY_PAID`. 종료 상태(`EXPIRED`·`CANCELED`·
+               `FAILED`)와 30분이 지난 `PENDING` 은 409 `ORDER_EXPIRED` *(기본안 — 종료 상태 통칭)*
+            4. 판매 가능 재검증 — §12.1 과 같은 판정. 실패하면 주문을 `EXPIRED` 로 바꾸고 409
+               (`PRODUCT_NOT_ON_SALE` / `ALREADY_OWNED` / `COVERED_BY_PASS` / `PASS_ALREADY_ACTIVE`)
+            5. 조건부 UPDATE `PENDING → PAID` (`status='PENDING' AND expires_dttm > now()`) — 0행이면
+               만료·중복 판정
+            6. **토스 승인 API 호출** — 거절되면 트랜잭션을 되돌리고 주문을 `FAILED` 로 남긴 뒤
+               402 `PAYMENT_FAILED`, `data` 에 `toss: {code}`
+            7. 권한 생성 — ASSET 은 `asset_purchases(ACTIVE)`, PASS 는 `motif_passes` 발급 또는
+               **같은 행 재활성**(`started=now`, `expires=now+n개월`, 취소 의사 초기화)
+
+            *(기본안)* 5 가 6 보다 앞이다 — 같은 트랜잭션 안이라 커밋 전에는 밖에서 `PAID` 가 보이지
+            않고, 행 잠금 덕에 같은 주문의 동시 승인이 직렬화되어 두 번째는 토스를 부르지 않고 409 로
+            끝난다. 원본 순서(승인 → UPDATE)로 하면 토스 승인 뒤에 만료·중복이 발견되어 돈만 빠지는
+            창이 생긴다. 같은 회원의 승인은 회원 단위 잠금으로 한 줄로 선다 — 같은 상품의 주문 두 개가
+            연달아 승인되는 일이 없다.
+
+            ### 결과 불명 · 재시도
+
+            토스가 답하지 않았거나(타임아웃·5xx) 우리 키가 틀렸으면 500 `INTERNAL_ERROR` 이고
+            **주문은 `PENDING` 그대로**다. 같은 `paymentKey` 로 다시 부르면 된다 — 이미 승인된 결제면
+            토스가 `ALREADY_PROCESSED_PAYMENT` 를 주고, 서버가 결제 조회로 `orderId`·금액·`DONE` 을
+            확인한 뒤 승인으로 처리한다.
+
+            **거절된 주문은 되살리지 않는다.** 402 뒤의 재시도는 §12.1 부터 새 주문이다.
+
+            ### 응답
+
+            `productType` 에 따라 `pass` 또는 `asset` 중 **하나만** 실린다 — 다른 쪽 키는 응답에 없다.
+            `pass.expiresDttm` 은 새 이용 기간의 만료(승인 시각 + 개월 수, KST 달력 기준)다.
+            """;
+
+    String REQUEST_CONFIRM_EXAMPLE = """
+            {
+              "paymentKey": "toss-payment-key",
+              "orderId": "e3b0c442-98fc-4c14-a1b2-3d4e5f678901",
+              "amount": "3900.00"
+            }""";
+
+    String CONFIRM_PASS_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "orderUuid": "e3b0c442-98fc-4c14-a1b2-3d4e5f678901",
+                "status": "PAID",
+                "productType": "PASS",
+                "pass": { "expiresDttm": "2026-10-02T06:00:00.000Z" }
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String CONFIRM_ASSET_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "orderUuid": "e3b0c442-98fc-4c14-a1b2-3d4e5f678901",
+                "status": "PAID",
+                "productType": "ASSET",
+                "asset": { "assetSeq": 21 }
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String AMOUNT_MISMATCH_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "AMOUNT_MISMATCH",
+              "message": "결제 금액이 주문과 다릅니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String PAYMENT_FAILED_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "PAYMENT_FAILED",
+              "message": "결제 승인에 실패했습니다.",
+              "data": "toss: REJECT_CARD_COMPANY",
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String ORDER_NOT_FOUND_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "ORDER_NOT_FOUND",
+              "message": "존재하지 않는 주문입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String ORDER_EXPIRED_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "ORDER_EXPIRED",
+              "message": "만료된 주문입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "결제 승인 — 토스 성공 콜백 후 (§12.2)", description = CONFIRM_DESCRIPTION)
+    @RequestBody(required = true, description = "토스 successUrl 콜백 파라미터 그대로",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = OrderConfirmRequest.class),
+                    examples = @ExampleObject(value = REQUEST_CONFIRM_EXAMPLE)))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "승인됨 — productType 에 따라 pass / asset 중 하나",
+                    content = @Content(mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "PASS", value = CONFIRM_PASS_EXAMPLE),
+                                    @ExampleObject(name = "ASSET", value = CONFIRM_ASSET_EXAMPLE)
+                            })),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "`AMOUNT_MISMATCH` — 콜백 amount ≠ 주문 스냅샷 (승인 호출 전 차단) · "
+                            + "`INVALID_PARAMETER` — 필수값 누락 · orderId ≠ 경로 orderUuid · amount 가 숫자가 아님",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = AMOUNT_MISMATCH_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "402",
+                    description = "`PAYMENT_FAILED` — 토스 승인 거절. data 에 토스 실패 코드. 재시도는 새 주문",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = PAYMENT_FAILED_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "`ORDER_NOT_FOUND` — 주문 없음 · 타인 주문",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = ORDER_NOT_FOUND_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "`ORDER_EXPIRED` — 30분 만료 · 종료 상태 주문 · "
+                            + "`ORDER_ALREADY_PAID` — 중복 승인 · "
+                            + "`PRODUCT_NOT_ON_SALE` / `ALREADY_OWNED` / `COVERED_BY_PASS` / `PASS_ALREADY_ACTIVE` — "
+                            + "승인 직전 재검증 실패 (주문은 EXPIRED 로 바뀐다)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = ORDER_EXPIRED_EXAMPLE)))
+    })
+    ApiResponse<OrderConfirmResponse> confirm(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "주문 식별자 — §12.1 응답의 orderUuid",
+                    example = "e3b0c442-98fc-4c14-a1b2-3d4e5f678901") UUID orderUuid,
+            OrderConfirmRequest request);
 }

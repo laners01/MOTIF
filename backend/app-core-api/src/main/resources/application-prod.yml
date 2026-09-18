@@ -54,6 +54,11 @@ motif:
   media:
     public-base-url: ${MOTIF_MEDIA_PUBLIC_BASE_URL:https://d21so2cpi8si9r.cloudfront.net}
 
+  # TOSS_SECRET_KEY 는 core-api-secret 에 추가해야 한다 — 값·fallback 은 application.yml 에 있다
+  # (빈 값 fallback: 미주입이면 기동은 되고 결제 승인 §12.2 만 500). 시연 전까지는 토스 테스트
+  # 키(test_sk_…)를 넣는다 — 실 카드가 결제되지 않는다. 라이브 키 전환은 값만 바꾸고 롤아웃
+  # 재시작한다(envFrom 은 파드 생성 시점에 한 번 해석된다 — backend/CLAUDE.md).
+
   admin:
     # 쿠키는 운영에서 항상 Secure 다. Traefik 이 TLS 를 끊어 앱이 보는 스킴은 http 라
     # 요청으로 판단할 수 없다 — 값으로 못박는다(§1.2).
