@@ -1,9 +1,11 @@
 package com.ssafy.motif.core.data.di
 
+import com.ssafy.motif.core.data.auth.SessionAccessTokenProvider
 import com.ssafy.motif.core.data.repository.AuthRepository
 import com.ssafy.motif.core.data.repository.AuthRepositoryImpl
 import com.ssafy.motif.core.data.util.ConnectivityManagerNetworkMonitor
 import com.ssafy.motif.core.data.util.NetworkMonitor
+import com.ssafy.motif.core.network.auth.AccessTokenProvider
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -22,4 +24,9 @@ abstract class DataModule {
     internal abstract fun bindAuthRepository(
         authRepositoryImpl: AuthRepositoryImpl,
     ): AuthRepository
+
+    @Binds
+    internal abstract fun bindAccessTokenProvider(
+        provider: SessionAccessTokenProvider,
+    ): AccessTokenProvider
 }
