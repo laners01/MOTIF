@@ -2,7 +2,7 @@ package com.ssafy.motif.core.model.challenges
 
 import com.ssafy.motif.core.model.home.Artist
 
-data class ChallengeShortForm(
+data class ArtistChallenge(
     val id: Long,
     val videoUrl: String,
     val thumbnailUrl: String,

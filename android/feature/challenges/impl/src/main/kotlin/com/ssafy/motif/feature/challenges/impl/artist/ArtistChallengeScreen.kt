@@ -1,14 +1,11 @@
-package com.ssafy.motif.feature.challenges.impl
+package com.ssafy.motif.feature.challenges.impl.artist
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,33 +13,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
-import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
+import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.challenges.ChallengeShortForm
+import com.ssafy.motif.core.model.challenges.ArtistChallenge
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.ui.comment.CommentBottomSheet
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
-import com.ssafy.motif.core.ui.video.VideoShortsFeed
-import com.ssafy.motif.core.ui.video.rememberVideoShortsState
-import com.ssafy.motif.feature.challenges.impl.component.ChallengeBottomNavigation
+import com.ssafy.motif.feature.challenges.impl.artist.component.ArtistChallengeOverlay
+import com.ssafy.motif.feature.challenges.impl.artist.component.ChallengeCollaboratorList
 import com.ssafy.motif.feature.challenges.impl.component.ChallengeDetailBottomSheet
-import com.ssafy.motif.feature.challenges.impl.component.ChallengeShortFormOverlay
+import com.ssafy.motif.feature.challenges.impl.component.ChallengeShortFormLayout
+import com.ssafy.motif.feature.challenges.impl.component.KeyboardBackgroundScrim
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ChallengeScreen(
-    challenges: List<ChallengeShortForm>,
+internal fun ArtistChallengeScreen(
+    challenges: List<ArtistChallenge>,
     myProfileImageUrl: String,
     commentUiState: CommentUiState,
     onArtistClick: (Long) -> Unit,
@@ -60,7 +54,6 @@ internal fun ChallengeScreen(
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
-    val videoShortsState = rememberVideoShortsState()
 
     val descriptionSheetState = rememberBottomSheetState(
         skipPartiallyExpanded = false,
@@ -73,11 +66,11 @@ internal fun ChallengeScreen(
     )
 
     var descriptionChallenge by remember {
-        mutableStateOf<ChallengeShortForm?>(null)
+        mutableStateOf<ArtistChallenge?>(null)
     }
 
     var commentChallenge by remember {
-        mutableStateOf<ChallengeShortForm?>(null)
+        mutableStateOf<ArtistChallenge?>(null)
     }
 
     val activeSheetState = when {
@@ -86,83 +79,54 @@ internal fun ChallengeScreen(
         else -> null
     }
 
-    val isBottomSheetVisible = activeSheetState != null
-
     val isCommentKeyboardVisible =
         commentChallenge != null && WindowInsets.isImeVisible
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black),
+        modifier = modifier.fillMaxSize(),
     ) {
-        Column(
+        ChallengeShortFormLayout(
+            itemCount = challenges.size,
+            videoId = { index ->
+                challenges[index].id.toString()
+            },
+            videoUrl = { index ->
+                challenges[index].videoUrl
+            },
+            thumbnailUrl = { index ->
+                challenges[index].thumbnailUrl
+            },
+            myProfileImageUrl = myProfileImageUrl,
+            activeSheetState = activeSheetState,
+            onHomeClick = onHomeClick,
+            onMyClick = onMyClick,
+            onMotifClick = onMotifClick,
             modifier = Modifier.fillMaxSize(),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            ) {
-                VideoShortsFeed(
-                    itemCount = challenges.size,
-                    videoId = { index ->
-                        challenges[index].id.toString()
-                    },
-                    videoUrl = { index ->
-                        challenges[index].videoUrl
-                    },
-                    thumbnailUrl = { index ->
-                        challenges[index].thumbnailUrl
-                    },
-                    state = videoShortsState,
-                    muted = false,
-                    repeat = true,
-                    captureBackdrop = true,
-                    userScrollEnabled = !isBottomSheetVisible,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .scaleForBottomSheet(
-                            sheetState = activeSheetState,
-                        ),
-                ) { index, _, backdropState ->
-                    if (!isBottomSheetVisible) {
-                        val challenge = challenges[index]
+        ) { index, backdropState ->
+            val challenge = challenges[index]
 
-                        ChallengeShortFormOverlay(
-                            challenge = challenge,
-                            backdropState = backdropState,
-                            onArtistClick = {
-                                onArtistClick(challenge.artist.id)
-                            },
-                            onSubscribeClick = {
-                                onSubscribeClick(challenge.artist.id)
-                            },
-                            onDescriptionClick = {
-                                descriptionChallenge = challenge
-                            },
-                            onLikeClick = {
-                                onLikeClick(challenge.id)
-                            },
-                            onCommentClick = {
-                                commentChallenge = challenge
-                                onCommentClick(challenge.id)
-                            },
-                            onCaptureClick = {
-                                onCaptureClick(challenge.id)
-                            },
-                        )
-                    }
-                }
-            }
-
-            ChallengeBottomNavigation(
-                playbackProgress = videoShortsState.playbackProgress,
-                myProfileImageUrl = myProfileImageUrl,
-                onSeek = videoShortsState::seekTo,
-                onHomeClick = onHomeClick,
-                onMyClick = onMyClick,
-                onMotifClick = onMotifClick,
+            ArtistChallengeOverlay(
+                challenge = challenge,
+                backdropState = backdropState,
+                onArtistClick = {
+                    onArtistClick(challenge.artist.id)
+                },
+                onSubscribeClick = {
+                    onSubscribeClick(challenge.artist.id)
+                },
+                onDescriptionClick = {
+                    descriptionChallenge = challenge
+                },
+                onLikeClick = {
+                    onLikeClick(challenge.id)
+                },
+                onCommentClick = {
+                    commentChallenge = challenge
+                    onCommentClick(challenge.id)
+                },
+                onCaptureClick = {
+                    onCaptureClick(challenge.id)
+                },
             )
         }
 
@@ -174,12 +138,26 @@ internal fun ChallengeScreen(
 
         descriptionChallenge?.let { challenge ->
             ChallengeDetailBottomSheet(
-                challenge = challenge,
+                description = challenge.description,
+                viewCount = challenge.viewCount,
+                likeCount = challenge.likeCount,
+                createdAt = challenge.createdAt,
                 sheetState = descriptionSheetState,
                 onDismissRequest = {
                     descriptionChallenge = null
                 },
-                onArtistClick = onArtistClick,
+                additionalContent = {
+                    if (challenge.challengeArtists.isNotEmpty()) {
+                        Spacer(
+                            modifier = Modifier.height(20.dp),
+                        )
+
+                        ChallengeCollaboratorList(
+                            artists = challenge.challengeArtists,
+                            onArtistClick = onArtistClick,
+                        )
+                    }
+                },
             )
         }
 
@@ -204,67 +182,11 @@ internal fun ChallengeScreen(
     }
 }
 
-@Composable
-private fun KeyboardBackgroundScrim(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interactionSource = remember {
-        MutableInteractionSource()
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Color.Black.copy(
-                    alpha = KEYBOARD_SCRIM_ALPHA,
-                ),
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
-    )
-}
-
-private fun Modifier.scaleForBottomSheet(
-    sheetState: SheetState?,
-): Modifier =
-    graphicsLayer {
-        val sheetTop = sheetState?.offsetOrNull()
-
-        val scale =
-            if (sheetTop == null || size.height <= 0f) {
-                1f
-            } else {
-                (sheetTop / size.height).coerceIn(
-                    minimumValue = 0f,
-                    maximumValue = 1f,
-                )
-            }
-
-        scaleX = scale
-        scaleY = scale
-
-        transformOrigin = TransformOrigin(
-            pivotFractionX = 0.5f,
-            pivotFractionY = 0f,
-        )
-
-        alpha = if (scale == 0f) {
-            0f
-        } else {
-            1f
-        }
-    }
-
 @Preview(
     showBackground = true,
 )
 @Composable
-private fun ChallengeScreenPreview() {
+private fun ArtistChallengeScreenPreview() {
     val context = LocalContext.current
 
     val profileImageUrl =
@@ -285,7 +207,7 @@ private fun ChallengeScreenPreview() {
     }
 
     MotifTheme {
-        ChallengeScreen(
+        ArtistChallengeScreen(
             challenges = previewChallenges(
                 profileImageUrl = profileImageUrl,
             ),
@@ -303,7 +225,7 @@ private fun ChallengeScreenPreview() {
             onReplyClick = { commentId ->
                 val parentComment = comments.firstOrNull { comment ->
                     comment.id == commentId
-                } ?: return@ChallengeScreen
+                } ?: return@ArtistChallengeScreen
 
                 commentUiState = commentUiState.copy(
                     page = CommentPage.Replies(
@@ -333,7 +255,7 @@ private fun ChallengeScreenPreview() {
 
 private fun previewChallenges(
     profileImageUrl: String,
-): List<ChallengeShortForm> {
+): List<ArtistChallenge> {
     val yeji = Artist(
         id = 1L,
         name = "Yeji",
@@ -370,7 +292,7 @@ private fun previewChallenges(
     )
 
     return listOf(
-        ChallengeShortForm(
+        ArtistChallenge(
             id = 1L,
             videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
             thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/thumb.jpg",
@@ -387,7 +309,7 @@ private fun previewChallenges(
             isSubscribed = false,
             challengeArtists = challengeArtists,
         ),
-        ChallengeShortForm(
+        ArtistChallenge(
             id = 2L,
             videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
             thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/thumb.jpg",
@@ -515,4 +437,3 @@ private fun previewReplies(
 
 private const val DESCRIPTION_SHEET_FRACTION = 0.4f
 private const val COMMENT_SHEET_FRACTION = 0.65f
-private const val KEYBOARD_SCRIM_ALPHA = 0.45f
