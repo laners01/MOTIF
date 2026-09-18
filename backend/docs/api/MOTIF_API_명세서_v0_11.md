@@ -866,12 +866,17 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
   "participants": [
     { "artistSeq": 7, "name": "윈터", "participantMask": 1,
       "profileImageUrl": "https://cdn.example/profiles/uuid.jpg",
-      "bbox": { "leftTopX": 120, "leftTopY": 80, "rightBottomX": 460, "rightBottomY": 940 } }
+      "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 } }
+  ],
+  "editedChallenges": [
+    { "participantMask": 1, "previewImageUrl": "https://cdn.example/edited/11/p1.jpg" }
   ]
 }
 ```
 
-- `participants` = 교체 가능한 인물 슬롯(추가 참여 아티스트 — `groupName` 제거 **(회의 확정)**). `bbox` 는 원본 영상 px·좌상단 원점 좌표로, 촬영 가이드 오버레이용.
+- `participants` = 교체 가능한 인물 슬롯(추가 참여 아티스트 — `groupName` 제거 **(회의 확정)**). 챌린지 주인은 슬롯이 아니다(원 없음·교체 불가).
+- `anchor` **(2026-09-18, S15P21D104-618 — `bbox` 대체)** = 촬영 전 선택 화면(10-1~3)에서 프로필 원이 앉는 자리. **썸네일 대비 0~1 비율**(`x`·`r` 가로, `y` 세로) — 뷰 `W×H` 에 중심 `(x·W, y·H)`, 반지름 `r·W`. 시안(402 폭·지름 80)이면 `r ≈ 0.0995`. 어드민이 아직 찍지 않은 옛 슬롯은 `null` → 원 숨김. `bbox` 는 삭제.
+- `editedChallenges` **(2026-09-18)** = 조합(`mask`)별 **선택 화면 이미지**. 고른 슬롯 마스크를 OR 한 값과 같은 항목의 `previewImageUrl` 을 썸네일 자리에 띄운다(배경 교체 개념). mask 0(무선택)은 항목이 없고 `thumbnailUrl` 이 그 화면. `previewImageUrl` 이 `null`(옛 편집본)이거나 항목이 없으면 썸네일로 폴백. 편집본이 있으면 항상 2ⁿ−1 전조합, 마스크 오름차순. 상세는 [`detail/07-challenge.md`](detail/07-challenge.md).
 - `profileImageUrl` 추가 **(2026-09-14)** — 설명 시트(화면 3-2)가 참여자를 아바타로 그린다. 값은 `users.profile_image_key` 를 응답 조립 시점에 CDN URL 로 바꾼 것이며 저장 컬럼이 아니다. 미등록이면 `null`.
 - **편집본이 0개인 챌린지가 있을 수 있다** **(2026-09-14)** — 슬롯은 등록됐지만 AI 편집본이 아직 없는 상태다. 재생·표시는 정상이고 촬영만 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로 막힌다. 어드민 등록이 **0개 또는 정확히 2ⁿ−1개**만 허용하므로 부분 집합은 존재하지 않는다.
 

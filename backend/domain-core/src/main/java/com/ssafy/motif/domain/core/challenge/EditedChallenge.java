@@ -21,6 +21,11 @@ import lombok.NoArgsConstructor;
  *
  * <p>키 교체는 <b>같은 행 UPDATE</b> 다(§3.7.6) — 합성 잡이 참조 중이어도 허용된다.
  * 결과물은 별도 오브젝트라 이미 만들어진 결과가 바뀌지 않고, 다음 합성부터 새 키를 쓴다.
+ *
+ * <p>{@code previewImageKey} 는 촬영 전 선택 화면(시안 10-2·10-3)에서 이 조합을 골랐을 때
+ * 썸네일 자리에 보이는 이미지다(changeSet 0017-02). mask 당 1장이라 이 행에 붙인다 —
+ * mask 0(무선택)은 행이 없고 챌린지 썸네일이 그 화면이다. <b>{@code null} 은 0017 이전
+ * 행</b>이며 신규 등록은 서비스가 필수로 받는다.
  */
 @Entity
 @Table(name = "edited_challenges")
@@ -45,26 +50,33 @@ public class EditedChallenge extends BaseTimeEntity {
     @Column(name = "initial_scene_key", nullable = false)
     private String initialSceneKey;
 
+    @Column(name = "preview_image_key")
+    private String previewImageKey;
+
     private EditedChallenge(Integer challengeSeq, int participantMask,
-                            String videoKey, String initialSceneKey) {
+                            String videoKey, String initialSceneKey, String previewImageKey) {
         this.challengeSeq = challengeSeq;
         this.participantMask = participantMask;
         this.videoKey = videoKey;
         this.initialSceneKey = initialSceneKey;
+        this.previewImageKey = previewImageKey;
     }
 
     public static EditedChallenge of(Integer challengeSeq, int participantMask,
-                                     String videoKey, String initialSceneKey) {
-        return new EditedChallenge(challengeSeq, participantMask, videoKey, initialSceneKey);
+                                     String videoKey, String initialSceneKey, String previewImageKey) {
+        return new EditedChallenge(challengeSeq, participantMask, videoKey, initialSceneKey, previewImageKey);
     }
 
     /** 키 교체 (§3.7.6) — 부분 수정이라 {@code null} 은 "그대로" 다. 조합은 바뀌지 않는다. */
-    public void replaceKeys(String videoKey, String initialSceneKey) {
+    public void replaceKeys(String videoKey, String initialSceneKey, String previewImageKey) {
         if (videoKey != null) {
             this.videoKey = videoKey;
         }
         if (initialSceneKey != null) {
             this.initialSceneKey = initialSceneKey;
+        }
+        if (previewImageKey != null) {
+            this.previewImageKey = previewImageKey;
         }
     }
 }

@@ -22,6 +22,9 @@ public enum AdminMediaKind {
     /** {@code edited/{challengeSeq}/{uuid}.jpg} — 편집본 첫 장면. */
     EDITED_SCENE(Category.IMAGE, "edited", ".jpg", true),
 
+    /** {@code edited/{challengeSeq}/{uuid}.jpg} — 조합 선택 화면 이미지(S15P21D104-618). 첫 장면과 같은 자리·다른 용도라 로그에서 구분되게 kind 만 나눈다. */
+    EDITED_PREVIEW(Category.IMAGE, "edited", ".jpg", true),
+
     /** {@code assets/{uuid}.mp4} — 모티프 에셋 미리보기. */
     ASSET_VIDEO(Category.VIDEO, "assets", ".mp4", false),
 

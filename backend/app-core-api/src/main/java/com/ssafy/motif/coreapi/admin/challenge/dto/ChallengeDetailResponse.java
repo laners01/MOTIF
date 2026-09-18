@@ -34,19 +34,22 @@ public record ChallengeDetailResponse(
         List<Edited> editedChallenges,
         long activeJobCount) {
 
-    public record ArtistSummary(Integer artistSeq, String name) {
+    /** @param profileImageUrl 상세 화면이 슬롯 원 안에 넣는다 — 미등록이면 {@code null} */
+    public record ArtistSummary(Integer artistSeq, String name, String profileImageUrl) {
     }
 
     public record SongSummary(Integer songSeq, String title, String singerName) {
     }
 
-    public record Participant(ArtistSummary artist, int participantMask, BboxResponse bbox) {
+    /** @param anchor 0017 이전 행은 {@code null} — 화면이 "위치 지정" 을 재촉한다(§3.7.9) */
+    public record Participant(ArtistSummary artist, int participantMask, AnchorResponse anchor) {
     }
 
-    public record BboxResponse(int leftTopX, int leftTopY, int rightBottomX, int rightBottomY) {
+    public record AnchorResponse(double x, double y, double r) {
     }
 
+    /** @param previewImageUrl 0017 이전 행은 {@code null} — §3.7.6 으로 채운다 */
     public record Edited(Integer editedChallengeSeq, int participantMask,
-                         String videoUrl, String initialSceneUrl, long jobRefCount) {
+                         String videoUrl, String initialSceneUrl, String previewImageUrl, long jobRefCount) {
     }
 }

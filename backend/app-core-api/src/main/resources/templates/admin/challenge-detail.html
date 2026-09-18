@@ -3,10 +3,13 @@
       th:replace="~{admin/layout :: page('챌린지 상세', ~{::main})}">
 <body>
 <!--/*
-  §3.7.3 상세. 읽기 전용이다 — 슬롯 교체(§3.7.5)·삭제는 별도 티켓이라 버튼을 두지 않는다.
+  §3.7.3 상세 + 같은 행을 고치는 두 통로 — 슬롯 앵커(§3.7.9)·편집본 키(§3.7.6).
+  슬롯 구성 교체(§3.7.5)·삭제는 별도 티켓이라 버튼을 두지 않는다.
 
   등록 직후 "무엇이 들어갔나"를 확인하는 용도가 크다. 그래서 원본 영상을 실제로 재생해
   보여준다 — 키만 맞고 파일이 엉뚱한 경우가 목록 숫자로는 드러나지 않는다.
+
+  앵커·선택 화면이 비어 있는 챌린지는 0017 이전에 등록된 것이다. 여기서 채운다.
   로직은 challenge-detail.js.
 */-->
 <main>
@@ -19,7 +22,8 @@
                 <video id="video" controls playsinline width="270"></video>
             </div>
             <div>
-                <div id="thumb-wrap"></div>
+                <!--/* 썸네일이 곧 앵커 좌표계다 — 슬롯 행을 고른 뒤 여기를 클릭하면 원이 앉는다 */-->
+                <div class="frame thumb-frame" id="thumb-wrap"></div>
                 <p class="muted" id="thumb-note"></p>
             </div>
         </div>
@@ -42,10 +46,10 @@
     </section>
 
     <section>
-        <h2>3. 슬롯 <span class="muted">— 마스크 오름차순이 화면 좌→우다</span></h2>
+        <h2>3. 슬롯 <span class="muted">— 마스크 오름차순이 화면 좌→우다. 행을 클릭해 고른 뒤 썸네일을 클릭하면 앵커가 그 자리로 저장된다(§3.7.9)</span></h2>
         <table>
             <thead>
-            <tr><th>마스크</th><th>아티스트</th><th>좌상단</th><th>우하단</th></tr>
+            <tr><th>마스크</th><th>아티스트</th><th>앵커 (x, y)</th><th>반지름</th></tr>
             </thead>
             <tbody id="slots"></tbody>
         </table>
@@ -53,10 +57,10 @@
     </section>
 
     <section>
-        <h2>4. 편집본</h2>
+        <h2>4. 편집본 <span class="muted">— 파일을 고르면 업로드 후 그 행의 키가 바뀐다(§3.7.6). 합성 잡이 참조 중이어도 된다</span></h2>
         <table>
             <thead>
-            <tr><th>#</th><th>지운 슬롯(마스크)</th><th>영상</th><th>첫 장면</th><th>참조 잡</th></tr>
+            <tr><th>#</th><th>지운 슬롯(마스크)</th><th>영상</th><th>첫 장면</th><th>선택 화면</th><th>참조 잡</th></tr>
             </thead>
             <tbody id="edited"></tbody>
         </table>
@@ -67,8 +71,8 @@
         <tr>
             <td class="mask"></td>
             <td class="artist"></td>
-            <td class="lt"></td>
-            <td class="rb"></td>
+            <td class="xy"></td>
+            <td><input type="range" min="0.02" max="0.3" step="0.005" class="r"> <span class="muted r-label"></span></td>
         </tr>
     </template>
 
@@ -76,8 +80,9 @@
         <tr>
             <td class="seq"></td>
             <td class="mask"></td>
-            <td class="video"></td>
-            <td class="scene"></td>
+            <td class="media video"><span class="link"></span><input type="file" accept="video/mp4,video/quicktime" data-kind="EDITED_VIDEO" data-for="videoKey"></td>
+            <td class="media scene"><span class="link"></span><input type="file" accept="image/jpeg,image/png" data-kind="EDITED_SCENE" data-for="initialSceneKey"></td>
+            <td class="media preview"><span class="link"></span><input type="file" accept="image/jpeg,image/png" data-kind="EDITED_PREVIEW" data-for="previewImageKey"></td>
             <td class="jobs"></td>
         </tr>
     </template>

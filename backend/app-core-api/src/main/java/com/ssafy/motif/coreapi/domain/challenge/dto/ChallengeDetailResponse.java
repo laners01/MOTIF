@@ -53,7 +53,11 @@ public record ChallengeDetailResponse(
         String description,
 
         @Schema(description = "교체 가능한 인물 슬롯. 마스크 오름차순 = 화면 좌→우")
-        List<Participant> participants
+        List<Participant> participants,
+
+        @Schema(description = "조합(mask)별 선택 화면 이미지. 선택한 슬롯 마스크를 OR 한 값으로 고른다. "
+                + "mask 0(무선택)은 없다 — thumbnailUrl 이 그 화면이다. 편집본이 없는 챌린지는 빈 배열")
+        List<EditedPreview> editedChallenges
 ) {
 
     /** §7.1·§7.2 {@code artist} — {@code groupName} 은 제거됐다(회의 확정). */
@@ -98,16 +102,36 @@ public record ChallengeDetailResponse(
             @Schema(description = "프로필 이미지 URL. 미등록이면 null")
             String profileImageUrl,
 
-            Bbox bbox
+            @Schema(description = "선택 화면에서 프로필 원이 앉는 자리. 어드민이 아직 안 찍은 옛 슬롯은 null — 원을 숨긴다",
+                    nullable = true)
+            Anchor anchor
     ) {
     }
 
-    /** 원본 영상 px · 좌상단 원점 — 촬영 가이드 오버레이용이다(§7.2). */
-    public record Bbox(
-            int leftTopX,
-            int leftTopY,
-            int rightBottomX,
-            int rightBottomY
+    /**
+     * 썸네일 대비 <b>0~1 비율</b> — {@code x·r} 은 가로, {@code y} 는 세로 기준. 렌더 크기를 곱해
+     * px 로 만든다: 중심 {@code (x·W, y·H)}, 반지름 {@code r·W}. 시안(402 폭, 지름 80)이면
+     * {@code r ≈ 0.0995}.
+     */
+    public record Anchor(
+            @Schema(example = "0.22") double x,
+            @Schema(example = "0.36") double y,
+            @Schema(example = "0.0995") double r
+    ) {
+    }
+
+    /**
+     * §7.2 {@code editedChallenges[]} — 이 조합을 골랐을 때 썸네일 자리에 보이는 이미지.
+     * 사용자가 고른 슬롯의 {@code participantMask} 를 OR 한 값과 같은 항목을 쓴다.
+     *
+     * @param previewImageUrl 어드민이 아직 안 올린 옛 편집본은 null — 썸네일로 폴백한다
+     */
+    public record EditedPreview(
+            @Schema(description = "지운 슬롯 비트 OR 합 (1 … 2ⁿ−1)", example = "3")
+            int participantMask,
+
+            @Schema(nullable = true)
+            String previewImageUrl
     ) {
     }
 }

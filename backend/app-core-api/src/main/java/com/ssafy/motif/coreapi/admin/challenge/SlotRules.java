@@ -2,7 +2,7 @@ package com.ssafy.motif.coreapi.admin.challenge;
 
 import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.admin.challenge.dto.BboxRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 
@@ -67,8 +67,8 @@ public final class SlotRules {
             if (!seen.add(p.artistSeq())) {
                 violations.add("DUPLICATE_ARTIST[" + i + "]");
             }
-            if (!validBbox(p.bbox())) {
-                violations.add("BBOX_INVALID[" + i + "]");
+            if (!validAnchor(p.anchor())) {
+                violations.add("ANCHOR_INVALID[" + i + "]");
             }
         }
         if (!violations.isEmpty()) {
@@ -158,9 +158,14 @@ public final class SlotRules {
         return mask;
     }
 
-    private static boolean validBbox(BboxRequest bbox) {
-        return bbox.leftTopX() >= 0 && bbox.leftTopY() >= 0
-                && bbox.rightBottomX() > bbox.leftTopX()
-                && bbox.rightBottomY() > bbox.leftTopY();
+    /**
+     * 앵커 규칙 — 중심은 썸네일 안({@code 0~1}), 반지름은 {@code 0 < r ≤ 0.5}(가로의 절반이
+     * 원이 들어갈 수 있는 최대). DB CHECK({@code ck_challenge_participants_anchor})와 같은 조건이다.
+     * §3.7.9 앵커 단독 수정도 이 검사를 탄다.
+     */
+    public static boolean validAnchor(AnchorRequest a) {
+        return a.x() >= 0 && a.x() <= 1
+                && a.y() >= 0 && a.y() <= 1
+                && a.r() > 0 && a.r() <= 0.5;
     }
 }

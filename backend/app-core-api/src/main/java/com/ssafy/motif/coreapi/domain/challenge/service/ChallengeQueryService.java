@@ -16,6 +16,7 @@ import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
+import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.song.Song;
 import com.ssafy.motif.domain.core.song.SongRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class ChallengeQueryService {
 
     private final ChallengeRepository challengeRepository;
     private final ChallengeParticipantRepository participantRepository;
+    private final EditedChallengeRepository editedChallengeRepository;
     private final ArtistRepository artistRepository;
     private final SongRepository songRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -163,7 +165,19 @@ public class ChallengeQueryService {
                 challengeRepository.isLikedBy(challengeSeq, userSeq),
                 subscriptionRepository.existsByIdUserSeqAndIdArtistSeq(userSeq, challenge.getArtistSeq()),
                 challenge.getDescription(),
-                participants(challengeSeq));
+                participants(challengeSeq),
+                editedPreviews(challengeSeq));
+    }
+
+    /**
+     * 조합별 선택 화면 이미지 — 편집본 행마다 한 장이다(0017). 마스크 오름차순.
+     * 안드로이드는 고른 슬롯 마스크를 OR 해 같은 항목의 이미지를 띄우고, 없거나 null 이면 썸네일.
+     */
+    private List<ChallengeDetailResponse.EditedPreview> editedPreviews(Integer challengeSeq) {
+        return editedChallengeRepository.findByChallengeSeqOrderByParticipantMask(challengeSeq).stream()
+                .map(e -> new ChallengeDetailResponse.EditedPreview(
+                        e.getParticipantMask(), mediaUrlResolver.resolve(e.getPreviewImageKey())))
+                .toList();
     }
 
     /**
@@ -195,14 +209,13 @@ public class ChallengeQueryService {
                             artist == null ? null : artist.name(),
                             slot.getParticipantMask(),
                             artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey()),
-                            toBbox(slot.getBbox()));
+                            toAnchor(slot.anchorOrNull()));
                 })
                 .toList();
     }
 
-    private ChallengeDetailResponse.Bbox toBbox(ChallengeParticipant.Bbox bbox) {
-        return new ChallengeDetailResponse.Bbox(
-                bbox.getLeftTopX(), bbox.getLeftTopY(),
-                bbox.getRightBottomX(), bbox.getRightBottomY());
+    /** 0017 이전 슬롯은 앵커가 없다 — null 로 내려 클라이언트가 원을 숨긴다. */
+    private static ChallengeDetailResponse.Anchor toAnchor(ChallengeParticipant.Anchor a) {
+        return a == null ? null : new ChallengeDetailResponse.Anchor(a.getX(), a.getY(), a.getR());
     }
 }

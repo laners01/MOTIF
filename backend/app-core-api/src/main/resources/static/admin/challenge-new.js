@@ -1,5 +1,5 @@
 /*
- * 챌린지 등록 (어드민 명세 v0.5 §3.7, 부록 A) — S15P21D104-564.
+ * 챌린지 등록 (어드민 명세 v0.5 §3.7, 부록 A) — S15P21D104-564 · 618.
  *
  * 부록 A 시퀀스: presign → S3 PUT → 슬롯 n개 입력 → 2ⁿ−1 조합 표 → validate → 등록.
  * 길이·해상도는 <video> 가 읽어 폼에 싣는다(§1.4) — core-api 에 ffmpeg 가 없다.
@@ -10,6 +10,7 @@
  */
 
 const MAX_SLOTS = 4;        // §3.7.2 하드 상한 4 (기본안)
+const MATRIX_KEYS = ['videoKey', 'initialSceneKey', 'previewImageKey', 'durationMs'];
 
 let artists = [];
 let videoKey = null;        // 업로드 완료된 원본 키
@@ -21,7 +22,7 @@ let meta = null;            // {durationMs, width, height}
 function readSlots() {
     return [...$('slots').rows].map((tr) => ({
         artistSeq: Number(tr.querySelector('.slot-artist').value) || null,
-        bbox: Object.fromEntries([...tr.querySelectorAll('[data-k]')]
+        anchor: Object.fromEntries([...tr.querySelectorAll('[data-k]')]
             .map((input) => [input.dataset.k, input.value === '' ? null : Number(input.value)])),
     }));
 }
@@ -32,9 +33,7 @@ function readMatrix() {
         return {
             mask: Number(tr.dataset.mask),
             removedSlots: JSON.parse(tr.dataset.removed),
-            videoKey: val('videoKey'),
-            initialSceneKey: val('initialSceneKey'),
-            durationMs: val('durationMs'),
+            ...Object.fromEntries(MATRIX_KEYS.map((k) => [k, val(k)])),
         };
     });
 }
@@ -53,9 +52,10 @@ function renumber() {
     $('add-slot').disabled = $('slots').rows.length >= MAX_SLOTS;
 }
 
-/** bbox 드래그가 채울 슬롯 — 행 하나만 active 로 둔다. */
+/** 프레임 클릭이 채울 슬롯 — 행 하나만 active 로 둔다. */
 function setActive(tr) {
     for (const row of $('slots').rows) row.classList.toggle('active', row === tr);
+    drawDots();
 }
 
 const activeRow = () => $('slots').querySelector('tr.active');
@@ -77,13 +77,20 @@ $('slots').addEventListener('click', (e) => {
         tr.remove();
         renumber();
         renderMatrix();
+        drawDots();
         return;
     }
     setActive(tr);
 });
 
-// 슬롯이 바뀌면 조합 수·라벨이 따라 바뀐다
-$('slots').addEventListener('input', renderMatrix);
+// 슬롯이 바뀌면 조합 수·라벨·원이 따라 바뀐다
+$('slots').addEventListener('input', (e) => {
+    if (e.target.dataset.k === 'r') {
+        e.target.closest('tr').querySelector('.r-label').textContent = Number(e.target.value).toFixed(4);
+    }
+    renderMatrix();
+    drawDots();
+});
 
 // ── 편집본 매트릭스 ────────────────────────────────────────────────────────
 
@@ -107,7 +114,7 @@ function renderMatrix() {
         tr.querySelector('.removed').textContent = removed.map((i) => `${i}. ${names[i]}`).join(', ');
         const prev = kept.get(mask);
         if (prev) {
-            for (const k of ['videoKey', 'initialSceneKey', 'durationMs']) {
+            for (const k of MATRIX_KEYS) {
                 tr.querySelector(`[data-k="${k}"]`).value = prev[k];
             }
         }
@@ -119,6 +126,36 @@ function renderMatrix() {
 $('matrix').addEventListener('input', refresh);
 
 /**
+ * 매트릭스 파일 → presign → S3 PUT → 옆 키 칸에 채운다(§3.2). AI팀이 키를 직접 주면
+ * 텍스트 칸에 붙여도 된다 — 서버는 키만 받는다. 아직 challengeSeq 가 없어
+ * edited/pending/ 아래로 발급된다. 영상은 <video> 로 길이를 읽어 durationMs 도 채운다 —
+ * 서버가 원본 ±500ms 를 대조한다.
+ */
+$('matrix').addEventListener('change', async (e) => {
+    const input = e.target;
+    if (input.type !== 'file' || !input.files[0]) return;
+    const tr = input.closest('tr');
+    const keyInput = tr.querySelector(`[data-k="${input.dataset.for}"]`);
+    const file = input.files[0];
+    clearError($('err'));
+    input.disabled = true;
+    keyInput.value = '';
+    keyInput.placeholder = '업로드 중…';
+    try {
+        if (input.dataset.for === 'videoKey') {
+            const m = await videoMeta(file, document.createElement('video'));
+            tr.querySelector('[data-k="durationMs"]').value = m.durationMs;
+        }
+        keyInput.value = await upload(file, input.dataset.kind);
+    } catch (err) {
+        showError($('err'), err);
+    } finally {
+        input.disabled = false;
+        refresh();
+    }
+});
+
+/**
  * 조합별 입력 완료 표시 + 등록 버튼 잠금.
  *
  * 서버 규칙은 **0개이거나 정확히 2ⁿ−1개**다(SlotRules). 그래서 화면도 두 상태만 연다 —
@@ -128,12 +165,14 @@ $('matrix').addEventListener('input', refresh);
  * 전부 비우면 "표시 전용" 챌린지다 — 영상 재생과 설명 시트의 참여자 아바타는 정상이고
  * 촬영만 안 된다. AI 편집본이 나오면 PUT /challenges/{seq}/participants 로 얹는다.
  */
+const rowDone = (r) => Boolean(r.videoKey && r.initialSceneKey && r.previewImageKey);
+
 function refresh() {
     const rows = readMatrix();
     let filled = 0;
     for (const tr of $('matrix').rows) {
         const row = rows.find((r) => r.mask === Number(tr.dataset.mask));
-        const done = Boolean(row.videoKey && row.initialSceneKey);
+        const done = rowDone(row);
         if (done) filled++;
         const cell = tr.querySelector('.done');
         cell.textContent = done ? '✓' : '–';
@@ -156,7 +195,7 @@ function refresh() {
     const slots = readSlots();
     $('submit').disabled = !(videoKey && meta
         && $('artist').value && $('song').value && $('description').value.trim()
-        && slots.every((s) => s.artistSeq && Object.values(s.bbox).every((v) => v !== null))
+        && slots.every((s) => s.artistSeq && Object.values(s.anchor).every((v) => v !== null))
         && !partial);
 }
 
@@ -174,10 +213,11 @@ function buildRequest() {
         thumbnailAtMs: thumbnailAtMs(),
         participants: readSlots(),
         // 키가 하나도 없으면 빈 배열을 보낸다 — 빈 문자열을 실어 보내면 @NotBlank 400 이다
-        editedChallenges: readMatrix().filter((r) => r.videoKey && r.initialSceneKey).map((r) => ({
+        editedChallenges: readMatrix().filter(rowDone).map((r) => ({
             removedSlots: r.removedSlots,
             videoKey: r.videoKey,
             initialSceneKey: r.initialSceneKey,
+            previewImageKey: r.previewImageKey,
             // 선택 — 넣으면 서버가 원본 ±500ms 를 대조한다(§3.7.2 검증 5)
             ...(r.durationMs ? {durationMs: Number(r.durationMs)} : {}),
         })),
@@ -196,7 +236,7 @@ $('file').addEventListener('change', async () => {
     try {
         $('frame-wrap').hidden = false;
         meta = await videoMeta(file, $('frame'));
-        $('frame').currentTime = 0.01;      // 첫 프레임을 실제로 그리게 한다(bbox 드래그 배경)
+        $('frame').currentTime = 0.01;      // 첫 프레임을 실제로 그리게 한다(앵커 클릭 배경)
         initThumbPick($('frame'), meta.durationMs);
         $('meta-line').textContent = `${describe()} — 업로드 중…`;
         videoKey = await upload(file, 'CHALLENGE_VIDEO');
@@ -207,66 +247,44 @@ $('file').addEventListener('change', async () => {
         showError($('err'), e);
     }
     refresh();
+    drawDots();
 });
 
 const describe = () => `${meta.width}×${meta.height} · ${(meta.durationMs / 1000).toFixed(2)}초`;
 
 // 썸네일 시각 스크럽은 admin.js 공용이다(initThumbPick·thumbnailAtMs) — 에셋 등록·
-// 교체 화면이 같은 것을 쓴다. bbox 드래그 배경으로 이미 띄워 둔 <video> 를 넘긴다.
+// 교체 화면이 같은 것을 쓴다. 앵커 클릭 배경으로 이미 띄워 둔 <video> 를 넘긴다.
 
-// ── 첫 프레임 드래그 → bbox ────────────────────────────────────────────────
+// ── 프레임 클릭 → 앵커 ─────────────────────────────────────────────────────
+//
+// 서버가 받는 앵커는 썸네일 대비 0~1 비율이다(§3.7.2). 썸네일은 원본과 같은 비율로
+// 뽑히므로 지금 띄운 <video> 표시 크기로 나누면 그대로 비율이 된다 — 원본 px 를 거칠
+// 이유가 없다. 안드로이드도 같은 식으로 뷰 크기를 곱한다.
 
-let dragFrom = null;
-
-/** 포인터 위치를 표시 크기 기준 CSS px 로 — 영상 밖으로 나가면 가장자리에 붙인다. */
-function point(e) {
-    const r = $('frame').getBoundingClientRect();
-    return {
-        x: Math.min(Math.max(e.clientX - r.left, 0), r.width),
-        y: Math.min(Math.max(e.clientY - r.top, 0), r.height),
-    };
-}
-
-function drawBox(a, b) {
-    Object.assign($('box').style, {
-        left: `${Math.min(a.x, b.x)}px`,
-        top: `${Math.min(a.y, b.y)}px`,
-        width: `${Math.abs(a.x - b.x)}px`,
-        height: `${Math.abs(a.y - b.y)}px`,
-    });
-    $('box').hidden = false;
-}
-
-/** 표시 px → 원본 px(좌상단 원점). 서버가 받는 bbox 는 원본 해상도 기준이다(§3.7.2). */
-function writeBox(a, b) {
+$('frame-wrap').addEventListener('click', (e) => {
     const tr = activeRow();
+    if (!meta || !tr) return;
     const r = $('frame').getBoundingClientRect();
     const put = (k, v) => {
-        tr.querySelector(`[data-k="${k}"]`).value = Math.round(v);
+        tr.querySelector(`[data-k="${k}"]`).value = Math.min(Math.max(v, 0), 1).toFixed(4);
     };
-    put('leftTopX', Math.min(a.x, b.x) * meta.width / r.width);
-    put('leftTopY', Math.min(a.y, b.y) * meta.height / r.height);
-    put('rightBottomX', Math.max(a.x, b.x) * meta.width / r.width);
-    put('rightBottomY', Math.max(a.y, b.y) * meta.height / r.height);
+    put('x', (e.clientX - r.left) / r.width);
+    put('y', (e.clientY - r.top) / r.height);
     refresh();
+    drawDots();
+});
+
+/** 슬롯마다 원 하나 — 시안(10-1)처럼 썸네일 위에 프로필 사진이 앉는 모습을 그대로 미리 본다. */
+function drawDots() {
+    const r = $('frame').getBoundingClientRect();
+    $('dots').replaceChildren(...[...$('slots').rows].flatMap((tr, i) => {
+        const v = (k) => tr.querySelector(`[data-k="${k}"]`).value;
+        if (v('x') === '' || v('y') === '') return [];
+        const artist = artists.find((a) => String(a.artistSeq) === tr.querySelector('.slot-artist').value);
+        return [dot(tr.classList.contains('active'), Number(v('x')) * r.width, Number(v('y')) * r.height,
+            Number(v('r')) * r.width, artist?.profileImageUrl, i)];
+    }));
 }
-
-$('frame-wrap').addEventListener('pointerdown', (e) => {
-    if (!meta || !activeRow()) return;
-    dragFrom = point(e);
-    $('frame-wrap').setPointerCapture(e.pointerId);
-    drawBox(dragFrom, dragFrom);
-});
-
-$('frame-wrap').addEventListener('pointermove', (e) => {
-    if (dragFrom) drawBox(dragFrom, point(e));
-});
-
-$('frame-wrap').addEventListener('pointerup', (e) => {
-    if (!dragFrom) return;
-    writeBox(dragFrom, point(e));
-    dragFrom = null;
-});
 
 // ── 5. 검증·등록 ───────────────────────────────────────────────────────────
 

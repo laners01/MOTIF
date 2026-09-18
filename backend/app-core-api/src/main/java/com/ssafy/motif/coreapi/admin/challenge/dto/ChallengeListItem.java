@@ -34,7 +34,7 @@ public record ChallengeListItem(
     public static ChallengeListItem of(ChallengeListRow row, String thumbnailUrl) {
         return new ChallengeListItem(
                 row.challengeSeq(),
-                new ArtistSummary(row.artistSeq(), row.artistName()),
+                new ArtistSummary(row.artistSeq(), row.artistName(), null),   // 목록은 사진을 쓰지 않는다 — 조인을 늘리지 않는다
                 new SongSummary(row.songSeq(), row.songTitle(), row.singerName()),
                 thumbnailUrl,
                 row.durationMs(),

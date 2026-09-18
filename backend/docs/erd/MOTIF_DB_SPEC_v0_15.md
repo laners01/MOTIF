@@ -2,6 +2,14 @@
 
 본 문서는 `MOTIF 데이터베이스 명세서 v0.14`에 2026-09-09 DDL 검증(R9) 회신 — 명세 결함 2건 수정과 운영 기준 보강 — 을 반영한 최신 스키마 계약이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
 
+## v0.16 반영 내용 (2026-09-18 · changeSet 0017 · S15P21D104-618)
+
+| 대상 | 변경 |
+|---|---|
+| `challenge_participants` bbox → 앵커 | `bbox_*` 4컬럼·CHECK 삭제. `anchor_x`·`anchor_y`·`anchor_r DOUBLE PRECISION NULL` 추가 — 촬영 전 선택 화면(시안 10-1~3)에서 슬롯 프로필 원이 앉는 자리, **썸네일 대비 0~1 비율**. CHECK 는 "셋 다 NULL 또는 셋 다 유효". NULL = 0017 이전 행(어드민 §3.7.9 로 채움) |
+| `edited_challenges.preview_image_key` 추가 | `VARCHAR(255) NULL`. 조합을 골랐을 때 썸네일 자리에 보이는 이미지 — mask 당 1장이라 편집본 행에 붙인다. NULL = 0017 이전 행(어드민 §3.7.6 으로 채움) |
+| 기존 행 처리 | **백필 없음.** bbox→앵커 자동 변환은 원본 해상도를 저장하지 않아 불가능하고, 가능해도 사각형 중심은 원 자리(머리 옆)가 아니다. 두 컬럼 모두 NULL 허용으로 붙여 기존 챌린지를 살린다 |
+
 ## 이번 작업 반영 내용 (v0.15)
 
 | 대상 | 변경 |
@@ -445,10 +453,10 @@ WHERE is_deleted = FALSE;
 | `challenge_seq` | `INTEGER` | Y | PK, FK → challenges | 챌린지 |
 | `artist_seq` | `INTEGER` | Y | PK, FK → artists | 추가 참여 아티스트 |
 | `participant_mask` | `INTEGER` | Y | CHECK (`>= 0`), 복합 UNIQUE | 슬롯 비트값. 화면 좌측 인물부터 1, 2, 4, 8 … 0 허용 — **현재 발급하지 않는 예약값** *(회의 확정 R7)* |
-| `bbox_left_top_x` | `INTEGER` | Y | CHECK | 슬롯 바운딩 박스 좌상단 x — 원본 영상 px, 좌상단 원점 *(회의 확정)* |
-| `bbox_left_top_y` | `INTEGER` | Y | CHECK | 슬롯 바운딩 박스 좌상단 y |
-| `bbox_right_bottom_x` | `INTEGER` | Y | CHECK | 슬롯 바운딩 박스 우하단 x |
-| `bbox_right_bottom_y` | `INTEGER` | Y | CHECK | 슬롯 바운딩 박스 우하단 y |
+| `anchor_x` | `DOUBLE PRECISION` | N | CHECK | 선택 화면 프로필 원 중심 x — **썸네일 가로 대비 0~1 비율** *(v0.16 · changeSet 0017)* |
+| `anchor_y` | `DOUBLE PRECISION` | N | CHECK | 원 중심 y — 썸네일 세로 대비 0~1 비율 |
+| `anchor_r` | `DOUBLE PRECISION` | N | CHECK | 원 반지름 — 썸네일 가로 대비 비율, `0 < r ≤ 0.5`. 시안(402 폭·지름 80) 기본값 `0.0995` |
+| ~~`bbox_left_top_x/y` · `bbox_right_bottom_x/y`~~ | — | — | — | **v0.16 삭제** — 사각형 중심은 원 자리가 못 되고, 원본 해상도를 저장하지 않아 비율로 바꿀 수도 없었다 |
 
 복합 PK: `(challenge_seq, artist_seq)`. UNIQUE: `uq_challenge_participants_mask (challenge_seq, participant_mask)`.
 
@@ -457,17 +465,19 @@ CHECK:
 ```sql
 participant_mask >= 0
 AND (participant_mask & (participant_mask - 1)) = 0
-AND bbox_left_top_x >= 0
-AND bbox_left_top_y >= 0
-AND bbox_right_bottom_x > bbox_left_top_x
-AND bbox_right_bottom_y > bbox_left_top_y
+```
+
+```sql
+-- ck_challenge_participants_anchor (0017) — 셋 다 NULL(0017 이전 행) 또는 셋 다 유효
+(anchor_x IS NULL AND anchor_y IS NULL AND anchor_r IS NULL)
+OR (anchor_x BETWEEN 0 AND 1 AND anchor_y BETWEEN 0 AND 1 AND anchor_r > 0 AND anchor_r <= 0.5)
 ```
 
 서비스 규칙:
 
 - `artist_seq <> challenges.artist_seq`를 검증한다.
 - `participant_mask`는 단일 비트(2의 거듭제곱)만 저장한다. 화면 좌측 인물부터 1, 2, 4 … 순으로 부여하며 챌린지 내 중복은 UNIQUE가 차단한다. **CHECK 하한은 `>= 0`** *(회의 확정 R3·R7 유지)* — 비트식 `(mask & (mask-1)) = 0` 은 0도 통과시키므로 CHECK 조합은 `{0} ∪ {2^k}` 를 허용하며, **0 은 현재 발급하지 않는 예약값**이다 *(회의 확정 R7 — 활용처는 편집본 정책과 함께 재론)*.
-- bbox 좌표는 원본 영상 해상도 px·좌상단 원점 기준이며 `edited_challenges.initial_scene_key` 이미지와 같은 좌표계다. 클라이언트는 렌더링 크기에 비례해 스케일링한다.
+- 앵커는 **비율**이라 좌표계가 따로 없다 — 클라이언트는 썸네일을 그린 뷰 크기 `W×H` 를 곱해 중심 `(x·W, y·H)`, 반지름 `r·W` 로 원을 그린다. **`NULL` 은 0017 이전 행**이며 어드민 §3.7.9 로 채운다(그때까지 앱은 원을 숨긴다). 신규 등록은 서비스가 필수로 받는다.
 - 추가 참여자 교체 시 관계 행을 하드 삭제/재생성한다. 이때 비트 배정이 바뀌면 기존 `edited_challenges.participant_mask`가 실제 슬롯과 어긋나므로, 같은 트랜잭션에서 해당 챌린지의 편집본 마스크 전부가 현행 슬롯 비트 합집합의 부분집합인지 재검증하고 불일치 편집본을 함께 정리한다.
 - 배포 환경에 기존 행이 있는 경우 신규 changeSet에서 bbox·마스크 백필 후 `NOT NULL`을 적용한다.
 - 감사 컬럼(`reg_dttm`/`mod_dttm`)을 두지 않는 것은 **의도**다 — 교체 시 하드 삭제/재생성이라 행 이력이 무의미(`notice_images` 동일) *(회의 확정 R9 — Q4)*.
@@ -483,6 +493,7 @@ AND bbox_right_bottom_y > bbox_left_top_y
 | `participant_mask` | `INTEGER` | Y | CHECK (`>= 0`), 복합 UNIQUE | 지워진 슬롯 비트 OR 합. `0` 은 현재 발급하지 않는 예약값 *(회의 확정 R7 — 원본(무교체) 참여는 composite_jobs 의 `edited_challenge_seq NULL` 경로를 사용)* |
 | `video_key` | `VARCHAR(255)` | Y | - | 편집본 영상 S3 키 |
 | `initial_scene_key` | `VARCHAR(255)` | Y | - | 촬영 가이드용 첫 장면 이미지 키 |
+| `preview_image_key` | `VARCHAR(255)` | N | - | 촬영 전 선택 화면에서 이 조합을 골랐을 때 썸네일 자리에 보이는 이미지 키(AI팀 산출). mask 당 1장. **`NULL` 은 0017 이전 행** — 어드민 §3.7.6 으로 채운다 *(v0.16 · changeSet 0017)* |
 | `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 |
 | `mod_dttm` | `TIMESTAMPTZ` | N | 기본값 없음 | 수정 일시 |
 

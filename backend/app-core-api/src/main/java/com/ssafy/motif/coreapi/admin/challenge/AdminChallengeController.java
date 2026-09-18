@@ -3,6 +3,7 @@ package com.ssafy.motif.coreapi.admin.challenge;
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.admin.AdminPaths;
+import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
@@ -83,7 +84,7 @@ public class AdminChallengeController {
 
     @Operation(summary = "챌린지 수정",
             description = "소개글·곡만 바꾼다. videoKey·artistSeq 가 포함되면 400 이다 — "
-                    + "원본을 바꾸면 bbox·편집본이 전부 무효라 삭제 후 재등록해야 한다.")
+                    + "원본을 바꾸면 앵커·편집본이 전부 무효라 삭제 후 재등록해야 한다.")
     @PatchMapping("/{challengeSeq}")
     public ApiResponse<ChallengeDetailResponse> update(@AuthenticationPrincipal AuthenticatedAdmin admin,
                                                        @PathVariable Integer challengeSeq,
@@ -100,6 +101,19 @@ public class AdminChallengeController {
             @PathVariable Integer challengeSeq,
             @Valid @RequestBody ChallengeSlotsRequest request) {
         return ApiResponse.success(adminChallengeService.replaceSlots(admin, challengeSeq, request));
+    }
+
+    @Operation(summary = "슬롯 앵커 수정",
+            description = "선택 화면에서 프로필 원이 앉는 자리(썸네일 대비 0~1 비율)만 같은 행에서 고친다. "
+                    + "마스크·편집본은 건드리지 않으므로 합성 잡이 참조 중이어도 허용된다. "
+                    + "0017 이전 행(anchor null)을 채우는 통로다.")
+    @PatchMapping("/{challengeSeq}/participants/{artistSeq}")
+    public ApiResponse<ChallengeDetailResponse> updateAnchor(
+            @AuthenticationPrincipal AuthenticatedAdmin admin,
+            @PathVariable Integer challengeSeq,
+            @PathVariable Integer artistSeq,
+            @Valid @RequestBody AnchorRequest request) {
+        return ApiResponse.success(adminChallengeService.updateAnchor(admin, challengeSeq, artistSeq, request));
     }
 
     @Operation(summary = "챌린지 삭제",

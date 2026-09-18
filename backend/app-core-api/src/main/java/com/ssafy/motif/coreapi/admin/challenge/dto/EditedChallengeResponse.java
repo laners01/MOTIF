@@ -8,5 +8,7 @@ public record EditedChallengeResponse(
         Integer editedChallengeSeq,
         int participantMask,
         String videoUrl,
-        String initialSceneUrl) {
+        String initialSceneUrl,
+        @Schema(description = "선택 화면 이미지. 0017 이전 행은 null", nullable = true)
+        String previewImageUrl) {
 }

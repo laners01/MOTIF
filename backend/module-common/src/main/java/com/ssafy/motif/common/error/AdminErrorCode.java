@@ -62,7 +62,7 @@ public enum AdminErrorCode implements ErrorCode {
     /** 3.5.5 — 이미 삭제된 아티스트. */
     ARTIST_ALREADY_DELETED(409, "ARTIST_ALREADY_DELETED", "이미 삭제된 아티스트입니다."),
 
-    /** 3.7.2/5 — 슬롯·bbox·participant_mask 가 규칙에 맞지 않는다. */
+    /** 3.7.2/5/9 — 슬롯·앵커·participant_mask 가 규칙에 맞지 않는다. */
     PARTICIPANT_INVALID(400, "PARTICIPANT_INVALID", "인물 슬롯 정보가 올바르지 않습니다."),
 
     /** 3.7.2/5 — 2ⁿ−1 전조합 편집본이 갖춰지지 않았다. {@code data} 에 누락 조합. */
