@@ -22,7 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,13 +35,14 @@ import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.component.ClickableSurface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.ui.comment.CommentBottomSheet
+import com.ssafy.motif.core.ui.comment.CommentUiState
+import com.ssafy.motif.core.ui.comment.ModalCommentBottomSheet
 import com.ssafy.motif.feature.home.impl.component.FanRadar
 import com.ssafy.motif.feature.home.impl.component.OnstageCarousel
 import com.ssafy.motif.feature.home.impl.component.myArtistFeed
-import com.ssafy.motif.feature.home.impl.model.CommentSheetUiState
 import com.ssafy.motif.feature.home.impl.model.FanRadarUiState
 import com.ssafy.motif.feature.home.impl.model.FeedAppendUiState
+import com.ssafy.motif.feature.home.impl.model.MyArtistFeedItem
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedUiState
 import com.ssafy.motif.feature.home.impl.model.OnstageUiState
 
@@ -47,25 +51,37 @@ internal fun HomeScreen(
     onstageUiState: OnstageUiState,
     fanRadarUiState: FanRadarUiState,
     myArtistFeedUiState: MyArtistFeedUiState,
-    commentSheetUiState: CommentSheetUiState,
+    commentUiState: CommentUiState,
     onOnstageClick: (Long) -> Unit,
     onFanRadarClick: () -> Unit,
     onArtistClick: (Long) -> Unit,
     onMotifClick: (Long) -> Unit,
     onNoticeLikeClick: (Long) -> Unit,
     onNoticeCommentClick: (Long) -> Unit,
+    onCommentLikeClick: (Long) -> Unit,
+    onReplyClick: (Long) -> Unit,
+    onCommentBackClick: () -> Unit,
+    onCommentSendClick: (String) -> Unit,
     onLoadMoreMyArtistFeed: () -> Unit,
     onOnstageRetryClick: () -> Unit,
     onFanRadarRetryClick: () -> Unit,
     onMyArtistFeedRetryClick: () -> Unit,
     onMyArtistFeedLoadMoreRetryClick: () -> Unit,
-    onCommentSheetDismiss: () -> Unit,
-    onCommentLikeClick: (Long) -> Unit,
-    onReplyClick: (Long) -> Unit,
-    onReplyLikeClick: (Long) -> Unit,
-    formatCommentCreatedAt: (Long) -> String,
     modifier: Modifier = Modifier,
 ) {
+    var selectedNoticeId by rememberSaveable {
+        mutableStateOf<Long?>(null)
+    }
+
+    val selectedNotice =
+        (myArtistFeedUiState as? MyArtistFeedUiState.Success)
+            ?.items
+            ?.filterIsInstance<MyArtistFeedItem.NoticeItem>()
+            ?.firstOrNull { item ->
+                item.notice.id == selectedNoticeId
+            }
+            ?.notice
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -85,23 +101,32 @@ internal fun HomeScreen(
             onArtistClick = onArtistClick,
             onMotifClick = onMotifClick,
             onNoticeLikeClick = onNoticeLikeClick,
-            onNoticeCommentClick = onNoticeCommentClick,
+            onNoticeCommentClick = { noticeId ->
+                selectedNoticeId = noticeId
+                onNoticeCommentClick(noticeId)
+            },
             onLoadMoreMyArtistFeed = onLoadMoreMyArtistFeed,
             onOnstageRetryClick = onOnstageRetryClick,
             onFanRadarRetryClick = onFanRadarRetryClick,
             onMyArtistFeedRetryClick = onMyArtistFeedRetryClick,
-            onMyArtistFeedLoadMoreRetryClick = onMyArtistFeedLoadMoreRetryClick,
+            onMyArtistFeedLoadMoreRetryClick =
+                onMyArtistFeedLoadMoreRetryClick,
             modifier = Modifier.fillMaxSize(),
         )
 
-        CommentSheetContent(
-            uiState = commentSheetUiState,
-            onDismissRequest = onCommentSheetDismiss,
-            onCommentLikeClick = onCommentLikeClick,
-            onReplyClick = onReplyClick,
-            onReplyLikeClick = onReplyLikeClick,
-            formatCreatedAt = formatCommentCreatedAt,
-        )
+        selectedNotice?.let { notice ->
+            ModalCommentBottomSheet(
+                commentCount = notice.commentCount,
+                state = commentUiState,
+                onDismissRequest = {
+                    selectedNoticeId = null
+                },
+                onLikeClick = onCommentLikeClick,
+                onReplyClick = onReplyClick,
+                onBackClick = onCommentBackClick,
+                onCommentSendClick = onCommentSendClick,
+            )
+        }
     }
 }
 
@@ -308,42 +333,6 @@ private fun HomeContent(
 }
 
 @Composable
-private fun CommentSheetContent(
-    uiState: CommentSheetUiState,
-    onDismissRequest: () -> Unit,
-    onCommentLikeClick: (Long) -> Unit,
-    onReplyClick: (Long) -> Unit,
-    onReplyLikeClick: (Long) -> Unit,
-    formatCreatedAt: (Long) -> String,
-) {
-    when (uiState) {
-        CommentSheetUiState.Hidden -> Unit
-
-        CommentSheetUiState.Loading -> {
-            // TODO 댓글 조회 로딩 UI
-        }
-
-        is CommentSheetUiState.Success -> {
-            CommentBottomSheet(
-                commentCount = uiState.commentCount,
-                comments = uiState.comments,
-                repliesByCommentId = uiState.repliesByCommentId,
-                expandedCommentIds = uiState.expandedCommentIds,
-                onDismissRequest = onDismissRequest,
-                onCommentLikeClick = onCommentLikeClick,
-                onReplyClick = onReplyClick,
-                onReplyLikeClick = onReplyLikeClick,
-                formatCreatedAt = formatCreatedAt,
-            )
-        }
-
-        is CommentSheetUiState.Error -> {
-            // TODO 댓글 조회 실패 UI
-        }
-    }
-}
-
-@Composable
 private fun OnstageLoadingContent(
     modifier: Modifier = Modifier,
 ) {
@@ -498,25 +487,22 @@ private fun HomeScreenPreview(
             onstageUiState = previewData.onstageUiState,
             fanRadarUiState = previewData.fanRadarUiState,
             myArtistFeedUiState = previewData.myArtistFeedUiState,
-            commentSheetUiState = previewData.commentSheetUiState,
+            commentUiState = previewData.commentUiState,
             onOnstageClick = {},
             onFanRadarClick = {},
             onArtistClick = {},
             onMotifClick = {},
             onNoticeLikeClick = {},
             onNoticeCommentClick = {},
+            onCommentLikeClick = {},
+            onReplyClick = {},
+            onCommentBackClick = {},
+            onCommentSendClick = {},
             onLoadMoreMyArtistFeed = {},
             onOnstageRetryClick = {},
             onFanRadarRetryClick = {},
             onMyArtistFeedRetryClick = {},
             onMyArtistFeedLoadMoreRetryClick = {},
-            onCommentSheetDismiss = {},
-            onCommentLikeClick = {},
-            onReplyClick = {},
-            onReplyLikeClick = {},
-            formatCommentCreatedAt = {
-                "5일"
-            },
         )
     }
 }

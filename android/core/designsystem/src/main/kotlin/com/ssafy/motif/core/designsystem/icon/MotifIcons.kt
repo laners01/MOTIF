@@ -84,6 +84,9 @@ object MotifIcons {
     val Search = R.drawable.ic_search_24
 
     @DrawableRes
+    val Send = R.drawable.ic_send_24
+
+    @DrawableRes
     val Settings = R.drawable.ic_settings_24
 
     @DrawableRes

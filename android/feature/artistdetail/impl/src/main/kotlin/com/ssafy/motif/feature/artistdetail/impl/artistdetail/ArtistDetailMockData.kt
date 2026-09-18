@@ -4,7 +4,6 @@ import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
 import com.ssafy.motif.core.model.artistdetail.ArtistDetail
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.comment.Reply
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.model.artistdetail.ArtistMotif
@@ -73,8 +72,8 @@ internal object ArtistDetailMockData {
                     "바쁘신 와중에 시간 내주시고, 먼 길 와주신 것도 잊지 않을게요. 오늘 받은 마음 소중히 담아서 다음 무대는 더 좋은 모습으로 보여드리고 싶어요.\n" +
                     "돌아가시는 길 조심히 가시고, 편히 쉬세요.\n" +
                     "오늘 정말 고마웠어요. 또 만나요!\n" +
-                    "예지 드림" ,
-            imageUrls = listOf(YEJI,PROFILE_SQUARE),
+                    "예지 드림",
+            imageUrls = listOf(YEJI, PROFILE_SQUARE),
             likeCount = 9_100L,
             commentCount = 1_100L,
             isLiked = false,
@@ -90,15 +89,15 @@ internal object ArtistDetailMockData {
                     "바쁘신 와중에 시간 내주시고, 먼 길 와주신 것도 잊지 않을게요. 오늘 받은 마음 소중히 담아서 다음 무대는 더 좋은 모습으로 보여드리고 싶어요.\n" +
                     "돌아가시는 길 조심히 가시고, 편히 쉬세요.\n" +
                     "오늘 정말 고마웠어요. 또 만나요!\n" +
-                    "예지 드림" ,
-            imageUrls = listOf(YEJI,PROFILE_SQUARE),
+                    "예지 드림",
+            imageUrls = listOf(YEJI, PROFILE_SQUARE),
             likeCount = 9_100L,
             commentCount = 1_100L,
             isLiked = false,
             createdAt = 0L,
         ),
 
-    )
+        )
 
     val comments: List<Comment> = listOf(
         Comment(
@@ -136,39 +135,42 @@ internal object ArtistDetailMockData {
         ),
     )
 
-    val replies: Map<Long, List<Reply>> = mapOf(
+    val replies: Map<Long, List<Comment>> = mapOf(
         1L to listOf(
-            Reply(
+            Comment(
                 id = 101L,
-                commentId = 1L,
                 profileImageUrl = PROFILE_SQUARE,
                 nickname = "midzy_01",
                 content = "저도 고마워요! 다음 공연도 꼭 갈게요",
                 createdAt = 0L,
                 likeCount = 12L,
+                replyCount = 0L,
                 isLiked = false,
+                authorType = CommentAuthorType.USER,
             ),
-            Reply(
+            Comment(
                 id = 102L,
-                commentId = 1L,
                 profileImageUrl = PROFILE_SQUARE,
                 nickname = "always_itzy",
                 content = "언제나 응원합니다",
                 createdAt = 0L,
                 likeCount = 5L,
+                replyCount = 0L,
                 isLiked = true,
+                authorType = CommentAuthorType.USER,
             ),
         ),
         2L to listOf(
-            Reply(
+            Comment(
                 id = 103L,
-                commentId = 2L,
                 profileImageUrl = PROFILE_SQUARE,
                 nickname = "yeji_pick",
                 content = "저도요 ㅠㅠ 그 부분에서 다 같이 울었어요",
                 createdAt = 0L,
                 likeCount = 8L,
+                replyCount = 0L,
                 isLiked = false,
+                authorType = CommentAuthorType.USER,
             ),
         ),
     )

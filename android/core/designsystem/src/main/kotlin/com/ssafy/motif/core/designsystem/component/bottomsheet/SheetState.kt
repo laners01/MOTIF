@@ -20,7 +20,9 @@ class SheetState internal constructor(
     val partiallyExpandedFraction: Float,
 ) {
     init {
-        require(partiallyExpandedFraction in 0f..1f) {
+        require(
+            partiallyExpandedFraction in 0f..1f,
+        ) {
             "partiallyExpandedFraction must be between 0f and 1f."
         }
     }
@@ -41,54 +43,39 @@ class SheetState internal constructor(
             currentValue != SheetValue.Hidden ||
                     targetValue != SheetValue.Hidden
 
-    /**
-     * 현재 Sheet의 상단 Y 위치.
-     *
-     * Hidden            -> 화면 높이
-     * PartiallyExpanded -> 중간 위치
-     * Expanded          -> 0f
-     */
-    fun offsetOrNull(): Float? {
-        val offset =
-            anchoredDraggableState.offset
-
-        return if (offset.isNaN()) {
-            null
-        } else {
-            offset
-        }
-    }
+    fun offsetOrNull(): Float? =
+        anchoredDraggableState.offset
+            .takeUnless { offset ->
+                offset.isNaN()
+            }
 
     suspend fun show() {
-        val partiallyExpandedPosition =
-            anchoredDraggableState
-                .anchors
-                .positionOf(
-                    SheetValue.PartiallyExpanded,
-                )
-
-        val target =
+        val targetValue =
             if (
                 !skipPartiallyExpanded &&
-                !partiallyExpandedPosition.isNaN()
+                anchorPosition(
+                    SheetValue.PartiallyExpanded,
+                ) != null
             ) {
                 SheetValue.PartiallyExpanded
             } else {
                 SheetValue.Expanded
             }
 
-        animateTo(target)
+        animateTo(
+            targetValue = targetValue,
+        )
     }
 
     suspend fun hide() {
         animateTo(
-            SheetValue.Hidden,
+            targetValue = SheetValue.Hidden,
         )
     }
 
     suspend fun expand() {
         animateTo(
-            SheetValue.Expanded,
+            targetValue = SheetValue.Expanded,
         )
     }
 
@@ -97,31 +84,91 @@ class SheetState internal constructor(
             return
         }
 
-        val position =
-            anchoredDraggableState
-                .anchors
-                .positionOf(
-                    SheetValue.PartiallyExpanded,
-                )
+        animateTo(
+            targetValue = SheetValue.PartiallyExpanded,
+        )
+    }
 
-        if (!position.isNaN()) {
-            animateTo(
-                SheetValue.PartiallyExpanded,
-            )
+    internal fun anchorPosition(
+        value: SheetValue,
+    ): Float? =
+        anchoredDraggableState
+            .anchors
+            .positionOf(value)
+            .takeUnless { position ->
+                position.isNaN()
+            }
+
+    internal fun nextDownValue(
+        startValue: SheetValue,
+    ): SheetValue? =
+        when (startValue) {
+            SheetValue.Expanded -> {
+                if (
+                    !skipPartiallyExpanded &&
+                    anchorPosition(
+                        SheetValue.PartiallyExpanded,
+                    ) != null
+                ) {
+                    SheetValue.PartiallyExpanded
+                } else {
+                    SheetValue.Hidden
+                }
+            }
+
+            SheetValue.PartiallyExpanded ->
+                SheetValue.Hidden
+
+            SheetValue.Hidden ->
+                null
         }
+
+    internal suspend fun settleDown(
+        startValue: SheetValue,
+    ) {
+        val offset =
+            offsetOrNull()
+                ?: return
+
+        val nextValue =
+            nextDownValue(
+                startValue = startValue,
+            ) ?: return
+
+        val startPosition =
+            anchorPosition(
+                value = startValue,
+            ) ?: return
+
+        val nextPosition =
+            anchorPosition(
+                value = nextValue,
+            ) ?: return
+
+        val threshold =
+            startPosition +
+                    (
+                            nextPosition - startPosition
+                            ) * SETTLE_THRESHOLD_FRACTION
+
+        animateTo(
+            targetValue =
+                if (offset >= threshold) {
+                    nextValue
+                } else {
+                    startValue
+                },
+        )
     }
 
     private suspend fun animateTo(
         targetValue: SheetValue,
     ) {
-        val targetPosition =
-            anchoredDraggableState
-                .anchors
-                .positionOf(
-                    targetValue,
-                )
-
-        if (targetPosition.isNaN()) {
+        if (
+            anchorPosition(
+                value = targetValue,
+            ) == null
+        ) {
             return
         }
 
@@ -131,69 +178,10 @@ class SheetState internal constructor(
                 BottomSheetDefaults.AnimationSpec,
         )
     }
-
-    internal suspend fun settle(
-        velocity: Float,
-    ) {
-        val state =
-            anchoredDraggableState
-
-        val offset =
-            state.offset
-
-        if (offset.isNaN()) {
-            return
-        }
-
-        val partialPosition =
-            state.anchors
-                .positionOf(
-                    SheetValue.PartiallyExpanded,
-                )
-
-        val hasPartialState =
-            !skipPartiallyExpanded &&
-                    !partialPosition.isNaN()
-
-        val target =
-            when {
-                velocity < 0f -> {
-                    if (
-                        hasPartialState &&
-                        offset > partialPosition
-                    ) {
-                        SheetValue.PartiallyExpanded
-                    } else {
-                        SheetValue.Expanded
-                    }
-                }
-
-                velocity > 0f -> {
-                    if (
-                        hasPartialState &&
-                        offset < partialPosition
-                    ) {
-                        SheetValue.PartiallyExpanded
-                    } else {
-                        SheetValue.Hidden
-                    }
-                }
-
-                else -> {
-                    state.anchors
-                        .closestAnchor(
-                            offset,
-                        )
-                        ?: currentValue
-                }
-            }
-
-        animateTo(target)
-    }
 }
 
 @Composable
-fun rememberModalBottomSheetState(
+fun rememberBottomSheetState(
     skipPartiallyExpanded: Boolean = false,
     partiallyExpandedFraction: Float =
         BottomSheetDefaults.PARTIALLY_EXPANDED_FRACTION,
@@ -209,3 +197,5 @@ fun rememberModalBottomSheetState(
                 partiallyExpandedFraction,
         )
     }
+
+private const val SETTLE_THRESHOLD_FRACTION = 0.1f
