@@ -89,6 +89,28 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
     }
 
     /**
+     * 이 사용자가 이 에셋의 ACTIVE 개별 구매를 갖고 있나 — 주문 생성(API 명세 §12.1)의
+     * {@code ALREADY_OWNED} 판정.
+     *
+     * <p>{@link #findDetail} 의 {@code owned} 와 같은 조건이지만 그쪽을 부르지 않는다 —
+     * 상세는 노출 규칙(판매 중단 에셋은 구매자에게만) 때문에 비구매자에게 빈 결과를 주는데,
+     * §12.1 은 그 경우를 404 가 아니라 409 {@code PRODUCT_NOT_ON_SALE} 로 답해야 하고(원본
+     * 실패표), 아티스트·그룹 조인도 여기서는 필요 없다.
+     *
+     * <p>{@code asset_purchases} 엔티티 없이 네이티브로 묻는 근거는
+     * {@link #countPurchasedByArtists} 와 같다 — 권한 행을 <b>만드는</b> 쪽(§12.2)이
+     * 엔티티를 만들면 함께 옮긴다.
+     */
+    @Query(value = """
+            select exists (select 1 from motif_core.asset_purchases p
+                            where p.user_seq = :userSeq
+                              and p.asset_seq = :assetSeq
+                              and p.status = 'ACTIVE')
+            """, nativeQuery = true)
+    boolean existsActivePurchase(@Param("userSeq") Integer userSeq,
+                                 @Param("assetSeq") Integer assetSeq);
+
+    /**
      * 아티스트 삭제 연쇄 — 그 아티스트의 활성 에셋을 전부 내린다 (어드민 §3.5.5).
      *
      * <p>{@code motif_assets} 에는 삭제 플래그가 없어({@link MotifAsset} javadoc)

@@ -49,7 +49,21 @@
 
 DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이면 `artist_seq`·`pass_duration_months` 가 NULL 이어야 하고 그 반대도 같다.
 
-### 성공 응답 (201)
+**요청도 같은 모양이어야 한다 (기본안).** ASSET 인데 `artistSeq`·`passDurationMonths` 가 오거나, PASS 인데 `assetSeq` 가 오거나, 형태의 필수 칸이 빠지면 400 `INVALID_PARAMETER` 이고 `data` 에 필드 오류 배열이 실린다(§1.2 검증 오류와 같은 봉투). 반대 형태의 칸을 무시하지 않고 거절한다 — 무시하면 클라이언트 버그가 조용히 통과해 다른 상품이 결제된다.
+
+```json
+{
+  "result": "FAIL",
+  "code": "INVALID_PARAMETER",
+  "message": "요청 값이 올바르지 않습니다.",
+  "data": [
+    { "field": "artistSeq", "message": "ASSET 주문에는 보내지 않습니다." }
+  ],
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+### 성공 응답 (201) — ASSET
 
 ```json
 {
@@ -67,15 +81,57 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 }
 ```
 
+### 성공 응답 (201) — PASS
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "orderUuid": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "orderName": "카리나 모티프 패스 1개월",
+    "amount": "9900.00",
+    "currency": "KRW",
+    "expiresDttm": "2026-09-10T00:30:00.000Z"
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
 이 값들이 **토스 결제 위젯 파라미터**다. `amount` 는 문자열이며(`NUMERIC(10,2)`), 위젯에 넘길 때도 이 값을 그대로 쓴다.
 
 **주문 유효 시간은 30분**이다. 지나면 배치가 `EXPIRED` 로 바꾼다.
+
+### orderName *(기본안)*
+
+`orders` 에 칼럼이 없어 응답에서만 만든다 — 토스 결제창과 영수증에 그대로 찍힌다. 아티스트명은 `users.nickname` 이다.
+
+| productType | 형식 | 예 |
+|---|---|---|
+| `ASSET` | `{아티스트명} 모티프 에셋` | 카리나 모티프 에셋 |
+| `PASS` | `{아티스트명} 모티프 패스 {n}개월` | 카리나 모티프 패스 1개월 |
 
 ### 서버 처리
 
 1. 대상이 존재하고 판매 가능한지 확인
 2. **KR 활성 가격 행을 조회해 `amount`·`currency`·`countryCode`(+`passDuration`)를 스냅샷**한다 — 가격 행에 FK 를 걸지 않고 값을 복사한다. 나중에 가격이 바뀌어도 이미 만든 주문의 금액은 변하지 않는다
 3. `orders` 를 `PENDING` 으로 생성
+
+**판정 순서는 실패표 순서다 (기본안)** — 존재(404) → 판매 가능(409 `PRODUCT_NOT_ON_SALE`) → 보유·패스(409). 판매 중단(`is_active=FALSE`) 에셋은 §11.2 상세와 달리 **숨기지 않고** 409 로 답한다 — 원본 실패표가 그렇게 못박았다.
+
+| 단계 | ASSET | PASS |
+|---|---|---|
+| 존재 | `motif_assets` 행 없음 → 404 `ASSET_NOT_FOUND` | `artists` 행 없음 또는 `is_deleted=TRUE` → 404 `ARTIST_NOT_FOUND` |
+| 판매 가능 | `is_active=FALSE` 또는 KR 활성 가격 없음 → 409 `PRODUCT_NOT_ON_SALE` | (아티스트, KR, `passDurationMonths`) 활성 가격 없음 → 409 `PRODUCT_NOT_ON_SALE` |
+| 보유 | ACTIVE 개별 구매 → 409 `ALREADY_OWNED` | 유효 패스 → 409 `PASS_ALREADY_ACTIVE` |
+| 패스 | 유효 패스 + `PREMIUM` 아님 → 409 `COVERED_BY_PASS` | — |
+| 저장 | `PENDING` · `asset_seq` · `country_code='KR'` · 금액·통화 스냅샷 · `expires_dttm = now + 30분` | `PENDING` · `artist_seq` · `pass_duration_months` · 같은 스냅샷 |
+
+- ASSET 의 보유·패스 판정은 §11 `myAccess` 규칙 그대로다 — `OWNED > PASS > NONE`, `PREMIUM` 은 패스로 열리지 않고 `SECRET` 은 `NORMAL` 과 같다. 개별 구매와 패스가 둘 다 있으면 `ALREADY_OWNED` 다.
+- 유효 패스는 `status='ACTIVE' AND expires_dttm > now()` 를 **DB 시각**으로 판정한다(§11.4 와 같은 조회). 만료·환불된 패스는 잡히지 않으므로 재구매가 열린다.
+- 같은 상품의 `PENDING` 주문이 이미 있어도 막지 않는다 — 시도마다 새 행이다(DB §33). 위젯 이탈 후 다시 누르는 것이 정상 경로다.
+- `payment_provider` 는 생성 시 NULL 이다. 승인(§12.2)이 `TOSS` 와 `payment_key` 를 함께 기록한다.
 
 ### 실패 응답
 
@@ -98,6 +154,14 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 ```
 
 `COVERED_BY_PASS` 는 "패스 구독 중이면 구매된 상태와 같이 취급한다"는 정책의 결과다. **단 `PREMIUM` 에셋은 패스로 열리지 않으므로 이 코드가 나오지 않는다**(§11 권한 표).
+
+### 구현 메모 (S15P21D104-263)
+
+- `Order` 엔티티·`OrderRepository` 는 `domain-core/.../order/` 에 새로 만들었다. 정적 팩토리 `forAsset`·`forPass` 만 있고 **상태 전이 메서드는 없다** — 승인·취소·만료가 각자의 티켓(§12.2·§12.3)에서 붙인다.
+- 판정은 기존 조회를 재사용한다 — `MotifAssetPriceRepository.findByAssetSeqAndCountrySeq`, `MotifPassPriceRepository.findByArtistSeqAndCountrySeqAndDurationMonths`·`findActivePassExpiry`, `ArtistRepository.findByArtistSeqAndDeletedFalse`·`findNames`. 새로 더한 것은 `MotifAssetRepository.existsActivePurchase` 하나다(`asset_purchases` 엔티티는 권한 행을 만드는 §12.2 가 만든다).
+- 보유·패스 판정은 `MyAccess.of` 를 그대로 부른다 — §11.2 상세가 `PASS` 라 답한 에셋의 주문이 여기서 열리는 일이 없다.
+- 국가는 `OrderCommandService` 자체 상수 `KR` 이다(§11.2·§11.4 서비스와 같은 방식, 공유하지 않음). `orders.country_code` 에 그대로 스냅샷된다.
+- 형태 검증은 `OrderCreateRequest.shapeErrors()` 가 필드 오류 목록을 만들고 서비스가 `INVALID_PARAMETER` 의 `data` 로 던진다.
 
 ---
 
