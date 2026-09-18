@@ -34,9 +34,9 @@ import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.core.ui.video.VideoShortsFeed
 import com.ssafy.motif.core.ui.video.rememberVideoShortsState
+import com.ssafy.motif.feature.challenges.impl.component.ArtistChallengeOverlay
 import com.ssafy.motif.feature.challenges.impl.component.ChallengeBottomNavigation
 import com.ssafy.motif.feature.challenges.impl.component.ChallengeDetailBottomSheet
-import com.ssafy.motif.feature.challenges.impl.component.ChallengeShortFormOverlay
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -129,7 +129,7 @@ internal fun ChallengeScreen(
                     if (!isBottomSheetVisible) {
                         val challenge = challenges[index]
 
-                        ChallengeShortFormOverlay(
+                        ArtistChallengeOverlay(
                             challenge = challenge,
                             backdropState = backdropState,
                             onArtistClick = {
