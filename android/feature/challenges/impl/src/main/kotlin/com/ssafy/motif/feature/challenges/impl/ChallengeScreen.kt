@@ -25,7 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.challenges.ChallengeShortForm
+import com.ssafy.motif.core.model.challenges.ArtistChallenge
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.home.Artist
@@ -42,7 +42,7 @@ import com.ssafy.motif.core.designsystem.R as DesignSystemR
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChallengeScreen(
-    challenges: List<ChallengeShortForm>,
+    challenges: List<ArtistChallenge>,
     myProfileImageUrl: String,
     commentUiState: CommentUiState,
     onArtistClick: (Long) -> Unit,
@@ -73,11 +73,11 @@ internal fun ChallengeScreen(
     )
 
     var descriptionChallenge by remember {
-        mutableStateOf<ChallengeShortForm?>(null)
+        mutableStateOf<ArtistChallenge?>(null)
     }
 
     var commentChallenge by remember {
-        mutableStateOf<ChallengeShortForm?>(null)
+        mutableStateOf<ArtistChallenge?>(null)
     }
 
     val activeSheetState = when {
@@ -333,7 +333,7 @@ private fun ChallengeScreenPreview() {
 
 private fun previewChallenges(
     profileImageUrl: String,
-): List<ChallengeShortForm> {
+): List<ArtistChallenge> {
     val yeji = Artist(
         id = 1L,
         name = "Yeji",
@@ -370,7 +370,7 @@ private fun previewChallenges(
     )
 
     return listOf(
-        ChallengeShortForm(
+        ArtistChallenge(
             id = 1L,
             videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
             thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/thumb.jpg",
@@ -387,7 +387,7 @@ private fun previewChallenges(
             isSubscribed = false,
             challengeArtists = challengeArtists,
         ),
-        ChallengeShortForm(
+        ArtistChallenge(
             id = 2L,
             videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
             thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/thumb.jpg",

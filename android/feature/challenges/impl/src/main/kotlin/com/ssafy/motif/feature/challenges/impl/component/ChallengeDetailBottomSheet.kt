@@ -44,7 +44,7 @@ import com.ssafy.motif.core.designsystem.component.bottomsheet.SheetState
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberBottomSheetState
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.challenges.ChallengeShortForm
+import com.ssafy.motif.core.model.challenges.ArtistChallenge
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.ui.formatter.formatCount
 import com.ssafy.motif.feature.challenges.impl.R
@@ -56,7 +56,7 @@ import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
 fun ChallengeDetailBottomSheet(
-    challenge: ChallengeShortForm,
+    challenge: ArtistChallenge,
     onDismissRequest: () -> Unit,
     onArtistClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -303,8 +303,8 @@ private fun ChallengeDetailBottomSheetPreview() {
 
 private fun previewChallenge(
     profileUrl: String,
-): ChallengeShortForm =
-    ChallengeShortForm(
+): ArtistChallenge =
+    ArtistChallenge(
         id = 1L,
         videoUrl = "",
         thumbnailUrl = "",
