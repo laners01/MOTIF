@@ -210,4 +210,154 @@ public interface VideoCommentRepository extends JpaRepository<VideoComment, Long
             """)
     boolean existsArtistComment(@Param("videoSeq") Long videoSeq,
                                 @Param("artistUserSeq") Integer artistUserSeq);
+
+    /**
+     * 영상별 <b>내 최신 댓글 한 건</b> (API 명세 §4.9) — 활동 카드의 {@code myComment}.
+     *
+     * <p>{@code distinct on} 은 Postgres 전용이다. 표준 SQL 로는 영상마다 최대값을
+     * 구하는 상관 서브쿼리나 윈도 함수를 써야 하는데, 이 레포는 이미 Postgres 에 묶여
+     * 있고({@code on conflict}·{@code gin} 인덱스) 계획이 한 줄 더 짧다.
+     *
+     * <p><b>{@code order by} 가 계약의 일부다.</b> {@code distinct on} 은 정렬된 첫 행을
+     * 남기므로 앞에 {@code video_seq} 가 와야 하고, 그 뒤 {@code reg_dttm desc} 가 "최신
+     * 1개" 를 정한다. {@code video_comment_seq} 보조 키가 없으면 같은 초에 단 댓글 중
+     * 어느 것이 남을지가 호출마다 흔들린다.
+     *
+     * <p>답글도 내 댓글이다 — {@code parent_comment_seq} 로 거르지 않는다. 그 경우
+     * 카드는 부모 요약을 함께 싣고 {@code replies} 는 빈 배열이다(깊이 2 규칙).
+     */
+    @Query(value = """
+            select distinct on (c.video_seq)
+                   c.video_seq          as "videoSeq",
+                   c.video_comment_seq  as "commentSeq",
+                   c.content            as "content",
+                   c.like_count         as "likeCount",
+                   c.parent_comment_seq as "parentCommentSeq",
+                   c.reg_dttm           as "regDttm"
+              from motif_core.video_comments c
+             where c.user_seq = :userSeq
+               and c.is_deleted = false
+               and c.video_seq in (:videoSeqs)
+             order by c.video_seq, c.reg_dttm desc, c.video_comment_seq desc
+            """, nativeQuery = true)
+    List<MyCommentRow> findMyLatestByVideos(@Param("userSeq") Integer userSeq,
+                                            @Param("videoSeqs") Collection<Long> videoSeqs);
+
+    /**
+     * 부모 댓글 <b>여럿</b>에 달린 답글을 각각 최신 {@code limit} 건까지 (§4.9 프리뷰).
+     *
+     * <p>부모마다 따로 물으면 카드 수만큼 왕복이다. 윈도 함수로 한 번에 끊는 이유가
+     * 그것이고, {@code limit} 을 바인딩으로 받는 것은 프리뷰 개수가 <b>클라 확인 대기</b>
+     * 인 기본안이라서다(§16) — 값이 바뀔 때 쿼리를 고치지 않는다.
+     *
+     * <p><b>고르는 순서와 싣는 순서가 다르다.</b> 안쪽 {@code row_number} 는 최신순으로
+     * 2건을 고르고, 바깥 {@code order by} 는 그것을 <b>등록순</b>으로 되돌린다 — 화면은
+     * 대화 순서로 읽히는 것이 맞고 명세의 예시도 그렇게 적혀 있다(§4.9).
+     *
+     * <p>삭제된 답글·삭제 사용자의 답글은 제외한다(§1.8) — {@code countRepliesByParents}
+     * 가 세는 것과 같은 집합이라, 프리뷰 2건과 {@code replyCount} 가 어긋나지 않는다.
+     */
+    @Query(value = """
+            select t."parentSeq"              as "parentSeq",
+                   t."commentSeq"             as "commentSeq",
+                   t."content"                as "content",
+                   t."authorUserSeq"          as "authorUserSeq",
+                   t."authorNickname"         as "authorNickname",
+                   t."authorProfileImageKey"  as "authorProfileImageKey",
+                   t."regDttm"                as "regDttm"
+              from (select c.parent_comment_seq as "parentSeq",
+                           c.video_comment_seq  as "commentSeq",
+                           c.content            as "content",
+                           u.user_seq           as "authorUserSeq",
+                           u.nickname           as "authorNickname",
+                           u.profile_image_key  as "authorProfileImageKey",
+                           c.reg_dttm           as "regDttm",
+                           row_number() over (partition by c.parent_comment_seq
+                                              order by c.reg_dttm desc,
+                                                       c.video_comment_seq desc) as rn
+                      from motif_core.video_comments c
+                      join motif_core.users u on u.user_seq = c.user_seq
+                                             and u.is_deleted = false
+                     where c.parent_comment_seq in (:parentSeqs)
+                       and c.is_deleted = false) t
+             where t.rn <= :limit
+             order by t."parentSeq", t."regDttm" asc, t."commentSeq" asc
+            """, nativeQuery = true)
+    List<ReplyPreviewRow> findReplyPreviews(@Param("parentSeqs") Collection<Long> parentSeqs,
+                                            @Param("limit") int limit);
+
+    /**
+     * 부모 댓글 요약 배치 (§4.9 {@code myComment.parentComment}) — 내 댓글이 답글일 때만.
+     *
+     * <p><b>보이지 않는 부모는 행이 없다.</b> 부모가 삭제됐거나 작성자가 탈퇴했으면
+     * 호출부가 {@code parentComment} 를 {@code null} 로 둔다 — 카드는 남는다. 내가 단
+     * 답글은 그대로 있고, 사라진 것은 그 위 맥락뿐이다.
+     */
+    @Query(value = """
+            select c.video_comment_seq as "commentSeq",
+                   c.content           as "content",
+                   u.user_seq          as "authorUserSeq",
+                   u.nickname          as "authorNickname",
+                   u.profile_image_key as "authorProfileImageKey"
+              from motif_core.video_comments c
+              join motif_core.users u on u.user_seq = c.user_seq and u.is_deleted = false
+             where c.video_comment_seq in (:commentSeqs)
+               and c.is_deleted = false
+            """, nativeQuery = true)
+    List<ParentCommentRow> findParentSummaries(@Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /**
+     * §4.9 카드의 내 댓글 — {@link #findMyLatestByVideos} 투영.
+     *
+     * <p>세 투영 모두 인터페이스인 것은 네이티브 쿼리라서다({@code MotifAssetRepository}
+     * 의 중첩 투영과 같은 방식). 저장소 바깥에서 쓰이지 않아 안에 둔다.
+     */
+    interface MyCommentRow {
+
+        Long getVideoSeq();
+
+        Long getCommentSeq();
+
+        String getContent();
+
+        Integer getLikeCount();
+
+        /** {@code null} 이면 루트 댓글 — 그때만 답글 프리뷰가 붙는다. */
+        Long getParentCommentSeq();
+
+        Instant getRegDttm();
+    }
+
+    /** §4.9 카드의 답글 프리뷰 한 줄 — {@link #findReplyPreviews} 투영. */
+    interface ReplyPreviewRow {
+
+        Long getParentSeq();
+
+        Long getCommentSeq();
+
+        String getContent();
+
+        Integer getAuthorUserSeq();
+
+        String getAuthorNickname();
+
+        /** 프로필은 <b>키</b>다 — URL 로 바꾸는 것은 등급 판정이 있는 core-api 쪽이다. */
+        String getAuthorProfileImageKey();
+
+        Instant getRegDttm();
+    }
+
+    /** §4.9 카드의 부모 댓글 요약 — {@link #findParentSummaries} 투영. */
+    interface ParentCommentRow {
+
+        Long getCommentSeq();
+
+        String getContent();
+
+        Integer getAuthorUserSeq();
+
+        String getAuthorNickname();
+
+        String getAuthorProfileImageKey();
+    }
 }

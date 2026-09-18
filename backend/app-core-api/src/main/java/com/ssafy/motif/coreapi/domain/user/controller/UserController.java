@@ -2,8 +2,10 @@ package com.ssafy.motif.coreapi.domain.user.controller;
 
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.user.docs.UserControllerDocs;
+import com.ssafy.motif.coreapi.domain.user.dto.ActivityItem;
 import com.ssafy.motif.coreapi.domain.user.dto.MotifPassItem;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
@@ -15,6 +17,7 @@ import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
 import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
 import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
+import com.ssafy.motif.coreapi.domain.user.service.UserActivityQueryService;
 import com.ssafy.motif.coreapi.domain.user.service.UserCommandService;
 import com.ssafy.motif.coreapi.domain.user.service.UserMotifPassQueryService;
 import com.ssafy.motif.coreapi.domain.user.service.UserProfileImageService;
@@ -29,12 +32,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 사용자·마이페이지 API (명세 §4 · §11.9). Base URL 은 {@code /api/v1}.
- *
- * <p>§4.9 활동만 남았다 — 별개 티켓이라 여기 매핑이 없다.
  *
  * <p>{@code /me} 와 {@code /{userSeq}} 가 한 컨트롤러에 있다. 경로 세그먼트가 갈리므로
  * 충돌하지 않고, 응답도 전혀 다르다 — §4.1 은 대표 모티프·영상 그리드를, §4.6 은 구독
@@ -49,6 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController implements UserControllerDocs {
 
     private final UserQueryService userQueryService;
+    private final UserActivityQueryService userActivityQueryService;
     private final UserCommandService userCommandService;
     private final UserProfileImageService userProfileImageService;
     private final UserMotifPassQueryService userMotifPassQueryService;
@@ -98,6 +101,22 @@ public class UserController implements UserControllerDocs {
     public ApiResponse<ListResponse<VideoPreviewItem>> myVideos(
             @AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.success(userQueryService.myVideos(user.userSeq()));
+    }
+
+    /**
+     * §4.9 내 활동 — <b>커서</b>(§1.9). 최초 호출은 {@code cursor} 를 생략한다.
+     *
+     * <p>offset 이 아닌 이유는 이 목록이 <b>앞쪽에서 늘어나기</b> 때문이다. 좋아요·댓글을
+     * 하나 더 할 때마다 그 카드가 맨 위로 올라와 페이지가 밀린다.
+     */
+    @Override
+    @GetMapping("/me/activities")
+    public ApiResponse<CursorResponse<ActivityItem>> myActivities(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(
+                userActivityQueryService.activities(user.userSeq(), cursor, size));
     }
 
     /** §4.2 닉네임 수정 — 형식 검증만, 중복 확인은 없다. */

@@ -1,7 +1,9 @@
 package com.ssafy.motif.coreapi.domain.user.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.ActivityItem;
 import com.ssafy.motif.coreapi.domain.user.dto.MotifPassItem;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
 import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
@@ -180,6 +182,183 @@ public interface UserControllerDocs {
     })
     ApiResponse<ListResponse<VideoPreviewItem>> myVideos(
             @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "내 활동 (§4.9)",
+            description = """
+                    마이페이지 **"내 활동"** 화면(회의 확정 R2 재설계). **커서 페이지**(§1.9)이며
+                    **영상 하나가 카드 하나**다 — 탭 분리는 없다(구 `type` 필터 삭제).
+
+                    내가 **좋아요를 눌렀거나 댓글을 단** 영상이 카드가 되고, 카드에 하트 표시·
+                    내 댓글·**내 댓글에 달린 답글**이 붙는다. 정렬은 **마지막 상호작용 최신순**
+                    (`lastInteractedDttm` = 좋아요·댓글 중 나중), 같은 시각이면 `videoSeq` 내림차순.
+
+                    | 필드 | 규칙 |
+                    |---|---|
+                    | `liked` | 내가 좋아요를 눌렀는가 = 카드의 하트 표시 |
+                    | `video.likeCount` | 화면의 "♥ 1.2만" |
+                    | `myComment` | 내가 단 댓글. **좋아요만 한 영상이면 `null`** |
+                    | `myComment.replyCount` | **노출되는** 답글 수. 프리뷰보다 많으면 게시물 댓글 화면으로 보낸다 |
+                    | `myComment.parentComment` | 내 댓글이 **답글**이면 부모 요약, 루트면 `null` |
+                    | `replies` | 내 댓글에 달린 답글 프리뷰 **2건**. 없으면 `[]` |
+                    | `lastInteractedDttm` | 정렬 기준. 영상의 등록 시각이 아니다 |
+
+                    ### 카드 한 장으로 합쳐지는 것들
+                    같은 영상에 좋아요와 댓글을 **둘 다** 했으면 카드는 하나다. 같은 영상에
+                    내 댓글이 **여러 개**면 **최신 1개**만 싣는다(기본안 — 클라 확인 대기).
+
+                    ### 답글 프리뷰의 선별과 순서
+                    **최신 2건을 고르고 등록순으로 싣는다.** 고르는 기준은 최신이어야 새 답글이
+                    보이고, 싣는 순서는 대화 순서여야 읽힌다. 내 댓글이 **답글이면 `replies` 는
+                    항상 `[]`** 다 — 답글에는 답글을 달 수 없다(깊이 2).
+
+                    ### 목록에서 빠지는 카드 *(ACTIVITY-02)*
+                    - 영상이 **삭제**됐거나 작성자가 탈퇴했거나 **삭제된 챌린지** 소속
+                    - **본인 게시물** — 내 영상은 §4.8 그리드가 맡는다
+                    - **타인의 `PRIVATE`** 영상
+                    - **댓글 사용 중지**(`comment_enabled=FALSE`)된 영상 — **좋아요만 눌렀어도
+                      카드째 뺀다.** 카드의 본체가 댓글 스레드라 열어도 보여 줄 것이 없다
+
+                    내 댓글이 삭제된 경우는 다르다 — **좋아요가 남아 있으면 카드는 남고**
+                    `myComment` 만 `null` 이 된다. 카드까지 지우면 "좋아요는 그대로인데 활동에서
+                    없어졌다" 가 된다.
+
+                    ### 썸네일·프로필
+                    공개/보호는 **S3 키의 프리픽스**가 정한다 — `private/` 로 시작하면 서명된
+                    URL, 아니면 무서명 CDN URL 이다(§4.1 참고).
+
+                    ### 최근 검색어는 이 API 와 무관하다
+                    서버 API·DB 없이 **Android 로컬**에서만 처리한다. 서버 검색(§5.2·§5.9)과
+                    최근 검색어 저장은 분리한다.
+
+                    ### 실패
+                    **도메인 분기가 없다.** 공통 분기(401 등)와, 망가진 `cursor` 의 400 뿐이다 —
+                    조용히 첫 페이지로 되돌리지 않는다(무한 스크롤이 원인 없이 맨 위로 점프한다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "내 활동 한 페이지",
+                    content = @Content(mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "좋아요 + 내 댓글 + 답글", value = """
+                                            {
+                                              "result": "SUCCESS",
+                                              "code": "SUCCESS",
+                                              "message": "요청이 성공했습니다.",
+                                              "data": {
+                                                "list": [
+                                                  {
+                                                    "video": {
+                                                      "videoSeq": 88,
+                                                      "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                                      "viewCount": 3400,
+                                                      "likeCount": 12000
+                                                    },
+                                                    "liked": true,
+                                                    "myComment": {
+                                                      "commentSeq": 501,
+                                                      "content": "이 챌린지 예지랑 너무 잘 어울린다 🔥",
+                                                      "likeCount": 742,
+                                                      "replyCount": 8,
+                                                      "regDttm": "2026-08-28T12:00:00.000Z",
+                                                      "parentComment": null
+                                                    },
+                                                    "replies": [
+                                                      {
+                                                        "commentSeq": 530,
+                                                        "author": { "userSeq": 9, "nickname": "dancing_mandu", "profileImageUrl": "https://cdn.motif.io/profiles/1f6b8c0e.jpg" },
+                                                        "content": "😂😂😂",
+                                                        "regDttm": "2026-08-28T13:00:00.000Z"
+                                                      },
+                                                      {
+                                                        "commentSeq": 531,
+                                                        "author": { "userSeq": 1, "nickname": "kkongdance", "profileImageUrl": null },
+                                                        "content": "이거 보고 바로 챌린지 찍으러 갑니다",
+                                                        "regDttm": "2026-08-28T14:00:00.000Z"
+                                                      }
+                                                    ],
+                                                    "lastInteractedDttm": "2026-08-28T12:00:00.000Z"
+                                                  }
+                                                ],
+                                                "prevCursor": null,
+                                                "nextCursor": "MTc4NzkxODQwMDAwMDo4OA",
+                                                "hasPrevious": false,
+                                                "hasNext": true
+                                              },
+                                              "timestamp": "2026-09-18T00:00:00.000Z"
+                                            }"""),
+                                    @ExampleObject(name = "좋아요만 한 영상 · 내 댓글이 답글인 영상", value = """
+                                            {
+                                              "result": "SUCCESS",
+                                              "code": "SUCCESS",
+                                              "message": "요청이 성공했습니다.",
+                                              "data": {
+                                                "list": [
+                                                  {
+                                                    "video": {
+                                                      "videoSeq": 90,
+                                                      "thumbnailUrl": "https://cdn.motif.io/public/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg",
+                                                      "viewCount": 120,
+                                                      "likeCount": 8
+                                                    },
+                                                    "liked": true,
+                                                    "myComment": null,
+                                                    "replies": [],
+                                                    "lastInteractedDttm": "2026-08-27T09:00:00.000Z"
+                                                  },
+                                                  {
+                                                    "video": {
+                                                      "videoSeq": 89,
+                                                      "thumbnailUrl": "https://cdn.motif.io/public/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg",
+                                                      "viewCount": 940,
+                                                      "likeCount": 77
+                                                    },
+                                                    "liked": false,
+                                                    "myComment": {
+                                                      "commentSeq": 612,
+                                                      "content": "저도 그렇게 생각해요",
+                                                      "likeCount": 3,
+                                                      "replyCount": 0,
+                                                      "regDttm": "2026-08-26T18:00:00.000Z",
+                                                      "parentComment": {
+                                                        "commentSeq": 610,
+                                                        "author": { "userSeq": 7, "nickname": "motif_fan", "profileImageUrl": "https://cdn.motif.io/profiles/9a8b7c6d.jpg" },
+                                                        "content": "이 구간 안무가 진짜 어렵던데"
+                                                      }
+                                                    },
+                                                    "replies": [],
+                                                    "lastInteractedDttm": "2026-08-26T18:00:00.000Z"
+                                                  }
+                                                ],
+                                                "prevCursor": null,
+                                                "nextCursor": null,
+                                                "hasPrevious": false,
+                                                "hasNext": false
+                                              },
+                                              "timestamp": "2026-09-18T00:00:00.000Z"
+                                            }""")
+                            })),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = """
+                            **망가진 `cursor`** — 서버가 발급하지 않은 토큰이거나 형식이 깨졌다.
+                            커서는 opaque 토큰이라 클라이언트가 만들거나 고치지 않는다(§1.9).
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-18T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<CursorResponse<ActivityItem>> myActivities(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "직전 응답의 nextCursor. 최초 호출은 생략한다")
+            String cursor,
+            @Parameter(description = "페이지 크기 — 기본 20, 최대 100", example = "20") int size);
 
     @Operation(
             summary = "타 사용자 프로필 (§4.6)",
