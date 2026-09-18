@@ -1,5 +1,6 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
+import com.ssafy.motif.core.model.mypage.LikedMotif
 import com.ssafy.motif.core.model.mypage.MyChallenge
 import com.ssafy.motif.core.model.mypage.MyMotif
 import com.ssafy.motif.core.model.mypage.SubscribedArtist
@@ -97,4 +98,25 @@ internal object MyPageMockData {
         videoUrl = "android.resource://com.ssafy.motif/raw/test_video",
         thumbnailUrl = "android.resource://com.ssafy.motif/drawable/motif_thumbnail",
     )
+
+    // formatCount의 분기(1000 미만 / k / m)와 경계값을 모두 지나도록 구성했다.
+    private val LIKE_COUNTS = listOf(
+        1_240_000L, 12_500L, 1_000L, 999L, 128L, 0L, 3_400_000L, 87L, 1_100L,
+    )
+
+    private const val LIKED_BASE_TIME = 1_758_100_000_000L
+    private const val ONE_HOUR_MILLIS = 3_600_000L
+
+    // index가 커질수록 likedAt이 작아지므로 목록 자체가 최근 좋아요순이다.
+    // 17개라 페이지 크기로 나누면 마지막 페이지가 부분적으로 차서 hasNext 확인에 쓸 수 있다.
+    val likedMotifs: List<LikedMotif> = List(17) { index ->
+        LikedMotif(
+            id = index + 1L,
+            // TODO 마이페이지 전용 리소스로 교체. 현재는 artistdetail 모듈 것을 빌려 씀
+            videoUrl = "android.resource://com.ssafy.motif/raw/test_video",
+            thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
+            likeCount = LIKE_COUNTS[index % LIKE_COUNTS.size],
+            likedAt = LIKED_BASE_TIME - index * ONE_HOUR_MILLIS,
+        )
+    }
 }
