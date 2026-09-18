@@ -1,6 +1,7 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
 import com.ssafy.motif.core.model.mypage.MyChallenge
+import com.ssafy.motif.core.model.mypage.MyMotif
 import com.ssafy.motif.core.model.mypage.SubscribedArtist
 import com.ssafy.motif.core.model.mypage.UserProfile
 
@@ -87,5 +88,13 @@ internal object MyPageMockData {
             ownedMotifCount = 23L,
             totalMotifCount = 31L,
         ),
+    )
+
+    // 대표 모티프. 미설정 상태를 보려면 ViewModel에서 null을 내려주면 된다.
+    val representativeMotif: MyMotif = MyMotif(
+        id = 1L,
+        // TODO 마이페이지 전용 리소스로 교체. 현재는 artistdetail 모듈 것을 빌려 씀
+        videoUrl = "android.resource://com.ssafy.motif/raw/test_video",
+        thumbnailUrl = "android.resource://com.ssafy.motif/drawable/motif_thumbnail",
     )
 }

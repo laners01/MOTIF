@@ -50,6 +50,15 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
         loadProfile()
         loadChallenges()
         loadArtists()
+        loadRepresentativeMotif()
+    }
+
+    private fun loadRepresentativeMotif() {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(representativeMotif = MyPageMockData.representativeMotif)
+            }
+        }
     }
 
     private fun loadArtists() {

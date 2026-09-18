@@ -44,7 +44,7 @@ import com.ssafy.motif.core.ui.comment.ModalCommentBottomSheet
 import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDetailCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifEmptyContent
-import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifVideoSection
+import com.ssafy.motif.core.ui.motif.MotifVideoSection
 
 @Composable
 fun ArtistDetailScreen(
@@ -164,10 +164,10 @@ internal fun ArtistDetailScreen(
                         if (motif != null) {
                             item {
                                 MotifVideoSection(
-                                    motif = motif,
-                                    modifier = Modifier.padding(
-                                        bottom = 12.dp,
-                                    ),
+                                    videoId = motif.id.toString(),
+                                    videoUrl = motif.videoUrl,
+                                    thumbnailUrl = motif.thumbnailUrl,
+                                    modifier = Modifier.padding(bottom = 12.dp),
                                 )
                             }
                         } else {
