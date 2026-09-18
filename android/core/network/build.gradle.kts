@@ -6,6 +6,10 @@ plugins {
 
 android {
     namespace = "com.ssafy.motif.core.network"
+
+    buildFeatures {
+        buildConfig = true
+    }
 }
 
 dependencies {
