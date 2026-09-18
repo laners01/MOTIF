@@ -3,10 +3,12 @@ package com.ssafy.motif.coreapi.domain.order.controller;
 import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.order.docs.OrderControllerDocs;
+import com.ssafy.motif.coreapi.domain.order.dto.OrderCancelResponse;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderConfirmRequest;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderConfirmResponse;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderCreateRequest;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderCreateResponse;
+import com.ssafy.motif.coreapi.domain.order.service.OrderCancelService;
 import com.ssafy.motif.coreapi.domain.order.service.OrderCommandService;
 import com.ssafy.motif.coreapi.domain.order.service.OrderConfirmService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -41,6 +43,7 @@ public class OrderController implements OrderControllerDocs {
 
     private final OrderCommandService orderCommandService;
     private final OrderConfirmService orderConfirmService;
+    private final OrderCancelService orderCancelService;
 
     /**
      * §12.1 주문 생성 — <b>201 Created</b>. 응답이 그대로 토스 위젯 파라미터다.
@@ -70,5 +73,15 @@ public class OrderController implements OrderControllerDocs {
                                                      @PathVariable UUID orderUuid,
                                                      @Valid @RequestBody OrderConfirmRequest request) {
         return ApiResponse.success(orderConfirmService.confirm(user.userSeq(), orderUuid, request));
+    }
+
+    /**
+     * §12.3 승인 전 취소 — 200, 요청 본문 없음. 위젯에서 이탈했을 때 클라이언트가 부른다.
+     */
+    @Override
+    @PostMapping("/{orderUuid}/cancel")
+    public ApiResponse<OrderCancelResponse> cancel(@AuthenticationPrincipal AuthenticatedUser user,
+                                                   @PathVariable UUID orderUuid) {
+        return ApiResponse.success(orderCancelService.cancel(user.userSeq(), orderUuid));
     }
 }

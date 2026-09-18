@@ -51,7 +51,12 @@ public enum OrderErrorCode implements ErrorCode {
     ORDER_EXPIRED(409, "ORDER_EXPIRED", "만료된 주문입니다."),
 
     /** 이미 {@code PAID}(·{@code REFUNDED}) 인 주문의 중복 승인 (§12.2). */
-    ORDER_ALREADY_PAID(409, "ORDER_ALREADY_PAID", "이미 결제된 주문입니다.");
+    ORDER_ALREADY_PAID(409, "ORDER_ALREADY_PAID", "이미 결제된 주문입니다."),
+
+    // --- 12.3 취소 --------------------------------------------------------------------
+
+    /** {@code PENDING} 이 아닌 주문의 취소 시도 (§12.3) — 결제됨·만료·취소·실패·환불 전부 같은 코드다. */
+    ORDER_NOT_CANCELABLE(409, "ORDER_NOT_CANCELABLE", "취소할 수 없는 주문입니다.");
 
     private final int status;
     private final String code;

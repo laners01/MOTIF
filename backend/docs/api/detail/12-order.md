@@ -312,6 +312,28 @@ DB CHECK(`ck_orders_product_shape`)가 두 형태를 강제한다 — ASSET 이�
 | 404 | `ORDER_NOT_FOUND` | 주문 없음·타인 주문 |
 | 409 | `ORDER_NOT_CANCELABLE` | `PENDING` 이 아님(`PAID`·`EXPIRED` 등) |
 
+```json
+{
+  "result": "FAIL",
+  "code": "ORDER_NOT_CANCELABLE",
+  "message": "취소할 수 없는 주문입니다.",
+  "data": null,
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+### 판정 *(기본안)*
+
+- 요청 본문은 없다. 본인 주문 조회(404) 뒤 조건부 UPDATE `status='CANCELED' WHERE order_seq=? AND status='PENDING'` 하나가 판정이다 — 0행이면 409. 상태를 먼저 읽고 갈라 쓰지 않는다(읽는 시점과 쓰는 시점 사이에 승인이 끼어들 수 있다).
+- **만료 시각은 보지 않는다.** 기간이 지났어도 배치 전이라 `PENDING` 이면 `CANCELED` 가 된다 — 기능상 차이가 없다.
+- 이미 취소된 주문의 재취소도 409 `ORDER_NOT_CANCELABLE` 다 — `PENDING` 이 아닌 상태(`PAID`·`EXPIRED`·`CANCELED`·`FAILED`·`REFUNDED`)는 전부 같은 코드다.
+- 승인(§12.2)이 같은 주문을 잠근 채 토스를 부르고 있으면 UPDATE 가 그 트랜잭션이 끝나기를 기다린다 — 승인이 커밋되면 409, 되돌아가 `PENDING` 으로 남았으면 취소된다. 둘이 동시에 이기는 길은 없다.
+- 취소된 주문은 되살리지 않는다 — 다시 사려면 §12.1 부터 새 주문이다. 취소된 주문의 승인 시도는 409 `ORDER_EXPIRED` 다(§12.2 기본안).
+
+### 구현 메모 (S15P21D104-265)
+
+- `OrderCancelService` 하나다 — 본인 조회 + `OrderRepository.markCanceled`(네이티브 조건부 UPDATE). §12.2 와 달리 회원 잠금을 걸지 않는다 — 조건부 UPDATE 하나가 원자적이다.
+
 ---
 
 ## 환불은 이 문서에 없다

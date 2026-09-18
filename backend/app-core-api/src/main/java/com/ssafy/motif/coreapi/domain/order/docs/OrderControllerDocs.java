@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.domain.order.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.coreapi.domain.order.dto.OrderCancelResponse;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderConfirmRequest;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderConfirmResponse;
 import com.ssafy.motif.coreapi.domain.order.dto.OrderCreateRequest;
@@ -19,7 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 
 /**
- * 결제 API 문서 계약 (명세 §12 — 12.1 · 12.2).
+ * 결제 API 문서 계약 (명세 §12 — 12.1 · 12.2 · 12.3).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -355,4 +356,68 @@ public interface OrderControllerDocs {
             @Parameter(description = "주문 식별자 — §12.1 응답의 orderUuid",
                     example = "e3b0c442-98fc-4c14-a1b2-3d4e5f678901") UUID orderUuid,
             OrderConfirmRequest request);
+
+    // ---------------------------------------------------------------------------------
+    // 12.3 승인 전 취소
+    // ---------------------------------------------------------------------------------
+
+    String CANCEL_DESCRIPTION = """
+            위젯에서 이탈한 주문을 접는다 — `PENDING → CANCELED`. **본인 주문만** 가능하고 요청 본문은 없다.
+
+            - **인증 필요.**
+            - 부르지 않고 방치해도 30분 뒤 배치가 `EXPIRED` 로 바꾼다 — 기능상 차이는 없고 상태 표기만
+              다르다.
+            - **만료 시각은 보지 않는다** *(기본안)* — 기간이 지났어도 배치 전이라 `PENDING` 이면
+              `CANCELED` 가 된다.
+            - `PENDING` 이 아닌 주문(`PAID`·`EXPIRED`·`CANCELED`·`FAILED`·`REFUNDED`)은 409
+              `ORDER_NOT_CANCELABLE` — 이미 취소된 주문을 다시 취소해도 같다.
+            - 승인(§12.2)이 같은 주문을 잠근 채 토스를 부르고 있으면 그 트랜잭션이 끝나기를 기다린 뒤
+              판정한다 — 승인이 커밋되면 409, 되돌아가 `PENDING` 으로 남았으면 취소된다. 둘이 동시에
+              이기는 길은 없다.
+
+            취소된 주문은 되살리지 않는다 — 다시 사려면 §12.1 부터 새 주문이다. 취소된 주문의 승인
+            시도는 409 `ORDER_EXPIRED` 다.
+            """;
+
+    String CANCEL_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": { "orderUuid": "e3b0c442-98fc-4c14-a1b2-3d4e5f678901", "status": "CANCELED" },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String NOT_CANCELABLE_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "ORDER_NOT_CANCELABLE",
+              "message": "취소할 수 없는 주문입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "승인 전 취소 — 위젯 이탈 (§12.3)", description = CANCEL_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "취소됨",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = CANCEL_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "`ORDER_NOT_FOUND` — 주문 없음 · 타인 주문",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = ORDER_NOT_FOUND_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "`ORDER_NOT_CANCELABLE` — PENDING 이 아님 (PAID · EXPIRED · CANCELED · FAILED · REFUNDED)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = NOT_CANCELABLE_EXAMPLE)))
+    })
+    ApiResponse<OrderCancelResponse> cancel(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "주문 식별자 — §12.1 응답의 orderUuid",
+                    example = "e3b0c442-98fc-4c14-a1b2-3d4e5f678901") UUID orderUuid);
 }

@@ -123,4 +123,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                    @Param("provider") String provider,
                    @Param("paymentKey") String paymentKey,
                    @Param("reason") String reason);
+
+    /**
+     * {@code PENDING → CANCELED} (API 명세 §12.3) — 위젯에서 이탈한 주문을 사용자가 접는다.
+     *
+     * <p>{@code status='PENDING'} 조건이 판정이다. 0행이면 이미 결제됐거나 끝난 주문이라
+     * 409 {@code ORDER_NOT_CANCELABLE} 다. 만료 시각은 보지 않는다 — 기간이 지났어도 배치 전이라
+     * {@code PENDING} 이면 {@code CANCELED} 가 되고, 기능상 차이가 없다(§12.3).
+     *
+     * <p>승인(§12.2)이 같은 행을 잠근 채 토스를 부르고 있으면 이 UPDATE 는 그 트랜잭션이 끝날
+     * 때까지 기다린다 — 승인이 커밋되면 0행(409), 되돌아가 {@code PENDING} 으로 남았으면 취소된다.
+     * 둘이 동시에 이기는 길은 없다.
+     *
+     * @return 1 이면 전이됨, 0 이면 이미 PENDING 이 아님
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            update motif_core.orders
+               set status = 'CANCELED', mod_dttm = now()
+             where order_seq = :orderSeq and status = 'PENDING'
+            """, nativeQuery = true)
+    int markCanceled(@Param("orderSeq") Long orderSeq);
 }
