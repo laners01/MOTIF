@@ -22,14 +22,18 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * §11.9 내 패스 일람을 실제 DB 에 대고 검증한다 (S15P21D104-70).
  *
- * <p><b>여기서 볼 것은 "거르지 않는다" 다.</b> 이 API 는 결제 이력이라 만료·환불된 패스와
- * <b>기간이 지난 {@code ACTIVE} 행</b>까지 그대로 내보낸다. 조회 하나로 끝나는 API 지만
- * 그 "그대로" 가 지켜지는지는 상태를 심어 봐야 안다 — 무심코 유효 패스만 주는 기존
- * 메서드({@code findActive})를 재사용하면 조용히 절반이 사라진다.
+ * <p><b>여기서 볼 것은 둘이다.</b> 하나는 "거르지 않는다" — 이 API 는 결제 이력이라
+ * 만료·환불된 패스와 <b>기간이 지난 {@code ACTIVE} 행</b>까지 전부 내보낸다. 무심코 유효
+ * 패스만 주는 {@code findActive} 를 재사용하면 조용히 절반이 사라진다.
+ *
+ * <p>다른 하나는 <b>{@code status} 가 실효 상태라는 것</b>(S15P21D104-269) — 행은 남기되
+ * 기간이 지난 {@code ACTIVE} 는 {@code EXPIRED} 로 내린다. 만료 경계가 DB 시각으로
+ * 판정되므로 실제 DB 없이는 확인할 수 없어 여기 있다.
  *
  * <p>정렬(만료 늦은 순)도 여기서만 고정된다.
  *
@@ -79,15 +83,11 @@ class MyMotifPassesLocalDbTest {
     }
 
     @Test
-    @DisplayName("기간이 지난 ACTIVE 행도 그대로 나온다 — 서버가 EXPIRED 로 바꾸지 않는다")
-    void staleActiveRowIsReturnedAsIs() {
-        Instant expired = past(1);
-        grantPass(artistSeq, expired, PassStatus.ACTIVE);
+    @DisplayName("기간이 지난 ACTIVE 행도 목록에서 빠지지 않는다 — 거르는 게 아니라 상태만 내린다")
+    void staleActiveRowIsStillListed() {
+        grantPass(artistSeq, past(1), PassStatus.ACTIVE);
 
-        MotifPassItem item = passes().getFirst();
-
-        assertThat(item.status()).isEqualTo(PassStatus.ACTIVE);
-        assertThat(item.expiresDttm()).isBefore(Instant.now());
+        assertThat(passes()).hasSize(1);
     }
 
     @Test
@@ -100,6 +100,67 @@ class MyMotifPassesLocalDbTest {
 
         assertThat(item.canceledDttm()).isNotNull();
         assertThat(item.status()).isEqualTo(PassStatus.ACTIVE);
+    }
+
+    // --- 실효 상태 (S15P21D104-269) ------------------------------------------------
+
+    @Test
+    @DisplayName("ACTIVE + 만료 미래 → ACTIVE 그대로다")
+    void activeWithFutureExpiryStaysActive() {
+        grantPass(artistSeq, future(30), PassStatus.ACTIVE);
+
+        assertThat(passes().getFirst().status()).isEqualTo(PassStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("ACTIVE + 만료 과거 → EXPIRED 로 내려간다. DB 행은 ACTIVE 그대로다")
+    void activeWithPastExpiryBecomesExpired() {
+        grantPass(artistSeq, past(1), PassStatus.ACTIVE);
+
+        MotifPassItem item = passes().getFirst();
+
+        assertThat(item.status()).isEqualTo(PassStatus.EXPIRED);
+        assertThat(item.expiresDttm()).isBefore(Instant.now());
+        // 응답만 고친다 — 조회가 DB 를 갱신하지 않는다
+        assertThat(rawStatus(artistSeq)).isEqualTo("ACTIVE");
+    }
+
+    /**
+     * 경계값 — 만료 시각이 <b>정확히</b> 현재 시각이면 만료다({@code expires_dttm > now()}).
+     *
+     * <p>Postgres 의 {@code now()} 는 <b>트랜잭션 시작 시각</b>이라, 이 테스트 트랜잭션
+     * 안에서는 아래 UPDATE 의 {@code now()} 와 판정 쿼리의 {@code now()} 가 같은 값이다 —
+     * 그래서 경계가 우연이 아니라 <b>확정적으로</b> 맞물린다.
+     */
+    @Test
+    @DisplayName("ACTIVE + 만료 == 현재 시각 → EXPIRED 다. 경계는 배타적이다")
+    void activeExpiringExactlyNowIsExpired() {
+        grantPass(artistSeq, future(30), PassStatus.ACTIVE);
+        expireAtTransactionNow(artistSeq);
+
+        assertThat(passes().getFirst().status()).isEqualTo(PassStatus.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("REFUNDED 는 만료가 미래여도 REFUNDED 다 — 종료 상태를 되살리지 않는다")
+    void refundedStaysRefunded() {
+        grantPass(artistSeq, future(30), PassStatus.REFUNDED);
+
+        assertThat(passes().getFirst().status()).isEqualTo(PassStatus.REFUNDED);
+    }
+
+    @Test
+    @DisplayName("유효·만료가 섞여도 각 행이 제 상태로 나온다")
+    void mixedRowsEachCarryTheirOwnStatus() {
+        Integer expiring = newArtist("윈터");
+        grantPass(artistSeq, future(30), PassStatus.ACTIVE);
+        grantPass(expiring, past(1), PassStatus.ACTIVE);
+
+        assertThat(passes())
+                .extracting(MotifPassItem::artistSeq, MotifPassItem::status)
+                .containsExactlyInAnyOrder(
+                        tuple(artistSeq, PassStatus.ACTIVE),
+                        tuple(expiring, PassStatus.EXPIRED));
     }
 
     // --- 정렬 · 범위 --------------------------------------------------------------
@@ -231,6 +292,36 @@ class MyMotifPassesLocalDbTest {
                 .setParameter("status", status.name())
                 .executeUpdate();
         entityManager.clear();
+    }
+
+    /**
+     * 만료 시각을 트랜잭션 현재 시각에 정확히 맞춘다 — 경계값 검증용.
+     *
+     * <p>{@code started_dttm} 을 같이 당기는 것은 {@code ck_motif_passes_values} 가
+     * {@code expires_dttm > started_dttm} 을 요구하기 때문이다.
+     */
+    private void expireAtTransactionNow(Integer artistSeq) {
+        entityManager.createNativeQuery("""
+                        update motif_core.motif_passes
+                           set expires_dttm = now(),
+                               started_dttm = now() - interval '1 day'
+                         where user_seq = :userSeq and artist_seq = :artistSeq
+                        """)
+                .setParameter("userSeq", fanSeq)
+                .setParameter("artistSeq", artistSeq)
+                .executeUpdate();
+        entityManager.clear();
+    }
+
+    /** DB 에 실제로 적힌 상태 — 응답의 실효 상태와 구분해서 본다. */
+    private String rawStatus(Integer artistSeq) {
+        return (String) entityManager.createNativeQuery("""
+                        select status from motif_core.motif_passes
+                         where user_seq = :userSeq and artist_seq = :artistSeq
+                        """)
+                .setParameter("userSeq", fanSeq)
+                .setParameter("artistSeq", artistSeq)
+                .getSingleResult();
     }
 
     /** {@code ck_motif_passes_values} 가 {@code canceled_dttm >= started_dttm} 을 요구한다. */

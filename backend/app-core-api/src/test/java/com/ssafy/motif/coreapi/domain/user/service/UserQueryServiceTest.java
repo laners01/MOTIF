@@ -15,7 +15,7 @@ import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
@@ -76,7 +76,7 @@ class UserQueryServiceTest {
     private ParticipationVideoRepository participationVideoRepository;
     private SubscriptionRepository subscriptionRepository;
     private MotifAssetRepository motifAssetRepository;
-    private MotifPassPriceRepository motifPassPriceRepository;
+    private MotifPassRepository motifPassRepository;
     private UserQueryService service;
 
     @BeforeEach
@@ -87,7 +87,7 @@ class UserQueryServiceTest {
         participationVideoRepository = mock(ParticipationVideoRepository.class);
         subscriptionRepository = mock(SubscriptionRepository.class);
         motifAssetRepository = mock(MotifAssetRepository.class);
-        motifPassPriceRepository = mock(MotifPassPriceRepository.class);
+        motifPassRepository = mock(MotifPassRepository.class);
 
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
                 "KTESTKEYPAIRID", generatePkcs8Pem(), Duration.ofMinutes(10), Duration.ofHours(6)));
@@ -99,7 +99,7 @@ class UserQueryServiceTest {
 
         service = new UserQueryService(userRepository, motifResultRepository,
                 participationVideoRepository, subscriptionRepository,
-                motifAssetRepository, motifPassPriceRepository, resolver);
+                motifAssetRepository, motifPassRepository, resolver);
 
         givenUser(user(null, null));
         given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of());
@@ -107,7 +107,7 @@ class UserQueryServiceTest {
         given(participationVideoRepository.countMineByArtists(anyInt(), any())).willReturn(List.of());
         given(motifAssetRepository.countActiveByArtists(any())).willReturn(List.of());
         given(motifAssetRepository.countPurchasedByArtists(anyInt(), any())).willReturn(List.of());
-        given(motifPassPriceRepository.findActivePasses(anyInt(), any())).willReturn(List.of());
+        given(motifPassRepository.findActivePasses(anyInt(), any())).willReturn(List.of());
     }
 
     @Test
@@ -325,7 +325,7 @@ class UserQueryServiceTest {
             assertThat(service.subscriptions(ME).list()).isEmpty();
 
             verify(motifAssetRepository, never()).countActiveByArtists(any());
-            verify(motifPassPriceRepository, never()).findActivePasses(anyInt(), any());
+            verify(motifPassRepository, never()).findActivePasses(anyInt(), any());
         }
 
         @Test
@@ -421,7 +421,7 @@ class UserQueryServiceTest {
             verify(participationVideoRepository, times(1)).countMineByArtists(eq(ME), any());
             verify(motifAssetRepository, times(1)).countActiveByArtists(any());
             verify(motifAssetRepository, times(1)).countPurchasedByArtists(eq(ME), any());
-            verify(motifPassPriceRepository, times(1)).findActivePasses(eq(ME), any());
+            verify(motifPassRepository, times(1)).findActivePasses(eq(ME), any());
         }
 
         private void givenSubscribed(SubscribedArtistRow... rows) {
@@ -443,11 +443,11 @@ class UserQueryServiceTest {
         }
 
         private void givenActivePass(int artistSeq, Instant expiresDttm) {
-            MotifPassPriceRepository.ActivePassProjection row =
-                    mock(MotifPassPriceRepository.ActivePassProjection.class);
+            MotifPassRepository.ActivePassProjection row =
+                    mock(MotifPassRepository.ActivePassProjection.class);
             given(row.getArtistSeq()).willReturn(artistSeq);
             given(row.getExpiresDttm()).willReturn(expiresDttm);
-            given(motifPassPriceRepository.findActivePasses(eq(ME), any())).willReturn(List.of(row));
+            given(motifPassRepository.findActivePasses(eq(ME), any())).willReturn(List.of(row));
         }
     }
 

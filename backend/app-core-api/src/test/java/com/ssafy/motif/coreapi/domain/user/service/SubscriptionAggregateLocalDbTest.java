@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.domain.user.service;
 
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -39,7 +39,7 @@ class SubscriptionAggregateLocalDbTest {
     @Autowired
     private MotifAssetRepository motifAssetRepository;
     @Autowired
-    private MotifPassPriceRepository motifPassPriceRepository;
+    private MotifPassRepository motifPassRepository;
     @Autowired
     private ParticipationVideoRepository participationVideoRepository;
 
@@ -53,7 +53,7 @@ class SubscriptionAggregateLocalDbTest {
     @Test
     @DisplayName("유효 패스 조회 네이티브 SQL 이 실행된다 (motif_passes)")
     void activePassQueryRuns() {
-        assertThat(motifPassPriceRepository.findActivePasses(ABSENT_USER, ABSENT_ARTISTS))
+        assertThat(motifPassRepository.findActivePasses(ABSENT_USER, ABSENT_ARTISTS))
                 .isEmpty();
     }
 

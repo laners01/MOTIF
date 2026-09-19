@@ -161,6 +161,33 @@ class ArtistMotifPassLocalDbTest {
         assertThat(response.prices()).hasSize(1);
     }
 
+    /**
+     * 경계값 — 만료 시각이 <b>정확히</b> 현재 시각이면 미보유다({@code expires_dttm > now()}).
+     *
+     * <p>Postgres 의 {@code now()} 는 <b>트랜잭션 시작 시각</b>이라, 이 테스트 트랜잭션
+     * 안에서는 아래 UPDATE 의 {@code now()} 와 판정 쿼리의 {@code now()} 가 같은 값이다 —
+     * 경계가 우연이 아니라 확정적으로 맞물린다.
+     */
+    @Test
+    @DisplayName("만료가 정확히 현재 시각이면 미보유다 — 경계는 배타적이다")
+    void passExpiringExactlyNowIsNotHeld() {
+        price((short) 1, "9900.00");
+        grantPass(artistSeq, Instant.now().plus(30, ChronoUnit.DAYS), "ACTIVE");
+        // started_dttm 을 같이 당긴다 — ck_motif_passes_values 가 expires > started 를 요구한다
+        entityManager.createNativeQuery("""
+                        update motif_core.motif_passes
+                           set expires_dttm = now(),
+                               started_dttm = now() - interval '1 day'
+                         where user_seq = :userSeq and artist_seq = :artistSeq
+                        """)
+                .setParameter("userSeq", fanSeq)
+                .setParameter("artistSeq", artistSeq)
+                .executeUpdate();
+        entityManager.clear();
+
+        assertThat(motifPass().passActive()).isFalse();
+    }
+
     @Test
     @DisplayName("환불된 패스는 기간이 남아 있어도 미보유다")
     void refundedPassIsNotHeld() {

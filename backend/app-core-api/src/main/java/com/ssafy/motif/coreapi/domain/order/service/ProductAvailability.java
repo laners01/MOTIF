@@ -13,6 +13,7 @@ import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.country.CountryRepository;
 import com.ssafy.motif.domain.core.pass.MotifPassPrice;
 import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -53,6 +54,7 @@ class ProductAvailability {
     private final MotifAssetRepository motifAssetRepository;
     private final MotifAssetPriceRepository motifAssetPriceRepository;
     private final MotifPassPriceRepository motifPassPriceRepository;
+    private final MotifPassRepository motifPassRepository;
     private final ArtistRepository artistRepository;
     private final CountryRepository countryRepository;
 
@@ -82,7 +84,7 @@ class ProductAvailability {
                 .orElseThrow(() -> notOnSale("KR 활성 가격 없음 assetSeq: " + assetSeq));
 
         boolean owned = motifAssetRepository.existsActivePurchase(userSeq, assetSeq);
-        boolean passActive = !owned && motifPassPriceRepository
+        boolean passActive = !owned && motifPassRepository
                 .findActivePassExpiry(userSeq, asset.getArtistSeq()).isPresent();
         switch (MyAccess.of(owned, passActive, asset.getAssetType())) {
             case OWNED -> throw new BusinessException(
@@ -97,7 +99,7 @@ class ProductAvailability {
     /**
      * PASS — 존재(비삭제) → 그 개월의 KR 활성 가격 → 유효 패스 없음.
      *
-     * <p>유효 패스 판정은 {@code MotifPassPriceRepository.findActivePassExpiry} 하나다 —
+     * <p>유효 패스 판정은 {@code MotifPassRepository.findActivePassExpiry} 하나다 —
      * §5.3·§11.4 가 쓰는 것과 같은 메서드라, 구매 화면이 "미보유" 라고 보여 준 사람의 주문이
      * 여기서 막히는 일이 없다. 만료·환불된 패스는 그 조회에 잡히지 않으므로 재구매가 열린다.
      *
@@ -113,7 +115,7 @@ class ProductAvailability {
                 .filter(MotifPassPrice::isActive)
                 .orElseThrow(() -> notOnSale(
                         "KR 활성 PASS 가격 없음 artistSeq: " + artistSeq + ", months: " + months));
-        if (motifPassPriceRepository.findActivePassExpiry(userSeq, artistSeq).isPresent()) {
+        if (motifPassRepository.findActivePassExpiry(userSeq, artistSeq).isPresent()) {
             throw new BusinessException(OrderErrorCode.PASS_ALREADY_ACTIVE, "artistSeq: " + artistSeq);
         }
         return new PassOffer(price);

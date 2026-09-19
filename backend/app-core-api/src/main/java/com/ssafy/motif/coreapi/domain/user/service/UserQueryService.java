@@ -12,7 +12,7 @@ import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.SubscribedArtistRow;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import com.ssafy.motif.domain.core.motif.MotifResult;
 import com.ssafy.motif.domain.core.motif.MotifResultRepository;
 import com.ssafy.motif.domain.core.user.User;
@@ -81,7 +81,7 @@ public class UserQueryService {
     private final ParticipationVideoRepository participationVideoRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final MotifAssetRepository motifAssetRepository;
-    private final MotifPassPriceRepository motifPassPriceRepository;
+    private final MotifPassRepository motifPassRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
     /** §4.1 마이페이지 원콜. */
@@ -194,10 +194,10 @@ public class UserQueryService {
                                 MotifAssetRepository.ArtistCountProjection::getArtistSeq,
                                 MotifAssetRepository.ArtistCountProjection::getCount));
         Map<Integer, Instant> passExpiries =
-                motifPassPriceRepository.findActivePasses(userSeq, artistSeqs).stream()
+                motifPassRepository.findActivePasses(userSeq, artistSeqs).stream()
                         .collect(Collectors.toMap(
-                                MotifPassPriceRepository.ActivePassProjection::getArtistSeq,
-                                MotifPassPriceRepository.ActivePassProjection::getExpiresDttm));
+                                MotifPassRepository.ActivePassProjection::getArtistSeq,
+                                MotifPassRepository.ActivePassProjection::getExpiresDttm));
 
         Instant now = Instant.now();
         List<SubscriptionCardItem> cards = rows.stream()

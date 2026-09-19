@@ -14,6 +14,7 @@ import com.ssafy.motif.domain.core.country.Country;
 import com.ssafy.motif.domain.core.country.CountryRepository;
 import com.ssafy.motif.domain.core.pass.MotifPassPrice;
 import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 public class AdminPassPriceService {
 
     private final MotifPassPriceRepository passPriceRepository;
+    private final MotifPassRepository passRepository;
     private final ArtistRepository artistRepository;
     private final CountryRepository countryRepository;
     private final AdminAuditLogger auditLogger;
@@ -94,7 +96,7 @@ public class AdminPassPriceService {
 
     private PassPriceResponse toResponse(MotifPassPrice price, String countryCode) {
         return PassPriceResponse.of(price, countryCode,
-                passPriceRepository.countActivePasses(price.getArtistSeq(), price.getDurationMonths()));
+                passRepository.countActivePasses(price.getArtistSeq(), price.getDurationMonths()));
     }
 
     private void requireArtist(int artistSeq) {

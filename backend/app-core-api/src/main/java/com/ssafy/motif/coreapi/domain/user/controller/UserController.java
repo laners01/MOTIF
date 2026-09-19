@@ -78,8 +78,8 @@ public class UserController implements UserControllerDocs {
      * 경로가 컨트롤러를 정한다(§11.4 를 {@code ArtistController} 에 넣은 것과 같은 기준).
      * 대신 서비스는 {@link UserQueryService} 에 섞지 않고 따로 뒀다.
      *
-     * <p>결제 이력 성격이라 <b>만료·환불된 패스도 함께</b> 온다. "지금 쓸 수 있나" 는
-     * §11.4·§4.7 의 {@code passActive} 가 답한다.
+     * <p>결제 이력 성격이라 <b>만료·환불된 패스도 함께</b> 온다. {@code status} 는 실효
+     * 상태라 기간이 지난 패스는 DB 가 {@code ACTIVE} 여도 {@code EXPIRED} 로 나간다.
      */
     @Override
     @GetMapping("/me/motif-passes")
