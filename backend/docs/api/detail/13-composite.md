@@ -39,13 +39,13 @@
 ### 요청 — MOTIF
 
 ```json
-{ "jobType": "MOTIF", "assetSeq": 21 }
+{ "jobType": "MOTIF", "assetSeq": 21, "contentLength": 20971520 }
 ```
 
 ### 요청 — CHALLENGE
 
 ```json
-{ "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 3 }
+{ "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 3, "contentLength": 20971520 }
 ```
 
 | 필드 | 필수 | 설명 |
@@ -54,6 +54,19 @@
 | `challengeSeq` | CHALLENGE | 대상 챌린지 |
 | `assetSeq` | MOTIF | 대상 에셋 |
 | `participantMask` | N (CHALLENGE) | 교체할 슬롯 조합. **`0` 또는 생략 = 무교체**(원본 위 합성) |
+| `contentLength` | Y | 올릴 촬영본의 **바이트 수** |
+
+### `contentLength` 를 왜 보내나 (2026-09-19 추가)
+
+**서명된 `Content-Length` 는 상한이 아니라 정확한 값이다.** presigned URL 은 이 값을
+서명에 박고, S3 는 PUT 의 `Content-Length` 가 다르면 **403 `SignatureDoesNotMatch`** 로
+거부한다. 서버가 상한(300MB)을 대신 박아 두면 그 크기 파일만 올라간다.
+
+어드민 업로드(어드민 명세 §1.4)·프로필 업로드(§4.3)가 처음부터 같은 방식이다 —
+클라이언트가 크기를 선언하고, 서버가 상한을 넘는지 보고, 통과한 값이 서명에 박힌다.
+
+상한을 넘으면 **400 `INVALID_PARAMETER`** 이고 `data.maxBytes` 에 한도가 실린다.
+`Content-Type` 은 `video/mp4` 고정이라 보내지 않는다.
 
 ### `participantMask` — 슬롯 조합
 
@@ -91,6 +104,7 @@
 
 | HTTP | code | 조건 |
 |---|---|---|
+| 400 | `INVALID_PARAMETER` | 형태 불일치, 또는 `contentLength` 가 상한 초과 (`data.maxBytes`) |
 | 404 | `CHALLENGE_NOT_FOUND` / `ASSET_NOT_FOUND` | 대상 없음 |
 | 404 | `EDITED_CHALLENGE_NOT_FOUND` | 선택한 슬롯 조합의 편집본이 없음(CHALLENGE, `participantMask > 0`) |
 | 403 | `ASSET_ACCESS_DENIED` | MOTIF 이용 권한 없음 — 클라이언트는 **구매 화면으로 유도** |
