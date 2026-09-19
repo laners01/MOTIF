@@ -180,21 +180,22 @@ class ChallengeVideoFeedLocalDbTest {
     @DisplayName("보호 등급 영상만 서명이 붙는다 — 판정은 키 프리픽스다 (§1.7 · ADR-0012)")
     void videoUrlFollowsTheKeyPrefix() {
         Long 공개 = video().owner(me).insert();
-        Long 보호 = video().owner(me).privateVisibility().prefix("private/challenge/").insert();
+        Long 비공개 = video().owner(me).privateVisibility().insert();
 
         List<VideoItem> list = feed(null, 10).list();
 
         // 조각까지 통하는 프리픽스 서명이라 Policy 다 — 단일 URL 서명(Expires)이 아니다
-        assertThat(item(list, 보호).videoUrl())
+        assertThat(item(list, 비공개).videoUrl())
                 .startsWith(MediaSigningTestSupport.CDN + "/private/challenge/")
                 .contains("/master.m3u8?")
                 .contains("Policy=", "Signature=", "Key-Pair-Id=");
-        assertThat(item(list, 보호).isMine()).isTrue();
+        assertThat(item(list, 비공개).isMine()).isTrue();
 
-        // 공개 사본은 서명이 없다. 붙이면 CDN 캐시를 사용자마다 쪼개는 셈이다
+        // PUBLIC 도 같다 — visibility 는 전송 등급이 아니다 (ADR-0013)
         assertThat(item(list, 공개).videoUrl())
-                .startsWith(MediaSigningTestSupport.CDN + "/public/challenge/")
-                .endsWith("/master.m3u8");
+                .startsWith(MediaSigningTestSupport.CDN + "/private/challenge/")
+                .contains("/master.m3u8?")
+                .contains("Policy=");
     }
 
     // --- 커서 ---------------------------------------------------------------

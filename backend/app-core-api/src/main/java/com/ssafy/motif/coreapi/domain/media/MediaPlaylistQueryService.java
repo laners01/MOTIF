@@ -40,11 +40,13 @@ import java.util.UUID;
  *
  * <p>── 어느 프리픽스인가 ──────────────────────────────────────────────
  *
- * <p><b>언제나 {@code composite_jobs.result_video_key} 에서 구한다</b> — PUBLIC 으로
- * 게시돼 {@code public/} 으로 복사된 뒤에도 이 값은 바뀌지 않으므로(§1.7 — 바꾸면
- * 재생 중인 클라이언트가 404 를 만난다) 보호 트리를 가리키는 유일하게 안정된 값이다.
- * 공개 사본은 이 엔드포인트를 거칠 필요가 없다. 조회 API 가 PUBLIC 영상에는 CDN
- * 직통 주소를 내주고, 여기는 서명이 필요한 경로만 담당한다.
+ * <p><b>언제나 {@code composite_jobs.result_video_key} 에서 구한다</b> — 워커가 실제로
+ * 쓴 자리라 규약이 바뀌어도 어긋나지 않는다. 산출물은 게시 여부와 {@code visibility}
+ * 에 무관하게 {@code private/} 한 곳에 머무므로(ADR-0013) 이 값은 옮겨 다니지 않는다.
+ *
+ * <p><b>그래서 참여 영상은 전부 여기를 거친다.</b> {@code PUBLIC} 이라고 CDN 무서명
+ * 직통으로 빠지는 길이 없다 — 위 표의 "누구나" 는 <b>서명을 누구에게나 내준다</b> 는
+ * 뜻이지 서명을 생략한다는 뜻이 아니다.
  */
 @Service
 @RequiredArgsConstructor

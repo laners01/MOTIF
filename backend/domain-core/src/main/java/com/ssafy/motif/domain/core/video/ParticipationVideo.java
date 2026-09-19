@@ -103,8 +103,9 @@ public class ParticipationVideo extends BaseTimeEntity {
      * 유효한 값으로 쓰지 않으므로({@code description} 은 NOT NULL 이고 <b>빈 문자열</b>이
      * 지움이다) {@code JsonNullable} 같은 장치 없이 구분할 수 있다.
      *
-     * <p>{@code visibility} 는 {@link #changeVisibility} 가 따로 맡는다 — 등급이 바뀌면
-     * 키도 함께 움직여야 해서 값 하나로 끝나지 않는다.
+     * <p>{@code visibility} 는 {@link #changeVisibility} 가 따로 맡는다 — 값을 넣는
+     * 일은 같지만 의미가 달라서(공개 범위는 인가 정책이다) 호출부에서 구분되는 편이
+     * 낫다.
      */
     public void edit(String description, Boolean commentEnabled, Integer modUsrSeq) {
         if (description != null) {
@@ -117,25 +118,22 @@ public class ParticipationVideo extends BaseTimeEntity {
     }
 
     /**
-     * 공개 범위 전환 (API 명세 §8.9).
+     * 공개 범위 전환 (API 명세 §8.9) — <b>키를 건드리지 않는다</b>.
      *
-     * <p><b>키를 함께 받는 이유.</b> 등급을 정하는 것은 {@code visibility} 가 아니라
-     * <b>키 프리픽스</b>다({@code MediaKeys#isProtected}). 이 값만 바꾸고 키를 두면
-     * {@code PUBLIC → PRIVATE} 로 내린 영상이 계속 무서명 CDN URL 로 나간다 — 비공개로
-     * 바꿨는데 링크를 아는 사람은 그대로 받는 상태가 된다.
+     * <p>{@code visibility} 는 <b>앱 안에서 누가 볼 자격이 있는가</b>이고, 그 자격을
+     * CDN 에 전달하는 수단은 서명이다 — 다른 층이다(ADR-0013). 산출물은 게시 여부와
+     * 무관하게 {@code private/} 한 곳에 있으므로 옮길 자리가 없다.
      *
-     * <p><b>{@code null} 이면 키를 유지한다.</b> {@code PRIVATE → PUBLIC} 은 공개 사본이
-     * 만들어지기 전까지 가리킬 자리가 없어서 그렇다 — 없는 자리를 가리키면 CDN 이 404 를
-     * 준다. 그동안은 보호 경로로 나가고 본인만 재생된다. 이것이 {@code MediaKeys}
-     * javadoc 이 "정상적으로 존재한다" 고 적은 상태다.
+     * <p><b>{@code PUBLIC → PRIVATE} 은 이것만으로 닫힌다.</b> 재생 중에는 CDN 직통이라
+     * core-api 를 지나지 않지만 서명 갱신은 반드시 지나고, 거기서
+     * {@code MediaPlaylistQueryService} 가 이 값을 다시 본다. 이미 발급된 서명이 만료될
+     * 때까지(기본 10분)가 최대 지연이다.
+     *
+     * <p>예전에는 키를 함께 받아 {@code PUBLIC → PRIVATE} 에서 정본으로 되돌렸다 —
+     * 공개 사본 트리가 있던 시절의 잔재이고, {@code null} 을 "유지" 로 겹쳐 쓰는 바람에
+     * "정본을 못 찾음" 과 구분되지 않았다.
      */
-    public void changeVisibility(Visibility visibility, String videoKey, String thumbnailKey) {
+    public void changeVisibility(Visibility visibility) {
         this.visibility = visibility;
-        if (videoKey != null) {
-            this.videoKey = videoKey;
-        }
-        if (thumbnailKey != null) {
-            this.thumbnailKey = thumbnailKey;
-        }
     }
 }

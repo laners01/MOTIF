@@ -50,9 +50,9 @@ public class MediaUrlResolver {
      * 서명이 없다.
      *
      * <p><b>등급 판정은 여전히 키 프리픽스 하나다.</b> 호출부가 {@code visibility} 로
-     * 가르지 않는다 — PUBLIC 게시는 공개 사본을 복사할 뿐 키를 바꾸지 않아
-     * "{@code PUBLIC} 인데 키는 아직 {@code private/}" 인 행이 정상적으로 존재한다
-     * ({@link MediaKeys#isProtected} javadoc).
+     * 가르지 않는다 — 참여 영상은 {@code visibility} 와 무관하게 전부 {@code private/}
+     * 에 있으므로, 그 값으로 가르면 {@code PUBLIC} 영상에 무서명 URL 이 나가 403 이
+     * 된다({@link MediaKeys#isProtected} javadoc).
      *
      * @param masterKey {@code …/master.m3u8} 로 끝나는 키
      */

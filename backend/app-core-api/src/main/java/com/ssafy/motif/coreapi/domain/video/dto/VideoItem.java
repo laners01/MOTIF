@@ -18,8 +18,8 @@ import java.time.Instant;
  * 모양이 겹쳐 보여도 뺀 이유가 살아 있는 한 합치면 한쪽이 쓰지 않을 조인을 끌어온다.
  *
  * @param videoUrl   <b>HLS 마스터 재생목록</b>({@code master.m3u8})이다 — 단일 MP4 가
- *                   아니다(§1.7). 공개 사본이 준비된 영상은 무서명 CloudFront URL 이고,
- *                   보호 등급(내 {@code PRIVATE})은 core-api 재생목록 주소다
+ *                   아니다(§1.7). 참여 영상은 {@code visibility} 와 무관하게 보호
+ *                   등급이라 CDN 절대 주소에 프리픽스 서명이 붙는다(ADR-0012·0013)
  * @param isMine     {@code true} 면 클라이언트가 Bottom Sheet 에 수정·삭제를 노출한다
  * @param visibility 내 {@code PRIVATE} 영상은 내 피드에 보이므로 {@code PUBLIC} 만
  *                   내려가지 않는다 — 클라이언트가 이 값으로 자물쇠를 그린다

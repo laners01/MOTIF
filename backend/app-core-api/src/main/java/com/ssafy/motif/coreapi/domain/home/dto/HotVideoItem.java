@@ -24,7 +24,7 @@ public record HotVideoItem(
 
         Long videoSeq,
 
-        @Schema(description = "HLS 마스터 재생목록. HOT 은 공개 사본이 준비된 영상만 오르므로 무서명 CDN URL 이다")
+        @Schema(description = "HLS 마스터 재생목록. 참여 영상은 전부 보호 등급이라 프리픽스 서명이 붙는다")
         String videoUrl,
 
         String thumbnailUrl,

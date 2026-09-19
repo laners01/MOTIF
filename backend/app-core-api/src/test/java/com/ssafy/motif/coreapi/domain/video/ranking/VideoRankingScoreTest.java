@@ -27,7 +27,7 @@ class VideoRankingScoreTest {
             new VideoRankingProperties(HALF_LIFE, Duration.ofMinutes(5), Duration.ofMinutes(15)));
 
     private static VideoScoreRow row(long videoSeq, long viewCount, Instant regDttm) {
-        return new VideoScoreRow(videoSeq, viewCount, regDttm, "public/challenge/uuid/master.m3u8");
+        return new VideoScoreRow(videoSeq, viewCount, regDttm);
     }
 
     @Test

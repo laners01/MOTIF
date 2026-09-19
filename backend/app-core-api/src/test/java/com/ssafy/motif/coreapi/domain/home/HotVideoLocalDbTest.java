@@ -126,13 +126,13 @@ class HotVideoLocalDbTest {
     }
 
     @Test
-    @DisplayName("공개 사본이 없는 PUBLIC 영상은 후보가 아니다 — 무서명 URL 이 403 이 된다")
-    void videoWithoutPublicCopyIsNotACandidate() {
+    @DisplayName("보호 프리픽스라고 빼지 않는다 — 참여 영상은 전부 보호 등급이다 (ADR-0013)")
+    void protectedPrefixIsStillACandidate() {
         Long videoSeq = newVideoWithKeyPrefix(50_000L, "private/challenge/");
 
         job.refresh();
 
-        assertThat(rankedSeqs()).doesNotContain(videoSeq);
+        assertThat(rankedSeqs()).contains(videoSeq);
     }
 
     @Test
@@ -270,10 +270,10 @@ class HotVideoLocalDbTest {
     }
 
     private Long newVideo(long viewCount, String visibility, boolean deleted, Instant regDttm) {
-        return newVideo(viewCount, visibility, deleted, regDttm, "public/challenge/");
+        return newVideo(viewCount, visibility, deleted, regDttm, "private/challenge/");
     }
 
-    /** 공개 사본 여부 검증용 — 프리픽스만 바꾼다. */
+    /** 프리픽스가 후보 선정에 영향을 주지 않는다는 것을 고정하는 용도. */
     private Long newVideoWithKeyPrefix(long viewCount, String prefix) {
         return newVideo(viewCount, "PUBLIC", false, Instant.now(), prefix);
     }

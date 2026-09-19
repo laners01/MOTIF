@@ -44,8 +44,8 @@ Authorization: Bearer {accessToken}
       {
         "rank": 1,
         "videoSeq": 88,
-        "videoUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-        "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+        "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+        "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
         "durationMs": 15000,
         "song": { "title": "bailar toda la noche", "singerName": "mochico" },
         "author": { "userSeq": 5, "nickname": "팬123" },
@@ -64,8 +64,14 @@ Authorization: Bearer {accessToken}
 | 필드 | 설명 |
 |---|---|
 | `rank` | 스냅샷 순위(1-base). 커서로 이어 받아도 이어지는 번호다 |
-| `videoUrl` | **공개 CDN URL**(무서명). 프리픽스가 `public/challenge/{jobUuid}/` 다 — 스냅샷에 공개 사본이 있는 영상만 올리기 때문이다(아래 "랭킹") |
-| `thumbnailUrl` | 같은 프리픽스의 `thumb.jpg` |
+| `videoUrl` | CDN URL + **프리픽스 서명**. 참여 영상은 `visibility` 와 무관하게 보호 등급이라 남의 `PUBLIC` 영상에도 서명이 붙는다(§1.7 · ADR-0013). 프리픽스는 `private/challenge/{jobUuid}/` 다 |
+| `thumbnailUrl` | 같은 프리픽스의 `thumb.jpg` — 단일 파일이라 URL 하나짜리 서명이다 |
+
+**캐시 TTL(5분)보다 서명 만료(10분)가 길다.** 정상 경로에서는 캐시된 응답의 서명이 아직
+유효하다. 다만 §1.6 이 **stale-while-revalidate** 를 허용하므로 갱신이 늦어지면 만료된
+파라미터를 쥔 채 재생을 시작할 수 있다 — 그때는 조각이 403 이고, 클라이언트가
+`POST /media/{jobUuid}/signature` 로 새로 받아 재시도한다(ADR-0012). **응답을 그대로
+오래 보관하지 말 것.**
 | `song` | 카드 하단 표기용 — 화면에는 "mochico · bailar toda la noche" 로 나온다 |
 | `author` | 작성자 요약. `profileImageUrl` 은 싣지 않는다(카드에 쓰지 않음) |
 
@@ -84,11 +90,11 @@ score_video = view_count × 0.5 ^ (age / H)
 - **가중치 설정이 없다.** 항이 하나라 상수배는 순위를 바꾸지 않는다. 설정은 반감기 `H` 와 갱신 주기·버전 보존 기간뿐이다.
 - **미래 시각은 감쇠 계수를 1.0 으로 상한한다.** `reg_dttm > now` 면 지수가 음수가 되어 계수가 1을 넘고 조회수가 부풀려진다(앞선 정도가 반감기와 같으면 2배). 시계 차이로 이 일이 생기면 예외도 로그도 없이 순위만 어긋난다.
 
-**모집단** — `visibility = PUBLIC` · `is_deleted = FALSE` · **`video_key` 가 공개 등급 프리픽스**인 참여 영상.
+**모집단** — `visibility = PUBLIC` · `is_deleted = FALSE` 인 참여 영상.
 
-세 번째 조건이 필요한 이유는 §1.7 의 복사 규약이다. PUBLIC 게시는 산출물 트리를 `public/` 으로 복사할 뿐 보호 사본을 지우지 않으므로 **`visibility=PUBLIC` 인데 키가 아직 `private/` 인 구간이 존재**한다. 그 키로 무서명 URL 을 만들면 403 이고, 반대로 보호 등급 서명을 붙여 내보내면 그 발급·갱신 인가가 소유자 전용이라 **남의 영상은 재생되지 않는다**(ADR-0012). HOT 은 정의상 남의 영상이므로 **공개 사본이 준비된 것만 올린다.** 복사 중인 영상은 다음 갱신 틱에 들어온다.
+**키 프리픽스는 보지 않는다** *(2026-09-19 — [ADR-0013](../../adr/0013-signed-only-media.md))*. 예전에는 "`video_key` 가 공개 등급 프리픽스" 라는 세 번째 조건이 있었다. §1.7 의 복사 규약 때문에 `visibility=PUBLIC` 인데 키가 아직 `private/` 인 구간이 존재했고, 그 영상은 남이 재생할 수 없다고 봤기 때문이다. 공개 사본 트리가 폐기되면서 **그 구간 자체가 사라졌고**, 참여 영상은 전부 보호 등급이라 프리픽스로 거를 것이 없다. 남의 `PUBLIC` 영상도 `MediaPlaylistQueryService` 가 소유자 검사 없이 통과시키므로 정상적으로 재생된다.
 
-PUBLIC → PRIVATE 전환은 `visibility` 조건이 다음 틱에서 걸러낸다. 이미 CDN 에 캐시된 객체는 이 API 의 범위가 아니다 — 무효화는 §8.2 소관이고 비동기다.
+PUBLIC → PRIVATE 전환은 `visibility` 조건이 다음 틱에서 걸러낸다. 재생 쪽은 서명 갱신 TTL 안에 닫힌다(§8.9).
 
 **스냅샷과 커서** — 갱신 주기는 5분(§1.6 이 홈 캐시 TTL 을 "랭킹 배치 주기와 동일" 로 묶어 놨다). 순서는 배치가 `score DESC → videoSeq ASC` 로 **확정해서** 저장하고, 조회는 정렬에 관여하지 않는다.
 

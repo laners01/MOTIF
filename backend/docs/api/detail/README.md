@@ -263,11 +263,12 @@ POST /api/v1/media/{jobUuid}/signature   → { "query": "Policy=…&Signature=�
 
 | 대상 | 원본(입력) | 산출물 | 서명 |
 |---|---|---|---|
-| 합성 결과 (가공 시점) | `raw/{uuid}.mp4` | `private/{challenge\|motif}/{jobUuid}/` | **필요** |
-| PUBLIC 으로 게시된 참여 영상 | (위 트리에서 복사) | `public/challenge/{jobUuid}/` | 불필요 |
+| 합성 결과 (참여 영상·모티프 결과) | `raw/{uuid}.mp4` | `private/{challenge\|motif}/{jobUuid}/` | **필요** |
 | 챌린지 원본 | `challenges/{uuid}.mp4` (어드민 명세 §1.4) | `challenges/{uuid}/` | 불필요 |
 
-**최상위 프리픽스가 곧 보호 등급이다.** CloudFront 의 "Restrict viewer access" 는 캐시 동작 단위이고 캐시 동작은 path pattern 으로 고르므로, 보호 여부가 경로 최상단에 드러나야 동작 하나(`private/*`)로 가른다. 가공 시점에는 `visibility` 를 아직 모르므로(게시에서 정해진다) **언제나 `private/` 에 만들고**, PUBLIC 으로 게시될 때 `public/` 으로 복사한다.
+**최상위 프리픽스가 곧 보호 등급이다.** CloudFront 의 "Restrict viewer access" 는 캐시 동작 단위이고 캐시 동작은 path pattern 으로 고르므로, 보호 여부가 경로 최상단에 드러나야 동작 하나(`private/*`)로 가른다.
+
+**합성 결과는 게시 여부와 무관하게 `private/` 한 곳에 머문다**(2026-09-19 — [ADR-0013](../../adr/0013-signed-only-media.md)). PUBLIC 게시 시 `public/challenge/` 로 복사하던 규약은 폐기했다. `visibility` 는 앱 내 공개 범위만 뜻하고, 전송 등급은 서명이 담당한다.
 
 산출물 프리픽스 아래에 `master.m3u8` · `thumb.jpg` · 화질별 디렉터리가 깔린다. DB 에는 **마스터 재생목록 경로 하나만** 저장한다(ADR-0010 D4).
 

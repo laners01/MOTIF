@@ -54,8 +54,8 @@ public interface ChallengeVideoControllerDocs {
                     ### 항목은 §8.2 와 같은 형태다
 
                     뷰어가 어느 경로로 들어왔든 같은 오버레이를 그린다. `videoUrl` 은
-                    **마스터 재생목록(`master.m3u8`)** 이고 단일 MP4 가 아니다(§1.7) — 공개 사본이
-                    준비된 영상은 무서명 CloudFront URL, 내 `PRIVATE` 은 **core-api 주소**다.
+                    **마스터 재생목록(`master.m3u8`)** 이고 단일 MP4 가 아니다(§1.7) — 참여 영상은
+                    `visibility` 와 무관하게 보호 등급이라 **프리픽스 서명**이 붙는다(ADR-0012·0013).
 
                     영상이 없으면 **빈 목록 200** 이다. 미존재·삭제 챌린지는 404 로 갈린다.
                     """)
@@ -73,8 +73,8 @@ public interface ChallengeVideoControllerDocs {
                                     "videoSeq": 88,
                                     "challengeSeq": 11,
                                     "description": "재밌었다!",
-                                    "videoUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-                                    "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                    "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
                                     "durationMs": 15000,
                                     "author": {
                                       "userSeq": 5,
