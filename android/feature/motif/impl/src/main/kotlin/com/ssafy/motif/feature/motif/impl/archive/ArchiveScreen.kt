@@ -51,6 +51,7 @@ internal fun ArchiveScreen(
         contentPadding = contentPadding,
         onArtistClick = viewModel::selectArtist,
         onMotifClick = viewModel::selectMotif,
+        onRepresentativeClick = viewModel::toggleRepresentative,
         onLoadMore = viewModel::loadMore,
         modifier = modifier,
     )
@@ -62,6 +63,7 @@ private fun ArchiveScreen(
     contentPadding: PaddingValues,
     onArtistClick: (Long) -> Unit,
     onMotifClick: (Long) -> Unit,
+    onRepresentativeClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -83,6 +85,7 @@ private fun ArchiveScreen(
                 contentPadding = contentPadding,
                 onArtistClick = onArtistClick,
                 onMotifClick = onMotifClick,
+                onRepresentativeClick = onRepresentativeClick,
                 onLoadMore = onLoadMore,
                 modifier = modifier,
             )
@@ -101,6 +104,7 @@ private fun ArchiveContent(
     contentPadding: PaddingValues,
     onArtistClick: (Long) -> Unit,
     onMotifClick: (Long) -> Unit,
+    onRepresentativeClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -176,6 +180,8 @@ private fun ArchiveContent(
                 SavedMotifItem(
                     motif = motif,
                     onClick = onMotifClick,
+                    onRepresentativeClick = onRepresentativeClick,
+                    isRepresentativeUpdating = uiState.updatingRepresentativeMotifId == motif.id,
                     modifier = Modifier.padding(
                         horizontal = 16.dp,
                         vertical = ItemVerticalSpacing,
@@ -216,23 +222,25 @@ private fun ArchiveScreenPreview() {
             contentPadding = PaddingValues(0.dp),
             onArtistClick = {},
             onMotifClick = {},
+            onRepresentativeClick = {},
             onLoadMore = {},
         )
     }
 }
 
 /**
- * 실기기 Run Preview용. 항목 선택·필터가 실제로 바뀐다.
+ * 실기기 Run Preview용. 항목 선택·필터·대표 모티프 토글이 실제로 바뀐다.
  * 영상 재생과 추가 로드는 ViewModel이 담당하므로 여기서는 동작하지 않는다.
  */
 @Preview(name = "Interactive", showBackground = true, heightDp = 900)
 @Composable
 private fun ArchiveScreenInteractivePreview() {
-    val motifs = ArchiveMockData.savedMotifs.take(8)
-    val artists = motifs.map { it.artist }.distinctBy { it.id }
+    val allMotifs = ArchiveMockData.savedMotifs.take(8)
+    val artists = allMotifs.map { it.artist }.distinctBy { it.id }
 
+    var motifs by remember { mutableStateOf(allMotifs) }
     var selectedArtistId by remember { mutableStateOf<Long?>(null) }
-    var selectedMotifId by remember { mutableStateOf(motifs.first().id) }
+    var selectedMotifId by remember { mutableStateOf(allMotifs.first().id) }
 
     val visibleMotifs = motifs.filter { selectedArtistId == null || it.artist.id == selectedArtistId }
 
@@ -250,6 +258,10 @@ private fun ArchiveScreenInteractivePreview() {
                 selectedArtistId = if (selectedArtistId == artistId) null else artistId
             },
             onMotifClick = { selectedMotifId = it },
+            onRepresentativeClick = { motifId ->
+                val makeRepresentative = !motifs.first { it.id == motifId }.isRepresentative
+                motifs = motifs.map { it.copy(isRepresentative = makeRepresentative && it.id == motifId) }
+            },
             onLoadMore = {},
         )
     }
@@ -264,6 +276,7 @@ private fun ArchiveScreenLoadingPreview() {
             contentPadding = PaddingValues(0.dp),
             onArtistClick = {},
             onMotifClick = {},
+            onRepresentativeClick = {},
             onLoadMore = {},
         )
     }

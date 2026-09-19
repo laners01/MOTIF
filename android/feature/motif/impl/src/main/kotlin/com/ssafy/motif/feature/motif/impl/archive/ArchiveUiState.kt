@@ -24,6 +24,8 @@ internal sealed interface ArchiveUiState {
         val selectedMotif: SavedMotif?,
         val hasNext: Boolean,
         val appendState: ArchiveAppendUiState = ArchiveAppendUiState.Idle,
+        /** 대표 모티프 설정/해제가 진행 중인 항목 id. 진행 중에는 별 아이콘 탭을 막는다. */
+        val updatingRepresentativeMotifId: Long? = null,
     ) : ArchiveUiState
 
     data class Error(
