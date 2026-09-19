@@ -81,6 +81,17 @@ public class HlsPackager {
     }
 
     /**
+     * 원본 길이(ms) — 읽지 못하면 {@code null} (S15P21D104-249).
+     *
+     * <p>{@code Ffmpeg} 가 패키지 전용이라 바깥에서 부를 창구가 여기다. 가공과 별개의
+     * 측정이라 {@link #packageForPlayback} 안에 넣지 않았다 — 부르는 쪽이 필요할 때만
+     * ffprobe 를 한 번 더 돈다.
+     */
+    public Integer durationMs(Path source) {
+        return ffmpeg.duration(source);
+    }
+
+    /**
      * {@code source} 를 재생용 산출물로 가공해 {@code outDir} 에 쓴다.
      *
      * <p>실패하면 {@link MediaEncodingException} 을 던지고 <b>부분 산출물을 지운다</b>.

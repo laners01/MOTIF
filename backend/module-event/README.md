@@ -36,6 +36,48 @@
 Java record의 camelCase 컴포넌트(`jobUuid`)가 컨버터의 naming strategy에 의해
 snake_case(`job_uuid`)로 나간다. record에는 Jackson 애너테이션을 두지 않는다.
 
+### 합성 파이프라인 (S15P21D104-189 · 318)
+
+`composite.packaged` — app-media → core-api. 가공이 끝났고 산출물이 어디 있는지만
+보고한다. `composite_jobs` 를 `DONE` 으로 확정하는 것은 받는 쪽 core 다.
+
+```json
+{
+  "event_id": "1f0b3c5d-7e9a-4b2c-8d1e-3f5a7b9c1d3e",
+  "occurred_at": "2026-09-19T04:12:33.123Z",
+  "media_job_uuid": "b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c",
+  "source_type": "COMPOSITE_RESULT",
+  "source_seq": 41,
+  "output_prefix": "private/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c",
+  "master_key": "private/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c/master.m3u8",
+  "thumbnail_key": "private/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c/thumb.jpg",
+  "duration_ms": 15000
+}
+```
+
+`composite.finished` — core-api → app-notification. **확정 뒤에만** 나간다.
+
+```json
+{
+  "event_id": "2a1c4d6e-8f0b-4c3d-9e2f-4a6b8c0d2e4f",
+  "occurred_at": "2026-09-19T04:13:01.004Z",
+  "job_uuid": "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+  "job_type": "MOTIF",
+  "user_seq": 7,
+  "status": "DONE",
+  "fail_code": null,
+  "result_seq": 10
+}
+```
+
+두 키 모두 `composite.*` 바인딩에 걸린다 — **브로커 변경이 없다.** 대신 두 큐에 함께
+떨어지므로 각 컨슈머가 자기 것만 처리하고 나머지는 ack 한다.
+
+| 키 | 발행 | 처리 | 무시(ack) |
+|---|---|---|---|
+| `composite.packaged` | app-media | core | 알림 |
+| `composite.finished` | core | 알림 | core |
+
 ## `x-request-id` 헤더 규약
 
 - HTTP 진입 시 `X-Request-Id`를 승계(없으면 생성)해 MDC에 싣는다.
