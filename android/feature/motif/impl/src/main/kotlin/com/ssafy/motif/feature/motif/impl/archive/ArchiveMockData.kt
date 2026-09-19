@@ -5,9 +5,10 @@ import com.ssafy.motif.core.model.motif.SavedMotif
 
 internal object ArchiveMockData {
 
-    // TODO 보관함 전용 리소스로 교체. 현재는 designsystem 이미지와 공개 샘플 영상을 빌려 씀
-    private const val PROFILE_URL =
-        "android.resource://com.ssafy.motif/drawable/img_profile"
+    // TODO 보관함 전용 리소스로 교체. 현재는 공개 샘플 이미지·영상을 빌려 씀.
+    // android.resource URL은 Preview·Run Preview(별도 패키지)에서 해석되지 않아 네트워크 이미지를 쓴다.
+    private fun profileUrl(seed: String): String =
+        "https://picsum.photos/seed/$seed/200"
 
     // 실기기에서 실제 재생을 확인할 수 있는 16:9 샘플 영상
     private val videoUrls = listOf(
@@ -26,11 +27,11 @@ internal object ArchiveMockData {
         "https://res.cloudinary.com/demo/video/upload/so_1,w_960,h_540,c_fill/elephants.jpg",
     )
 
-    val karina = Artist(id = 1L, name = "카리나", profileImageUrl = PROFILE_URL, groupName = "aespa")
-    val jisoo = Artist(id = 2L, name = "지수", profileImageUrl = PROFILE_URL, groupName = "BLACKPINK")
-    val chaeyoung = Artist(id = 3L, name = "이채영", profileImageUrl = PROFILE_URL, groupName = "fromis_9")
-    val haewon = Artist(id = 4L, name = "오해원", profileImageUrl = PROFILE_URL, groupName = "NMIXX")
-    val yeji = Artist(id = 5L, name = "예지", profileImageUrl = PROFILE_URL, groupName = "ITZY")
+    val karina = Artist(id = 1L, name = "카리나", profileImageUrl = profileUrl("karina"), groupName = "aespa")
+    val jisoo = Artist(id = 2L, name = "지수", profileImageUrl = profileUrl("jisoo"), groupName = "BLACKPINK")
+    val chaeyoung = Artist(id = 3L, name = "이채영", profileImageUrl = profileUrl("chaeyoung"), groupName = "fromis_9")
+    val haewon = Artist(id = 4L, name = "오해원", profileImageUrl = profileUrl("haewon"), groupName = "NMIXX")
+    val yeji = Artist(id = 5L, name = "예지", profileImageUrl = profileUrl("yeji"), groupName = "ITZY")
 
     private val descriptions = listOf(
         "컴백 첫날이라 새 에셋으로 찍어봤다",
