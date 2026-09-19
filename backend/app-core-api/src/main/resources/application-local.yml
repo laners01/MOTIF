@@ -41,6 +41,10 @@ motif:
       secret: ${ADMIN_JWT_SECRET:motif-local-dev-only-ADMIN-jwt-secret-not-a-real-key+}   # 로컬 전용 더미(비밀 아님). 사용자 키와 반드시 다른 값
     audit:
       dir: build/logs        # /var/log 는 개발 머신에서 쓸 수 없다 (운영 경로는 prod)
+  # 격리 모드의 AI 경계 — 로컬 스텁(537)이 받는다. 둘 다 로컬 전용 더미(비밀 아님)
+  composite:
+    submit-url: http://localhost:18080/submit
+    worker-token: motif-local-worker-token
 
 logging:
   level:
