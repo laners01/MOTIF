@@ -30,3 +30,14 @@ metadata:
   name: core-api-config
 data:
   ADMIN_ALLOWED_CIDRS: "100.64.0.0/10,127.0.0.1/32"
+  # AI 접수 서비스 URL (S15P21D104-536, 작업명세 §4.9 #3). 합성 잡 하나를 POST 하면
+  # GCP Cloud Run Job 을 띄우고 202 를 준다.
+  #
+  # **빈 값이 정상 상태다** — AI 팀 접수 서비스가 아직 없다(작업명세 §8 #4 미결).
+  # 비어 있으면 core-api 가 접수를 건너뛰고 WARN 만 남기며, 잡은 QUEUED 로 남아
+  # 스윕이 되살린다. 앱 기동에는 영향이 없다(application.yml 이 ${AI_SUBMIT_URL:}).
+  #
+  # 주소가 생기면 여기에 넣고 `kubectl rollout restart deployment/core-api` 한다 —
+  # envFrom 은 파드 생성 시점에 해석된다. Cloud Run 주소는 배포마다 바뀌므로
+  # 비밀이 아니라 ConfigMap 이다.
+  AI_SUBMIT_URL: ""
