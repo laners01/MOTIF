@@ -33,9 +33,13 @@ import com.ssafy.motif.feature.motif.impl.shop.component.ShopArtistSection
  *
  * @param contentPadding 서브 네비게이션 바에 가려지지 않도록 콘텐츠에 적용할 여백.
  */
+/**
+ * @param onProductClick 에셋 카드 선택 → 아티스트 상품 상세 이동 (artistId, assetId).
+ */
 @Composable
 internal fun ShopScreen(
     contentPadding: PaddingValues,
+    onProductClick: (artistId: Long, assetId: Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ShopViewModel = hiltViewModel(),
 ) {
@@ -46,7 +50,7 @@ internal fun ShopScreen(
         contentPadding = contentPadding,
         onBannerClick = viewModel::selectBanner,
         onPassClick = viewModel::selectPass,
-        onAssetClick = viewModel::selectAsset,
+        onAssetClick = onProductClick,
         onLoadMore = viewModel::loadMore,
         modifier = modifier,
     )
@@ -58,7 +62,7 @@ private fun ShopScreen(
     contentPadding: PaddingValues,
     onBannerClick: (Long) -> Unit,
     onPassClick: (Long) -> Unit,
-    onAssetClick: (Long) -> Unit,
+    onAssetClick: (artistId: Long, assetId: Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -99,7 +103,7 @@ private fun ShopContent(
     contentPadding: PaddingValues,
     onBannerClick: (Long) -> Unit,
     onPassClick: (Long) -> Unit,
-    onAssetClick: (Long) -> Unit,
+    onAssetClick: (artistId: Long, assetId: Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -184,7 +188,7 @@ private fun ShopScreenPreview() {
             contentPadding = PaddingValues(0.dp),
             onBannerClick = {},
             onPassClick = {},
-            onAssetClick = {},
+            onAssetClick = { _, _ -> },
             onLoadMore = {},
         )
     }
@@ -193,6 +197,7 @@ private fun ShopScreenPreview() {
 /**
  * 실기기 Run Preview용. Pass 구매 버튼을 누르면 P 뱃지로, 카드를 누르면 구매 완료로 즉시 바뀐다.
  * ViewModel의 onPassPurchased / onAssetPurchased와 같은 갱신을 Preview 안에서 흉내 낸다.
+ * 실제 앱에서는 카드 선택이 상세 화면 이동이다.
  */
 @Preview(name = "Interactive", showBackground = true, heightDp = 1200)
 @Composable
@@ -217,7 +222,7 @@ private fun ShopScreenInteractivePreview() {
                     },
                 )
             },
-            onAssetClick = { assetId ->
+            onAssetClick = { _, assetId ->
                 uiState = uiState.copy(
                     sections = uiState.sections.map { section ->
                         section.copy(
@@ -246,7 +251,7 @@ private fun ShopScreenLoadingPreview() {
             contentPadding = PaddingValues(0.dp),
             onBannerClick = {},
             onPassClick = {},
-            onAssetClick = {},
+            onAssetClick = { _, _ -> },
             onLoadMore = {},
         )
     }

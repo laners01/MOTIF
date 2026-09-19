@@ -8,11 +8,15 @@ import com.ssafy.motif.core.model.shop.ShopArtistSection
 
 internal object ShopMockData {
 
-    // TODO 샵 전용 이미지로 교체. 배너는 디자인에서 이미지로 제공될 예정이라 임시로 썸네일을 쓴다
+    // TODO 샵 전용 이미지로 교체. 현재는 designsystem 이미지를 빌려 씀
     private const val THUMBNAIL_URL =
         "android.resource://com.ssafy.motif/drawable/img_test_motif"
     private const val PROFILE_URL =
         "android.resource://com.ssafy.motif/drawable/img_profile"
+
+    // 디자인에서 제공한 PASS 배너 이미지 (feature:motif:impl 리소스). 상세 Mock도 같은 이미지를 쓴다.
+    const val PASS_BANNER_URL =
+        "android.resource://com.ssafy.motif/drawable/img_pass_banner"
 
     private val yeji = Artist(id = 1L, name = "Yeji", profileImageUrl = PROFILE_URL, groupName = "ITZY")
     private val karina = Artist(id = 2L, name = "Karina", profileImageUrl = PROFILE_URL, groupName = "aespa")
@@ -23,9 +27,9 @@ internal object ShopMockData {
     private val minji = Artist(id = 7L, name = "Minji", profileImageUrl = PROFILE_URL, groupName = "NewJeans")
 
     val banners: List<PassBanner> = listOf(
-        PassBanner(id = 1L, artist = yeji, imageUrl = THUMBNAIL_URL),
-        PassBanner(id = 2L, artist = karina, imageUrl = THUMBNAIL_URL),
-        PassBanner(id = 3L, artist = jisoo, imageUrl = THUMBNAIL_URL),
+        PassBanner(id = 1L, artist = yeji, imageUrl = PASS_BANNER_URL),
+        PassBanner(id = 2L, artist = karina, imageUrl = PASS_BANNER_URL),
+        PassBanner(id = 3L, artist = jisoo, imageUrl = PASS_BANNER_URL),
     )
 
     private val titles = listOf(

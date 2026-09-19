@@ -26,22 +26,7 @@ class ShopViewModel @Inject constructor() : ViewModel() {
     }
 
     fun selectPass(artistId: Long) {
-        // TODO 구독권 상품 바텀시트 노출 (별도 티켓)
-    }
-
-    fun selectAsset(assetId: Long) {
-        val current = _uiState.value as? ShopUiState.Success ?: return
-        val asset = current.sections
-            .asSequence()
-            .flatMap { it.assets }
-            .firstOrNull { it.id == assetId }
-            ?: return
-
-        if (asset.availability == AssetAvailability.PURCHASED) {
-            openAssetDetail(assetId)
-        } else {
-            // TODO 에셋 상품 바텀시트 노출 (별도 티켓)
-        }
+        // TODO PASS 결제 화면 이동 (별도 티켓)
     }
 
     fun loadMore() {
@@ -123,10 +108,6 @@ class ShopViewModel @Inject constructor() : ViewModel() {
                 },
             )
         }
-    }
-
-    private fun openAssetDetail(assetId: Long) {
-        // TODO 에셋 상세 화면 이동 (별도 티켓)
     }
 
     private fun loadFirstPage() {

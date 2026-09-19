@@ -12,4 +12,14 @@
     <string name="feature_motif_impl_archive_empty">저장한 모티프가 없습니다</string>
     <string name="feature_motif_impl_representative_set">대표 모티프로 설정</string>
     <string name="feature_motif_impl_representative_clear">대표 모티프 해제</string>
+
+    <string name="feature_motif_impl_product_pass_title">MOTIF ARTIST PASS</string>
+    <string name="feature_motif_impl_product_pass_banner">아티스트 PASS 배너</string>
+    <string name="feature_motif_impl_product_purchase">구매</string>
+    <string name="feature_motif_impl_product_guide_intro_title">소개</string>
+    <string name="feature_motif_impl_product_guide_intro_body">최애 아티스트와 함께 특별한 순간을 만들어보세요.\nMOTIF 에셋을 활용해 아티스트와 한 화면에 있는 듯한 영상을 직접 촬영하고\n나만의 모티프로 남길 수 있습니다.</string>
+    <string name="feature_motif_impl_product_guide_usage_title">이용 안내</string>
+    <string name="feature_motif_impl_product_guide_usage_body">에셋을 구매하거나 해당 아티스트의 PASS를 보유하면 이용할 수 있습니다.\n일부 프리미엄 에셋은 PASS 보유 여부와 관계없이 별도 구매가 필요합니다.\n구매한 개별 에셋 및 프리미엄 에셋은 영구적으로 이용할 수 있습니다.\nPASS를 통해 제공되는 에셋은 구독 기간 동안 이용할 수 있습니다.\n촬영이 완료된 영상은 앱 내 보관함에 저장됩니다.\n저장된 모티프 중 하나를 대표 모티프로 설정할 수 있습니다.</string>
+    <string name="feature_motif_impl_product_guide_notice_title">콘텐츠 관련 유의사항</string>
+    <string name="feature_motif_impl_product_guide_notice_body">에셋은 아티스트가 MOTIF 콘텐츠 제작을 위해 제공한 전용 영상입니다.\n에셋을 활용해 제작한 결과물은 MOTIF 서비스 내에서만 이용할 수 있습니다.\n완성된 영상은 갤러리로 다운로드하거나 외부 서비스로 내보낼 수 없습니다.\n에셋의 무단 복제, 녹화, 재배포 및 상업적 이용은 제한됩니다.\n제공되는 에셋은 아티스트 또는 서비스 운영 정책에 따라 변경될 수 있습니다.\nPASS가 만료되면 PASS로만 이용 가능했던 에셋은\n더 이상 새롭게 촬영할 수 없으며, 기존에 보관함에 저장한 결과물은 유지됩니다.</string>
 </resources>

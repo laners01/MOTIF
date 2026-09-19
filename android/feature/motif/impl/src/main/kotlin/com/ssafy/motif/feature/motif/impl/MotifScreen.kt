@@ -26,9 +26,13 @@ import com.ssafy.motif.feature.motif.impl.assets.AssetListScreen
 import com.ssafy.motif.feature.motif.impl.component.MotifSubNavigationBar
 import com.ssafy.motif.feature.motif.impl.shop.ShopScreen
 
+/**
+ * @param onProductClick 샵에서 에셋 카드 선택 → 아티스트 상품 상세 이동 (artistId, assetId).
+ */
 @Composable
 fun MotifScreen(
     onBackClick: () -> Unit,
+    onProductClick: (artistId: Long, assetId: Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MotifViewModel = hiltViewModel(),
 ) {
@@ -38,6 +42,7 @@ fun MotifScreen(
         uiState = uiState,
         onMenuClick = viewModel::selectMenu,
         onBackClick = onBackClick,
+        onProductClick = onProductClick,
         modifier = modifier,
     )
 }
@@ -47,6 +52,7 @@ internal fun MotifScreen(
     uiState: MotifUiState,
     onMenuClick: (MotifSubMenu) -> Unit,
     onBackClick: () -> Unit,
+    onProductClick: (artistId: Long, assetId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val backdropState = rememberGlassBackdropState()
@@ -72,6 +78,7 @@ internal fun MotifScreen(
             MotifSubContent(
                 selectedMenu = uiState.selectedMenu,
                 contentPadding = contentPadding,
+                onProductClick = onProductClick,
             )
         }
 
@@ -96,6 +103,7 @@ internal fun MotifScreen(
 private fun MotifSubContent(
     selectedMenu: MotifSubMenu,
     contentPadding: PaddingValues,
+    onProductClick: (artistId: Long, assetId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (selectedMenu) {
@@ -106,6 +114,7 @@ private fun MotifSubContent(
 
         MotifSubMenu.SHOP -> ShopScreen(
             contentPadding = contentPadding,
+            onProductClick = onProductClick,
             modifier = modifier,
         )
 
@@ -127,6 +136,7 @@ private fun MotifScreenPreview() {
             uiState = MotifUiState(selectedMenu = MotifSubMenu.ARCHIVE),
             onMenuClick = {},
             onBackClick = {},
+            onProductClick = { _, _ -> },
         )
     }
 }

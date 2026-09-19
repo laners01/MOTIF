@@ -7,6 +7,7 @@ import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
 import com.ssafy.motif.core.model.shop.PassBanner
 import com.ssafy.motif.core.model.shop.ShopArtistSection
+import com.ssafy.motif.feature.motif.impl.R
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 /**
@@ -34,13 +35,13 @@ internal object ShopPreviewFixtures {
 
     @Composable
     fun banners(): List<PassBanner> {
-        val thumbnailUrl = imageUrl(DesignSystemR.drawable.img_test_motif)
+        val bannerUrl = imageUrl(R.drawable.img_pass_banner)
 
         return artists().mapIndexed { index, artist ->
             PassBanner(
                 id = index + 1L,
                 artist = artist,
-                imageUrl = thumbnailUrl,
+                imageUrl = bannerUrl,
             )
         }
     }

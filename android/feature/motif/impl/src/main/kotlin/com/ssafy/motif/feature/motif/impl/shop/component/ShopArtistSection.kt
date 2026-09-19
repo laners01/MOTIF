@@ -19,12 +19,14 @@ import com.ssafy.motif.feature.motif.impl.shop.ShopPreviewFixtures
 
 /**
  * 아티스트 한 명의 상품 섹션. 헤더 아래에 에셋 카드를 가로 스크롤로 나열한다.
+ *
+ * @param onAssetClick 카드 선택. 상세 화면 진입에 아티스트 id가 함께 필요해서 (artistId, assetId)로 올린다.
  */
 @Composable
 internal fun ShopArtistSection(
     section: ShopArtistSection,
     onPassClick: (Long) -> Unit,
-    onAssetClick: (Long) -> Unit,
+    onAssetClick: (artistId: Long, assetId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -49,7 +51,7 @@ internal fun ShopArtistSection(
             ) { asset ->
                 ShopAssetCard(
                     asset = asset,
-                    onClick = onAssetClick,
+                    onClick = { assetId -> onAssetClick(section.artist.id, assetId) },
                 )
             }
         }
@@ -63,7 +65,7 @@ private fun ShopArtistSectionPreview() {
         ShopArtistSection(
             section = ShopPreviewFixtures.sections()[1],
             onPassClick = {},
-            onAssetClick = {},
+            onAssetClick = { _, _ -> },
         )
     }
 }
