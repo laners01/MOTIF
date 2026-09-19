@@ -66,6 +66,12 @@ Authorization: Bearer {accessToken}
 | `rank` | 스냅샷 순위(1-base). 커서로 이어 받아도 이어지는 번호다 |
 | `videoUrl` | CDN URL + **프리픽스 서명**. 참여 영상은 `visibility` 와 무관하게 보호 등급이라 남의 `PUBLIC` 영상에도 서명이 붙는다(§1.7 · ADR-0013). 프리픽스는 `private/challenge/{jobUuid}/` 다 |
 | `thumbnailUrl` | 같은 프리픽스의 `thumb.jpg` — 단일 파일이라 URL 하나짜리 서명이다 |
+
+**캐시 TTL(5분)보다 서명 만료(10분)가 길다.** 정상 경로에서는 캐시된 응답의 서명이 아직
+유효하다. 다만 §1.6 이 **stale-while-revalidate** 를 허용하므로 갱신이 늦어지면 만료된
+파라미터를 쥔 채 재생을 시작할 수 있다 — 그때는 조각이 403 이고, 클라이언트가
+`POST /media/{jobUuid}/signature` 로 새로 받아 재시도한다(ADR-0012). **응답을 그대로
+오래 보관하지 말 것.**
 | `song` | 카드 하단 표기용 — 화면에는 "mochico · bailar toda la noche" 로 나온다 |
 | `author` | 작성자 요약. `profileImageUrl` 은 싣지 않는다(카드에 쓰지 않음) |
 
