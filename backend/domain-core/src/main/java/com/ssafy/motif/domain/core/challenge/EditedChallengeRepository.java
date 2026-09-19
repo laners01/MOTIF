@@ -6,10 +6,28 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface EditedChallengeRepository extends JpaRepository<EditedChallenge, Integer> {
 
     List<EditedChallenge> findByChallengeSeqOrderByParticipantMask(Integer challengeSeq);
+
+    /**
+     * 사용자가 고른 슬롯 조합의 편집본 (API 명세 §13.1).
+     *
+     * <p>{@code participantMask} 는 <b>비트 OR 합</b>이라 슬롯 0·1 을 함께 고르면 {@code 3}
+     * 이다 — 단일 비트가 아니다({@link EditedChallenge}). {@code uq_edited_challenges_mask}
+     * 가 (챌린지, 조합)의 유일성을 보장한다.
+     *
+     * <p><b>빈 결과는 운영 전제가 깨진 것이다.</b> 어드민이 {@code 1 … 2ⁿ−1} 전조합을
+     * 등록하게 돼 있어(§3.7.2), 사용자는 촬영 직전에 {@code EDITED_CHALLENGE_NOT_FOUND} 를
+     * 만나면 안 된다.
+     *
+     * <p>{@code mask=0}(무교체)으로는 부르지 않는다 — 그 조합에는 행이 없고 원본 위에
+     * 합성한다. 호출부가 먼저 가른다.
+     */
+    Optional<EditedChallenge> findByChallengeSeqAndParticipantMask(Integer challengeSeq,
+                                                                   int participantMask);
 
     /** 슬롯 구성 전체 교체의 하드 삭제 (§3.7.5) — 호출부의 {@code flush()} 필요 이유는 {@link ChallengeParticipantRepository} 참고. */
     void deleteByChallengeSeq(Integer challengeSeq);
