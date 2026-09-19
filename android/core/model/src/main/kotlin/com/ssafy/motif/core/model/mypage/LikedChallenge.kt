@@ -6,5 +6,5 @@ data class LikedChallenge(
     val thumbnailUrl: String,
     val likeCount: Long,
     val likedAt: Long,
-    val myComment: LikedChallengeComment? = null,
+    val commentState: LikedChallengeCommentState = LikedChallengeCommentState.Empty,
 )

@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import com.ssafy.motif.core.model.mypage.LikedChallenge
+import com.ssafy.motif.core.model.mypage.LikedChallengeCommentState
 import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeCarousel
 import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeInfo
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentCard
+import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentEmptyContent
 
 @Composable
 fun MyPageScreen(
@@ -373,12 +375,18 @@ private fun LikedChallengeContent(
                 modifier = Modifier.padding(top = 16.dp),
             )
 
-            // 댓글 없음과 무효 케이스를 모두 null로 받는다.
-            challenge.myComment?.let { myComment ->
-                MyCommentCard(
-                    myComment = myComment,
-                    onClick = { },   // TODO 댓글 위치 이동은 별도 티켓
+            when (val commentState = challenge.commentState) {
+                // 영상 삭제·댓글 사용 중지·원본 댓글 삭제
+                LikedChallengeCommentState.Hidden -> Unit
+
+                LikedChallengeCommentState.Empty -> MyCommentEmptyContent(
                     // 위 28dp는 좋아요 수와의 간격
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp),
+                )
+
+                is LikedChallengeCommentState.Written -> MyCommentCard(
+                    myComment = commentState.myComment,
+                    onClick = { },   // TODO 댓글 위치 이동은 별도 티켓
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp),
                 )
             }
