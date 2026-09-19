@@ -116,17 +116,26 @@ spec:
                     rabbitmqctl set_permissions -p /motif core-api     "^$" "^motif\.(topic|dlx)$" "^evt\.core$"
                     rabbitmqctl set_permissions -p /motif notification "^$" "^$"                   "^evt\.notification$"
                     rabbitmqctl set_permissions -p /motif gpu-worker   "^$" "^motif\.topic$"       "^job\.composite$"
-                    # media 는 순수 소비자다 — job.media 만 읽는다. write 에 motif.dlx 를
-                    # 두는 것은 실패 메시지가 dlq.job.media 로 나가는 경로 때문인데,
-                    # dead-letter 재발행은 브로커가 하므로 실제로 이 권한이 쓰이는지는
-                    # 확실하지 않다(같은 순수 소비자인 notification 은 write 가 "^$" 인데
-                    # evt.notification 에도 DLX 가 걸려 있다). 명세 §4.2 가 지정한 모양을
-                    # 따르되, 최소권한 관점에서 "^$" 로 줄일 수 있는지는 DLQ 가 실제로
-                    # 차는 것을 한 번 본 뒤에 판단한다.
-                    rabbitmqctl set_permissions -p /motif media        "^$" "^motif\.dlx$"         "^job\.media$"
+                    # media 는 더 이상 순수 소비자가 아니다 (S15P21D104-189, 합성 파이프라인
+                    # 작업명세 §4.9 #1). job.media 를 읽고 가공을 마치면 motif.topic 으로
+                    # composite.packaged 를 발행한다 — composite_jobs 를 직접 UPDATE 하던
+                    # 예전 코드가 ck_composite_jobs_status_shape 위반이라 한 번도 성공하지
+                    # 못했고, 상태 확정을 core-api 한 곳으로 넘기면서 생긴 경로다.
+                    # **이 권한이 없으면 발행이 ACCESS_REFUSED 로 채널을 닫는다.**
+                    #
+                    # write 에 motif.dlx 가 함께 있는 것은 실패 메시지가 dlq.job.media 로
+                    # 나가는 경로 때문인데, dead-letter 재발행은 브로커가 하므로 실제로 이
+                    # 권한이 쓰이는지는 확실하지 않다(같은 값을 쓰는 notification 은 write 가
+                    # "^$" 인데 evt.notification 에도 DLX 가 걸려 있다). 지우는 판단은 DLQ 가
+                    # 실제로 차는 것을 한 번 본 뒤에 한다.
+                    rabbitmqctl set_permissions -p /motif media        "^$" "^motif\.(topic|dlx)$" "^job\.media$"
 
                     rabbitmqctl set_topic_permissions -p /motif core-api   motif.topic ".*"                          ".*"
                     rabbitmqctl set_topic_permissions -p /motif gpu-worker motif.topic "^composite\.(done|failed)$" "^job\.composite$"
+                    # 토픽 권한을 아예 두지 않으면 전체 허용이다 — 발행은 그래도 통한다.
+                    # 명시하는 이유는 app-media 가 다른 키를 내보내려 할 때 여기서 막기
+                    # 위해서다. 지금 내보내는 키는 composite.packaged 하나뿐이다.
+                    rabbitmqctl set_topic_permissions -p /motif media      motif.topic "^composite\.packaged$"      "^job\.media$"
 
                     # 자기 검증 — 아래가 실패하면 훅이 실패해 파드 이벤트에 드러난다.
                     # set -e 가 있으므로 위 어느 단계의 실패도 조용히 넘어가지 않는다.
