@@ -118,6 +118,20 @@ motif:
       # 클라이언트가 같은 paymentKey 로 다시 부르면 토스가 멱등하게 답한다
       read-timeout: 10s
 
+  # 합성 파이프라인의 AI 경계 (작업명세 §4.2·§4.3). 접수는 우리가 부르고 콜백은 AI 가
+  # 부른다 — 둘이 같은 비밀 하나를 쓴다
+  composite:
+    # AI 접수 서비스 URL. 비어 있으면 접수를 건너뛰고 잡은 QUEUED 로 남는다(스윕이
+    # 되살린다). 운영 값은 configmap 의 AI_SUBMIT_URL — Cloud Run 주소는 배포마다 바뀐다
+    submit-url: ${AI_SUBMIT_URL:}
+    # 콜백 인증 토큰(X-Motif-Worker-Token). 비어 있으면 콜백을 전부 401 로 막는다
+    # (fail-closed — WorkerTokenFilter). 운영 값은 core-api-secret 의 MOTIF_WORKER_TOKEN
+    worker-token: ${MOTIF_WORKER_TOKEN:}
+    connect-timeout: 3s
+    # 접수 서비스는 Job 을 띄우기만 하고 기다리지 않아 1~3초 안에 답한다(AI 명세 §3.2).
+    # 넘기면 결과 불명으로 보고 QUEUED 에 남긴다
+    read-timeout: 15s
+
   # 어드민 (어드민 명세 §1.1·§1.2·§1.3·§1.4). 비밀값·허용 IP 는 프로파일별 파일에서 주입한다
   admin:
     # §1.2 — motif_admin 쿠키의 Secure 플래그. 기본은 켬이고 로컬만 끈다(http 개발 서버).

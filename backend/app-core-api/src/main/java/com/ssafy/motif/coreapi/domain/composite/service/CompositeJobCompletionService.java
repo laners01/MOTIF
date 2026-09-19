@@ -1,12 +1,21 @@
 package com.ssafy.motif.coreapi.domain.composite.service;
 
+import com.ssafy.motif.common.error.CommonErrorCode;
+import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.domain.composite.CompositeErrorCode;
+import com.ssafy.motif.coreapi.domain.composite.dto.WorkerDoneRequest;
+import com.ssafy.motif.coreapi.domain.composite.dto.WorkerFailedRequest;
+import com.ssafy.motif.coreapi.domain.media.MediaJobPublisher;
+import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.event.contract.CompositeFinishedEvent;
+import com.ssafy.motif.event.contract.MediaJobRequestedEvent;
 import com.ssafy.motif.event.contract.CompositePackagedEvent;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
+import com.ssafy.motif.domain.core.job.JobStatus;
 import com.ssafy.motif.domain.core.job.JobType;
 import com.ssafy.motif.domain.core.motif.MotifResult;
 import com.ssafy.motif.domain.core.motif.MotifResultRepository;
@@ -14,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -42,7 +52,109 @@ public class CompositeJobCompletionService {
     private final ChallengeRepository challengeRepository;
     private final MotifAssetRepository motifAssetRepository;
     private final MotifResultRepository motifResultRepository;
+    private final MediaJobPublisher mediaJobPublisher;
     private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * 접수 202 → {@code QUEUED → PROCESSING} 을 <b>새 트랜잭션</b>으로 (작업명세 §4.2).
+     *
+     * <p><b>{@code REQUIRES_NEW} 인 이유.</b> 부르는 쪽(접수 호출기)이 디스패처·스윕이라
+     * 원 트랜잭션이 이미 끝나 있거나 아예 없다 — 그 상태에서 엔티티를 고치면 플러시될
+     * 곳이 없어 <b>조용히 사라진다.</b>
+     *
+     * <p>잡이 없거나 전이가 어긋나면 로그만 남긴다. 접수는 이미 성공했으므로 늦어도
+     * 콜백이 {@code QUEUED} 에서 따라잡는다({@link #aiDone}).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void submitted(UUID jobUuid) {
+        CompositeJob job = compositeJobRepository.findByJobUuid(jobUuid).orElse(null);
+        if (job == null) {
+            log.warn("접수한 잡을 찾지 못했다: jobUuid={}", jobUuid);
+            return;
+        }
+        try {
+            job.markSubmitted();
+        } catch (IllegalStateException e) {
+            log.warn("접수 후 전이 실패 — 상태를 둔다: jobUuid={} {}", jobUuid, e.getMessage());
+        }
+    }
+
+    /**
+     * AI 합성 성공 콜백 (작업명세 §4.3 · AI 서버 명세 §3.3) — <b>아직 {@code DONE} 이 아니다</b>.
+     *
+     * <p>AI 가 끝냈다는 것은 {@code results/…mp4} 가 S3 에 올라왔다는 뜻이고, 앱이 재생할
+     * HLS 는 app-media 가 그 뒤에 만든다. 그래서 여기서는 {@code job.media} 를 발행하고
+     * 상태는 {@code PROCESSING} 에 둔다 — {@code DONE} 은 {@code composite.packaged} 가
+     * 확정한다(189).
+     *
+     * <p><b>{@code result_video_key} 를 믿지 않는다.</b> 콜백은 인터넷에서 오는 입력이라
+     * 그대로 가공 대상으로 넣으면 남의 잡 결과나 엉뚱한 프리픽스를 읽게 된다. 서버가
+     * {@code MediaKeys.forWorkerOutput} 으로 계산한 값과 <b>대조만</b> 하고, 다르면 400 이다.
+     *
+     * <p><b>{@code QUEUED} 에서 와도 받는다</b> — 접수 202 응답이 유실돼 우리가
+     * {@code markSubmitted()} 를 못 했는데 AI 는 정상으로 돈 경우다(§2 상태 전이표).
+     *
+     * <p>중복 {@code /done} 은 {@code job.media} 를 한 번 더 낼 수 있다. app-media 가
+     * {@code alreadyDone} 으로 거르고, 안 걸려도 같은 프리픽스에 같은 결과다 — 따로 막지
+     * 않는다(§5 멱등 표).
+     *
+     * @throws BusinessException 404 {@code JOB_NOT_FOUND} · 400 {@code INVALID_PARAMETER}
+     */
+    @Transactional
+    public void aiDone(UUID jobUuid, WorkerDoneRequest request) {
+        CompositeJob job = job(jobUuid);
+        if (job.isDone()) {
+            log.info("/done 무시 — 이미 DONE: jobUuid={}", jobUuid);
+            return;
+        }
+        String expected = MediaKeys.forWorkerOutput(job.getJobType().name(), jobUuid.toString());
+        if (!expected.equals(request.resultVideoKey())) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "result_video_key 가 계산값과 다르다 — expected=" + expected
+                            + " actual=" + request.resultVideoKey());
+        }
+        if (job.getStatus() == JobStatus.QUEUED) {
+            // 접수 202 를 놓쳤다. AI 는 정상으로 돌았으므로 여기서 따라잡는다
+            job.markSubmitted();
+        }
+        job.recordProcessingMs(request.processingMs());
+        mediaJobPublisher.publish(
+                MediaJobRequestedEvent.SOURCE_COMPOSITE_RESULT,
+                job.getJobSeq(),
+                expected,
+                MediaKeys.forCompositeResult(job.getJobType().name(), jobUuid.toString()),
+                null);
+        log.info("/done 수신 → job.media 발행: jobUuid={} workerId={} processingMs={}",
+                jobUuid, request.workerId(), request.processingMs());
+    }
+
+    /**
+     * AI 합성 실패 콜백 (작업명세 §4.3 · AI 서버 명세 §3.4).
+     *
+     * <p><b>{@code failMessage} 를 저장하지 않는다.</b> 사용자에게 보이지 않는 로그용
+     * 문장이고({@code fail_code} 로 앱이 문구를 고른다), 잡 행에 칸도 없다.
+     *
+     * @throws BusinessException 404 {@code JOB_NOT_FOUND}
+     */
+    @Transactional
+    public void aiFailed(UUID jobUuid, WorkerFailedRequest request) {
+        CompositeJob job = job(jobUuid);
+        job.recordProcessingMs(request.processingMs());
+        log.info("/failed 수신: jobUuid={} failCode={} failMessage={} workerId={}",
+                jobUuid, request.failCode(), request.failMessage(), request.workerId());
+        fail(job, request.failCode());
+    }
+
+    /**
+     * 콜백이 가리키는 잡 — 없으면 404 (AI 명세 §3.5: AI 는 재시도하지 않는다).
+     *
+     * <p>소유자를 보지 않는다 — 부르는 쪽이 사용자가 아니라 AI 다. 인가는 토큰이 이미 했다.
+     */
+    private CompositeJob job(UUID jobUuid) {
+        return compositeJobRepository.findByJobUuid(jobUuid)
+                .orElseThrow(() -> new BusinessException(
+                        CompositeErrorCode.JOB_NOT_FOUND, "jobUuid: " + jobUuid));
+    }
 
     /**
      * 가공 완료 → {@code DONE} 확정 (작업명세 §4.4).
