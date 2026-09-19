@@ -46,7 +46,7 @@ Authorization: Bearer {accessToken}
       "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
     },
     "videos": [
-      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
+      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
       { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 120, "visibility": "PRIVATE" }
     ]
   },
@@ -429,7 +429,7 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
   "message": "요청이 성공했습니다.",
   "data": {
     "list": [
-      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
+      { "videoSeq": 88, "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg", "viewCount": 3400, "visibility": "PUBLIC" },
       { "videoSeq": 87, "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 120, "visibility": "PRIVATE" }
     ]
   },
@@ -559,14 +559,14 @@ Authorization: Bearer {accessToken}
 ```json
 [
   {
-    "video": { "videoSeq": 90, "thumbnailUrl": "https://cdn.motif.io/public/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg", "viewCount": 120, "likeCount": 8 },
+    "video": { "videoSeq": 90, "thumbnailUrl": "https://cdn.motif.io/private/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg", "viewCount": 120, "likeCount": 8 },
     "liked": true,
     "myComment": null,
     "replies": [],
     "lastInteractedDttm": "2026-08-27T09:00:00.000Z"
   },
   {
-    "video": { "videoSeq": 89, "thumbnailUrl": "https://cdn.motif.io/public/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg", "viewCount": 940, "likeCount": 77 },
+    "video": { "videoSeq": 89, "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg", "viewCount": 940, "likeCount": 77 },
     "liked": false,
     "myComment": {
       "commentSeq": 612,
