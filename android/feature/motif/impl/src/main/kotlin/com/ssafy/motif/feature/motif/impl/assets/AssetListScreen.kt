@@ -39,7 +39,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -49,6 +48,8 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
+import com.ssafy.motif.feature.motif.impl.component.LoadingFooter
+import com.ssafy.motif.feature.motif.impl.component.MotifScreenTitle
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 /**
@@ -157,7 +158,7 @@ private fun AssetListContent(
         contentPadding = contentPadding,
     ) {
         item(key = "header") {
-            AssetListHeader()
+            MotifScreenTitle(text = "MOTIF")
         }
 
         stickyHeader(key = "filter") {
@@ -182,28 +183,9 @@ private fun AssetListContent(
 
         if (uiState.appendState is AssetListAppendUiState.Loading) {
             item(key = "footer") {
-                AssetListLoadingFooter()
+                LoadingFooter()
             }
         }
-    }
-}
-
-@Composable
-private fun AssetListHeader(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "MOTIF",
-            color = MotifTheme.colors.white,
-            style = MotifTheme.typography.rankR36.copy(
-                fontSize = 28.sp,
-                lineHeight = 32.sp,
-            ),
-        )
     }
 }
 
@@ -363,18 +345,6 @@ private fun AssetCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-    }
-}
-
-@Composable
-private fun AssetListLoadingFooter(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        LoadingWheel()
     }
 }
 
