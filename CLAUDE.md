@@ -9,7 +9,7 @@
 |---|---|
 | `backend/` | 서버 모노레포 (Gradle 멀티모듈) |
 | `backend/docs/adr/` | 결정 기록 |
-| `backend/docs/api/` | API 명세 · 어드민 명세 |
+| `backend/docs/api/` | API 명세 · 어드민 명세 · **AI 서버 명세**(GPU 워커 계약) |
 | `backend/docs/poc/` | PoC 판정 기준·측정 결과·인계 문서 |
 | `backend/docs/erd/` · `db/` | DB 명세 |
 
