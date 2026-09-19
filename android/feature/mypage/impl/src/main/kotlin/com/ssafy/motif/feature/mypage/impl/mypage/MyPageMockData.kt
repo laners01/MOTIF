@@ -5,6 +5,7 @@ import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.comment.Reply
 import com.ssafy.motif.core.model.mypage.LikedChallenge
 import com.ssafy.motif.core.model.mypage.LikedChallengeComment
+import com.ssafy.motif.core.model.mypage.LikedChallengeCommentState
 import com.ssafy.motif.core.model.mypage.MyChallenge
 import com.ssafy.motif.core.model.mypage.MyMotif
 import com.ssafy.motif.core.model.mypage.SubscribedArtist
@@ -259,6 +260,17 @@ internal object MyPageMockData {
         ),
     )
 
+    // 댓글 영역이 아예 안 보여야 하는 index. 영상 삭제·댓글 중지·원본 삭제를 대표한다.
+    private const val HIDDEN_COMMENT_INDEX = 6
+
+    private fun commentStateOf(index: Int): LikedChallengeCommentState = when {
+        index == HIDDEN_COMMENT_INDEX -> LikedChallengeCommentState.Hidden
+
+        else -> MY_COMMENTS[index]
+            ?.let(LikedChallengeCommentState::Written)
+            ?: LikedChallengeCommentState.Empty
+    }
+
     // index가 커질수록 likedAt이 작아지므로 목록 자체가 최근 좋아요순이다.
     // 17개라 페이지 크기로 나누면 마지막 페이지가 부분적으로 차서 hasNext 확인에 쓸 수 있다.
     val likedChallenges: List<LikedChallenge> = List(17) { index ->
@@ -269,7 +281,7 @@ internal object MyPageMockData {
             thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
             likeCount = LIKE_COUNTS[index % LIKE_COUNTS.size],
             likedAt = LIKED_BASE_TIME - index * ONE_HOUR_MILLIS,
-            myComment = MY_COMMENTS[index],
+            commentState = commentStateOf(index),
         )
     }
 }
