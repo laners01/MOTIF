@@ -89,6 +89,9 @@ public final class VideoTestData {
      */
     public final class VideoFixture {
 
+        /** 공개 사본 트리가 없다(ADR-0013) — 게시 여부와 무관하게 보호 프리픽스 하나다. */
+        private static final String PREFIX = "private/challenge/";
+
         private final Integer challengeSeq;
         private final Integer artistSeq;
         private Integer owner;
@@ -99,8 +102,6 @@ public final class VideoTestData {
         private boolean artistComment;
         private boolean deleted;
         private String visibility = "PUBLIC";
-        /** 공개 사본 트리가 없다(ADR-0013) — 게시 여부와 무관하게 보호 프리픽스다. */
-        private String prefix = "private/challenge/";
 
         private VideoFixture(Integer challengeSeq, Integer artistSeq) {
             this.challengeSeq = challengeSeq;
@@ -147,11 +148,6 @@ public final class VideoTestData {
             return this;
         }
 
-        public VideoFixture prefix(String keyPrefix) {
-            this.prefix = keyPrefix;
-            return this;
-        }
-
         /**
          * {@code composite_jobs} 를 먼저 만드는 것은 {@code job_seq} 가 NOT NULL FK 이기
          * 때문이다. 게시된 영상이라 잡은 {@code DONE} 이어야 한다
@@ -160,14 +156,11 @@ public final class VideoTestData {
         public Long insert() {
             String uuid = UUID.randomUUID().toString();
 
-            // composite_jobs 는 워커가 실제로 쓴 정본을 가리킨다. 산출물이 한 자리뿐이라
-            // (ADR-0013) 참여 영상의 키와 같은 값이지만, prefix() 로 어긋난 상태를 일부러
-            // 만드는 테스트가 있어 따로 둔다
-            String originKey = "private/challenge/" + uuid + "/master.m3u8";
-            String originThumbKey = "private/challenge/" + uuid + "/thumb.jpg";
-
-            String resultKey = prefix + uuid + "/master.m3u8";
-            String thumbKey = prefix + uuid + "/thumb.jpg";
+            // composite_jobs 의 정본과 참여 영상의 키가 언제나 같은 값이다 — 산출물이 한
+            // 자리뿐이라(ADR-0013) 게시해도 옮기지 않는다. 공개 사본 트리가 있던 시절에는
+            // 둘이 갈려서 visibility 마다 프리픽스를 바꾸는 빌더가 필요했다
+            String resultKey = PREFIX + uuid + "/master.m3u8";
+            String thumbKey = PREFIX + uuid + "/thumb.jpg";
 
             execute("""
                     insert into motif_core.composite_jobs
@@ -175,7 +168,7 @@ public final class VideoTestData {
                          result_video_key, result_thumbnail_key)
                     values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, 'DONE', ?5, ?6)
                     """, uuid, owner, challengeSeq, "raw/" + uuid + ".mp4",
-                    originKey, originThumbKey);
+                    resultKey, thumbKey);
             long jobSeq = ((Number) entityManager
                     .createNativeQuery("""
                             select job_seq from motif_core.composite_jobs

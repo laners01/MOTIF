@@ -104,7 +104,7 @@ class VideoUpdateLocalDbTest {
         Long 영상 = video().owner(me).insert();
         VideoItem before = videoQueryService.detail(me, 영상);
 
-        assertThat(update(영상, new VideoUpdateRequest(null, null, null))).isEqualTo(before);
+        assertSameItem(update(영상, new VideoUpdateRequest(null, null, null)), before);
     }
 
     @Test
@@ -114,7 +114,7 @@ class VideoUpdateLocalDbTest {
 
         VideoItem updated = update(영상, new VideoUpdateRequest("바뀐 문구", null, false));
 
-        assertThat(updated).isEqualTo(videoQueryService.detail(me, 영상));
+        assertSameItem(updated, videoQueryService.detail(me, 영상));
     }
 
     // --- 등급 전환 -----------------------------------------------------------
@@ -208,6 +208,28 @@ class VideoUpdateLocalDbTest {
 
     private VideoItem update(Long videoSeq, VideoUpdateRequest request) {
         return videoCommandService.update(me, videoSeq, request);
+    }
+
+    /**
+     * 두 항목이 같은가 — <b>서명 파라미터는 빼고 본다</b>.
+     *
+     * <p>참여 영상은 전부 보호 등급이라 URL 에 서명이 붙는데(ADR-0013), 만료가 초 단위로
+     * 인코딩돼 <b>두 번의 조립이 초 경계를 넘으면 문자열이 달라진다</b>. 그대로 비교하면
+     * 대부분 통과하다 가끔 깨지는 테스트가 된다. 여기서 보려는 것은 "같은 조립 경로를
+     * 탔는가" 이므로 주소만 견준다.
+     */
+    private static void assertSameItem(VideoItem actual, VideoItem expected) {
+        assertThat(actual).usingRecursiveComparison()
+                .ignoringFields("videoUrl", "thumbnailUrl")
+                .isEqualTo(expected);
+        assertThat(addressOf(actual.videoUrl())).isEqualTo(addressOf(expected.videoUrl()));
+        assertThat(addressOf(actual.thumbnailUrl()))
+                .isEqualTo(addressOf(expected.thumbnailUrl()));
+    }
+
+    /** 서명 쿼리스트링을 뗀 주소. */
+    private static String addressOf(String url) {
+        return url == null ? null : url.split("\\?", 2)[0];
     }
 
     private void assertNotFound(Long videoSeq) {
