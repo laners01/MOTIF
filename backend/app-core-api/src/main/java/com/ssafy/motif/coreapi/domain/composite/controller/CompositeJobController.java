@@ -7,6 +7,7 @@ import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateRequest;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRetryResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobStatusResponse;
 import com.ssafy.motif.coreapi.domain.composite.service.CompositeJobCommandService;
 import com.ssafy.motif.coreapi.domain.composite.service.CompositeJobQueryService;
@@ -94,5 +95,22 @@ public class CompositeJobController implements CompositeJobControllerDocs {
             @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable UUID jobUuid) {
         return ApiResponse.success(compositeJobQueryService.status(user.userSeq(), jobUuid));
+    }
+
+    /**
+     * §13.4 재시도 — <b>202 Accepted</b>. 실패한 잡을 같은 행으로 재큐한다.
+     *
+     * <p>본문이 없다. 무엇을 다시 할지는 잡 행에 다 적혀 있다.
+     *
+     * <p>{@code jobUuid} 가 바뀌지 않으므로 클라이언트는 들고 있던 식별자로 §13.3 을
+     * 계속 조회하면 된다.
+     */
+    @Override
+    @PostMapping("/{jobUuid}/retry")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApiResponse<CompositeJobRetryResponse> retry(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID jobUuid) {
+        return ApiResponse.success(compositeJobCommandService.retry(user.userSeq(), jobUuid));
     }
 }

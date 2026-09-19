@@ -4,6 +4,7 @@ import com.ssafy.motif.common.error.ErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.composite.CompositeErrorCode;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRetryResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobStatusResponse;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
 import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
@@ -41,7 +42,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 /**
- * §13.2 합성 요청과 §13.3 상태 조회를 실제 DB 에 대고 검증한다 (S15P21D104-187 · 247).
+ * §13.2 합성 요청 · §13.3 상태 조회 · §13.4 재시도를 실제 DB 에 대고 검증한다
+ * (S15P21D104-187 · 247 · 191).
  *
  * <p><b>DB 가 있어야 하는 이유는 상태 모양 때문이다.</b>
  * {@code ck_composite_jobs_status_shape} 가 "{@code DONE} 이면 산출물 키 NOT NULL,
@@ -259,6 +261,113 @@ class CompositeJobRequestStatusLocalDbTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(CompositeErrorCode.JOB_NOT_FOUND);
+    }
+
+    // --- 13.4 재시도 (191) ------------------------------------------------------------
+
+    @Test
+    @DisplayName("FAILED → 202 QUEUED, attempt+1, fail_code 초기화. jobUuid 는 그대로다")
+    void retryRequeuesTheSameRow() {
+        CompositeJob job = challengeJob();
+        markFailed(job.getJobUuid(), "FACE_NOT_DETECTED");
+
+        CompositeJobRetryResponse response =
+                compositeJobCommandService.retry(fanSeq, job.getJobUuid());
+
+        assertThat(response.jobUuid()).isEqualTo(job.getJobUuid());
+        assertThat(response.status()).isEqualTo(JobStatus.QUEUED);
+        assertThat(response.attempt()).isEqualTo((short) 2);
+        CompositeJob saved = reload(job.getJobUuid());
+        assertThat(saved.getStatus()).isEqualTo(JobStatus.QUEUED);
+        assertThat(saved.getAttempt()).isEqualTo((short) 2);
+        assertThat(saved.getFailCode()).isNull();
+        // 새 잡을 만들지 않았다 — 같은 행이다
+        assertThat(saved.getJobSeq()).isEqualTo(reload(job.getJobUuid()).getJobSeq());
+    }
+
+    @Test
+    @DisplayName("MOTIF 도 같은 경로다 — 재시도에 타입별 분기가 없다")
+    void retryWorksForMotif() {
+        CompositeJob job = motifJob();
+        markFailed(job.getJobUuid(), "TIMEOUT");
+
+        assertThat(compositeJobCommandService.retry(fanSeq, job.getJobUuid()).status())
+                .isEqualTo(JobStatus.QUEUED);
+        assertThat(reload(job.getJobUuid()).getStatus()).isEqualTo(JobStatus.QUEUED);
+    }
+
+    @Test
+    @DisplayName("FAILED 가 아니면 409 — DONE·QUEUED·PROCESSING 전부 같은 코드다")
+    void retryOnNonFailedIsConflict() {
+        CompositeJob done = challengeJob();
+        markDone(done.getJobUuid(), "private/challenge/" + done.getJobUuid() + "/master.m3u8",
+                "private/challenge/" + done.getJobUuid() + "/thumb.jpg");
+        assertRetryFails(done.getJobUuid(), CompositeErrorCode.JOB_NOT_RETRYABLE);
+
+        CompositeJob queued = challengeJob();
+        queued(queued, null);
+        assertRetryFails(queued.getJobUuid(), CompositeErrorCode.JOB_NOT_RETRYABLE);
+
+        CompositeJob processing = challengeJob();
+        setStatus(processing.getJobUuid(), "PROCESSING");
+        assertRetryFails(processing.getJobUuid(), CompositeErrorCode.JOB_NOT_RETRYABLE);
+    }
+
+    @Test
+    @DisplayName("원본이 지워졌으면 410 — 상태는 FAILED 그대로 둔다")
+    void retryWithoutRawIsGone() {
+        CompositeJob job = challengeJob();
+        markFailed(job.getJobUuid(), "FACE_NOT_DETECTED");
+        given(objectStore.exists(anyString())).willReturn(false);
+
+        assertRetryFails(job.getJobUuid(), CompositeErrorCode.RAW_VIDEO_EXPIRED);
+
+        CompositeJob saved = reload(job.getJobUuid());
+        assertThat(saved.getStatus()).isEqualTo(JobStatus.FAILED);
+        assertThat(saved.getAttempt()).isEqualTo((short) 1);
+    }
+
+    @Test
+    @DisplayName("상태를 원본보다 먼저 본다 — 성공한 잡의 원본이 만료돼도 410 이 아니라 409 다")
+    void statusIsCheckedBeforeRaw() {
+        CompositeJob job = challengeJob();
+        markDone(job.getJobUuid(), "private/challenge/" + job.getJobUuid() + "/master.m3u8",
+                "private/challenge/" + job.getJobUuid() + "/thumb.jpg");
+        given(objectStore.exists(anyString())).willReturn(false);   // 원본은 이미 만료
+
+        // 410 을 주면 "다시 촬영하라" 는 엉뚱한 안내가 된다 — 이미 성공한 잡이다
+        assertRetryFails(job.getJobUuid(), CompositeErrorCode.JOB_NOT_RETRYABLE);
+    }
+
+    @Test
+    @DisplayName("타인 잡은 404 — 재시도도 존재를 숨긴다")
+    void othersJobIsNotFoundOnRetry() {
+        CompositeJob job = challengeJob();
+        markFailed(job.getJobUuid(), "FACE_NOT_DETECTED");
+        Integer stranger = newUser().getUserSeq();
+
+        assertThatThrownBy(() -> compositeJobCommandService.retry(stranger, job.getJobUuid()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CompositeErrorCode.JOB_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("수동 재시도에는 상한이 없다 — 디스패처의 attempt<3 과 별개다")
+    void manualRetryHasNoCap() {
+        CompositeJob job = challengeJob();
+        for (int i = 2; i <= 5; i++) {
+            markFailed(job.getJobUuid(), "FACE_NOT_DETECTED");
+            assertThat(compositeJobCommandService.retry(fanSeq, job.getJobUuid()).attempt())
+                    .isEqualTo((short) i);
+        }
+    }
+
+    private void assertRetryFails(UUID jobUuid, ErrorCode expected) {
+        assertThatThrownBy(() -> compositeJobCommandService.retry(fanSeq, jobUuid))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(expected);
     }
 
     // --- 픽스처 -------------------------------------------------------------------------

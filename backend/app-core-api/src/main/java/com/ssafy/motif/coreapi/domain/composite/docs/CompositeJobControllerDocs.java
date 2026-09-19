@@ -5,6 +5,7 @@ import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateRequest;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRetryResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobStatusResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -20,7 +21,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 
 /**
- * 합성 파이프라인 API 문서 계약 (명세 §13 — 13.1 · 13.2 · 13.3).
+ * 합성 파이프라인 API 문서 계약 (명세 §13 — 13.1 · 13.2 · 13.3 · 13.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -413,6 +414,102 @@ public interface CompositeJobControllerDocs {
                             examples = @ExampleObject(value = JOB_NOT_FOUND_EXAMPLE)))
     })
     ApiResponse<CompositeJobStatusResponse> status(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "잡 식별자", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+            UUID jobUuid);
+
+    // ---------------------------------------------------------------------------------
+    // 13.4 재시도
+    // ---------------------------------------------------------------------------------
+
+    String RETRY_DESCRIPTION = """
+            실패한 잡을 다시 돌린다. 대상은 **본인의 `FAILED` 잡**이고 요청 본문이 없다 —
+            무엇을 다시 할지는 잡 행에 다 적혀 있다.
+
+            - **인증 필요.** 타인 잡은 404.
+            - **같은 잡 행을 재큐한다** — 새 잡을 만들지 않으므로 **`jobUuid` 가 유지된다.**
+              들고 있던 식별자로 §13.3 을 계속 조회하면 된다.
+            - **202 Accepted.** 접수했다는 뜻이며 합성은 아직 시작도 하지 않았다.
+
+            ### 서버 처리
+
+            1. `status: FAILED → QUEUED`
+            2. `fail_code = NULL` 초기화
+            3. `attempt + 1`
+            4. 디스패처가 다음 틱에 같은 조립기로 재접수한다
+
+            결과 프리픽스가 `results/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져
+            있어, 재합성은 같은 경로를 덮어쓴다.
+
+            ### 시도 상한이 없다 *(기본안)*
+
+            사용자가 직접 누르는 재시도는 막지 않는다. 디스패처의 `attempt < 3` 은 **접수
+            실패 자동 재큐**의 무한 루프를 막는 장치라 별개다.
+
+            ### 직전 실패 사유는 지워진다
+
+            재큐하면 `fail_code` 가 `NULL` 이 된다(상태별 CHECK 유지). 실패 이력이 필요하면
+            로그·이벤트로 남긴다 — 행에 보존하지 않는다.
+
+            ### 410 은 재촬영 신호다
+
+            `RAW_VIDEO_EXPIRED` 는 촬영 원본이 **수명주기로 삭제됐다**는 뜻이다. "있었지만
+            이제 없다" 라 409 가 아니라 410 이고, 클라이언트는 **재시도 버튼을 숨기고
+            재촬영을 안내**해야 한다.
+            """;
+
+    String RETRY_ACCEPTED_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": { "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "status": "QUEUED", "attempt": 2 },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String NOT_RETRYABLE_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "JOB_NOT_RETRYABLE",
+              "message": "재시도할 수 없는 상태입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String RAW_EXPIRED_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "RAW_VIDEO_EXPIRED",
+              "message": "원본 영상이 만료되었습니다. 다시 촬영해 주세요.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "재시도 — 실패한 잡을 같은 행으로 재큐 (§13.4)", description = RETRY_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "202", description = "재큐됨 — jobUuid 는 그대로다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = CompositeJobRetryResponse.class),
+                            examples = @ExampleObject(value = RETRY_ACCEPTED_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "잡 없음·**타인 잡** (`JOB_NOT_FOUND`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = JOB_NOT_FOUND_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "`FAILED` 상태가 아님 (`JOB_NOT_RETRYABLE`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = NOT_RETRYABLE_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "410",
+                    description = "원본이 수명주기로 삭제됨 (`RAW_VIDEO_EXPIRED`) — 재촬영을 안내한다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = RAW_EXPIRED_EXAMPLE)))
+    })
+    ApiResponse<CompositeJobRetryResponse> retry(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "잡 식별자", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
             UUID jobUuid);
