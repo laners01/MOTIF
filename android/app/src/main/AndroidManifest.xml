@@ -13,9 +13,7 @@
         android:theme="@style/Theme.Motif">
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
-            android:screenOrientation="portrait"
             android:theme="@style/Theme.Motif"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
