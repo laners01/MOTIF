@@ -175,7 +175,6 @@ private fun ArchiveContent(
             ) { motif ->
                 SavedMotifItem(
                     motif = motif,
-                    selected = motif.id == uiState.selectedMotif?.id,
                     onClick = onMotifClick,
                     modifier = Modifier.padding(
                         horizontal = 16.dp,
