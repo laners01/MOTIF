@@ -8,4 +8,6 @@
     <string name="feature_motif_impl_pass_purchase">Pass 구매</string>
     <string name="feature_motif_impl_pass_owned">구독권 보유</string>
     <string name="feature_motif_impl_purchased">구매 완료</string>
+
+    <string name="feature_motif_impl_archive_empty">저장한 모티프가 없습니다</string>
 </resources>

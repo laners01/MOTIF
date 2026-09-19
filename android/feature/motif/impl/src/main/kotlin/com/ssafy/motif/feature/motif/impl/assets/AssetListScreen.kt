@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -48,6 +47,8 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
+import com.ssafy.motif.feature.motif.impl.component.ArtistFilterItem
+import com.ssafy.motif.feature.motif.impl.component.ArtistFilterItemDefaults
 import com.ssafy.motif.feature.motif.impl.component.LoadingFooter
 import com.ssafy.motif.feature.motif.impl.component.MotifScreenTitle
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
@@ -257,54 +258,6 @@ private fun AllFilterChip(
 }
 
 @Composable
-private fun ArtistFilterItem(
-    artist: Artist,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) MotifTheme.colors.pink else Color.Transparent,
-        label = "artist filter border",
-    )
-
-    Column(
-        modifier = modifier
-            .width(ArtistItemSize)
-            .selectable(
-                selected = selected,
-                onClick = onClick,
-                role = Role.RadioButton,
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        AsyncImage(
-            model = artist.profileImageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(ArtistItemSize)
-                .clip(CircleShape)
-                .border(
-                    width = FilterBorderWidth,
-                    color = borderColor,
-                    shape = CircleShape,
-                ),
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = artist.name,
-            color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.captionM12,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
 private fun AssetCard(
     asset: Asset,
     onClick: (Long) -> Unit,
@@ -354,9 +307,9 @@ private fun Artist.displayNameWithGroup(): String =
 
 private const val LOAD_MORE_THRESHOLD = 2
 
-private val AllChipSize = 70.dp
-private val ArtistItemSize = 70.dp
-private val FilterBorderWidth = 2.dp
+// ALL 칩은 아티스트 필터 항목과 같은 크기·테두리로 맞춘다.
+private val AllChipSize = ArtistFilterItemDefaults.Size
+private val FilterBorderWidth = ArtistFilterItemDefaults.BorderWidth
 
 @Preview(showBackground = true, heightDp = 900)
 @Composable
