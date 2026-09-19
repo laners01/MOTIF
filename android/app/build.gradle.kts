@@ -25,6 +25,8 @@ dependencies {
     implementation(projects.feature.artistdetail.impl)
     implementation(projects.feature.mypage.api)
     implementation(projects.feature.mypage.impl)
+    implementation(projects.feature.motif.api)
+    implementation(projects.feature.motif.impl)
 
     implementation(projects.core.data)
     implementation(projects.core.designsystem)
