@@ -10,4 +10,5 @@ android {
 
 dependencies {
     implementation(projects.feature.motif.api)
+    implementation(libs.androidx.lifecycle.runtimeCompose)
 }
