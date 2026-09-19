@@ -52,7 +52,7 @@ fun Tab(
 }
 
 @Composable
-private fun TabTransition(
+internal fun TabTransition(
     activeColor: Color,
     inactiveColor: Color,
     selected: Boolean,
