@@ -325,7 +325,7 @@ private fun BoxScope.PlaybackFeedbackOverlay(
 }
 
 @Composable
-private fun PauseIcon(
+internal fun PauseIcon(
     modifier: Modifier = Modifier,
 ) {
     Row(

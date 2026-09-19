@@ -1,35 +1,68 @@
 package com.ssafy.motif.feature.motif.impl.archive.component
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.motif.SavedMotif
-import com.ssafy.motif.core.ui.motif.MotifVideoSection
+import com.ssafy.motif.core.ui.video.ControllableVideoPlayer
+import com.ssafy.motif.core.ui.video.FullscreenVideoDialog
+import com.ssafy.motif.core.ui.video.rememberControllableVideoPlayerState
 import com.ssafy.motif.feature.motif.impl.archive.ArchiveMockData
 
 /**
- * 보관함 상단의 재생 영역. 선택된 [motif]를 자동 재생한다.
+ * 보관함 상단의 재생 영역. 선택된 [motif]를 소리 있게 자동 재생하고, 전체화면 진입을 처리한다.
  *
- * TODO 소리·재생 컨트롤·전체화면은 영상 플레이어 티켓에서 별도 컴포넌트로 교체 예정.
- *      그때까지는 마이페이지·아티스트 상세와 같은 MotifVideoSection(무음·반복)을 쓴다.
+ * [motif]가 바뀌면 같은 플레이어로 새 영상을 처음부터 재생한다.
  */
 @Composable
 internal fun ArchivePlayer(
     motif: SavedMotif,
     modifier: Modifier = Modifier,
 ) {
-    // 선택이 바뀌면 플레이어를 새로 만들어 새 영상을 처음부터 재생한다.
-    key(motif.id) {
-        MotifVideoSection(
-            videoId = motif.id.toString(),
-            videoUrl = motif.videoUrl,
-            thumbnailUrl = motif.thumbnailUrl,
-            modifier = modifier,
+    val playerState = rememberControllableVideoPlayerState(
+        videoId = motif.id.toString(),
+        videoUrl = motif.videoUrl,
+        thumbnailUrl = motif.thumbnailUrl,
+        initialMuted = false,
+    )
+
+    var isFullscreen by rememberSaveable { mutableStateOf(false) }
+
+    val playerModifier = modifier
+        .fillMaxWidth()
+        .aspectRatio(PlayerAspectRatio)
+
+    if (isFullscreen) {
+        // 플레이어 서피스는 한 곳에만 붙을 수 있으므로, 전체화면 중에는 인라인 자리를 비워 둔다.
+        Box(
+            modifier = playerModifier.background(Color.Black),
+        )
+
+        FullscreenVideoDialog(
+            state = playerState,
+            onDismiss = { isFullscreen = false },
+            aspectRatio = PlayerAspectRatio,
+        )
+    } else {
+        ControllableVideoPlayer(
+            state = playerState,
+            onFullscreenClick = { isFullscreen = true },
+            modifier = playerModifier,
         )
     }
 }
+
+private const val PlayerAspectRatio = 16f / 9f
 
 @Preview(showBackground = true)
 @Composable
