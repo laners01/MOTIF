@@ -51,6 +51,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
 import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
+import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentCard
 
 @Composable
 fun MyPageScreen(
@@ -353,7 +354,10 @@ private fun LikedChallengeContent(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // 댓글 박스 하단과 화면 하단 사이 간격
+            .padding(bottom = 126.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         LikedChallengeCarousel(
@@ -368,6 +372,16 @@ private fun LikedChallengeContent(
                 likeCount = challenge.likeCount,
                 modifier = Modifier.padding(top = 16.dp),
             )
+
+            // 댓글 없음과 무효 케이스를 모두 null로 받는다.
+            challenge.myComment?.let { myComment ->
+                MyCommentCard(
+                    myComment = myComment,
+                    onClick = { },   // TODO 댓글 위치 이동은 별도 티켓
+                    // 위 28dp는 좋아요 수와의 간격
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp),
+                )
+            }
         }
     }
 }
