@@ -12,6 +12,7 @@ import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateRequest;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRetryResponse;
 import com.ssafy.motif.coreapi.domain.composite.CompositeErrorCode;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
@@ -129,6 +130,43 @@ public class CompositeJobCommandService {
         job.queue(job.getJobType() == JobType.CHALLENGE
                 && body != null && body.correctionEnabledOrFalse());
         return new CompositeJobRequestResponse(jobUuid, JobStatus.QUEUED);
+    }
+
+    /**
+     * §13.4 재시도 — {@code FAILED → QUEUED}. <b>202 Accepted</b>.
+     *
+     * <p><b>같은 행을 재큐한다.</b> 새 잡을 만들지 않으므로 {@code jobUuid} 가 유지되고,
+     * 결과 프리픽스도 그 uuid 라 재합성이 같은 자리를 덮어쓴다(멱등).
+     *
+     * <p><b>여기서 AI 를 부르지 않는다.</b> 상태를 {@code QUEUED} 로 되돌리는 것까지가
+     * 전부고, 재접수는 디스패처(537)가 다음 틱에 같은 조립기로 한다 — §13.2 와 같은
+     * 이유다(요청 스레드에서 외부 HTTP 를 부르면 커밋 전에 콜백이 와서 404 를 받는다).
+     *
+     * <p>판정 순서는 명세의 실패표 순서다 — ① 상태 ② 원본 존재. 상태를 먼저 보는 것은
+     * {@code DONE} 인 잡에 S3 왕복을 쓰지 않으려는 것이고, 무엇보다 원본이 수명주기로
+     * 지워진 <b>성공한</b> 잡에 410 을 주면 "다시 촬영하라" 는 엉뚱한 안내가 된다.
+     *
+     * <p><b>시도 상한이 없다</b>(기본안). 디스패처의 {@code attempt < 3} 은 접수 실패
+     * 자동 재큐의 무한 루프를 막는 장치라 별개다 — 사용자가 직접 누르는 재시도까지
+     * 막을 이유가 없다(§13.4 트레이드오프).
+     *
+     * @throws BusinessException 404 {@code JOB_NOT_FOUND} · 409 {@code JOB_NOT_RETRYABLE} ·
+     *                           410 {@code RAW_VIDEO_EXPIRED}
+     */
+    public CompositeJobRetryResponse retry(Integer userSeq, UUID jobUuid) {
+        CompositeJob job = ownedJob(userSeq, jobUuid);
+        if (job.getStatus() != JobStatus.FAILED) {
+            throw new BusinessException(CompositeErrorCode.JOB_NOT_RETRYABLE,
+                    "status: " + job.getStatus());
+        }
+        // 410 은 "있었지만 이제 없다" 다 — raw/ 수명주기가 지웠다. 클라이언트는 재시도
+        // 버튼을 숨기고 재촬영을 안내한다(§13.4)
+        if (!objectStore.exists(job.getRawVideoKey())) {
+            throw new BusinessException(CompositeErrorCode.RAW_VIDEO_EXPIRED,
+                    "rawVideoKey: " + job.getRawVideoKey());
+        }
+        job.retry();
+        return new CompositeJobRetryResponse(jobUuid, JobStatus.QUEUED, job.getAttempt());
     }
 
     /**
