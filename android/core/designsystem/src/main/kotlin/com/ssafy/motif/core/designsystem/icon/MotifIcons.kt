@@ -39,6 +39,9 @@ object MotifIcons {
     val FilledPlay = R.drawable.ic_filled_play_24
 
     @DrawableRes
+    val FilledStar = R.drawable.ic_filled_star_24
+
+    @DrawableRes
     val PlayOutline = R.drawable.ic_play_outline_24
 
     @DrawableRes
