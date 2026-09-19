@@ -77,11 +77,26 @@ public class CompositeJobDispatcher {
      * <p>{@code attempt} 를 먼저 올리고 <b>커밋한 뒤</b> 접수한다. 순서가 반대면 접수가
      * 성공해 {@code markSubmitted()} 가 {@code REQUIRES_NEW} 로 도는 사이 바깥
      * 트랜잭션이 아직 열려 있어, 두 트랜잭션이 같은 행을 두고 엇갈린다.
+     *
+     * <p><b>접수 URL 이 없으면 아무것도 하지 않는다.</b> {@code attempt} 를 올리지 않는
+     * 것이 핵심이다 — 올리면 부를 곳도 없는 잡이 3틱 만에 전부 {@code STUCK} 으로 닫히고
+     * 사용자에게 실패 푸시가 나간다. AI 주소는 접수 서비스가 준비되면 들어오는 값이라
+     * (작업명세 §8 #4 미결) 그때까지 잡을 <b>기다리게</b> 두는 것이 맞다.
      */
     private void resubmitQueued() {
         Instant before = Instant.now().minus(properties.requeueAfter());
         List<CompositeJob> stuck = compositeJobRepository.findStuckQueued(
                 before, PageRequest.of(0, BATCH_SIZE));
+        if (stuck.isEmpty()) {
+            return;
+        }
+        if (!properties.hasSubmitUrl()) {
+            // 대기 중인 잡이 있을 때만 남긴다 — 매 틱 찍으면 하루 1440줄이 되고,
+            // 정작 잡이 밀리기 시작한 순간이 그 안에 묻힌다
+            log.warn("motif.composite.submit-url 이 비어 있다 — 재접수를 건너뛴다({}건 대기). "
+                    + "attempt 를 올리지 않으므로 STUCK 으로 닫히지 않는다", stuck.size());
+            return;
+        }
         for (CompositeJob job : stuck) {
             try {
                 if (job.getAttempt() >= MAX_ATTEMPT) {
