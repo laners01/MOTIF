@@ -2,19 +2,30 @@ package com.ssafy.motif.coreapi.domain.video.service;
 
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.domain.composite.CompositeErrorCode;
 import com.ssafy.motif.coreapi.domain.video.VideoErrorCode;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
+import com.ssafy.motif.domain.core.job.CompositeJob;
+import com.ssafy.motif.domain.core.job.CompositeJobRepository;
+import com.ssafy.motif.domain.core.job.JobType;
+import com.ssafy.motif.domain.core.user.UserRole;
 import com.ssafy.motif.domain.core.video.ParticipationVideo;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import com.ssafy.motif.domain.core.video.VideoFeedRow;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 참여 영상에 붙는 쓰기 (API 명세 §8.6 · §8.9 · §8.10).
+ * 참여 영상에 붙는 쓰기 (API 명세 §8.6 · §8.8 · §8.9 · §8.10).
  *
  * <p><b>{@link VideoQueryService} 와 나란한 별개 서비스다.</b> 그쪽은
  * {@code @Transactional(readOnly = true)} 로 선언돼 있어 쓰기를 한 줄이라도 섞으면 그
@@ -33,9 +44,100 @@ public class VideoCommandService {
     private final VideoAccessGuard accessGuard;
     private final ParticipationVideoRepository participationVideoRepository;
     private final ChallengeRepository challengeRepository;
+    private final CompositeJobRepository compositeJobRepository;
 
     /** 수정 응답은 §8.2 와 <b>같은 경로</b>로 읽는다 — 이유는 {@link #update} javadoc 에 있다. */
     private final VideoQueryService videoQueryService;
+
+    /**
+     * §8.8 게시 — 합성이 끝난 잡을 참여 영상으로 만든다. <b>201 Created</b>.
+     *
+     * <p><b>바이트를 옮기지 않는다.</b> 산출물은 이미 {@code private/challenge/{jobUuid}/}
+     * 에 있고, 게시는 그것을 가리키는 행을 만들고 {@code visibility} 를 정하는 일까지다
+     * (ADR-0013). <b>공개 사본 트리도 복사기도 없다</b> — {@code visibility} 는 앱 안의
+     * 공개 범위이고 전송 등급은 서명이 맡는다.
+     *
+     * <p>판정 순서는 명세의 서버 처리 순서 그대로다.
+     *
+     * <ol>
+     *   <li>{@code ARTIST} 면 403 — 아티스트 계정은 참여 영상을 게시할 수 없다</li>
+     *   <li>본인 {@code CHALLENGE}·{@code DONE} 잡인가</li>
+     *   <li>원본 챌린지가 살아 있는가 — 가공 중에 어드민이 지웠을 수 있다</li>
+     *   <li>행 생성 + {@code participant_count + 1}</li>
+     * </ol>
+     *
+     * <p><b>중복 게시는 유니크 제약이 잡는다.</b> 미리 조회해 막으면 동시 요청 둘이 모두
+     * 통과한 뒤 두 번째가 제약 위반 500 이 된다 — {@code uq_participation_videos_job} 을
+     * 판정 근거로 삼고 충돌을 409 로 번역한다.
+     *
+     * @throws BusinessException 403 {@code FORBIDDEN} · 404 {@code JOB_NOT_FOUND} ·
+     *                           409 {@code JOB_NOT_DONE} / {@code ALREADY_PUBLISHED} /
+     *                           {@code CHALLENGE_DELETED}
+     */
+    public VideoPublishResponse publish(AuthenticatedUser user, VideoPublishRequest request) {
+        if (user.role() == UserRole.ARTIST) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN,
+                    "아티스트 계정은 참여 영상을 게시할 수 없다: userSeq=" + user.userSeq());
+        }
+        CompositeJob job = compositeJobRepository.findByJobUuid(request.jobUuid())
+                .filter(candidate -> candidate.isOwnedBy(user.userSeq()))
+                .filter(candidate -> candidate.getJobType() == JobType.CHALLENGE)
+                .orElseThrow(() -> new BusinessException(
+                        CompositeErrorCode.JOB_NOT_FOUND, "jobUuid: " + request.jobUuid()));
+        if (!job.isDone()) {
+            throw new BusinessException(VideoErrorCode.JOB_NOT_DONE, "status: " + job.getStatus());
+        }
+        // 가공이 도는 사이 어드민이 지웠을 수 있다 — 189 의 packaged 가 보는 것과 같은 조건
+        Challenge challenge = challengeRepository
+                .findByChallengeSeqAndDeletedFalse(job.getChallengeSeq())
+                .orElseThrow(() -> new BusinessException(VideoErrorCode.CHALLENGE_DELETED,
+                        "challengeSeq: " + job.getChallengeSeq()));
+
+        ParticipationVideo video = ParticipationVideo.publish(
+                challenge.getChallengeSeq(),
+                // 잡에는 없는 값이다 — 게시자는 팬이고 아티스트는 챌린지가 갖는다
+                challenge.getArtistSeq(),
+                user.userSeq(),
+                job.getJobSeq(),
+                request.description(),
+                // 잡 결과를 그대로 가리킨다 — 키를 만들지도 옮기지도 않는다
+                job.getResultVideoKey(),
+                job.getResultThumbnailKey(),
+                // 잡에 길이 칸이 없다(기본안)
+                challenge.getDurationMs(),
+                request.visibility(),
+                request.commentEnabled());
+        try {
+            participationVideoRepository.saveAndFlush(video);
+        } catch (DataIntegrityViolationException e) {
+            // 제약 이름을 확인하고 번역한다. 무엇이든 ALREADY_PUBLISHED 로 접으면 NOT NULL·
+            // CHECK 위반 같은 우리 버그가 "이미 게시됨" 으로 위장한다 — 실제로 한 번 겪었다
+            if (!isDuplicateJob(e)) {
+                throw e;
+            }
+            throw new BusinessException(VideoErrorCode.ALREADY_PUBLISHED,
+                    "jobUuid: " + request.jobUuid());
+        }
+        challengeRepository.incrementParticipantCount(challenge.getChallengeSeq());
+
+        return new VideoPublishResponse(video.getVideoSeq());
+    }
+
+    /**
+     * {@code uq_participation_videos_job} 위반인가 — 다른 제약이면 감추지 않고 올린다.
+     *
+     * <p><b>원인 체인을 훑는다.</b> {@code getMostSpecificCause()} 는 <b>최하위</b>
+     * ({@code PSQLException})를 주는데 제약 이름을 들고 있는 것은 그 위의 Hibernate
+     * {@link ConstraintViolationException} 이다.
+     */
+    private static boolean isDuplicateJob(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation) {
+                return "uq_participation_videos_job".equalsIgnoreCase(violation.getConstraintName());
+            }
+        }
+        return false;
+    }
 
     /**
      * §8.6 관심 없음 — 이후 §8.1 피드에서 뺀다.

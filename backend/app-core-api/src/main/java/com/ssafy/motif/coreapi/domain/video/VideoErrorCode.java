@@ -24,7 +24,21 @@ public enum VideoErrorCode implements ErrorCode {
      * 미존재 · 삭제 영상 · 삭제 사용자의 콘텐츠 · <b>타인의 {@code PRIVATE}</b> ·
      * 삭제된 챌린지 소속 (API 명세 §8.2).
      */
-    VIDEO_NOT_FOUND(404, "VIDEO_NOT_FOUND", "존재하지 않는 영상입니다.");
+    VIDEO_NOT_FOUND(404, "VIDEO_NOT_FOUND", "존재하지 않는 영상입니다."),
+
+    /** 게시하려는 잡이 {@code DONE} 이 아님 — 진행 중·실패 (API 명세 §8.8). */
+    JOB_NOT_DONE(409, "JOB_NOT_DONE", "합성이 완료되지 않았습니다."),
+
+    /**
+     * 이미 게시된 잡 (§8.8).
+     *
+     * <p>판정은 {@code uq_participation_videos_job} 이 한다 — 미리 조회해 막으면 동시
+     * 요청 둘이 모두 통과한 뒤 두 번째가 제약 위반 500 이 된다.
+     */
+    ALREADY_PUBLISHED(409, "ALREADY_PUBLISHED", "이미 게시된 영상입니다."),
+
+    /** 게시 시점에 원본 챌린지가 삭제됨 (§8.8). 클라이언트는 "삭제된 챌린지" 를 안내한다. */
+    CHALLENGE_DELETED(409, "CHALLENGE_DELETED", "삭제된 챌린지입니다.");
 
     private final int status;
     private final String code;

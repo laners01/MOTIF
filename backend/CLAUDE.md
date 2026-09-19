@@ -210,7 +210,10 @@ objectStore.exists(key);                                        // 403 을 "없�
 ```java
 // 이미지 URL 을 만들 때 — 공개/보호 판정을 직접 하지 않는다. 키 프리픽스가 등급이다
 mediaUrlResolver.resolve(video.getThumbnailKey());   // private/ 면 서명, 아니면 무서명
-// visibility 로 가르면 안 된다 — PUBLIC 게시는 public/ 으로 '복사'만 하고 키를 안 바꾼다.
+// visibility 로 가르면 안 된다 — 참여 영상 산출물은 게시 여부와 무관하게 private/ 한
+// 곳에 머문다. 공개 사본 트리(public/)는 ADR-0013 이 폐기했다: 복사기도 무효화도 없고
+// MediaKeys.forPublishedChallenge 도 삭제됐다. visibility 는 앱 안의 공개 범위일 뿐이고
+// 전송 등급은 서명이 맡는다 — 되살리면 §8.10 삭제가 공개 사본을 못 닫는다.
 // PublicMediaUrlResolver·ProtectedMediaUrlResolver 를 호출부에서 직접 고르지 말 것.
 // S3 presigned GET 은 어느 등급에도 쓰지 않는다 — CDN 캐시 적중률이 0% 가 된다(§1.7)
 
