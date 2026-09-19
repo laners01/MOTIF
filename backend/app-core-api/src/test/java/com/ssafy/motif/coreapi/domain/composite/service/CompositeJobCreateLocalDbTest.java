@@ -73,6 +73,9 @@ class CompositeJobCreateLocalDbTest {
 
     private static final String UPLOAD_URL = "https://motif-media.s3.test/raw/x.mp4?X-Amz-Signature=stub";
 
+    /** 20MB — 폰 촬영본 정도. 상한(300MB) 안이다. */
+    private static final long UPLOAD_SIZE = 20L * 1024 * 1024;
+
     @Autowired
     private CompositeJobCommandService compositeJobCommandService;
     @Autowired
@@ -167,11 +170,15 @@ class CompositeJobCreateLocalDbTest {
         CompositeJobCreateResponse response = create(challengeRequest(newChallenge(), 0));
 
         ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Long> size = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<Duration> ttl = ArgumentCaptor.forClass(Duration.class);
         verify(objectStore).presignPut(key.capture(), org.mockito.ArgumentMatchers.eq("video/mp4"),
-                anyLong(), ttl.capture());
+                size.capture(), ttl.capture());
 
         assertThat(key.getValue()).isEqualTo("raw/" + response.jobUuid() + ".mp4");
+        // 상한이 아니라 클라이언트가 보낸 크기여야 한다 — 서명된 Content-Length 는
+        // "이하" 가 아니라 "정확히" 라서, 상한을 박으면 그 크기 파일만 올라간다
+        assertThat(size.getValue()).isEqualTo(UPLOAD_SIZE);
         assertThat(ttl.getValue()).isEqualTo(Duration.ofSeconds(600));
         assertThat(response.expiresIn()).isEqualTo(600);
         assertThat(response.uploadUrl()).isEqualTo(UPLOAD_URL);
@@ -180,10 +187,27 @@ class CompositeJobCreateLocalDbTest {
     @Test
     @DisplayName("반대 형태의 칸은 무시하지 않고 400 으로 거절한다 — DB CHECK 와 같은 모양")
     void wrongShapeIsRejected() {
-        assertFails(new CompositeJobCreateRequest(JobType.CHALLENGE, null, 1, null),
+        assertFails(new CompositeJobCreateRequest(JobType.CHALLENGE, null, 1, null, UPLOAD_SIZE),
                 CommonErrorCode.INVALID_PARAMETER);
-        assertFails(new CompositeJobCreateRequest(JobType.MOTIF, 1, 1, null),
+        assertFails(new CompositeJobCreateRequest(JobType.MOTIF, 1, 1, null, UPLOAD_SIZE),
                 CommonErrorCode.INVALID_PARAMETER);
+    }
+
+    @Test
+    @DisplayName("상한을 넘는 크기는 400 — data.maxBytes 로 한도를 알려주고 잡을 만들지 않는다")
+    void oversizedUploadIsRejected() {
+        long tooBig = 301L * 1024 * 1024;
+
+        assertThatThrownBy(() -> create(new CompositeJobCreateRequest(
+                JobType.CHALLENGE, newChallenge(), null, 0, tooBig)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException business = (BusinessException) e;
+                    assertThat(business.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_PARAMETER);
+                    assertThat(business.getData()).isNotNull();
+                });
+        verify(objectStore, org.mockito.Mockito.never())
+                .presignPut(anyString(), anyString(), anyLong(), any(Duration.class));
     }
 
     // --- MOTIF (246) -------------------------------------------------------------
@@ -249,11 +273,11 @@ class CompositeJobCreateLocalDbTest {
     }
 
     private static CompositeJobCreateRequest challengeRequest(Integer challengeSeq, Integer mask) {
-        return new CompositeJobCreateRequest(JobType.CHALLENGE, challengeSeq, null, mask);
+        return new CompositeJobCreateRequest(JobType.CHALLENGE, challengeSeq, null, mask, UPLOAD_SIZE);
     }
 
     private static CompositeJobCreateRequest motifRequest(Integer assetSeq) {
-        return new CompositeJobCreateRequest(JobType.MOTIF, null, assetSeq, null);
+        return new CompositeJobCreateRequest(JobType.MOTIF, null, assetSeq, null, UPLOAD_SIZE);
     }
 
     private CompositeJob job(UUID jobUuid) {

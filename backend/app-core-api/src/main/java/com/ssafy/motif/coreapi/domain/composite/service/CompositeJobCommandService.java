@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -49,6 +50,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional
 public class CompositeJobCommandService {
+
+    /** 촬영본은 폰이 만든 MP4 다 — 종류가 갈리지 않아 서버가 고정한다(키도 {@code .mp4}). */
+    private static final String RAW_CONTENT_TYPE = "video/mp4";
 
     private final CompositeJobRepository compositeJobRepository;
     private final ChallengeRepository challengeRepository;
@@ -85,6 +89,8 @@ public class CompositeJobCommandService {
                     shapeErrors);
         }
 
+        verifySize(request.contentLength());
+
         UUID jobUuid = UUID.randomUUID();
         String rawKey = MediaKeys.forRawUpload(jobUuid.toString());
         CompositeJob job = switch (request.jobType()) {
@@ -99,9 +105,35 @@ public class CompositeJobCommandService {
         Duration ttl = mediaProperties.video().presignTtl();
         return new CompositeJobCreateResponse(
                 jobUuid,
-                objectStore.presignPut(rawKey, "video/mp4",
-                        mediaProperties.video().maxSize().toBytes(), ttl),
+                // 클라이언트가 선언한 크기를 그대로 서명에 박는다 — 상한값을 넣으면
+                // 그 크기 파일만 올라간다(verify 참고)
+                objectStore.presignPut(rawKey, RAW_CONTENT_TYPE, request.contentLength(), ttl),
                 ttl.toSeconds());
+    }
+
+    /**
+     * 크기 상한 확인 — <b>발급 전에</b> 본다 (§13.1).
+     *
+     * <p><b>왜 클라이언트가 크기를 보내야 하나.</b> SigV4 에서 서명된
+     * {@code Content-Length} 는 "이하" 가 아니라 <b>정확히 일치</b>다. 서버가 상한값을
+     * 대신 박으면 그 크기(300MB)짜리 파일만 올라가고 나머지는 전부 403
+     * {@code SignatureDoesNotMatch} 다 — 2026-09-19 에 실제로 그 상태였다.
+     * 어드민 업로드({@code AdminMediaService})·프로필 업로드({@code UserProfileImageService})가
+     * 처음부터 이 방식이었다.
+     *
+     * <p>여기서 통과한 값이 <b>서명에 박혀</b> S3 에서 한 번 더 강제된다 — 여기서만
+     * 막으면 발급된 URL 로 다른 크기를 올릴 수 있다.
+     *
+     * <p>팬 API 라 §1.5 공통 {@code INVALID_PARAMETER} 다 — 어드민의
+     * {@code MEDIA_TYPE_NOT_ALLOWED} 를 팬 앱 응답으로 내보내지 않는다.
+     */
+    private void verifySize(long contentLength) {
+        long maxBytes = mediaProperties.video().maxSize().toBytes();
+        if (contentLength > maxBytes) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "크기 상한 초과: contentLength=%d max=%d".formatted(contentLength, maxBytes),
+                    Map.of("maxBytes", maxBytes));
+        }
     }
 
     /**

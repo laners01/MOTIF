@@ -89,18 +89,24 @@ public interface CompositeJobControllerDocs {
             오늘 내려갔다고 내 촬영이 막히면 안 된다. §11.2 상세가 그 에셋을 404 로 숨기는 것과
             다른 판정이고, 의도된 차이다.
 
-            ### uploadUrl
+            ### uploadUrl 과 contentLength
 
-            **`video/mp4` · 크기 상한이 서명에 박혀 있다.** 다른 Content-Type 이나 상한을 넘는
-            크기로 PUT 하면 S3 가 거부한다 — 서버가 바이트를 보지 못하므로 이것이 유일한 강제
-            수단이다. 만료(`expiresIn` 초)가 지나면 §13.1 부터 다시 부른다.
+            **`video/mp4` 와 `contentLength` 가 서명에 박힌다.** PUT 할 때 두 값이 정확히
+            같아야 하며, 다르면 S3 가 403 `SignatureDoesNotMatch` 로 거부한다 — 서버가
+            바이트를 보지 못하므로 이것이 유일한 강제 수단이다.
+
+            **서명된 `Content-Length` 는 상한이 아니라 정확한 값이다.** 그래서 클라이언트가
+            실제 파일 크기를 보내야 한다(어드민 §1.4·프로필 §4.3 과 같은 방식). 상한을 넘으면
+            400 `INVALID_PARAMETER` 이고 `data.maxBytes` 에 한도가 실린다.
+
+            만료(`expiresIn` 초)가 지나면 §13.1 부터 다시 부른다.
             """;
 
     String REQUEST_CHALLENGE_EXAMPLE = """
-            { "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 3 }""";
+            { "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 3, "contentLength": 20971520 }""";
 
     String REQUEST_MOTIF_EXAMPLE = """
-            { "jobType": "MOTIF", "assetSeq": 21 }""";
+            { "jobType": "MOTIF", "assetSeq": 21, "contentLength": 20971520 }""";
 
     String CREATE_EXAMPLE = """
             {
@@ -161,7 +167,7 @@ public interface CompositeJobControllerDocs {
                             examples = @ExampleObject(value = CREATE_EXAMPLE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "jobType 없음 · 형태 불일치 · participantMask 가 음수 (`INVALID_PARAMETER`)",
+                    description = "jobType 없음 · 형태 불일치 · participantMask 가 음수 · contentLength 가 0 이하이거나 상한 초과 (`INVALID_PARAMETER`)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = FailResponseSchema.class),
                             examples = @ExampleObject(value = SHAPE_FAIL_EXAMPLE))),

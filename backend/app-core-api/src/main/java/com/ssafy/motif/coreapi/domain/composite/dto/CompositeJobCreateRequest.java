@@ -4,6 +4,7 @@ import com.ssafy.motif.common.error.FieldErrorResponse;
 import com.ssafy.motif.domain.core.job.JobType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.util.ArrayList;
@@ -25,6 +26,11 @@ import java.util.List;
  * @param challengeSeq    CHALLENGE 일 때 필수 — 대상 챌린지
  * @param assetSeq        MOTIF 일 때 필수 — 대상 에셋
  * @param participantMask CHALLENGE 의 교체 슬롯 조합(비트 OR 합). {@code 0}·생략은 무교체다
+ * @param contentLength   올릴 촬영본의 바이트 수. <b>이 값이 presigned URL 서명에 박힌다</b> —
+ *                        SigV4 의 서명된 {@code Content-Length} 는 상한이 아니라 <b>정확히
+ *                        일치</b>해야 하므로, 서버가 상한값을 대신 넣으면 그 크기 파일만
+ *                        올라간다(2026-09-19 에 실제로 그랬다). 어드민 업로드(§1.4)·프로필
+ *                        업로드(§4.3)와 같은 방식이다
  */
 @Schema(description = "합성 잡 생성 요청 (§13.1) — CHALLENGE 와 MOTIF 두 형태")
 public record CompositeJobCreateRequest(
@@ -46,7 +52,14 @@ public record CompositeJobCreateRequest(
                 0 이거나 생략하면 무교체(원본 위 합성)다. MOTIF 에서는 무시된다""",
                 example = "3")
         @PositiveOrZero
-        Integer participantMask
+        Integer participantMask,
+
+        @Schema(description = """
+                올릴 촬영본의 바이트 수. 이 값이 서명에 박히므로 PUT 의 Content-Length 와
+                정확히 같아야 한다 — 다르면 S3 가 403 으로 거부한다""",
+                example = "20971520")
+        @Positive
+        long contentLength
 ) {
 
     /** 무교체 — {@code edited_challenge_seq = NULL} 로 원본 위에 합성한다 (§13.1). */
