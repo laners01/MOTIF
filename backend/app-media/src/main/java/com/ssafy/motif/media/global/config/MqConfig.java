@@ -12,6 +12,8 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.slf4j.MDC;
+import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.boot.amqp.autoconfigure.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -64,6 +66,27 @@ public class MqConfig {
         typeMapper.setTrustedPackages(MediaJobRequestedEvent.class.getPackageName());
         converter.setJavaTypeMapper(typeMapper);
         return converter;
+    }
+
+    /**
+     * 발행 시 {@code x-request-id} 를 이어붙인다 — core-api {@code MqJacksonConfig} 와 같은 방식.
+     *
+     * <p><b>{@code RabbitTemplate} 을 직접 만들지 않는다.</b> Boot 자동구성이 위
+     * {@link #mqMessageConverter} 빈을 집어 쓰므로 필요한 것은 post-processor 하나다 —
+     * 직접 만들면 Boot 가 챙기는 설정(연결·리트라이·옵저버빌리티)을 전부 다시 써야 한다.
+     *
+     * <p>MDC 값은 {@code MediaJobListener} 가 {@code job.media} 헤더에서 복원해 둔 것이다.
+     * 그래서 API → 큐 → app-media → {@code composite.packaged} → core 가 한 ID 로 이어진다.
+     */
+    @Bean
+    public RabbitTemplateCustomizer requestIdPropagatingCustomizer() {
+        return template -> template.setBeforePublishPostProcessors(message -> {
+            String requestId = MDC.get("requestId");
+            if (requestId != null) {
+                message.getMessageProperties().setHeader("x-request-id", requestId);
+            }
+            return message;
+        });
     }
 
     @Bean

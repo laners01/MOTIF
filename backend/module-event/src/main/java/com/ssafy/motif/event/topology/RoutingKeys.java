@@ -52,6 +52,26 @@ public final class RoutingKeys {
     /** GPU 워커의 합성 완료 발행 — COMPOSITE_PATTERN에 매칭된다. */
     public static final String COMPOSITE_DONE = "composite.done";
 
+    /**
+     * 가공 완료 — app-media → core (S15P21D104-189).
+     *
+     * <p>{@link #COMPOSITE_PATTERN} 에 걸리므로 <b>브로커 변경이 필요 없다</b>.
+     * 바인딩을 늘리려면 재기동이라 키를 기존 패턴 안으로 넣는다({@link #REPLY_CREATED}
+     * 와 같은 판단).
+     *
+     * <p>{@code evt.notification} 에도 같이 떨어진다 — 알림 리스너가 debug 로그만 남기고
+     * 흘린다(319). 거기서 {@code default → throw} 에 걸리면 DLQ 로 간다.
+     */
+    public static final String COMPOSITE_PACKAGED = "composite.packaged";
+
+    /**
+     * 합성 종료(DONE·FAILED) — core → 알림 (S15P21D104-318).
+     *
+     * <p>{@link #COMPOSITE_PATTERN} 에 걸려 {@code evt.core} 에도 떨어진다 — core 가 낸
+     * 것을 core 가 다시 받는 모양이라 자기 리스너는 ack 만 한다.
+     */
+    public static final String COMPOSITE_FINISHED = "composite.finished";
+
     // ── DLX 라우팅 (definitions.json의 x-dead-letter-routing-key) ──
     public static final String DLQ_JOB_COMPOSITE = "dlq.job.composite";
     public static final String DLQ_JOB_MEDIA = "dlq.job.media";

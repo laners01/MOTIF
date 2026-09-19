@@ -80,6 +80,26 @@ final class Ffmpeg {
         }
     }
 
+    /**
+     * 길이(ms) — {@code motif_results.duration_ms} 의 출처다 (S15P21D104-249).
+     *
+     * <p><b>산출물이 아니라 원본에서 잰다.</b> HLS 는 조각이 흩어져 있어 한 번에 재려면
+     * 재생목록을 파싱해야 하고, 값도 세그먼트 경계로 반올림된다.
+     *
+     * <p>길이를 못 읽으면 {@code null} 이다 — 던지지 않는다. 가공 자체는 이미 끝났는데
+     * 부가 정보 하나 때문에 잡 전체를 DLQ 로 보낼 이유가 없다. 받는 쪽이 에셋 길이로
+     * 갈음한다(작업명세 §4.4).
+     */
+    Integer duration(Path file) {
+        String v = probe(List.of("-v", "error", "-show_entries", "format=duration",
+                "-of", "default=nw=1:nk=1", file.toString()));
+        try {
+            return (int) Math.round(Double.parseDouble(v) * 1000);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /** {@code 406x720} 형태. */
     String resolution(Path file) {
         return probe(List.of("-v", "error", "-select_streams", "v:0",

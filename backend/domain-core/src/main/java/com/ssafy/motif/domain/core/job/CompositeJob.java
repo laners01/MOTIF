@@ -152,6 +152,95 @@ public class CompositeJob extends BaseTimeEntity {
         this.status = JobStatus.QUEUED;
     }
 
+    /**
+     * {@code QUEUED → PROCESSING} — <b>"AI 에 접수됐다"</b> (작업명세 §2).
+     *
+     * <p>명세의 "워커 처리 중" 과 같은 뜻이고, AI 가 돌든 app-media 가 HLS 를 만들든
+     * 이 상태다. 앱은 {@code QUEUED} 와 함께 "진행 중" 하나로 그린다.
+     *
+     * <p><b>{@code FAILED} 에서도 받는다.</b> 스윕이 {@code STUCK} 으로 닫은 뒤 늦은
+     * 콜백이 오는 경우가 있는데, 결과는 실물이라 버리지 않는다(§4.7 마지막 항목).
+     * 실패 푸시 뒤에 완료 푸시가 한 번 더 가는 것은 감수한다.
+     *
+     * <p>{@code fail_code} 를 지운다 — {@code ck_composite_jobs_status_shape} 가
+     * {@code PROCESSING} 행에 그 칸이 차 있는 것을 허용하지 않는다.
+     */
+    public void markSubmitted() {
+        if (status != JobStatus.QUEUED && status != JobStatus.PROCESSING
+                && status != JobStatus.FAILED) {
+            throw new IllegalStateException("접수 상태로 만들 수 없다: " + status);
+        }
+        this.failCode = null;
+        this.status = JobStatus.PROCESSING;
+    }
+
+    /**
+     * {@code → DONE} + 산출물 키 — <b>한 UPDATE 로 함께 쓴다</b> (작업명세 §7 함정 4).
+     *
+     * <p>{@code ck_composite_jobs_status_shape} 가 "{@code DONE} 이면 키 둘 다 NOT NULL"
+     * 을 강제하므로 <b>상태와 키를 따로 쓰면 반드시 걸린다</b>. app-media 가 그렇게
+     * 죽어 있었다 — {@code PROCESSING} 행에 키만 써서 한 번도 성공하지 못했다.
+     *
+     * <p>이미 {@code DONE} 이면 호출부가 먼저 걸러야 한다 — 중복 {@code packaged} 는
+     * 재처리가 아니라 무시다.
+     */
+    public void complete(String masterKey, String thumbnailKey) {
+        if (masterKey == null || thumbnailKey == null) {
+            throw new IllegalArgumentException("DONE 에는 산출물 키 둘 다 필요하다");
+        }
+        if (status == JobStatus.DONE) {
+            throw new IllegalStateException("이미 완료된 잡이다");
+        }
+        this.resultVideoKey = masterKey;
+        this.resultThumbnailKey = thumbnailKey;
+        this.failCode = null;
+        this.status = JobStatus.DONE;
+    }
+
+    /**
+     * {@code → FAILED} + 사유 — 산출물 키를 <b>지운다</b>.
+     *
+     * <p>{@link #complete} 와 대칭이다. CHECK 가 {@code FAILED} 행에 결과 키가 남아 있는
+     * 것을 허용하지 않으므로, 재시도 뒤 실패한 잡의 옛 키를 비워야 한다.
+     *
+     * <p>서버가 붙이는 코드는 {@code CHALLENGE_DELETED}·{@code PACKAGING_FAILED}·
+     * {@code STUCK} 이고, 나머지는 AI 가 준 값이다(AI 서버 명세 §6).
+     */
+    public void fail(String failCode) {
+        if (failCode == null || failCode.isBlank()) {
+            throw new IllegalArgumentException("FAILED 에는 사유 코드가 필요하다");
+        }
+        this.resultVideoKey = null;
+        this.resultThumbnailKey = null;
+        this.failCode = failCode;
+        this.status = JobStatus.FAILED;
+    }
+
+    /**
+     * {@code FAILED → QUEUED} + {@code attempt + 1} (API 명세 §13.4).
+     *
+     * <p><b>같은 행을 재큐한다</b> — 새 잡을 만들지 않으므로 {@code jobUuid} 가 유지되고
+     * 클라이언트가 들고 있던 식별자를 계속 쓴다. 결과 프리픽스도 그 uuid 라 재합성이
+     * 같은 자리를 덮어쓴다.
+     *
+     * <p>직전 실패 사유는 여기서 지워진다 — 이력이 필요하면 로그·이벤트로 남긴다(§13.4).
+     */
+    public void retry() {
+        if (status != JobStatus.FAILED) {
+            throw new IllegalStateException("실패한 잡만 재시도할 수 있다: " + status);
+        }
+        this.failCode = null;
+        this.attempt = (short) (attempt + 1);
+        this.status = JobStatus.QUEUED;
+    }
+
+    /** 워커가 보고한 처리 시간. 상태와 무관한 기록이라 전이와 분리한다. */
+    public void recordProcessingMs(Integer processingMs) {
+        if (processingMs != null && processingMs >= 0) {
+            this.processingMs = processingMs;
+        }
+    }
+
     /** 산출물이 준비됐는가. 재생목록·썸네일을 읽기 전에 이걸 먼저 본다. */
     public boolean isDone() {
         return status == JobStatus.DONE;
