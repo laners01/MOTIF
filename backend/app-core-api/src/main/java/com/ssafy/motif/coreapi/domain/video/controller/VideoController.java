@@ -4,6 +4,8 @@ import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.video.docs.VideoControllerDocs;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
 import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
@@ -48,6 +50,24 @@ public class VideoController implements VideoControllerDocs {
     private final VideoLikeService videoLikeService;
     private final VideoCommandService videoCommandService;
     private final VideoReportService videoReportService;
+
+    /**
+     * §8.8 게시 — <b>201 Created</b>. 합성이 끝난 잡을 참여 영상으로 만든다.
+     *
+     * <p>제목의 "업로드" 는 바이트가 아니라 <b>게시</b>다 — 영상은 §13.1 presign 으로
+     * 이미 S3 에 있다.
+     *
+     * <p>{@code AuthenticatedUser} 를 통째로 넘기는 것은 <b>role 로 거르기 때문</b>이다
+     * (ARTIST 는 403). 다른 메서드는 {@code userSeq} 만 쓴다.
+     */
+    @Override
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<VideoPublishResponse> publish(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody VideoPublishRequest request) {
+        return ApiResponse.success(videoCommandService.publish(user, request));
+    }
 
     /** §8.2 참여 영상 단건 — 뷰어 오버레이. */
     @Override

@@ -15,6 +15,20 @@ import java.util.Optional;
 public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
 
     /**
+     * 참여 수 증가 — 참여 영상이 게시될 때 (API 명세 §8.8 · DB §26).
+     *
+     * <p>UPDATE 한 문장이다 — 엔티티를 읽어 +1 하고 저장하면 동시 게시에 유실된다
+     * ({@link #decrementParticipantCount} 와 같은 이유).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Challenge c
+               set c.participantCount = c.participantCount + 1
+             where c.challengeSeq = :challengeSeq
+            """)
+    int incrementParticipantCount(@Param("challengeSeq") Integer challengeSeq);
+
+    /**
      * 참여 수 감소 — 참여 영상이 처음 삭제될 때 (어드민 명세 §3.13.3 · DB §26).
      *
      * <p><b>0 아래로 내려가지 않는다.</b> {@code participant_count > 0} 조건이 바닥을

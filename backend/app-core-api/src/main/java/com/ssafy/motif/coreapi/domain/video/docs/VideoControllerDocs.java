@@ -2,6 +2,8 @@ package com.ssafy.motif.coreapi.domain.video.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoItem;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
@@ -449,5 +451,111 @@ public interface VideoControllerDocs {
     })
     void unlike(@Parameter(hidden = true) AuthenticatedUser user,
                 @Parameter(description = "참여 영상 식별자", example = "9001") Long videoSeq);
+
+    // ---------------------------------------------------------------------------------
+    // 8.8 게시
+    // ---------------------------------------------------------------------------------
+
+    String PUBLISH_DESCRIPTION = """
+            합성이 끝난 잡(§13)의 결과물을 **참여 영상으로 게시**한다.
+
+            제목의 "업로드" 는 바이트가 아니라 **게시**다 — 촬영본도 합성 산출물도 §13.1
+            presign 으로 이미 S3 에 있다. 이 API 는 그것을 가리키는 행을 만든다.
+
+            - **인증 필요.** 본인 잡만 게시할 수 있다.
+            - **`title` 은 받지 않는다** (R3 — 컬럼이 삭제됐다).
+            - **201 Created.** 클라이언트는 `videoSeq` 로 전체 화면 뷰어(§8.2)로 이동한다.
+
+            ### 서버 처리
+
+            1. 요청자가 `role=ARTIST` 면 **403** — 아티스트 계정은 참여 영상을 게시할 수 없다
+            2. 잡 검증 — `CHALLENGE` 타입 · `DONE` 상태 · 본인 소유 · 미게시
+            3. 원본 챌린지가 삭제되지 않았는지 재확인 — 가공 중에 어드민이 지웠을 수 있다
+            4. `participation_videos` 생성 — 영상·썸네일 키는 **잡 결과에서**, `artist_seq` 는
+               **챌린지에서** 복사한다. `duration_ms` 는 `challenges.duration_ms` *(기본안 —
+               잡에 길이 칸이 없다)*
+            5. `challenges.participant_count + 1` — 같은 트랜잭션
+
+            ### visibility 는 키를 움직이지 않는다
+
+            **산출물은 게시 여부와 무관하게 `private/challenge/{jobUuid}/` 한 곳에 있다**
+            (ADR-0013). `visibility` 는 *앱 안에서 누가 볼 자격이 있는가*만 정하고, 그 자격을
+            CDN 에 전달하는 일은 **서명**이 맡는다. S3 복사도 CloudFront 무효화도 없다.
+
+            `PUBLIC` 이든 `PRIVATE` 이든 재생 주소는 core-api 가 서명해 내주는 같은 경로다.
+            전환(§8.9)도 DB 값 하나만 바뀐다.
+
+            ### description
+
+            상한 **1000자** *(기본안)* — §8.9 수정과 같은 값이다. DB 는 TEXT 라 무제한이고,
+            상한이 없으면 본문 크기 제한이 서버 전역 설정에만 걸린다.
+            """;
+
+    String PUBLISH_REQUEST_EXAMPLE = """
+            {
+              "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+              "description": "재밌었다!",
+              "visibility": "PUBLIC",
+              "commentEnabled": true
+            }""";
+
+    String PUBLISH_CREATED_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": { "videoSeq": 88 },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String PUBLISH_FORBIDDEN_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "FORBIDDEN",
+              "message": "권한이 없습니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String PUBLISH_CONFLICT_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "ALREADY_PUBLISHED",
+              "message": "이미 게시된 영상입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "게시 — 합성 결과를 참여 영상으로 (§8.8)", description = PUBLISH_DESCRIPTION)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = VideoPublishRequest.class),
+                    examples = @ExampleObject(value = PUBLISH_REQUEST_EXAMPLE)))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201", description = "게시됨",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = VideoPublishResponse.class),
+                            examples = @ExampleObject(value = PUBLISH_CREATED_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "**ARTIST 계정의 게시 시도** (`FORBIDDEN`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = PUBLISH_FORBIDDEN_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "잡 미존재 · 타인 잡 · MOTIF 잡 (`JOB_NOT_FOUND`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "`JOB_NOT_DONE`(진행 중·실패) · `ALREADY_PUBLISHED` · `CHALLENGE_DELETED`",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = PUBLISH_CONFLICT_EXAMPLE)))
+    })
+    ApiResponse<VideoPublishResponse> publish(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            VideoPublishRequest request);
 
 }

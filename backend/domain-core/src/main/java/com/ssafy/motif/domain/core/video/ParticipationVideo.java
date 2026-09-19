@@ -92,6 +92,49 @@ public class ParticipationVideo extends BaseTimeEntity {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 
+    private ParticipationVideo(Integer challengeSeq, Integer artistSeq, Integer userSeq,
+                               Long jobSeq, String description, String videoKey,
+                               String thumbnailKey, Integer durationMs, Visibility visibility,
+                               boolean commentEnabled) {
+        this.challengeSeq = challengeSeq;
+        this.artistSeq = artistSeq;
+        this.userSeq = userSeq;
+        this.jobSeq = jobSeq;
+        this.description = description;
+        this.videoKey = videoKey;
+        this.thumbnailKey = thumbnailKey;
+        this.durationMs = durationMs;
+        this.visibility = visibility;
+        this.commentEnabled = commentEnabled;
+        // 박싱 타입이라 그냥 두면 INSERT 에 NULL 이 실린다 — 칼럼은 NOT NULL DEFAULT 0 이지만
+        // JPA 가 칼럼을 항상 써 넣으므로 기본값이 적용되지 않는다
+        this.viewCount = 0L;
+        this.likeCount = 0;
+        this.commentCount = 0;
+    }
+
+    /**
+     * 게시 (API 명세 §8.8) — 합성이 끝난 잡을 참여 영상으로 만든다.
+     *
+     * <p><b>바이트를 옮기지 않는다.</b> 산출물은 이미 {@code private/challenge/{jobUuid}/}
+     * 에 있고 게시는 그것을 가리키는 행을 만드는 일이다 — {@code videoKey} 는 잡의
+     * {@code result_video_key} 를 <b>그대로</b> 복사한다. 공개 사본 트리는 없다(ADR-0013).
+     *
+     * <p>카운터 넷은 DB 기본값과 같은 0 으로 시작한다. {@code challenges.participant_count}
+     * 증가는 이 엔티티가 모르는 일이라 서비스가 같은 트랜잭션에서 한다.
+     *
+     * @param artistSeq  <b>챌린지에서</b> 복사한다 — 잡에는 없는 값이고, 게시자는 팬이다
+     * @param durationMs {@code challenges.duration_ms} (기본안 — 잡에 길이 칸이 없다)
+     */
+    public static ParticipationVideo publish(Integer challengeSeq, Integer artistSeq,
+                                             Integer userSeq, Long jobSeq, String description,
+                                             String videoKey, String thumbnailKey,
+                                             Integer durationMs, Visibility visibility,
+                                             boolean commentEnabled) {
+        return new ParticipationVideo(challengeSeq, artistSeq, userSeq, jobSeq, description,
+                videoKey, thumbnailKey, durationMs, visibility, commentEnabled);
+    }
+
     public boolean isPublic() {
         return visibility == Visibility.PUBLIC;
     }
