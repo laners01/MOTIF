@@ -10,6 +10,9 @@ import com.ssafy.motif.coreapi.domain.asset.service.AssetQueryService;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateRequest;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestResponse;
+import com.ssafy.motif.coreapi.domain.composite.CompositeErrorCode;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
@@ -17,6 +20,7 @@ import com.ssafy.motif.domain.core.challenge.EditedChallenge;
 import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
+import com.ssafy.motif.domain.core.job.JobStatus;
 import com.ssafy.motif.domain.core.job.JobType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,9 +36,13 @@ import java.util.UUID;
  * <p><b>CHALLENGE 와 MOTIF 가 같은 엔드포인트다</b>(S15P21D104-186·246). 검증만 갈리고
  * 그 뒤(원본 키·presign·응답)는 완전히 같다 — 따로 만들면 키 규약과 만료가 두 벌이 된다.
  *
- * <p><b>업로드는 여기서 끝나지 않는다.</b> 잡은 {@code UPLOADED} 로 만들어지지만 그것은
+ * <p><b>업로드는 §13.1 에서 끝나지 않는다.</b> 잡은 {@code UPLOADED} 로 만들어지지만 그것은
  * "URL 을 내줬다" 는 뜻이고, 실제 업로드 여부는 §13.2 가 S3 HEAD 로 확인한다 — 바이트가
- * 서버를 지나지 않아 여기서는 알 방법이 없다({@code CompositeJob.create} javadoc).
+ * 서버를 지나지 않아 §13.1 에서는 알 방법이 없다({@code CompositeJob.create} javadoc).
+ *
+ * <p><b>외부 HTTP 를 부르지 않는다.</b> AI 접수는 디스패처(S15P21D104-537)가 {@code QUEUED}
+ * 행을 집어 커밋 뒤에 보낸다 — 요청 스레드에서 부르면 커밋 전에 콜백이 도착해 404 를
+ * 받는다(작업명세 §7 함정 2). 여기가 하는 일은 상태를 {@code QUEUED} 로 두는 것까지다.
  */
 @Service
 @RequiredArgsConstructor
@@ -93,6 +101,46 @@ public class CompositeJobCommandService {
                 objectStore.presignPut(rawKey, "video/mp4",
                         mediaProperties.video().maxSize().toBytes(), ttl),
                 ttl.toSeconds());
+    }
+
+    /**
+     * §13.2 합성 요청 — {@code UPLOADED → QUEUED}. <b>202 Accepted</b>.
+     *
+     * <p>판정 순서는 명세의 서버 처리 순서 그대로다 — ① S3 원본 확인 ② 상태 전이.
+     * 업로드가 실제로 끝났는지는 HEAD 로만 알 수 있다(바이트가 서버를 지나지 않는다).
+     *
+     * <p>{@code correctionEnabled} 는 CHALLENGE 만 본문에서 받는다. MOTIF 는 보정을 쓰지
+     * 않아 {@code false} 고정이고, 값이 와도 무시한다(§13.2 · 247).
+     *
+     * @throws BusinessException 404 {@code JOB_NOT_FOUND} · 409 {@code RAW_NOT_UPLOADED} /
+     *                           {@code JOB_NOT_REQUESTABLE}
+     */
+    public CompositeJobRequestResponse request(Integer userSeq, UUID jobUuid,
+                                               CompositeJobRequestBody body) {
+        CompositeJob job = ownedJob(userSeq, jobUuid);
+        if (!objectStore.exists(job.getRawVideoKey())) {
+            throw new BusinessException(CompositeErrorCode.RAW_NOT_UPLOADED,
+                    "rawVideoKey: " + job.getRawVideoKey());
+        }
+        if (job.getStatus() != JobStatus.UPLOADED) {
+            throw new BusinessException(CompositeErrorCode.JOB_NOT_REQUESTABLE,
+                    "status: " + job.getStatus());
+        }
+        job.queue(job.getJobType() == JobType.CHALLENGE
+                && body != null && body.correctionEnabledOrFalse());
+        return new CompositeJobRequestResponse(jobUuid, JobStatus.QUEUED);
+    }
+
+    /**
+     * 내 잡 — <b>타인 잡도 404 다</b>(§1.8 존재 은닉).
+     *
+     * <p>403 으로 가르면 남의 {@code jobUuid} 를 넣어 보고 존재 여부를 읽을 수 있다.
+     */
+    private CompositeJob ownedJob(Integer userSeq, UUID jobUuid) {
+        return compositeJobRepository.findByJobUuid(jobUuid)
+                .filter(job -> job.isOwnedBy(userSeq))
+                .orElseThrow(() -> new BusinessException(
+                        CompositeErrorCode.JOB_NOT_FOUND, "jobUuid: " + jobUuid));
     }
 
     /**

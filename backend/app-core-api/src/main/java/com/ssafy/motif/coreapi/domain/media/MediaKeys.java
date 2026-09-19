@@ -26,6 +26,7 @@ package com.ssafy.motif.coreapi.domain.media;
  * challenges/{uuid}/                     서명 없음 — 어드민이 올린 챌린지 원본
  * assets/{assetUuid}/                    서명 없음 — 에셋 미리보기·썸네일
  * raw/{jobUuid}.mp4                      읽기 경로 없음 — 사용자 촬영 원본
+ * results/{challenge|motif}/{uuid}.mp4  읽기 경로 없음 — AI 산출물(가공 전)
  * </pre>
  *
  * CloudFront 의 "Restrict viewer access" 는 <b>캐시 동작 단위</b>이고 캐시 동작은
@@ -102,6 +103,44 @@ public final class MediaKeys {
      */
     public static String forCompositeResult(String jobType, String jobUuid) {
         return "private/" + kind(jobType) + "/" + require(jobUuid, "jobUuid");
+    }
+
+    /**
+     * AI 워커가 결과를 올릴 자리 — {@code results/{challenge|motif}/{jobUuid}.mp4}
+     * (AI 서버 명세 §3.2 {@code output_video_key}).
+     *
+     * <p><b>{@link #forCompositeResult} 와 다른 것이다.</b> 저쪽은 app-media 가 HLS 로
+     * 푼 뒤의 <b>프리픽스</b>({@code private/…})이고, 여기는 AI 가 PUT 할 <b>MP4 파일</b>
+     * 하나다. 순서가 {@code results/…mp4} → {@code private/…/master.m3u8} 라서 둘 다 있다.
+     *
+     * <p>재시도(§13.4)는 <b>같은 키를 덮어쓴다</b> — 프리픽스가 {@code jobUuid} 로 멱등해
+     * 시도 횟수가 경로에 섞이지 않는다. 덕분에 늦게 도착한 콜백이 엉뚱한 파일을 가리키는
+     * 일이 없다.
+     *
+     * @param jobType {@code CHALLENGE} | {@code MOTIF} ({@code composite_jobs.job_type})
+     * @param jobUuid {@code composite_jobs.job_uuid}
+     */
+    public static String forWorkerOutput(String jobType, String jobUuid) {
+        return "results/" + kind(jobType) + "/" + require(jobUuid, "jobUuid") + ".mp4";
+    }
+
+    /**
+     * 저장된 {@code video_key} → <b>원본 MP4 키</b> (AI 서버 명세 §3.2 {@code base_video_key}).
+     *
+     * <p><b>가공이 끝난 챌린지·에셋의 {@code video_key} 는 MP4 가 아니다.</b> app-media 가
+     * {@code …/master.m3u8} 로 덮어쓰기 때문이다(ADR-0010 D4). 그대로 AI 에 보내면
+     * <b>재생목록 텍스트를 영상으로 열려다</b> 실패한다(작업명세 §7 함정 3).
+     *
+     * <p>업로드 키 규약이 {@code {프리픽스}.mp4} 와 {@code {프리픽스}/master.m3u8} 로 짝을
+     * 이루므로({@link #forAssetPreview}·{@link #forChallengeOrigin}) 프리픽스에
+     * {@code .mp4} 를 붙이면 원본이다.
+     *
+     * <p><b>가공 전 값과 편집본 키는 그대로 돌려준다</b> — 이미 MP4 다. 되돌릴 것이 없는
+     * 키를 건드리지 않는 덕에 호출부가 "이 값이 가공을 거쳤나" 를 묻지 않아도 된다.
+     */
+    public static String sourceMp4Of(String key) {
+        String value = require(key, "key");
+        return value.endsWith("/" + MASTER_PLAYLIST) ? prefixOf(value) + ".mp4" : value;
     }
 
     /**

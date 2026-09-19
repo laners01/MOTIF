@@ -19,6 +19,21 @@ public interface MotifResultRepository extends JpaRepository<MotifResult, Long> 
      */
     Optional<MotifResult> findByResultSeqAndUserSeqAndDeletedFalse(Long resultSeq, Integer userSeq);
 
+    /**
+     * 합성 잡의 결과물 (API 명세 §13.3 MOTIF 분기).
+     *
+     * <p>§13.3 은 URL 을 싣지 않고 {@code resultSeq} 만 준다 — 재생과 문구 입력은
+     * §11.6·§11.8 이 담당하므로 보관함 상세로 보낸다(R8 확정).
+     *
+     * <p><b>{@code DONE} 이면 항상 있다.</b> 결과 행 생성이 실패하면 잡을 {@code DONE} 으로
+     * 만들지 않기 때문이다(§13.3 "MOTIF 잡의 완료 순서"). {@code uq_motif_results_job} 이
+     * 잡당 한 행을 보장한다.
+     *
+     * <p>{@code is_deleted} 를 보지 않는다 — 사용자가 결과물을 지웠어도 그 잡이 성공했다는
+     * 사실은 그대로다. 지워진 것을 §11.6 이 404 로 답하는 것은 그쪽 몫이다.
+     */
+    Optional<MotifResult> findByJobSeq(Long jobSeq);
+
     /*
      * ── 보관함 목록 (API 명세 §11.5) — 커서 페이지, 최신순 ─────────────────────
      *

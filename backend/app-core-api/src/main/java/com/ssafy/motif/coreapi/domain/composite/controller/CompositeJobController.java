@@ -5,17 +5,25 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.composite.docs.CompositeJobControllerDocs;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateRequest;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobStatusResponse;
 import com.ssafy.motif.coreapi.domain.composite.service.CompositeJobCommandService;
+import com.ssafy.motif.coreapi.domain.composite.service.CompositeJobQueryService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 /**
  * 합성 파이프라인 API (명세 §13). Base URL 은 {@code /api/v1}.
@@ -37,6 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CompositeJobController implements CompositeJobControllerDocs {
 
     private final CompositeJobCommandService compositeJobCommandService;
+    private final CompositeJobQueryService compositeJobQueryService;
 
     /**
      * §13.1 잡 생성 + 촬영본 업로드 URL 발급 — <b>201 Created</b>.
@@ -52,5 +61,38 @@ public class CompositeJobController implements CompositeJobControllerDocs {
             @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody CompositeJobCreateRequest request) {
         return ApiResponse.success(compositeJobCommandService.create(user.userSeq(), request));
+    }
+
+    /**
+     * §13.2 합성 요청 — <b>202 Accepted</b>. 업로드를 마친 뒤 부른다.
+     *
+     * <p>접수했다는 뜻이고 합성은 시작도 하지 않았다. <b>AI 호출은 여기서 일어나지
+     * 않는다</b> — 디스패처가 {@code QUEUED} 행을 집어 커밋 뒤에 보낸다.
+     *
+     * <p>본문이 없어도 된다 — MOTIF 는 보낼 값이 없다({@code required = false}).
+     */
+    @Override
+    @PostMapping("/{jobUuid}/request")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApiResponse<CompositeJobRequestResponse> request(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID jobUuid,
+            @RequestBody(required = false) CompositeJobRequestBody body) {
+        return ApiResponse.success(
+                compositeJobCommandService.request(user.userSeq(), jobUuid, body));
+    }
+
+    /**
+     * §13.3 잡 상태·결과 — FCM 을 받고 <b>1회</b> 호출한다. 폴링 금지(§1.6).
+     *
+     * <p>경로의 {@code jobUuid} 가 UUID 형식이 아니면 타입 불일치로 400
+     * {@code INVALID_PARAMETER} 다 — 존재하지 않는 잡(404)과 다르다.
+     */
+    @Override
+    @GetMapping("/{jobUuid}")
+    public ApiResponse<CompositeJobStatusResponse> status(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable UUID jobUuid) {
+        return ApiResponse.success(compositeJobQueryService.status(user.userSeq(), jobUuid));
     }
 }

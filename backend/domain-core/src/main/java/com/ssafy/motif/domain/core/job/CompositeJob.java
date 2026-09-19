@@ -129,6 +129,29 @@ public class CompositeJob extends BaseTimeEntity {
                 editedChallengeSeq, rawVideoKey);
     }
 
+    /**
+     * {@code UPLOADED → QUEUED} (API 명세 §13.2) — <b>원본 업로드가 확인된 뒤</b>.
+     *
+     * <p>여기서 커밋된 {@code QUEUED} 행을 디스패처가 집어 AI 에 접수한다
+     * (작업명세 §2 상태 전이). <b>접수 호출은 이 전이에 들어 있지 않다</b> — 요청
+     * 스레드에서 외부 HTTP 를 부르면 커밋 전에 콜백이 와서 404 를 받는다(§7 함정 2).
+     *
+     * <p>{@code correctionEnabled} 를 함께 확정한다. CHALLENGE 는 사용자가 촬영 후 고른
+     * 값이고 MOTIF 는 언제나 {@code false} 다 — 두 값을 따로 쓰면
+     * {@code ck_composite_jobs_status_shape} 와 무관한 UPDATE 가 한 번 더 나간다.
+     *
+     * @throws IllegalStateException {@code UPLOADED} 가 아닐 때. 호출부가 409
+     *                               {@code JOB_NOT_REQUESTABLE} 로 먼저 거르므로 여기 걸리면
+     *                               거르지 않은 경로가 생긴 것이다
+     */
+    public void queue(boolean correctionEnabled) {
+        if (status != JobStatus.UPLOADED) {
+            throw new IllegalStateException("UPLOADED 가 아닌 잡을 큐에 넣을 수 없다: " + status);
+        }
+        this.correctionEnabled = correctionEnabled;
+        this.status = JobStatus.QUEUED;
+    }
+
     /** 산출물이 준비됐는가. 재생목록·썸네일을 읽기 전에 이걸 먼저 본다. */
     public boolean isDone() {
         return status == JobStatus.DONE;

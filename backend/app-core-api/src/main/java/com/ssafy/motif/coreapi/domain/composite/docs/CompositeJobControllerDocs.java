@@ -3,6 +3,9 @@ package com.ssafy.motif.coreapi.domain.composite.docs;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateRequest;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobCreateResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestBody;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRequestResponse;
+import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobStatusResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,8 +17,10 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.UUID;
+
 /**
- * 합성 파이프라인 API 문서 계약 (명세 §13 — 13.1).
+ * 합성 파이프라인 API 문서 계약 (명세 §13 — 13.1 · 13.2 · 13.3).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -175,4 +180,240 @@ public interface CompositeJobControllerDocs {
     ApiResponse<CompositeJobCreateResponse> create(
             @Parameter(hidden = true) AuthenticatedUser user,
             CompositeJobCreateRequest request);
+
+    // ---------------------------------------------------------------------------------
+    // 13.2 합성 요청
+    // ---------------------------------------------------------------------------------
+
+    String REQUEST_DESCRIPTION = """
+            파이프라인의 **3단계**다. 업로드를 마친 뒤 부르면 잡이 `UPLOADED → QUEUED` 로
+            넘어간다. 이후 `PROCESSING → DONE | FAILED` 는 워커와 이벤트가 처리하고, 완료·실패
+            시 **FCM** 이 나간다.
+
+            - **인증 필요.** 본인 잡만 요청할 수 있다 — 타인 잡은 404.
+            - **202 Accepted.** 접수했다는 뜻이며 합성은 아직 끝나지 않았다.
+            - **폴링하지 않는다**(§1.6). FCM 을 받고 §13.3 을 **한 번** 부른다.
+
+            ### 서버 처리 순서
+
+            1. **S3 원본 존재 확인(HEAD)** — 업로드가 실제로 끝났는지 본다. 없으면 409
+               `RAW_NOT_UPLOADED` (업로드 미완료 또는 URL 만료)
+            2. 상태가 `UPLOADED` 가 아니면 409 `JOB_NOT_REQUESTABLE` — **중복 요청이 여기 걸린다**
+            3. `UPLOADED → QUEUED` 전이 후 커밋
+
+            영상 바이트가 서버를 지나지 않으므로 업로드 완료를 아는 방법은 HEAD 뿐이다.
+
+            ### correctionEnabled
+
+            | jobType | 본문 | 저장되는 값 |
+            |---|---|---|
+            | `CHALLENGE` | `{ "correctionEnabled": true }` | 보낸 값. **생략하면 `false`** *(기본안)* |
+            | `MOTIF` | `{}` (또는 본문 없음) | 언제나 `false` — 보정을 쓰지 않는다. 값이 와도 무시 |
+
+            `correctionEnabled` 는 촬영 후 사용자가 보정 여부를 고르는 값이라 §13.1 이 아니라
+            여기서 정해진다.
+            """;
+
+    String REQUEST_CHALLENGE_BODY_EXAMPLE = """
+            { "correctionEnabled": true }""";
+
+    String REQUEST_MOTIF_BODY_EXAMPLE = "{}";
+
+    String REQUEST_ACCEPTED_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": { "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "status": "QUEUED" },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String JOB_NOT_FOUND_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "JOB_NOT_FOUND",
+              "message": "존재하지 않는 합성 잡입니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String RAW_NOT_UPLOADED_EXAMPLE = """
+            {
+              "result": "FAIL",
+              "code": "RAW_NOT_UPLOADED",
+              "message": "원본 업로드가 완료되지 않았습니다.",
+              "data": null,
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "합성 요청 — 업로드 완료 후 큐 적재 (§13.2)", description = REQUEST_DESCRIPTION)
+    @RequestBody(required = false, description = "CHALLENGE 만 값을 갖는다. MOTIF 는 빈 객체",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = CompositeJobRequestBody.class),
+                    examples = {
+                            @ExampleObject(name = "CHALLENGE — 보정 사용",
+                                    value = REQUEST_CHALLENGE_BODY_EXAMPLE),
+                            @ExampleObject(name = "MOTIF — 빈 객체",
+                                    value = REQUEST_MOTIF_BODY_EXAMPLE)
+                    }))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "202", description = "접수됨 — 큐에 들어갔다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = CompositeJobRequestResponse.class),
+                            examples = @ExampleObject(value = REQUEST_ACCEPTED_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "잡 없음·**타인 잡** (`JOB_NOT_FOUND`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = JOB_NOT_FOUND_EXAMPLE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "`RAW_NOT_UPLOADED`(S3 원본 부재) · `JOB_NOT_REQUESTABLE`(상태가 UPLOADED 가 아님 — 중복 요청 포함)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = RAW_NOT_UPLOADED_EXAMPLE)))
+    })
+    ApiResponse<CompositeJobRequestResponse> request(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "잡 식별자", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+            UUID jobUuid,
+            CompositeJobRequestBody body);
+
+    // ---------------------------------------------------------------------------------
+    // 13.3 잡 상태·결과 조회
+    // ---------------------------------------------------------------------------------
+
+    String STATUS_DESCRIPTION = """
+            FCM 을 받고 결과 화면에 진입할 때 **1회** 호출한다. **폴링 금지**(§1.6) — 상태
+            확인은 푸시를 받고 이 API 를 한 번 부르는 것뿐이다.
+
+            - **인증 필요.** 본인 잡만 — 타인 잡은 404 `JOB_NOT_FOUND`(존재 은닉).
+            - **잡이 실패해도 조회는 200 이다.** `status` 로 판단하고 `failCode` 로 안내한 뒤
+              "다시 시도"(§13.4)를 노출한다.
+            - `QUEUED`·`PROCESSING` 이면 **분기 필드가 전부 `null`** 이다. 앱은 둘을 같은
+              "진행 중" 으로 그린다.
+
+            ### 응답은 jobType 으로 갈린다
+
+            | jobType | 분기 필드 |
+            |---|---|
+            | `CHALLENGE` | `resultVideoUrl` · `resultThumbnailUrl` |
+            | `MOTIF` | `resultSeq` — **URL 이 없다** |
+
+            **MOTIF 에 URL 을 싣지 않는 것은 누락이 아니다**(R8 확정). 재생과 문구 입력은
+            §11.6·§11.8 이 담당하므로 `resultSeq` 로 보관함 상세로 이동한다. 반대로 CHALLENGE
+            응답에는 `resultSeq` 칸이 없다.
+
+            ### CHALLENGE 결과는 보호 등급이다
+
+            게시 전 프리뷰라 서명이 붙는다(§1.7). `resultVideoUrl` 은 core-api 가 서명해 다시
+            쓴 **HLS 마스터 재생목록**이고, 조각 요청에 같은 파라미터를 붙이는 것은 앱의
+            인터셉터 몫이다(ADR-0012). 이 화면에서 확인한 뒤 **§8.8 로 게시**한다.
+
+            ### MOTIF 의 resultSeq 는 DONE 이면 항상 있다
+
+            결과 행 생성에 실패하면 잡을 `DONE` 으로 만들지 않고 FCM 도 보내지 않기 때문이다.
+
+            | 필드 | 설명 |
+            |---|---|
+            | `status` | `UPLOADED` \\| `QUEUED` \\| `PROCESSING` \\| `DONE` \\| `FAILED` |
+            | `attempt` | 시도 횟수. 재시도(§13.4)할 때마다 증가한다 |
+            | `failCode` | 실패 사유. `FAILED` 가 아니면 `null` |
+            """;
+
+    String STATUS_CHALLENGE_DONE_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "jobType": "CHALLENGE",
+                "status": "DONE",
+                "attempt": 1,
+                "failCode": null,
+                "resultVideoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                "resultThumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg"
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String STATUS_MOTIF_DONE_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "jobUuid": "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+                "jobType": "MOTIF",
+                "status": "DONE",
+                "attempt": 1,
+                "failCode": null,
+                "resultSeq": 10
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String STATUS_PROCESSING_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "jobType": "CHALLENGE",
+                "status": "PROCESSING",
+                "attempt": 1,
+                "failCode": null,
+                "resultVideoUrl": null,
+                "resultThumbnailUrl": null
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    String STATUS_FAILED_EXAMPLE = """
+            {
+              "result": "SUCCESS",
+              "code": "SUCCESS",
+              "message": "요청이 성공했습니다.",
+              "data": {
+                "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "jobType": "CHALLENGE",
+                "status": "FAILED",
+                "attempt": 2,
+                "failCode": "FACE_NOT_DETECTED",
+                "resultVideoUrl": null,
+                "resultThumbnailUrl": null
+              },
+              "timestamp": "2026-09-10T00:00:00.000Z"
+            }""";
+
+    @Operation(summary = "잡 상태·결과 조회 — FCM 수신 후 1회 (§13.3)", description = STATUS_DESCRIPTION)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "실패한 잡도 200 이다 — `status` 로 판단한다",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = CompositeJobStatusResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "CHALLENGE — DONE",
+                                            value = STATUS_CHALLENGE_DONE_EXAMPLE),
+                                    @ExampleObject(name = "MOTIF — DONE (resultSeq)",
+                                            value = STATUS_MOTIF_DONE_EXAMPLE),
+                                    @ExampleObject(name = "진행 중 — 분기 필드가 전부 null",
+                                            value = STATUS_PROCESSING_EXAMPLE),
+                                    @ExampleObject(name = "실패 — 200 + failCode",
+                                            value = STATUS_FAILED_EXAMPLE)
+                            })),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "잡 없음·**타인 잡** (`JOB_NOT_FOUND`)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = JOB_NOT_FOUND_EXAMPLE)))
+    })
+    ApiResponse<CompositeJobStatusResponse> status(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "잡 식별자", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+            UUID jobUuid);
 }
