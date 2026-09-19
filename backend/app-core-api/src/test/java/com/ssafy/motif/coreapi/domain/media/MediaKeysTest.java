@@ -28,10 +28,11 @@ class MediaKeysTest {
     }
 
     @Test
-    @DisplayName("PUBLIC 게시본만 public/ 아래로 복사된다")
-    void 게시본은_공개_프리픽스() {
-        assertThat(MediaKeys.forPublishedChallenge(UUID))
-                .isEqualTo("public/challenge/" + UUID);
+    @DisplayName("게시해도 자리를 옮기지 않는다 — 공개 사본 트리가 없다 (ADR-0013)")
+    void 게시본도_보호_프리픽스() {
+        // forPublishedChallenge 가 있던 자리다. 되살리면 visibility 와 키가 다시 갈린다
+        assertThat(MediaKeys.isProtected(MediaKeys.forCompositeResult("CHALLENGE", UUID)))
+                .isTrue();
     }
 
     @Test
@@ -56,7 +57,7 @@ class MediaKeysTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> MediaKeys.forCompositeResult("UNKNOWN", UUID))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> MediaKeys.forPublishedChallenge(null))
+        assertThatThrownBy(() -> MediaKeys.forCompositeResult("CHALLENGE", null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

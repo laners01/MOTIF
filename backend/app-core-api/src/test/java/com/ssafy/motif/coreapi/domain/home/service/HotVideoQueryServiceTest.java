@@ -4,6 +4,11 @@ import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.home.dto.HotVideoItem;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshot;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshot.Ranked;
+import com.ssafy.motif.coreapi.global.media.CloudFrontUrlSigner;
+import com.ssafy.motif.coreapi.global.media.MediaSigningProperties;
+import com.ssafy.motif.coreapi.global.media.MediaSigningTestSupport;
+import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
+import com.ssafy.motif.coreapi.global.media.ProtectedMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.video.HotVideoRow;
@@ -11,7 +16,9 @@ import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,14 +47,23 @@ class HotVideoQueryServiceTest {
     void setUp() {
         snapshot = mock(VideoRankingSnapshot.class);
         participationVideoRepository = mock(ParticipationVideoRepository.class);
+
+        // HOT 후보도 보호 등급이다(ADR-0013) — 서명 경로를 태우지 않으면 URL 이
+        // 통째로 null 이어도 테스트가 통과한다
+        CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
+                "KTESTKEYPAIRID", MediaSigningTestSupport.pkcs8Pem(),
+                Duration.ofMinutes(10), Duration.ofHours(6)));
+        ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
+
         service = new HotVideoQueryService(snapshot, participationVideoRepository,
-                new PublicMediaUrlResolver(CDN));
+                new MediaUrlResolver(new PublicMediaUrlResolver(CDN),
+                        new ProtectedMediaUrlResolver(CDN, signer), signer));
     }
 
     private static HotVideoRow row(long videoSeq) {
         return new HotVideoRow(videoSeq,
-                "public/challenge/uuid-" + videoSeq + "/master.m3u8",
-                "public/challenge/uuid-" + videoSeq + "/thumb.jpg",
+                "private/challenge/uuid-" + videoSeq + "/master.m3u8",
+                "private/challenge/uuid-" + videoSeq + "/thumb.jpg",
                 15000, 3400L, "bailar toda la noche", "mochico", 5, "팬123");
     }
 
@@ -76,8 +92,11 @@ class HotVideoQueryServiceTest {
                 .satisfies(item -> {
                     assertThat(item.rank()).isEqualTo(1);
                     assertThat(item.videoSeq()).isEqualTo(88L);
+                    // 남의 PUBLIC 영상에도 서명이 붙는다 — 인가는 visibility 가 하지
+                    // 서명 유무가 하지 않는다(ADR-0013)
                     assertThat(item.videoUrl())
-                            .isEqualTo(CDN + "/public/challenge/uuid-88/master.m3u8");
+                            .startsWith(CDN + "/private/challenge/uuid-88/master.m3u8?")
+                            .contains("Policy=", "Signature=", "Key-Pair-Id=");
                     assertThat(item.song().singerName()).isEqualTo("mochico");
                     assertThat(item.author().nickname()).isEqualTo("팬123");
                 });

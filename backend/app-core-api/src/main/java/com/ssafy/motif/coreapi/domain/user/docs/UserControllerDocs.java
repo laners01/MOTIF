@@ -94,7 +94,7 @@ public interface UserControllerDocs {
                                                 "videos": [
                                                   {
                                                     "videoSeq": 88,
-                                                    "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
                                                     "viewCount": 3400,
                                                     "visibility": "PUBLIC"
                                                   },
@@ -165,7 +165,7 @@ public interface UserControllerDocs {
                                         "list": [
                                           {
                                             "videoSeq": 88,
-                                            "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                            "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
                                             "viewCount": 3400,
                                             "visibility": "PUBLIC"
                                           },
@@ -250,7 +250,7 @@ public interface UserControllerDocs {
                                                   {
                                                     "video": {
                                                       "videoSeq": 88,
-                                                      "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
                                                       "viewCount": 3400,
                                                       "likeCount": 12000
                                                     },
@@ -297,7 +297,7 @@ public interface UserControllerDocs {
                                                   {
                                                     "video": {
                                                       "videoSeq": 90,
-                                                      "thumbnailUrl": "https://cdn.motif.io/public/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg",
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg",
                                                       "viewCount": 120,
                                                       "likeCount": 8
                                                     },
@@ -309,7 +309,7 @@ public interface UserControllerDocs {
                                                   {
                                                     "video": {
                                                       "videoSeq": 89,
-                                                      "thumbnailUrl": "https://cdn.motif.io/public/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg",
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg",
                                                       "viewCount": 940,
                                                       "likeCount": 77
                                                     },

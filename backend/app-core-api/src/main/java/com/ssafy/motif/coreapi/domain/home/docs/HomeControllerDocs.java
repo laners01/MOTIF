@@ -59,7 +59,8 @@ public interface HomeControllerDocs {
                     조회 1회로 받는다. 여기에는 클릭 즉시 재생을 시작할 최소 정보만 담는다.
 
                     - `videoUrl` 은 **마스터 재생목록(`master.m3u8`)** 이다 (§1.7, ADR-0010 D2).
-                      HOT 에는 **공개 사본이 준비된 PUBLIC 영상만** 오르므로 서명 없는 CloudFront URL 이다.
+                      참여 영상은 전부 보호 등급이라 **프리픽스 서명**이 붙는다(ADR-0012·0013) —
+                      남의 `PUBLIC` 영상이어도 그렇다.
                     - `rank` 는 스냅샷 순위다. 스냅샷이 만들어진 뒤 삭제·비공개로 바뀐 영상은 목록에서
                       빠지므로 **번호가 건너뛸 수 있다** — 다시 매기지 않는다(다음 페이지와 어긋난다).
                     - 순위 배치가 아직 한 번도 돌지 않았거나 후보가 없으면 **빈 목록 200** 이다.
@@ -77,8 +78,8 @@ public interface HomeControllerDocs {
                                   {
                                     "rank": 1,
                                     "videoSeq": 88,
-                                    "videoUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-                                    "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                    "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
                                     "durationMs": 15000,
                                     "song": { "title": "bailar toda la noche", "singerName": "mochico" },
                                     "author": { "userSeq": 5, "nickname": "팬123" },

@@ -1,6 +1,5 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
-import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import com.ssafy.motif.domain.core.video.VideoScoreRow;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +20,13 @@ import java.util.Map;
  * <p><b>ShedLock 을 쓰지 않는다.</b> core-api 는 1 레플리카고(ADR-0009) 이 배치는
  * 상태를 누적하지 않는 <b>전량 재계산</b>이라 중복 실행돼도 결과가 같다. 다중화되면
  * 어드민 §3.16.4(배치 수동 실행 + 락 409) 티켓에서 함께 넣는다.
+ *
+ * <p><b>후보를 키 프리픽스로 거르지 않는다.</b> 한때 "공개 사본이 준비된 것만" 남기는
+ * 필터가 있었다 — {@code visibility=PUBLIC} 인데 키가 아직 {@code private/} 인 구간의
+ * 영상은 남이 재생할 수 없다고 봤기 때문이다. 공개 사본 트리가 폐기되면서 그 구간이
+ * 사라졌고(ADR-0013), 지금은 참여 영상이 전부 보호 등급이라 <b>되살리면 후보가
+ * 전멸해 HOT 이 영구히 빈다</b>. 남의 {@code PUBLIC} 영상도
+ * {@code MediaPlaylistQueryService} 가 소유자 검사 없이 통과시켜 정상 재생된다.
  *
  * <p><b>예외를 삼킨다.</b> 스케줄된 작업이 예외를 던지면 로그만 남고 다음 주기에 다시
  * 돈다 — 스케줄 자체는 죽지 않는다. 그래도 여기서 잡아 로그를 남기는 것은 DB·Redis
@@ -47,8 +53,7 @@ public class VideoRankingSnapshotJob {
      */
     public void refresh() {
         try {
-            List<VideoScoreRow> candidates = publicCopyReady(
-                    participationVideoRepository.findRankingInputs());
+            List<VideoScoreRow> candidates = participationVideoRepository.findRankingInputs();
 
             if (candidates.isEmpty()) {
                 snapshot.clear();
@@ -70,28 +75,4 @@ public class VideoRankingSnapshotJob {
         }
     }
 
-    /**
-     * 공개 사본이 준비된 것만 남긴다.
-     *
-     * <p>§1.7 의 복사 규약 때문에 {@code visibility=PUBLIC} 인데 {@code video_key} 가
-     * 아직 보호 프리픽스인 구간이 존재한다. 그 키로 무서명 CDN URL 을 만들면 403 이고,
-     * 보호 등급 재생목록 주소로 내보내도 그쪽 인가가 소유자 전용이라 <b>남의 영상은
-     * 404</b> 다 — HOT 은 정의상 남의 영상이다. 그래서 스냅샷에 올리지 않고 복사가
-     * 끝난 다음 틱에 들어오게 한다.
-     *
-     * <p>판정은 {@link MediaKeys#isProtected} 로 한다. SQL 에 {@code 'private/%'} 를
-     * 넣으면 등급 규약이 두 곳으로 갈라진다.
-     */
-    private List<VideoScoreRow> publicCopyReady(List<VideoScoreRow> rows) {
-        List<VideoScoreRow> ready = rows.stream()
-                .filter(row -> !MediaKeys.isProtected(row.videoKey()))
-                .toList();
-
-        int skipped = rows.size() - ready.size();
-        if (skipped > 0) {
-            // 정상적으로도 게시 직후 잠깐 생긴다. 계속 늘어나면 복사가 안 되고 있다는 뜻
-            log.info("HOT 랭킹 — 공개 사본이 없어 제외한 PUBLIC 영상 {}건", skipped);
-        }
-        return ready;
-    }
 }

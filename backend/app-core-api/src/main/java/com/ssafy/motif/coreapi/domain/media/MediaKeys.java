@@ -22,7 +22,6 @@ package com.ssafy.motif.coreapi.domain.media;
  *
  * <pre>
  * private/{challenge|motif}/{jobUuid}/   서명 필요 — CloudFront behavior `private/*`
- * public/challenge/{jobUuid}/            서명 없음
  * challenges/{uuid}/                     서명 없음 — 어드민이 올린 챌린지 원본
  * assets/{assetUuid}/                    서명 없음 — 에셋 미리보기·썸네일
  * raw/{jobUuid}.mp4                      읽기 경로 없음 — 사용자 촬영 원본
@@ -32,6 +31,12 @@ package com.ssafy.motif.coreapi.domain.media;
  * CloudFront 의 "Restrict viewer access" 는 <b>캐시 동작 단위</b>이고 캐시 동작은
  * path pattern 으로 고른다. 그래서 보호 여부가 경로 최상단에 드러나 있어야 동작
  * 하나로 가른다 — 같은 프리픽스에 섞으면 behavior 로 나눌 방법이 없다.
+ *
+ * <p><b>공개 사본 트리({@code public/challenge/})는 없다</b> (ADR-0013). 합성 결과는
+ * 게시 여부와 무관하게 {@code private/} 한 곳에 머물고, {@code visibility} 는 앱 안에서
+ * 누가 볼 자격이 있는가만 정한다. 사본을 두던 시절에는 복사기·삭제기·CloudFront
+ * 무효화가 필요했는데, 서명 파라미터가 캐시 키에 들어가지 않아 "서명 없이 내보내
+ * 캐시를 극대화한다" 는 이점이 애초에 없었다.
  */
 public final class MediaKeys {
 
@@ -73,14 +78,13 @@ public final class MediaKeys {
     /**
      * 이 키가 보호 등급인가 — <b>등급 판정은 여기서만 한다</b>.
      *
-     * <p><b>{@code visibility} 로 판정하지 않는 이유.</b> PUBLIC 게시는 산출물 트리를
-     * {@code public/} 으로 <b>복사</b>할 뿐 원본 키를 바꾸지 않는다(§1.7 — 바꾸면 재생
-     * 중인 클라이언트가 404 를 만난다). 그래서 {@code visibility=PUBLIC} 인데 키는 아직
-     * {@code private/} 인 행이 정상적으로 존재하고, 거기에 무서명 URL 을 만들면 403 이
-     * 된다. 반대 방향(PUBLIC → PRIVATE)은 CloudFront 무효화가 비동기라 그 사이에
-     * 반대로 어긋난다.
+     * <p><b>{@code visibility} 로 판정하지 않는 이유.</b> 둘은 다른 층이다 —
+     * {@code visibility} 는 <b>앱 안에서 누가 볼 자격이 있는가</b>이고, 등급은 <b>그
+     * 자격을 CDN 에 어떻게 전달하는가</b>다(ADR-0013). 참여 영상은 {@code visibility}
+     * 와 무관하게 전부 {@code private/} 에 있으므로, {@code visibility} 로 가르면
+     * {@code PUBLIC} 영상에 무서명 URL 이 나가 403 이 된다.
      *
-     * <p>키 하나만 보면 두 경우 모두 맞는다 — 프리픽스가 곧 등급이라는 규약이 S3 ·
+     * <p>키 하나만 보면 언제나 맞는다 — 프리픽스가 곧 등급이라는 규약이 S3 ·
      * CloudFront 동작 · 이 판정에서 같은 것을 가리키기 때문이다.
      */
     public static boolean isProtected(String key) {
@@ -90,13 +94,10 @@ public final class MediaKeys {
     /**
      * 합성 결과 — {@code private/{challenge|motif}/{jobUuid}}.
      *
-     * <p><b>패키징 시점에는 언제나 보호 등급이다.</b> 참여 영상의 {@code visibility} 는
-     * 게시(§8.1)에서 정해지는데 가공은 그보다 먼저 끝나 있어야 한다 — 게시 전 프리뷰도
-     * 재생 대상이기 때문이다(§1.7 "게시·저장 전 합성 결과 프리뷰"). 그래서 여기서는
-     * 공개 여부를 묻지 않고, PUBLIC 으로 게시될 때 {@link #forPublishedChallenge} 로
-     * 복사한다.
-     *
-     * <p>모티프 결과물은 공개 등급이 없어 평생 이 프리픽스에 남는다.
+     * <p><b>여기가 합성 결과의 유일한 자리다.</b> 게시되든 안 되든, PUBLIC 이든
+     * PRIVATE 이든 옮기지 않는다(ADR-0013). 가공은 게시(§8.8)보다 먼저 끝나 있어야
+     * 하는데 — 게시 전 프리뷰도 재생 대상이다(§1.7 "게시·저장 전 합성 결과 프리뷰") —
+     * 그 시점에 아직 모르는 {@code visibility} 로 자리를 가를 이유가 없다.
      *
      * @param jobType {@code CHALLENGE} | {@code MOTIF} ({@code composite_jobs.job_type})
      * @param jobUuid {@code composite_jobs.job_uuid}
@@ -144,32 +145,14 @@ public final class MediaKeys {
     }
 
     /**
-     * PUBLIC 으로 게시된 참여 영상 — {@code public/challenge/{jobUuid}}.
-     *
-     * <p>{@link #forCompositeResult} 가 만든 트리를 여기로 <b>복사</b>한다. 옮기지 않는
-     * 이유는 게시 후에도 본인은 보호 경로로 계속 볼 수 있어야 하고, 무엇보다
-     * {@code composite_jobs.result_video_key} 가 가리키는 값을 바꾸는 순간 재생 중인
-     * 클라이언트가 404 를 만나기 때문이다.
-     *
-     * <p><b>반대 방향(PUBLIC → PRIVATE)은 삭제만으로 끝나지 않는다.</b> 산출물에 1년
-     * {@code immutable} 이 붙어 있어 S3 에서 지워도 엣지가 계속 서빙한다 — 삭제와 함께
-     * CloudFront 무효화를 호출해야 실제로 닫힌다(API 명세 §8.2). 비동기라 즉시 차단은
-     * 약속하지 않는다.
-     *
-     * @param jobUuid {@code composite_jobs.job_uuid} — {@code CHALLENGE} 잡만 해당한다
-     */
-    public static String forPublishedChallenge(String jobUuid) {
-        return "public/challenge/" + require(jobUuid, "jobUuid");
-    }
-
-    /**
      * 어드민이 올린 챌린지 원본 — {@code challenges/{uuid}}.
      *
      * <p>원본 업로드 키가 {@code challenges/{uuid}.mp4} 이므로(어드민 명세 §1.4)
      * 같은 uuid 아래에 산출물이 깔린다. API 명세 §7.1 예시와 일치한다.
      *
-     * <p>전부 공개 등급이라 {@code public/} 아래로 옮기지 않는다 — 옮기면 이미 배포된
-     * 객체의 CDN 무효화와 DB 갱신이 따라붙는데 얻는 것이 없다.
+     * <p><b>전부 공개 등급이라 서명하지 않는다.</b> 소유자 개념이 없고 앱 전체에 똑같이
+     * 보이는 카탈로그라 등급을 가를 것이 없다. 사용자 생성 콘텐츠(참여 영상·모티프
+     * 결과)만 {@code private/} 로 간다(ADR-0013).
      *
      * @param videoUuid 업로드 키의 uuid
      */

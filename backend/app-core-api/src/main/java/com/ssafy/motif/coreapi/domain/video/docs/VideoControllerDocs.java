@@ -32,7 +32,8 @@ public interface VideoControllerDocs {
 
                     - **인증 필요.** `isLiked`·`isMine` 이 호출자 기준이다.
                     - `videoUrl` 은 **마스터 재생목록(`master.m3u8`)** 이고 단일 MP4 가 아니다(§1.7).
-                      공개 사본이 준비된 영상은 무서명 CloudFront URL, 내 `PRIVATE` 은 **core-api 주소**다.
+                      참여 영상은 `visibility` 와 무관하게 보호 등급이라 CDN 절대 주소에
+                      **프리픽스 서명**(`Policy`·`Signature`·`Key-Pair-Id`)이 붙는다(ADR-0012·0013).
                     - `isMine=true` 면 클라이언트가 Bottom Sheet 에 수정·삭제를 노출한다(§8.9·§8.10).
                     - **조회수는 올라가지 않는다.** 조회 이벤트는 §8.5 `POST /videos/{videoSeq}/view` 다.
 
@@ -57,8 +58,8 @@ public interface VideoControllerDocs {
                                 "videoSeq": 88,
                                 "challengeSeq": 11,
                                 "description": "재밌었다!",
-                                "videoUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-                                "thumbnailUrl": "https://cdn.motif.io/public/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
+                                "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
                                 "durationMs": 15000,
                                 "author": {
                                   "userSeq": 5,
@@ -159,16 +160,19 @@ public interface VideoControllerDocs {
                     존재한다"가 읽힌다(§1.8 존재 은닉). 403 은 **보이는데 내 것이 아닐 때**,
                     즉 남의 `PUBLIC` 영상에만 나간다.
 
-                    ### visibility 를 바꾸면 videoUrl 도 바뀐다
+                    ### visibility 를 바꿔도 videoUrl 은 그대로다
 
-                    등급을 정하는 것은 `visibility` 가 아니라 **키 프리픽스**다(§1.7).
+                    산출물은 게시 여부와 무관하게 `private/` 한 곳에 있고, `visibility` 는
+                    **앱 안에서 누가 볼 자격이 있는가**만 정한다(ADR-0013). 키를 옮기지 않으므로
+                    S3 복사·삭제도 CloudFront 무효화도 일어나지 않는다.
 
-                    - **`PUBLIC → PRIVATE`**: 이후 발급되는 URL 이 **core-api 보호 경로**로 바뀐다.
-                      다만 **이미 발급된 무서명 CDN URL 은 살아 있다** — 공개 사본 삭제와 CloudFront
-                      무효화는 아직 구현돼 있지 않다. "즉시 차단"을 약속하지 않는다.
-                    - **`PRIVATE → PUBLIC`**: 공개 사본을 만드는 주체(§8.8 게시)가 아직 없어서,
-                      `videoUrl` 은 당분간 **보호 경로 그대로**다. `visibility` 는 `PUBLIC` 이지만
-                      **타인은 아직 재생할 수 없다.** 복사가 붙는 티켓에서 닫힌다.
+                    - **`PUBLIC → PRIVATE`**: 목록·조회에서는 즉시 사라진다. 재생은 **서명 갱신
+                      TTL 안에** 닫힌다 — 만료되면 클라이언트가 `POST /media/{jobUuid}/signature`
+                      를 거쳐야 하는데 거기서 인가를 다시 하기 때문이다. 이미 발급된 서명이
+                      만료될 때까지(기본 10분)가 최대 지연이라 "즉시 차단"은 약속하지 않는다.
+                    - **`PRIVATE → PUBLIC`**: 즉시 남에게도 보이고 재생된다. 남의 `PUBLIC` 영상에도
+                      서명이 나가고 갱신도 받을 수 있다 — 인가는 `visibility` 로 하지 서명 유무로
+                      하지 않는다.
                     """)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(

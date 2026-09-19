@@ -3,7 +3,7 @@ package com.ssafy.motif.coreapi.domain.home.service;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.home.dto.HotVideoItem;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshot;
-import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.video.HotVideoRow;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
@@ -38,12 +38,19 @@ public class HotVideoQueryService {
     private final ParticipationVideoRepository participationVideoRepository;
 
     /**
-     * 공개 등급 전용이다. HOT 에는 공개 사본이 준비된 영상만 오르므로(배치가 거른다)
-     * 보호 등급 분기가 필요 없고, {@code MediaUrlResolver} 로 등급을 다시 판정하면
-     * <b>HLS 재생목록에 단일 파일 서명을 붙이는</b> 잘못된 경로가 열린다 — 그 URL 은
-     * 재생목록만 열리고 조각 요청이 403 이 된다.
+     * 주소는 전부 여기서 만든다 — 재생목록은 {@code resolvePlaylist}, 썸네일은
+     * {@code resolve}.
+     *
+     * <p><b>{@code PublicMediaUrlResolver} 를 직접 쓰지 않는다.</b> 예전에는 "HOT 에는
+     * 공개 사본이 준비된 영상만 오른다" 는 전제로 무서명 URL 을 만들었는데, 공개 사본
+     * 트리가 폐기되면서(ADR-0013) 참여 영상이 전부 보호 등급이 됐다 — 그대로 두면 HOT
+     * 전량이 무서명 URL 로 나가 CDN 이 403 을 준다.
+     *
+     * <p><b>둘을 나눠 부르는 이유는 HLS 가 단일 파일이 아니기 때문이다.</b> 재생목록에
+     * 단일 파일 서명({@code resolve})을 붙이면 재생목록만 열리고 조각 요청이 403 이
+     * 된다({@code VideoItemAssembler} 와 같은 판단).
      */
-    private final PublicMediaUrlResolver publicMediaUrlResolver;
+    private final MediaUrlResolver mediaUrlResolver;
 
     /**
      * §6.1 HOT 목록 — 커서, 스냅샷 순서 고정.
@@ -125,8 +132,8 @@ public class HotVideoQueryService {
         return new HotVideoItem(
                 rank,
                 row.videoSeq(),
-                publicMediaUrlResolver.resolve(row.videoKey()),
-                publicMediaUrlResolver.resolve(row.thumbnailKey()),
+                mediaUrlResolver.resolvePlaylist(row.videoKey()),
+                mediaUrlResolver.resolve(row.thumbnailKey()),
                 row.durationMs(),
                 new HotVideoItem.Song(row.songTitle(), row.singerName()),
                 new HotVideoItem.Author(row.authorUserSeq(), row.authorNickname()),

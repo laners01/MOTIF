@@ -28,8 +28,6 @@ import static org.mockito.Mockito.verify;
 class VideoRankingSnapshotJobTest {
 
     private static final Instant NOW = Instant.now();
-    private static final String PUBLIC_KEY = "public/challenge/uuid/master.m3u8";
-    private static final String PROTECTED_KEY = "private/challenge/uuid/master.m3u8";
 
     private ParticipationVideoRepository participationVideoRepository;
     private VideoRankingSnapshot snapshot;
@@ -45,8 +43,8 @@ class VideoRankingSnapshotJobTest {
                 snapshot);
     }
 
-    private static VideoScoreRow row(long videoSeq, long viewCount, String videoKey) {
-        return new VideoScoreRow(videoSeq, viewCount, NOW, videoKey);
+    private static VideoScoreRow row(long videoSeq, long viewCount) {
+        return new VideoScoreRow(videoSeq, viewCount, NOW);
     }
 
     @SuppressWarnings("unchecked")
@@ -60,7 +58,7 @@ class VideoRankingSnapshotJobTest {
     @DisplayName("점수 내림차순으로 순서를 확정한다")
     void ordersByScoreDescending() {
         given(participationVideoRepository.findRankingInputs()).willReturn(List.of(
-                row(7L, 10L, PUBLIC_KEY), row(88L, 500L, PUBLIC_KEY), row(12L, 120L, PUBLIC_KEY)));
+                row(7L, 10L), row(88L, 500L), row(12L, 120L)));
 
         job.refresh();
 
@@ -72,7 +70,7 @@ class VideoRankingSnapshotJobTest {
     void breaksTiesByVideoSeqAscending() {
         // 조회수가 전부 0인 시연 초기 상태가 정확히 이 모양이다
         given(participationVideoRepository.findRankingInputs()).willReturn(List.of(
-                row(88L, 0L, PUBLIC_KEY), row(7L, 0L, PUBLIC_KEY), row(12L, 0L, PUBLIC_KEY)));
+                row(88L, 0L), row(7L, 0L), row(12L, 0L)));
 
         job.refresh();
 
@@ -80,32 +78,21 @@ class VideoRankingSnapshotJobTest {
     }
 
     @Test
-    @DisplayName("공개 사본이 없는 PUBLIC 영상은 뺀다 — 무서명 URL 이 403 이 된다")
-    void excludesVideosWithoutPublicCopy() {
+    @DisplayName("키 프리픽스로 거르지 않는다 — 참여 영상은 전부 보호 등급이다 (ADR-0013)")
+    void doesNotFilterByKeyPrefix() {
+        // 한때 보호 프리픽스를 떨어뜨리는 필터가 있었다. 되살리면 후보가 전멸한다
         given(participationVideoRepository.findRankingInputs()).willReturn(List.of(
-                row(88L, 500L, PROTECTED_KEY), row(12L, 120L, PUBLIC_KEY)));
+                row(88L, 500L), row(12L, 120L)));
 
         job.refresh();
 
-        assertThat(capturedOrder()).containsExactly(12L);
+        assertThat(capturedOrder()).containsExactly(88L, 12L);
     }
 
     @Test
     @DisplayName("후보가 0건이면 포인터를 지운다 — 빈 스냅샷을 적재하지 않는다")
     void clearsPointerWhenNoCandidates() {
         given(participationVideoRepository.findRankingInputs()).willReturn(List.of());
-
-        job.refresh();
-
-        verify(snapshot).clear();
-        verify(snapshot, never()).replace(anyList());
-    }
-
-    @Test
-    @DisplayName("공개 사본이 하나도 없어도 포인터를 지운다")
-    void clearsPointerWhenEveryCandidateIsProtected() {
-        given(participationVideoRepository.findRankingInputs())
-                .willReturn(List.of(row(88L, 500L, PROTECTED_KEY)));
 
         job.refresh();
 

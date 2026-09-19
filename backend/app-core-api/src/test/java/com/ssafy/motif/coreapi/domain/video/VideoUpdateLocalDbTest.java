@@ -27,10 +27,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * §8.9 게시 정보 수정을 실제 DB에 대고 검증한다 (S15P21D104-207).
  *
  * <p>고정하는 것은 셋이다 — <b>부분 수정</b>(생략과 빈 문자열이 다르다), <b>403/404 우선
- * 순위</b>(남의 PRIVATE 은 404), <b>등급 전환이 키를 움직이는 방향</b>.
+ * 순위</b>(남의 PRIVATE 은 404), <b>등급 전환이 키를 건드리지 않는다</b>.
  *
- * <p>세 번째가 핵심이다. {@code visibility} 만 바꾸고 키를 두면 비공개로 내린 영상이 계속
- * 무서명 CDN URL 로 나가는데, 그건 <b>예외도 로그도 없이</b> 새는 종류다.
+ * <p>세 번째가 핵심이다. 산출물은 게시 여부와 무관하게 {@code private/} 한 곳에 있고
+ * (ADR-0013) {@code visibility} 는 앱 내 공개 범위만 뜻한다. 키를 움직이는 코드가 다시
+ * 들어오면 {@code visibility} 와 키가 어긋나는 구간이 되살아난다.
  *
  * <p>실행 전 {@code backend/local-infra && docker compose up -d --wait}.
  */
@@ -119,45 +120,48 @@ class VideoUpdateLocalDbTest {
     // --- 등급 전환 -----------------------------------------------------------
 
     @Test
-    @DisplayName("PUBLIC → PRIVATE: 키가 정본으로 돌아가 videoUrl 이 보호 경로가 된다")
-    void goingPrivateMovesKeysBack() {
+    @DisplayName("PUBLIC → PRIVATE: 값만 바뀌고 키는 그대로다")
+    void goingPrivateKeepsKeys() {
         Long 영상 = video().owner(me).insert();
-        assertThat(videoKey(영상)).startsWith("public/");     // 공개 사본이 준비된 상태
+        String 키 = videoKey(영상);
+        String 썸네일키 = thumbnailKey(영상);
 
         VideoItem updated = update(영상, new VideoUpdateRequest(null, Visibility.PRIVATE, null));
 
         assertThat(updated.visibility()).isEqualTo(Visibility.PRIVATE);
+        assertThat(videoKey(영상)).isEqualTo(키);
+        assertThat(thumbnailKey(영상)).isEqualTo(썸네일키);
         assertThat(updated.videoUrl())
                 .startsWith(MediaSigningTestSupport.CDN + "/private/")
                 .contains("/master.m3u8?")
                 .contains("Policy=", "Signature=", "Key-Pair-Id=");
-        assertThat(videoKey(영상)).startsWith("private/");
-        assertThat(thumbnailKey(영상)).startsWith("private/");
     }
 
     @Test
-    @DisplayName("PRIVATE → PUBLIC: 공개 사본이 없으므로 키는 그대로 둔다")
+    @DisplayName("PRIVATE → PUBLIC: 값만 바뀌고 키는 그대로다 — 옮길 자리가 없다")
     void goingPublicKeepsKeys() {
         Long 영상 = video().owner(me).privateVisibility().insert();
+        String 키 = videoKey(영상);
 
         VideoItem updated = update(영상, new VideoUpdateRequest(null, Visibility.PUBLIC, null));
 
         assertThat(updated.visibility()).isEqualTo(Visibility.PUBLIC);
-        assertThat(videoKey(영상)).startsWith("private/");
-        // 키가 보호 등급이라 서명이 붙는다 — MediaKeys 가 "정상" 이라고 적어 둔 상태
+        assertThat(videoKey(영상)).isEqualTo(키);
+        // PUBLIC 이어도 보호 등급이라 서명이 붙는다 (ADR-0013)
         assertThat(updated.videoUrl())
                 .startsWith(MediaSigningTestSupport.CDN + "/private/")
                 .contains("Policy=");
     }
 
     @Test
-    @DisplayName("같은 등급으로 다시 보내면 키를 건드리지 않는다")
-    void sameVisibilityDoesNotTouchKeys() {
+    @DisplayName("같은 등급으로 다시 보내도 달라지는 것이 없다")
+    void sameVisibilityIsHarmless() {
         Long 영상 = video().owner(me).insert();
         String before = videoKey(영상);
 
-        update(영상, new VideoUpdateRequest(null, Visibility.PUBLIC, null));
+        VideoItem updated = update(영상, new VideoUpdateRequest(null, Visibility.PUBLIC, null));
 
+        assertThat(updated.visibility()).isEqualTo(Visibility.PUBLIC);
         assertThat(videoKey(영상)).isEqualTo(before);
     }
 

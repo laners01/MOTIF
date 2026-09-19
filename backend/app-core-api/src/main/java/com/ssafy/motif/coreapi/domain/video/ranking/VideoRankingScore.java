@@ -45,7 +45,7 @@ public class VideoRankingScore {
      * 여기서 빼면 아직 아무도 안 본 영상이 HOT 에 영원히 못 오른다 — 조회가 생겨도
      * 그때 스냅샷에 없으면 순위를 받을 수 없다. 0점은 목록 맨 뒤라 해가 없다.
      *
-     * @param rows 배치가 이미 공개 사본 여부까지 걸러 넘긴 후보
+     * @param rows 배치가 §1.8 비노출까지 걸러 넘긴 후보
      * @param now  감쇠 기준 시각
      */
     public Map<Long, Double> compute(Collection<VideoScoreRow> rows, Instant now) {

@@ -170,20 +170,30 @@ class UserQueryServiceTest {
     @DisplayName("썸네일 등급은 키 프리픽스가 정한다 — visibility 가 아니다")
     void thumbnailGradeFollowsKeyPrefixNotVisibility() {
         given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
-                // PUBLIC 인데 키는 아직 private/ — 게시는 복사일 뿐 키를 바꾸지 않는다(§1.7).
-                // visibility 로 판정했다면 여기서 무서명 URL 이 나가 403 이 된다
+                // 참여 영상은 visibility 와 무관하게 전부 private/ 다(ADR-0013).
+                // visibility 로 판정했다면 PUBLIC 쪽에 무서명 URL 이 나가 403 이 된다
                 video(88L, "private/challenge/aaa/thumb.jpg", Visibility.PUBLIC, 3400L),
-                video(87L, "public/challenge/bbb/thumb.jpg", Visibility.PUBLIC, 120L),
+                video(87L, "private/challenge/bbb/thumb.jpg", Visibility.PUBLIC, 120L),
                 video(86L, "private/challenge/ccc/thumb.jpg", Visibility.PRIVATE, 7L)));
 
         List<VideoPreviewItem> videos = service.me(ME).videos();
 
         assertThat(videos).hasSize(3);
-        assertThat(videos.get(0).thumbnailUrl()).contains("Signature=");
-        assertThat(videos.get(1).thumbnailUrl())
-                .isEqualTo(CDN + "/public/challenge/bbb/thumb.jpg")
+        assertThat(videos).allSatisfy(video ->
+                assertThat(video.thumbnailUrl())
+                        .startsWith(CDN + "/private/challenge/")
+                        .contains("Signature="));
+    }
+
+    @Test
+    @DisplayName("무서명 프리픽스에는 서명이 붙지 않는다 — 어드민 카탈로그가 그 자리다")
+    void unsignedPrefixStaysUnsigned() {
+        given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
+                video(88L, "challenges/aaa/thumb.jpg", Visibility.PUBLIC, 3400L)));
+
+        assertThat(service.me(ME).videos().getFirst().thumbnailUrl())
+                .isEqualTo(CDN + "/challenges/aaa/thumb.jpg")
                 .doesNotContain("Signature=");
-        assertThat(videos.get(2).thumbnailUrl()).contains("Signature=");
     }
 
     @Test
@@ -466,7 +476,7 @@ class UserQueryServiceTest {
         void producesSameItemsAsMyPage() {
             given(participationVideoRepository.findMine(anyInt(), any())).willReturn(List.of(
                     video(88L, "private/challenge/aaa/thumb.jpg", Visibility.PUBLIC, 3400L),
-                    video(87L, "public/challenge/bbb/thumb.jpg", Visibility.PUBLIC, 120L),
+                    video(87L, "challenges/bbb/thumb.jpg", Visibility.PUBLIC, 120L),
                     video(86L, "private/challenge/ccc/thumb.jpg", Visibility.PRIVATE, 7L)));
 
             List<VideoPreviewItem> fromGrid = service.myVideos(ME).list();

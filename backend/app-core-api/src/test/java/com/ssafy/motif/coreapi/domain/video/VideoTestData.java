@@ -99,7 +99,8 @@ public final class VideoTestData {
         private boolean artistComment;
         private boolean deleted;
         private String visibility = "PUBLIC";
-        private String prefix = "public/challenge/";
+        /** 공개 사본 트리가 없다(ADR-0013) — 게시 여부와 무관하게 보호 프리픽스다. */
+        private String prefix = "private/challenge/";
 
         private VideoFixture(Integer challengeSeq, Integer artistSeq) {
             this.challengeSeq = challengeSeq;
@@ -141,10 +142,8 @@ public final class VideoTestData {
             return this;
         }
 
-        /** 비공개는 공개 사본이 없으므로 키도 보호 프리픽스가 기본이다. */
         public VideoFixture privateVisibility() {
             this.visibility = "PRIVATE";
-            this.prefix = "private/challenge/";
             return this;
         }
 
@@ -161,14 +160,12 @@ public final class VideoTestData {
         public Long insert() {
             String uuid = UUID.randomUUID().toString();
 
-            // 잡의 결과 키는 언제나 보호 등급이다 — 공개 트리는 게시가 만드는 '사본' 이고
-            // composite_jobs 는 정본을 가리킨다(MediaKeys#forPublishedChallenge). 여기서
-            // prefix 를 같이 쓰면 "정본이 public/ 에 있는" 존재하지 않는 상태가 만들어져,
-            // §8.9 의 PUBLIC → PRIVATE 되돌리기가 엉뚱한 자리를 가리킨다
+            // composite_jobs 는 워커가 실제로 쓴 정본을 가리킨다. 산출물이 한 자리뿐이라
+            // (ADR-0013) 참여 영상의 키와 같은 값이지만, prefix() 로 어긋난 상태를 일부러
+            // 만드는 테스트가 있어 따로 둔다
             String originKey = "private/challenge/" + uuid + "/master.m3u8";
             String originThumbKey = "private/challenge/" + uuid + "/thumb.jpg";
 
-            // 참여 영상이 가리키는 자리는 게시 시점 등급을 따른다
             String resultKey = prefix + uuid + "/master.m3u8";
             String thumbKey = prefix + uuid + "/thumb.jpg";
 
