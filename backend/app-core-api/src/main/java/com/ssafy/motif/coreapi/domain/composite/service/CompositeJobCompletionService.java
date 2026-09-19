@@ -199,6 +199,20 @@ public class CompositeJobCompletionService {
     }
 
     /**
+     * uuid 로 실패 확정 — <b>엔티티를 들고 있지 않은 호출부용</b>(디스패처).
+     *
+     * <p>{@link #fail(CompositeJob, String)} 에 <b>준영속 엔티티를 넘기면 안 된다</b> —
+     * 변경이 플러시될 곳이 없어 조용히 사라진다. 트랜잭션 밖에서 읽은 잡을 들고 오는
+     * 호출부는 반드시 이쪽을 쓴다.
+     *
+     * @throws BusinessException 404 {@code JOB_NOT_FOUND}
+     */
+    @Transactional
+    public void fail(UUID jobUuid, String failCode) {
+        fail(job(jobUuid), failCode);
+    }
+
+    /**
      * 실패 확정 — {@code /failed} 콜백·스윕·챌린지 삭제가 함께 쓴다.
      *
      * <p>이미 {@code DONE} 이면 건드리지 않는다. 결과는 실물이라 뒤늦은 실패 보고보다

@@ -135,8 +135,10 @@ class CompositeJobSubmitterTest {
     }
 
     private static CompositeProperties properties(String submitUrl) {
+        // 뒤 셋은 디스패처(537) 몫이라 접수 호출과 무관하다
         return new CompositeProperties(submitUrl, TOKEN,
-                Duration.ofSeconds(3), Duration.ofSeconds(15));
+                Duration.ofSeconds(3), Duration.ofSeconds(15),
+                Duration.ofMinutes(1), Duration.ofMinutes(2), Duration.ofMinutes(30));
     }
 
     /** 조립기(187)가 만드는 것과 같은 모양 — 무교체 CHALLENGE. */

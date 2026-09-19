@@ -59,24 +59,29 @@ services:
 
   # 가짜 합성기 (ADR-0003) — job.composite 소비 → 2초 → composite.done 발행.
   # 오프라인에서도 발행→소비→완료 전 파이프라인이 돈다.
+  # 스텁 AI 접수 서비스 (작업명세 §4.8). 큐 소비자가 아니라 HTTP 서버다 —
+  # AI 가 Cloud Run Jobs 로 가면서 경계가 HTTP 로 바뀌었다(§0).
+  # 접수를 받고 잠시 뒤 호스트의 core-api 로 콜백을 되쏜다. rabbitmq 에 붙지 않는다.
   stub-worker:
     build: ./stub-worker
     container_name: motif-stub-worker
+    ports:
+      - "18080:8080"        # core-api 의 motif.composite.submit-url 이 가리키는 포트
     environment:
-      MQ_HOST: rabbitmq
-      MQ_USERNAME: motif
-      MQ_PASSWORD: motif    # 로컬 전용 더미
-      MQ_VHOST: /motif
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+      # 컨테이너 → 호스트. Docker Desktop 은 기본 제공하고 Linux 는 아래 extra_hosts 가 채운다
+      CALLBACK_BASE: http://host.docker.internal:8081
+      WORKER_TOKEN: motif-local-worker-token   # 로컬 전용 더미 — application-local.yml 과 같은 값
+      PROCESS_SECONDS: "2"
+      # 실패 경로를 재현하려면 값을 넣고 `docker compose up -d --force-recreate stub-worker`
+      # 예: STUB_FAIL_CODE: FACE_NOT_DETECTED
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
-      # worker.py가 소비 시작 시 /tmp/healthy를 만들고 연결이 끊기면 지운다
-      test: ["CMD-SHELL", "test -f /tmp/healthy"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8080/health')\""]
       interval: 5s
       timeout: 3s
       retries: 12
-      start_period: 15s
+      start_period: 5s
 
 volumes:
   pgdata:

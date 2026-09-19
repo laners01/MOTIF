@@ -29,10 +29,24 @@ import java.time.Duration;
  * @param connectTimeout 접수 연결 타임아웃 (작업명세 §4.2 — 3s)
  * @param readTimeout    접수 응답 타임아웃 (15s). 접수 서비스는 Job 을 띄우기만 하고
  *                       기다리지 않아 1~3초 안에 답한다(AI 명세 §3.2)
+ * @param sweepInterval  디스패처 틱 (작업명세 §4.7 — 1분)
+ * @param requeueAfter   {@code QUEUED} 를 재접수 대상으로 보기까지 (2분). 방금 13.2 가
+ *                       만든 잡을 디스패처가 즉시 집어 중복 접수하지 않게 하는 간격이다
+ * @param taskTimeout    AI Job 의 최대 실행 시간 — <b>AI 팀이 준 값</b>(기본 30m).
+ *                       {@code PROCESSING} 정체 판정은 여기에 5분을 더한다. 짧게 잡으면
+ *                       정상 잡을 {@code STUCK} 으로 닫고 뒤늦은 콜백이 다시 살려
+ *                       푸시가 두 번 간다(§7 함정 9)
  */
 @ConfigurationProperties(prefix = "motif.composite")
 public record CompositeProperties(String submitUrl, String workerToken,
-                                  Duration connectTimeout, Duration readTimeout) {
+                                  Duration connectTimeout, Duration readTimeout,
+                                  Duration sweepInterval, Duration requeueAfter,
+                                  Duration taskTimeout) {
+
+    /** {@code PROCESSING} 정체 기준 — 콜드스타트를 포함해야 한다(§7 함정 9). */
+    public Duration processingStuckAfter() {
+        return taskTimeout.plusMinutes(5);
+    }
 
     public boolean hasSubmitUrl() {
         return submitUrl != null && !submitUrl.isBlank();

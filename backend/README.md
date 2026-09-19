@@ -59,18 +59,57 @@ k8s 매니페스트가 `SPRING_PROFILES_ACTIVE=prod`와 Secret(비밀번호)을 
 
 ## 파이프라인 스모크 (격리 모드)
 
+§13 합성 파이프라인을 접수부터 알림까지 한 바퀴 돌린다. AI 자리는
+`local-infra/stub-worker`(HTTP 스텁)가 대신한다 — 큐가 아니라 **접수 HTTP 를 받고
+콜백 HTTP 를 되쏘는** 서버다(합성 파이프라인 작업명세 §4.8).
+
 ```bash
 cd backend/local-infra && docker compose up -d --wait
 cd backend && ./gradlew :app-core-api:bootRun &
 cd backend && ./gradlew :app-notification:bootRun &
-
-curl -X POST localhost:8081/api/dev/jobs \
-  -H 'Content-Type: application/json' -d '{"jobType":"MOTIF"}'
 ```
 
-기대: ① core-api `job.composite 발행` 로그 → ② 스텁 워커 `수신`/`발행` 로그(2초)
-→ ③ notification `composite.done 수신` 로그. **세 로그의 requestId가 같다**
-(`docker logs motif-stub-worker`, 각 앱 콘솔의 `[requestId]` 비교 — ADR-0005 추적).
+사용자 토큰으로 §13.1 → PUT → §13.2 를 부른다.
+
+```bash
+TOKEN=<사용자 access token>
+JOB=$(curl -s -X POST localhost:8081/api/v1/composite-jobs \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"jobType":"CHALLENGE","challengeSeq":1}')
+echo "$JOB"
+
+curl -s -X PUT --upload-file sample.mp4 -H 'Content-Type: video/mp4' \
+  "$(echo "$JOB" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["uploadUrl"])')"
+
+UUID=$(echo "$JOB" | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["jobUuid"])')
+curl -s -X POST "localhost:8081/api/v1/composite-jobs/$UUID/request" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"correctionEnabled":true}'
+```
+
+기대 순서 — **전 구간의 requestId 가 같다**(ADR-0005 추적).
+
+| # | 어디 | 로그 |
+|---|---|---|
+| ① | core-api | 13.2 응답 202 · 상태 `QUEUED` |
+| ② | core-api | 디스패처 `재접수 시도` → `AI 접수 202 → PROCESSING` (최대 1분 뒤 틱) |
+| ③ | 스텁 | `접수 수신` → 2초 뒤 `콜백 /done → 200` (`docker logs motif-stub-worker`) |
+| ④ | core-api | `/done 수신 → job.media 발행` |
+| ⑤ | app-media | `후처리 완료` → `composite.packaged 발행` *(app-media 를 로컬에서 띄웠을 때)* |
+| ⑥ | core-api | `합성 완료 확정` → `composite.finished 발행` |
+| ⑦ | notification | `composite.finished 발송 완료` (로컬은 FCM 빈이 없어 `sent=0`) |
+
+`GET /api/v1/composite-jobs/$UUID` 가 `DONE` 과 결과 URL 을 준다.
+
+**실패·복구 경로**도 같은 스텁으로 본다.
+
+```bash
+# 접수 실패 — 스텁을 끄면 QUEUED 로 남고 디스패처가 2분 간격으로 재접수, 3회째 FAILED(STUCK)
+docker compose stop stub-worker
+
+# AI 실패 콜백 — /done 대신 /failed 가 온다
+STUB_FAIL_CODE=FACE_NOT_DETECTED docker compose up -d --force-recreate stub-worker
+```
 
 health 확인: `curl localhost:8081/api/health`(앱 포트, Traefik 계약),
 `curl localhost:9081/actuator/health`(관리 포트). 게이트웨이는 없다 —
