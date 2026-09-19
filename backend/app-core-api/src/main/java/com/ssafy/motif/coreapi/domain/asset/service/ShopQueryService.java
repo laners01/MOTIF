@@ -9,8 +9,8 @@ import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository.AssetShopRow;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository.ActivePassProjection;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository.ActivePassProjection;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,7 +40,7 @@ public class ShopQueryService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final MotifAssetRepository motifAssetRepository;
-    private final MotifPassPriceRepository motifPassPriceRepository;
+    private final MotifPassRepository motifPassRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
     /**
@@ -62,7 +62,7 @@ public class ShopQueryService {
                         // 쿼리가 이미 최신순이고 groupingBy 의 기본 리스트는 만난 순서를 지킨다
                         .collect(Collectors.groupingBy(AssetShopRow::getArtistSeq));
         Map<Integer, Instant> passExpiryByArtist =
-                motifPassPriceRepository.findActivePasses(userSeq, artistSeqs).stream()
+                motifPassRepository.findActivePasses(userSeq, artistSeqs).stream()
                         .collect(Collectors.toMap(ActivePassProjection::getArtistSeq,
                                 ActivePassProjection::getExpiresDttm));
 

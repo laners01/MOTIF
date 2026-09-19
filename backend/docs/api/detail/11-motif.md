@@ -572,20 +572,28 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 설명 |
 |---|---|
-| `status` | `ACTIVE` \| `EXPIRED` \| `REFUNDED` |
+| `status` | `ACTIVE` \| `EXPIRED` \| `REFUNDED` — **실효 상태**(DB 원시값이 아니다) |
 | `canceledDttm` | 취소 의사 기록. **이용 판정에는 참여하지 않는다** |
-
-**실제 이용 가능 판정은 `status='ACTIVE' && expiresDttm > now`** 다 — `status` 만 보면 만료 배치가 돌기 전 구간에서 틀린다.
 
 회원×아티스트당 1행이다(`uq_motif_passes_user_artist`) — 같은 아티스트의 패스를 다시 사면 기존 행을 재활성한다.
 
-### 이 API 는 판정하지 않는다
+### status 는 실효 상태다
 
-`status`·`expiresDttm` **원시값을 그대로** 내려준다. 기간이 지난 `ACTIVE` 행도 서버가
-`EXPIRED` 로 바꿔 주지 않는다 — DB 와 응답이 갈리기 때문이다.
+이용 가능 판정은 **`status='ACTIVE' && expiresDttm > now`** 다. `ACTIVE → EXPIRED` 전이
+배치가 없어 **기간이 지난 `ACTIVE` 행**이 DB 에 정상적으로 존재하는데(DB 명세 v0.15 §35),
+이 API 는 그 행을 **`EXPIRED` 로** 내린다. 원시값을 그대로 내보내면 클라이언트가 못 쓰는
+패스를 활성으로 읽고, 실제 접근(§11.2·§11.3)이 이미 거부하므로 화면 둘이 갈린다.
 
-판정이 필요한 화면은 **§11.4**(아티스트별 패스)나 **§4.7**(구독 카드)의 `passActive` 를
-쓴다. 세 곳이 각자 계산하면 같은 패스가 화면마다 다르게 보인다.
+판정은 이 API 가 따로 계산하지 않는다 — **§11.4**(아티스트별 패스)·**§4.7**(구독 카드)의
+`passActive` 와 **같은 조회**(`MotifPassRepository.findActivePasses`)가 DB 시각으로 답한
+것을 그대로 쓴다. 세 화면이 같은 패스를 두고 다른 말을 하지 않는다.
+
+`expiresDttm`·`startedDttm`·`durationMonths`·`canceledDttm` 은 원시값 그대로다. 실효 상태를
+덧입히는 것은 `status` 하나뿐이다.
+
+> **DB 행은 고치지 않는다.** 조회가 `EXPIRED` 로 UPDATE 하면 이 화면을 연 사람의 행만
+> 정리돼 정합성은 여전히 보장되지 않고, 권한은 이미 `expires_dttm` 이 책임진다. DB 명세
+> §35 가 예정한 전이 배치는 만료 알림·통계 같은 요구가 생길 때 별도로 만든다.
 
 ### 정렬 · 범위
 
@@ -602,14 +610,17 @@ Authorization: Bearer {accessToken}
 **도메인 분기 없음.** 패스가 0건이면 빈 배열 200 이고, 그때는 아티스트 조회를 부르지
 않는다(빈 `in` 절을 보내지 않는다).
 
-### 구현 메모 (S15P21D104-70)
+### 구현 메모 (S15P21D104-70 · 269)
 
 - 매핑은 `UserController` 다 — 경로가 `/users/me` 아래이고 이 레포는 경로가 컨트롤러를
   정한다(§11.4 를 `ArtistController` 에 넣은 것과 같은 기준). 서비스만
   `UserMotifPassQueryService` 로 따로 뒀다.
 - `MotifPassRepository.findActive` 를 고쳐 쓰지 않는다. 그쪽은 어드민 §3.14.2 용이라
   **유효 패스만** 세 칸으로 주는 투영이고, 여기는 전량 × 전체 칸이다.
-- 조회 2번 고정 — 패스 전량 · `ArtistRepository.findCards`(배치).
+- 조회 3번 고정 — 패스 전량 · `ArtistRepository.findCards`(배치) ·
+  `MotifPassRepository.findActivePasses`(배치). 마지막 하나가 실효 상태의 출처다.
+  항목마다 유효 여부를 물으면 그대로 N+1 이고, 자바에서 `expiresDttm` 을 비교하면 이
+  화면만 다른 시계를 쓰게 된다.
 
 ---
 

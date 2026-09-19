@@ -22,7 +22,7 @@ import com.ssafy.motif.domain.core.notice.Notice;
 import com.ssafy.motif.domain.core.notice.NoticeImage;
 import com.ssafy.motif.domain.core.notice.NoticeImageRepository;
 import com.ssafy.motif.domain.core.notice.NoticeRepository;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -59,7 +59,7 @@ public class ArtistQueryService {
     private final ChallengeRepository challengeRepository;
     private final NoticeRepository noticeRepository;
     private final NoticeImageRepository noticeImageRepository;
-    private final MotifPassPriceRepository motifPassPriceRepository;
+    private final MotifPassRepository motifPassRepository;
     private final PublicMediaUrlResolver mediaUrlResolver;
 
     /**
@@ -104,7 +104,7 @@ public class ArtistQueryService {
         Subscription subscription = subscriptionRepository
                 .findByIdUserSeqAndIdArtistSeq(userSeq, artistSeq)
                 .orElse(null);
-        Instant passExpiry = motifPassPriceRepository
+        Instant passExpiry = motifPassRepository
                 .findActivePassExpiry(userSeq, artistSeq)
                 .orElse(null);
 

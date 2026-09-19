@@ -9,6 +9,7 @@ import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.country.CountryRepository;
 import com.ssafy.motif.domain.core.pass.MotifPassPrice;
 import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,7 @@ import java.util.List;
  * 구독 셋으로 갈려 있고, 패스는 그중 어디에도 속하지 않는 네 번째 관심사다 — 상품과
  * 보유 상태를 다룬다.
  *
- * <p><b>보유 판정은 {@link MotifPassPriceRepository#findActivePassExpiry} 하나다</b> —
+ * <p><b>보유 판정은 {@link MotifPassRepository#findActivePassExpiry} 하나다</b> —
  * §5.3 아티스트 상세가 쓰는 것과 같은 메서드다. 같은 질문에 두 곳이 답하면 상세 화면과
  * 구매 화면이 서로 다른 말을 하는 순간이 생긴다.
  *
@@ -47,6 +48,7 @@ public class ArtistMotifPassQueryService {
     private final ArtistRepository artistRepository;
     private final CountryRepository countryRepository;
     private final MotifPassPriceRepository motifPassPriceRepository;
+    private final MotifPassRepository motifPassRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
     /**
@@ -63,7 +65,7 @@ public class ArtistMotifPassQueryService {
 
         String bannerImageUrl = mediaUrlResolver.resolve(artist.getMotifBgImageKey());
 
-        Instant expiresDttm = motifPassPriceRepository
+        Instant expiresDttm = motifPassRepository
                 .findActivePassExpiry(userSeq, artistSeq)
                 .orElse(null);
         if (expiresDttm != null) {

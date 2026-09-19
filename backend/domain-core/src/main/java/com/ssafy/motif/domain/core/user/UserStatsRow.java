@@ -7,7 +7,7 @@ package com.ssafy.motif.domain.core.user;
  * 댓글 3종은 테이블만 있고 JPA 엔티티가 없다. 숫자 하나씩을 위해 엔티티 4개를 만드는
  * 대신 서브쿼리 한 방으로 센다 — 상세 화면 1건당 1회다. 그 테이블을 소유할 티켓
  * (구매 §12 · 신고 §3.13)이 엔티티를 만들면 해당 줄을 그리로 옮긴다
- * ({@code MotifPassPriceRepository.countActivePasses} 와 같은 규칙).
+ * ({@code MotifPassRepository.countActivePasses} 와 같은 규칙).
  *
  * <p>유효 패스는 여기 없다 — {@code MotifPass} 읽기 전용 엔티티가 생겨
  * {@code MotifPassRepository.findActive} 가 JPQL 로 가져온다.

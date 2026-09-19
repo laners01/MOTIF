@@ -14,7 +14,7 @@ import java.util.List;
  * <p>{@code ArtistDetailResponse.MotifPass}(§5.3)와 겹쳐 보이지만 <b>답하는 질문이
  * 다르다</b>. 저쪽은 아티스트 상세 한 칸에서 "패스가 있나"만 말하고, 여기는 "없으면
  * 얼마에 살 수 있나"까지 답한다. 판정 자체는
- * {@code MotifPassPriceRepository.findActivePassExpiry} 한 곳이라 두 벌이 아니다.
+ * {@code MotifPassRepository.findActivePassExpiry} 한 곳이라 두 벌이 아니다.
  */
 @Schema(description = "아티스트별 모티프 패스 (§11.4)")
 public record ArtistMotifPassResponse(

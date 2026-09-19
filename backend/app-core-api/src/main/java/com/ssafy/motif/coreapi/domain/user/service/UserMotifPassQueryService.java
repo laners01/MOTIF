@@ -7,12 +7,14 @@ import com.ssafy.motif.domain.core.artist.ArtistCardRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.pass.MotifPass;
 import com.ssafy.motif.domain.core.pass.MotifPassRepository;
+import com.ssafy.motif.domain.core.pass.PassStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,14 +25,22 @@ import java.util.stream.Collectors;
  * 조회와 관심사가 다르고, §11.4 를 {@code ArtistMotifPassQueryService} 로 분리한 것과
  * 같은 방식이다.
  *
- * <p><b>조회 두 번으로 끝난다</b> — 패스 전량 · 아티스트 요약(배치). 항목마다 아티스트를
- * 읽으면 그대로 N+1 이다.
+ * <p><b>조회 세 번으로 끝난다</b> — 패스 전량 · 아티스트 요약(배치) · 유효 패스(배치).
+ * 항목마다 아티스트나 유효 여부를 읽으면 그대로 N+1 이다.
  *
- * <p><b>이용 가능 여부를 계산하지 않는다.</b> {@code status}·{@code expiresDttm} 원시값을
- * 그대로 내려준다 — 판정이 필요한 화면은 §11.4·§4.7 의 {@code passActive} 를 쓴다. 여기서도
- * 계산하면 같은 질문에 세 곳이 각자 답하게 된다.
+ * <p><b>{@code status} 는 실효 상태다</b>(S15P21D104-269). {@code ACTIVE → EXPIRED} 전이
+ * 배치가 없어 기간이 지난 {@code ACTIVE} 행이 정상적으로 존재하는데, 그 원시값을 그대로
+ * 내보내면 클라이언트가 못 쓰는 패스를 활성으로 읽는다 — 실제 접근(§11.2·§11.3)은 이미
+ * 거부하므로 화면 둘이 갈린다.
  *
- * <p>읽기 전용 트랜잭션이다.
+ * <p><b>그 판정을 여기서 계산하지 않는다.</b> {@link MotifPassRepository#findActivePasses}
+ * 가 DB 시각으로 답한 집합을 덧대기만 한다 — §4.7 구독 카드와 §11.3 숍이 쓰는 바로 그
+ * 메서드다. 자바에서 만료 시각을 비교하면 앱 서버 시계가 DB 와 어긋난 만큼 이 화면만
+ * 만료 직전·직후 판정이 달라진다.
+ *
+ * <p>읽기 전용 트랜잭션이다 — <b>어긋난 행을 고쳐 쓰지 않는다</b>. 조회가 DB 를 갱신하면
+ * 이 화면을 연 사람의 행만 정리돼 정합성은 여전히 보장되지 않고, 권한은 이미
+ * {@code expires_dttm} 이 책임지므로 얻는 것이 없다(DB 명세 v0.15 §35).
  */
 @Service
 @RequiredArgsConstructor
@@ -58,25 +68,45 @@ public class UserMotifPassQueryService {
             return ListResponse.of(List.of());
         }
 
-        Map<Integer, ArtistCardRow> artists = artistRepository
-                .findCards(passes.stream().map(MotifPass::getArtistSeq).distinct().toList())
-                .stream()
+        List<Integer> artistSeqs = passes.stream().map(MotifPass::getArtistSeq).distinct().toList();
+        Map<Integer, ArtistCardRow> artists = artistRepository.findCards(artistSeqs).stream()
                 .collect(Collectors.toMap(ArtistCardRow::artistSeq, Function.identity()));
+        Set<Integer> activeArtistSeqs = motifPassRepository.findActivePasses(userSeq, artistSeqs)
+                .stream()
+                .map(MotifPassRepository.ActivePassProjection::getArtistSeq)
+                .collect(Collectors.toSet());
 
         return ListResponse.of(passes.stream()
-                .map(pass -> item(pass, artists.get(pass.getArtistSeq())))
+                .map(pass -> item(pass, artists.get(pass.getArtistSeq()), activeArtistSeqs))
                 .toList());
     }
 
-    private MotifPassItem item(MotifPass pass, ArtistCardRow card) {
+    private MotifPassItem item(MotifPass pass, ArtistCardRow card, Set<Integer> activeArtistSeqs) {
         return new MotifPassItem(
                 pass.getArtistSeq(),
                 artist(pass.getArtistSeq(), card),
-                pass.getStatus(),
+                status(pass, activeArtistSeqs),
                 pass.getStartedDttm(),
                 pass.getExpiresDttm(),
                 pass.getDurationMonths(),
                 pass.getCanceledDttm());
+    }
+
+    /**
+     * 실효 상태 — 기간이 지난 {@code ACTIVE} 는 {@code EXPIRED} 로 내려간다.
+     *
+     * <p>(회원, 아티스트)당 한 행이라({@code uq_motif_passes_user_artist}) 아티스트 식별자
+     * 하나로 이 행이 유효한지가 정해진다. 집합에 있으면 DB 가 유효하다고 답한 것이므로
+     * {@code ACTIVE} 그대로고, 없는데 DB 가 {@code ACTIVE} 면 기간이 지난 행이다.
+     *
+     * <p>{@code EXPIRED}·{@code REFUNDED} 는 건드리지 않는다 — 이미 종료 상태다.
+     * {@code canceledDttm} 도 보지 않는다. 취소는 의사 기록이고 이용 판정에 불참한다(DB §35).
+     */
+    private static PassStatus status(MotifPass pass, Set<Integer> activeArtistSeqs) {
+        if (pass.getStatus() != PassStatus.ACTIVE || activeArtistSeqs.contains(pass.getArtistSeq())) {
+            return pass.getStatus();
+        }
+        return PassStatus.EXPIRED;
     }
 
     /**

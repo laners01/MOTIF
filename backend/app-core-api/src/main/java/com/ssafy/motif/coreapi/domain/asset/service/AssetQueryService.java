@@ -12,7 +12,7 @@ import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository.AssetDetailRow;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository.AssetPurchasedRow;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
-import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
+import com.ssafy.motif.domain.core.pass.MotifPassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,7 +47,7 @@ public class AssetQueryService {
     private static final String PRICE_COUNTRY_CODE = "KR";
 
     private final MotifAssetRepository motifAssetRepository;
-    private final MotifPassPriceRepository motifPassPriceRepository;
+    private final MotifPassRepository motifPassRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
     /**
@@ -72,7 +72,7 @@ public class AssetQueryService {
                 .orElseThrow(() -> new BusinessException(
                         AssetErrorCode.ASSET_NOT_FOUND, "assetSeq: " + assetSeq));
         boolean owned = motifAssetRepository.existsActivePurchase(userSeq, assetSeq);
-        boolean passActive = !owned && motifPassPriceRepository
+        boolean passActive = !owned && motifPassRepository
                 .findActivePassExpiry(userSeq, asset.getArtistSeq()).isPresent();
         return MyAccess.of(owned, passActive, asset.getAssetType());
     }

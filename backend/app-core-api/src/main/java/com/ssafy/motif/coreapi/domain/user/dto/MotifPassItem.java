@@ -8,13 +8,14 @@ import java.time.Instant;
 /**
  * 내 패스 일람 항목 (API 명세 §11.9).
  *
- * <p><b>원시값을 그대로 준다.</b> "지금 쓸 수 있나" 는 여기서 계산하지 않는다 — 그
- * 판정은 §11.4(아티스트별 패스)와 §4.7(구독 카드)의 {@code passActive} 가 답한다. 세 곳이
- * 각자 계산하면 같은 패스가 화면마다 다르게 보인다.
+ * <p><b>{@code status} 는 실효 상태다 — DB 원시값이 아니다.</b> {@code ACTIVE → EXPIRED}
+ * 전이 배치가 없어 <b>기간이 지난 {@code ACTIVE} 행</b>이 정상적으로 존재하는데, 그 값을
+ * 그대로 내보내면 클라이언트가 못 쓰는 패스를 활성으로 읽는다. 그래서 DB 가
+ * {@code ACTIVE} 라도 {@code expiresDttm} 이 지났으면 {@code EXPIRED} 로 내려간다
+ * (S15P21D104-269).
  *
- * <p>그래서 {@code status} 만 보면 틀린다 — 만료 배치가 아직 없어 <b>기간이 지난
- * {@code ACTIVE} 행</b>이 정상적으로 존재한다. 실제 판정은
- * {@code status='ACTIVE' AND expiresDttm > now} 다.
+ * <p>판정 자체는 여기서도 서비스에서도 계산하지 않는다 — §11.4·§4.7 의 {@code passActive}
+ * 와 같은 조회가 DB 시각으로 답한 것을 그대로 쓴다.
  */
 @Schema(description = "내 패스 일람 항목 (§11.9)")
 public record MotifPassItem(
@@ -26,7 +27,8 @@ public record MotifPassItem(
         @Schema(description = "README §3.5 공통 아티스트 요약")
         Artist artist,
 
-        @Schema(description = "ACTIVE | EXPIRED | REFUNDED. **이용 가능 여부가 아니다**",
+        @Schema(description = "ACTIVE | EXPIRED | REFUNDED — **실효 상태**. "
+                + "기간이 지난 패스는 DB 가 ACTIVE 여도 EXPIRED 로 내려간다",
                 example = "ACTIVE")
         PassStatus status,
 

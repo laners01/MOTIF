@@ -66,7 +66,7 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
      *
      * <p>{@code asset_purchases} 엔티티를 만들지 않고 네이티브로 센다 — 여기서 필요한
      * 것은 숫자뿐이고 그 테이블의 상태 규칙(환불 처리)은 구매 도메인(§12)이 소유한다.
-     * {@code MotifPassPriceRepository.countActivePasses} 가 같은 판단을 했다. 그쪽
+     * {@code MotifPassRepository.countActivePasses} 가 같은 판단을 했다. 그쪽
      * 티켓이 엔티티를 만들면 이 쿼리는 그리로 옮긴다.
      */
     @Query(value = """
@@ -337,7 +337,7 @@ public interface MotifAssetRepository extends JpaRepository<MotifAsset, Integer>
      *
      * <p><b>조인이 없다.</b> 아티스트 이름·프로필·그룹명은 호출부가 이미
      * {@code SubscriptionRepository.findSubscribed} 로 갖고 있고(섹션 순서의 출처이기도
-     * 하다), 패스 보유 여부도 {@code MotifPassPriceRepository.findActivePasses} 가 따로
+     * 하다), 패스 보유 여부도 {@code MotifPassRepository.findActivePasses} 가 따로
      * 답한다. 여기서 다시 조인하면 같은 값을 두 번 읽는다.
      *
      * <p>그래서 {@code passActive} 서브쿼리도 없다 — {@code myAccess} 는 이 결과의

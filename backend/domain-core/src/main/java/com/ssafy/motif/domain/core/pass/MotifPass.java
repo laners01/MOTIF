@@ -25,9 +25,9 @@ import java.time.Instant;
  *
  * <p><b>이용 판정은 {@code status} 만으로 하지 않는다.</b> 만료 전이 배치가 아직 없어
  * 기간이 지난 패스도 {@code ACTIVE} 로 남아 있다 — {@code status='ACTIVE'} 이고
- * {@code expires_dttm} 이 아직 지나지 않은 것이 유효한 패스다
- * ({@link MotifPassRepository#findActive}, {@code MotifPassPriceRepository.findActivePassExpiry}).
- * 재활성 전에 "지금 유효한가"를 묻는 것도 그 조회의 몫이라 여기서는 다시 판정하지 않는다.
+ * {@code expires_dttm} 이 아직 지나지 않은 것이 유효한 패스다. 그 판정은 전부
+ * {@link MotifPassRepository} 에 있다 — 재활성 전에 "지금 유효한가"를 묻는 것도, 응답에
+ * 나갈 실효 상태(§11.9)도 그 조회의 몫이라 <b>여기서는 다시 판정하지 않는다</b>.
  *
  * <p>{@code canceledDttm} 은 <b>취소 의사 기록일 뿐 이용 판정에 불참한다</b>(DB §35) —
  * 다음 갱신을 하지 않겠다는 뜻이지 지금 못 쓴다는 뜻이 아니다. 재활성은 이 값을 지운다.

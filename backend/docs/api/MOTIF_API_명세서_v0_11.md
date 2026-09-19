@@ -1324,7 +1324,7 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 
 ### 11.9 GET /users/me/motif-passes
 
-**성공 (200)** — `data.list[]`: `{ "artistSeq": 3, "artist": {요약}, "status": "ACTIVE", "startedDttm": "...", "expiresDttm": "...", "durationMonths": 1, "canceledDttm": null }`. 실제 이용 판정은 `ACTIVE && expiresDttm > now`.
+**성공 (200)** — `data.list[]`: `{ "artistSeq": 3, "artist": {요약}, "status": "ACTIVE", "startedDttm": "...", "expiresDttm": "...", "durationMonths": 1, "canceledDttm": null }`. 이용 판정은 `ACTIVE && expiresDttm > now` 이고, `status` 는 그 판정을 반영한 **실효 상태**다 — 기간이 지난 패스는 DB 가 `ACTIVE` 여도 `EXPIRED` 로 내려간다 *(S15P21D104-269)*.
 
 ### 11.10 패스 취소 — 기획 유지 / 현재 구현 범위 제외
 

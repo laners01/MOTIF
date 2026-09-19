@@ -500,14 +500,15 @@ public interface UserControllerDocs {
             - 회원×아티스트당 한 행이다(`uq_motif_passes_user_artist`). 같은 아티스트의
               패스를 다시 사면 기존 행을 재활성한다.
 
-            ### status 만 보면 틀린다
+            ### status 는 실효 상태다
 
-            **실제 이용 가능 판정은 `status='ACTIVE' AND expiresDttm > now`** 다. 만료
-            배치가 아직 없어 **기간이 지난 `ACTIVE` 행**이 정상적으로 존재하고, 이 API 는
-            그 원시값을 **그대로** 내려준다.
+            이용 가능 판정은 **`status='ACTIVE' AND expiresDttm > now`** 다. `ACTIVE →
+            EXPIRED` 전이 배치가 없어 **기간이 지난 `ACTIVE` 행**이 DB 에 정상적으로
+            존재하는데, 이 API 는 그 행을 **`EXPIRED` 로 내려준다** — DB 원시값이 아니다.
 
-            판정이 필요한 화면은 §11.4(아티스트별 패스)나 §4.7(구독 카드)의 `passActive` 를
-            쓴다 — 세 곳이 각자 계산하면 같은 패스가 화면마다 다르게 보인다.
+            그래서 `status` 를 그대로 믿어도 된다. 판정 자체는 §11.4(아티스트별 패스)·
+            §4.7(구독 카드)의 `passActive` 와 **같은 조회**가 DB 시각으로 답한 것이라,
+            세 화면이 같은 패스를 두고 다른 말을 하지 않는다.
 
             ### canceledDttm
 
