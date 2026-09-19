@@ -338,9 +338,9 @@ catch-all 이라 경로를 적지 않아도 이미 인증이 걸린다. 여기 "
 | ~~4~~ | ~~`SecurityConfig` 경로 추가~~ | **불필요** — catch-all 이 이미 건다 |
 | ~~5~~ | ~~인가 — 타인 것은 404~~ | **완료(278)** — 부재·미완료·거부·화이트리스트 위반을 전부 `PLAYLIST_NOT_FOUND` 로 합쳤다 |
 | ~~6~~ | ~~응답 DTO 의 `videoUrl` 을 core-api 경로로~~ | **뒤집힘(ADR-0012)** — 보호 등급 `videoUrl` 은 **CDN 절대 주소 + 프리픽스 서명 파라미터**다. 주소 조립은 `MediaUrlResolver.resolvePlaylist(masterKey)` 한 곳이고, 호출부(§4.1·§6.1·§8.x)는 전환 완료 |
-| 7 | **썸네일·프로필은 `MediaUrlResolver`** | 단일 파일이라 리라이팅이 필요 없다. **등급은 키 프리픽스가 정하고 판정은 `MediaUrlResolver` 한 곳에만 있다**(278) — `visibility` 로 가르면 PUBLIC 게시 직후처럼 "공개인데 키는 아직 `private/`" 인 행에서 403 이 난다. Public/Protected 리졸버를 직접 부르지 않는다 |
-| 8 | **PUBLIC 게시 시 `public/` 복사** | `MediaKeys.forPublishedChallenge(jobUuid)` 가 대상 프리픽스다. S3 `CopyObject` 6~8개. 옮기지 않고 **복사**한다 |
-| 9 | **PUBLIC → PRIVATE 시 CloudFront 무효화** | `public/` 삭제만으로는 1년 `immutable` 탓에 엣지가 계속 서빙한다. `cloudfront:CreateInvalidation` IAM 권한이 필요하고, 비동기라 즉시 차단은 약속하지 않는다(§8.2) |
+| 7 | **썸네일·프로필은 `MediaUrlResolver`** | 단일 파일이라 리라이팅이 필요 없다. **등급은 키 프리픽스가 정하고 판정은 `MediaUrlResolver` 한 곳에만 있다**(278) — `visibility` 로 가르면 참여 영상이 전부 `private/` 라(ADR-0013) `PUBLIC` 쪽에서 403 이 난다. Public/Protected 리졸버를 직접 부르지 않는다 |
+| ~~8~~ | ~~**PUBLIC 게시 시 `public/` 복사**~~ | **폐기([ADR-0013](0013-signed-only-media.md))** — 공개 사본 트리를 두지 않는다. 서명 파라미터가 캐시 키에 들어가지 않아 "무서명으로 캐시 극대화" 라는 이점이 없고, 대신 복사기·삭제기·무효화와 `visibility`↔키 불일치 구간을 떠안아야 했다. §8.8 게시는 복사기를 만들지 않는다 |
+| ~~9~~ | ~~**PUBLIC → PRIVATE 시 CloudFront 무효화**~~ | **불필요(ADR-0013)** — 지울 공개 사본이 없다. 비공개 전환은 `visibility` 값 하나이고, 재생은 서명 갱신 인가가 TTL(기본 10분) 안에 닫는다. `cloudfront:CreateInvalidation` 권한도 필요 없다 |
 | 10 | **인프라 — `CLOUDFRONT_PRIVATE_KEY` Secret 주입** | 없으면 파드는 뜨고 보호 URL 발급만 실패한다(fail-closed). `40-core-api/secret.example.yaml.txt` 도 함께(`develop/infra`) |
 | 11 | **안드로이드 — 403 재시도 규약** | **갱신됨(ADR-0012)** — 재생목록도 CDN 에서 오므로 "재생목록 재요청" 은 복구가 되지 않는다. 조각이 403 이면 **OkHttp 인터셉터가 `POST /api/v1/media/{jobUuid}/signature` 로 새 파라미터를 받아 재시도**한다. 미디어 전용 OkHttpClient 를 쓸 것 — API 클라이언트와 공유하면 서명 파라미터가 우리 API 요청에도 붙는다 |
 

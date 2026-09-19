@@ -74,11 +74,11 @@ Authorization: Bearer {accessToken}
 3. `participation_videos` 에서 본인 비삭제 영상을 최신순 9건 조회. **삭제된 챌린지에 속한 영상은 뺀다**(§1.8)
 4. 이미지 URL 을 **키의 최상위 프리픽스**로 변환 — `private/` 면 signed URL, 아니면 무서명 CDN URL
 
-> **4번은 `visibility` 로 판정하지 않는다.** PUBLIC 게시는 산출물 트리를 `public/` 으로
-> **복사**할 뿐 키를 바꾸지 않으므로(§1.7 — 바꾸면 재생 중인 클라이언트가 404 를 만난다),
-> `visibility=PUBLIC` 인데 `thumbnail_key` 는 아직 `private/` 인 행이 정상적으로 존재한다.
-> 거기에 무서명 URL 을 만들면 403 이다. 반대 방향(PUBLIC → PRIVATE)은 CloudFront
-> 무효화가 비동기라 그 사이에 반대로 어긋난다. **키 하나만 보면 두 경우 모두 맞는다.**
+> **4번은 `visibility` 로 판정하지 않는다.** 둘은 다른 층이다 — `visibility` 는 앱 안에서
+> 누가 볼 자격이 있는가이고, 등급은 그 자격을 CDN 에 어떻게 전달하는가다(§1.7 ·
+> [ADR-0013](../../adr/0013-signed-only-media.md)). 참여 영상은 `visibility` 와 무관하게
+> 전부 `private/` 에 있으므로, 그 값으로 가르면 `PUBLIC` 영상에 무서명 URL 이 나가 403 이
+> 된다. **키 하나만 보면 언제나 맞는다.**
 >
 > 정렬은 `reg_dttm DESC` 대신 **PK 역순**이다 — IDENTITY 라 결과가 같으면서, 같은 초에
 > 올라온 영상들이 호출마다 순서를 바꾸는 일이 없다.
