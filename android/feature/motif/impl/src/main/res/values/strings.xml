@@ -4,4 +4,8 @@
     <string name="feature_motif_impl_shop">샵</string>
     <string name="feature_motif_impl_archive">보관함</string>
     <string name="feature_motif_impl_back">뒤로가기</string>
+
+    <string name="feature_motif_impl_pass_purchase">Pass 구매</string>
+    <string name="feature_motif_impl_pass_owned">구독권 보유</string>
+    <string name="feature_motif_impl_purchased">구매 완료</string>
 </resources>
