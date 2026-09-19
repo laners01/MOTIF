@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
 import com.ssafy.motif.event.contract.CommentCreatedEvent;
+import com.ssafy.motif.event.contract.CompositeFinishedEvent;
 import com.ssafy.motif.event.contract.NoticeCreatedEvent;
 import com.ssafy.motif.event.topology.RoutingKeys;
 import com.ssafy.motif.domain.notif.token.DeviceTokenRepository;
@@ -191,5 +192,78 @@ class NotificationEventListenerTest {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    // --- §13 합성 결과 (S15P21D104-319) -------------------------------------------
+
+    @Test
+    @DisplayName("composite.finished DONE — COMPOSITE_DONE 이 잡 주인에게 1회 나간다")
+    void compositeFinishedDone() {
+        listener.onEvent(message(finished("evt-c1", "DONE", null, "MOTIF")),
+                RoutingKeys.COMPOSITE_FINISHED, null);
+
+        PushMessage sent = captureSent();
+        assertThat(sent.type()).isEqualTo(PushMessage.TYPE_COMPOSITE_DONE);
+        assertThat(sent.title()).isEqualTo("합성이 끝났어요");
+        assertThat(sent.body()).isEqualTo("보관함에 저장됐어요");
+        assertThat(sent.data())
+                .containsEntry("jobUuid", "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+                .containsEntry("jobType", "MOTIF")
+                // 성공에는 칸 자체가 없다 — 앱이 존재 여부로 갈라도 된다
+                .doesNotContainKey("failCode");
+        // 구독 팬아웃이 아니라 잡 주인 한 명이다
+        verify(deviceTokenRepository).findActiveTokensOf(7);
+        verify(subscriberTokenQuery, Mockito.never()).activeTokensOfSubscribers(anyInt());
+    }
+
+    @Test
+    @DisplayName("CHALLENGE 완료는 본문이 다르다 — 게시(§8.8)로 보낸다")
+    void compositeFinishedDoneForChallenge() {
+        listener.onEvent(message(finished("evt-c2", "DONE", null, "CHALLENGE")),
+                RoutingKeys.COMPOSITE_FINISHED, null);
+
+        assertThat(captureSent().body()).isEqualTo("결과를 확인하고 게시해 보세요");
+    }
+
+    @Test
+    @DisplayName("FAILED — COMPOSITE_FAILED 에 failCode 가 실린다. 본문은 앱이 고른다")
+    void compositeFinishedFailed() {
+        listener.onEvent(message(finished("evt-c3", "FAILED", "FACE_NOT_DETECTED", "CHALLENGE")),
+                RoutingKeys.COMPOSITE_FINISHED, null);
+
+        PushMessage sent = captureSent();
+        assertThat(sent.type()).isEqualTo(PushMessage.TYPE_COMPOSITE_FAILED);
+        assertThat(sent.title()).isEqualTo("합성에 실패했어요");
+        assertThat(sent.data()).containsEntry("failCode", "FACE_NOT_DETECTED");
+    }
+
+    @Test
+    @DisplayName("재전달은 보내지 않는다 — 선점에 실패하면 발송 자체가 없다")
+    void redeliveredFinishedIsSkipped() {
+        given(idempotency.claim("evt-c4")).willReturn(false);
+
+        listener.onEvent(message(finished("evt-c4", "DONE", null, "MOTIF")),
+                RoutingKeys.COMPOSITE_FINISHED, null);
+
+        verify(fcmSender, Mockito.never()).send(any(), any());
+    }
+
+    @Test
+    @DisplayName("composite.packaged·composite.done 은 DLQ 로 가지 않는다 — 조용히 흘린다")
+    void compositeKeysThisServiceDoesNotOwnAreIgnored() {
+        // 페이로드를 읽지도 않는다 — 키만 보고 흘린다
+        Message packaged = message(java.util.Map.of("event_id", "evt-c5"));
+
+        listener.onEvent(packaged, RoutingKeys.COMPOSITE_PACKAGED, null);
+        listener.onEvent(packaged, RoutingKeys.COMPOSITE_DONE, null);
+
+        verify(fcmSender, Mockito.never()).send(any(), any());
+    }
+
+    private static CompositeFinishedEvent finished(String eventId, String status,
+                                                   String failCode, String jobType) {
+        return new CompositeFinishedEvent(eventId, Instant.now(),
+                "3fa85f64-5717-4562-b3fc-2c963f66afa6", jobType, 7, status, failCode,
+                "MOTIF".equals(jobType) ? 10L : null);
     }
 }

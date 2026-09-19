@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.motif.domain.notif.token.DeviceTokenRepository;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
 import com.ssafy.motif.event.contract.CommentCreatedEvent;
-import com.ssafy.motif.event.contract.CompositeJobDoneEvent;
+import com.ssafy.motif.event.contract.CompositeFinishedEvent;
 import com.ssafy.motif.event.contract.NoticeCreatedEvent;
 import com.ssafy.motif.event.topology.Queues;
 import com.ssafy.motif.event.topology.RoutingKeys;
@@ -101,12 +101,20 @@ public class NotificationEventListener {
                                     event.commentSeq(), event.actorNickname(),
                                     event.contentPreview())));
                 }
-                case RoutingKeys.COMPOSITE_DONE -> {
-                    CompositeJobDoneEvent event = read(message, CompositeJobDoneEvent.class);
-                    log.info("composite.done 수신: jobUuid={} eventId={}",
-                            event.jobUuid(), event.eventId());
-                    // S15P21D104-319 — 합성 결과 알림. 발행부(§13)가 아직 없다
+                // §13 합성 완료·실패 — 잡 주인에게 (S15P21D104-319)
+                case RoutingKeys.COMPOSITE_FINISHED -> {
+                    CompositeFinishedEvent event = read(message, CompositeFinishedEvent.class);
+                    handle(event.eventId(), routingKey, () -> toOne(event.userSeq(),
+                            PushMessage.compositeFinished(event.jobUuid(), event.jobType(),
+                                    event.failCode())));
                 }
+                // core 가 app-media 에게서 받는 키인데 바인딩이 composite.* 하나라 여기로도
+                // 온다. 던지면 정상 흐름이 통째로 dlq.evt.notification 에 쌓인다 —
+                // 바인딩을 좁히려면 브로커 재기동이라 각자 자기 것만 처리하기로 했다
+                // (작업명세 §2 내부 라우팅 키). composite.done 은 AI 경계가 HTTP 로 바뀌며
+                // 더 이상 흐르지 않는다(§3.3 정리 대상)
+                case RoutingKeys.COMPOSITE_PACKAGED, RoutingKeys.COMPOSITE_DONE ->
+                        log.debug("{} 무시 — 이 서비스가 처리할 키가 아니다", routingKey);
                 // 던져서 DLQ 로 보낸다. 조용히 버리면 바인딩이 늘었을 때 그 알림이
                 // 통째로 사라지는데 아무 흔적이 남지 않는다
                 default -> throw new IllegalStateException(
