@@ -19,7 +19,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -124,10 +129,21 @@ internal fun MyPageScreen(
             onLoadMoreChallenges()
         }
     }
+    // 탭 아래 남는 영역의 높이. 빈 상태를 그 한가운데에 놓기 위해 측정한다.
+    var listBottom by remember { mutableFloatStateOf(0f) }
+    var headerBottom by remember { mutableFloatStateOf(0f) }
+    val contentAreaHeight = with(LocalDensity.current) {
+        (listBottom - headerBottom).coerceAtLeast(0f).toDp()
+    }
+
     Surface(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned {
+                    listBottom = it.positionInRoot().y + it.size.height
+                },
         ) {
             when (val profileState = uiState.profileState) {
                 ProfileUiState.Loading -> {
@@ -175,7 +191,10 @@ internal fun MyPageScreen(
                         .fillMaxWidth()
                         .background(MotifTheme.colors.background)
                         // 인디케이터가 TabRow 하단에 붙으므로 아래 여백은 TabRow 바깥에 준다.
-                        .padding(bottom = 24.dp),
+                        .padding(bottom = 24.dp)
+                        .onGloballyPositioned {
+                            headerBottom = it.positionInRoot().y + it.size.height
+                        },
                 ) {
                     TabRow(
                         selectedTabIndex = uiState.selectedTab.ordinal,
@@ -222,7 +241,7 @@ internal fun MyPageScreen(
                                     ChallengeEmptyContent(
                                         onCreateClick = onCreateClick,
                                         // 프로필·탭을 뺀 남은 영역의 가운데에 배치
-                                        modifier = Modifier.fillParentMaxHeight(0.7f),
+                                        modifier = Modifier.height(contentAreaHeight),
                                     )
                                 }
                             } else {
@@ -298,12 +317,17 @@ internal fun MyPageScreen(
 
                         is MyLikedUiState.Success -> {
                             if (state.challenges.isNotEmpty()) {
-                                // 캐러셀은 통째로 한 항목이다. 세로 스크롤과 방향이 달라 충돌하지 않는다.
                                 item {
                                     LikedChallengeContent(
                                         challenges = state.challenges,
                                         focusedIndex = uiState.likedFocusedIndex,
                                         onFocusChange = onLikedFocusChange,
+                                    )
+                                }
+                            }else{
+                                item {
+                                    LikedChallengeEmptyContent(
+                                        modifier = Modifier.height(contentAreaHeight),
                                     )
                                 }
                             }
@@ -332,7 +356,6 @@ private fun LikedChallengeContent(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // TODO 썸네일 전용 LikedChallengeCarousel로 교체
         LikedChallengeCarousel(
             itemCount = challenges.size,
             thumbnailUrl = { challenges[it].thumbnailUrl },
@@ -402,12 +425,12 @@ private fun ChallengeEmptyContent(
         Text(
             text ="아직 참여한 챌린지가 없어요. \n 마음에 드는 챌린지를 찾아 참여해보세요!",
             style = MotifTheme.typography.titleR20,
-            color = MotifTheme.colors.typo,
+            color = MotifTheme.colors.gray400,
             textAlign = TextAlign.Center,
         )
         Button(
             onClick = onCreateClick,
-            shape = RoundedCornerShape(4.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = MotifButtonDefaults.buttonColors(
                 containerColor = MotifTheme.colors.pink,
                 contentColor = MotifTheme.colors.typo,
@@ -418,6 +441,24 @@ private fun ChallengeEmptyContent(
                 style = MotifTheme.typography.bodySB16,
             )
         }
+    }
+}
+
+@Composable
+private fun LikedChallengeEmptyContent(
+    modifier: Modifier = Modifier,
+){
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ){
+        Text(
+            text="아직 좋아요한 영상이 없어요" ,
+            style = MotifTheme.typography.titleR20,
+            color = MotifTheme.colors.gray400,
+            textAlign = TextAlign.Center,
+        )
+
     }
 }
 private const val LOAD_MORE_THRESHOLD = 3
