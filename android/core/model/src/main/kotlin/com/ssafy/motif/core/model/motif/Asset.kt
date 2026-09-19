@@ -8,6 +8,8 @@ data class Asset(
     val title: String,
     val artist: Artist,
     val availability: AssetAvailability,
+    /** 프리미엄 에셋 여부. 표시 방식은 디자인 확정 후 반영한다. */
+    val isPremium: Boolean = false,
 ) {
     /** 사용자가 지금 바로 사용할 수 있는 에셋인지 여부. */
     val isAvailable: Boolean
