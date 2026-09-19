@@ -10,5 +10,6 @@ android {
 
 dependencies {
     implementation(projects.feature.motif.api)
+    implementation(libs.coil.kt.compose)
     implementation(libs.androidx.lifecycle.runtimeCompose)
 }
