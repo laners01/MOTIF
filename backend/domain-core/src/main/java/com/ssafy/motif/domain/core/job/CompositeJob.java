@@ -234,6 +234,27 @@ public class CompositeJob extends BaseTimeEntity {
         this.status = JobStatus.QUEUED;
     }
 
+    /**
+     * 재접수 — {@code QUEUED} 를 유지한 채 {@code attempt + 1} (작업명세 §4.7).
+     *
+     * <p>{@link #retry} 와 다르다. 그쪽은 사용자가 <b>실패한</b> 잡을 다시 돌리는
+     * §13.4 이고, 이쪽은 <b>접수 자체가 안 된</b> 잡을 디스패처가 다시 밀어 넣는
+     * 것이라 상태가 바뀌지 않는다.
+     *
+     * <p>{@code attempt} 가 무한 루프를 막는 유일한 장치다 — 3회째에 호출부가
+     * {@code fail("STUCK")} 으로 닫는다.
+     *
+     * <p><b>{@code mod_dttm} 이 갱신되는 것이 핵심이다.</b> 정체 판정이
+     * {@code COALESCE(mod_dttm, reg_dttm)} 기준이라, 이 UPDATE 가 다음 틱까지의
+     * 간격을 다시 벌어 준다 — 안 그러면 매 틱마다 같은 잡을 집는다.
+     */
+    public void reattempt() {
+        if (status != JobStatus.QUEUED) {
+            throw new IllegalStateException("QUEUED 잡만 재접수할 수 있다: " + status);
+        }
+        this.attempt = (short) (attempt + 1);
+    }
+
     /** 워커가 보고한 처리 시간. 상태와 무관한 기록이라 전이와 분리한다. */
     public void recordProcessingMs(Integer processingMs) {
         if (processingMs != null && processingMs >= 0) {
