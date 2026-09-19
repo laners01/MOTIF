@@ -18,11 +18,11 @@ import java.util.UUID;
 /**
  * 합성 잡 (DB SPEC v0.15 §37, changeSet 0010-01).
  *
- * <p><b>생성자가 없다.</b> 잡을 만드는 경로는 §13 합성 API 이고 이 티켓 범위가 아니다.
- * 여기서는 {@code jobUuid} 로 <b>타입·소유자·산출물 키</b>를 읽기만 한다 —
- * 보호 등급 재생목록(§1.7)을 내주기 전 인가에 그 셋이 필요하다.
- * 상태 전이({@code QUEUED} → {@code DONE})는 app-media 가 네이티브 UPDATE 로 한다
- * ({@code MediaJobProcessor}) — 그쪽은 이 엔티티를 쓰지 않는다.
+ * <p><b>만드는 경로는 {@link #create} 하나다</b>(§13.1). 그 밖에는 {@code jobUuid} 로
+ * <b>타입·소유자·산출물 키</b>를 읽기만 한다 — 보호 등급 재생목록(§1.7)을 내주기 전
+ * 인가에 그 셋이 필요하다. 상태 전이({@code QUEUED} → {@code DONE})는 app-media 가
+ * 네이티브 UPDATE 로 한다({@code MediaJobProcessor}) — 그쪽은 이 엔티티를 쓰지 않는다.
+ * {@code UPLOADED} 이후의 전이 메서드는 그 전이를 쓰는 티켓(§13.2·§13.4)이 더한다.
  *
  * <p><b>{@code jobUuid} 가 외부에 노출되는 식별자다.</b> 재생목록 주소
  * ({@code /api/v1/media/{jobUuid}/master.m3u8})와 산출물 S3 프리픽스가 모두 이 값으로
@@ -89,6 +89,45 @@ public class CompositeJob extends BaseTimeEntity {
 
     @Column(name = "processing_ms")
     private Integer processingMs;
+
+    private CompositeJob(UUID jobUuid, JobType jobType, Integer userSeq, Integer challengeSeq,
+                         Integer assetSeq, Integer editedChallengeSeq, String rawVideoKey) {
+        this.jobUuid = jobUuid;
+        this.jobType = jobType;
+        this.userSeq = userSeq;
+        this.challengeSeq = challengeSeq;
+        this.assetSeq = assetSeq;
+        this.editedChallengeSeq = editedChallengeSeq;
+        this.rawVideoKey = rawVideoKey;
+        this.correctionEnabled = false;
+        this.status = JobStatus.UPLOADED;
+        this.attempt = (short) 1;   // Short 라 리터럴이 박스되지 않는다
+    }
+
+    /**
+     * 잡 생성 (API 명세 §13.1) — <b>원본 업로드 전</b>이라 {@link JobStatus#UPLOADED} 다.
+     *
+     * <p>이름과 달리 이 상태는 "업로드가 끝났다" 가 아니라 <b>"업로드 URL 을 내줬다"</b> 다.
+     * 실제로 올라왔는지는 §13.2 가 S3 HEAD 로 확인하고 그때 {@code QUEUED} 로 넘어간다 —
+     * 여기서 그것을 알 방법이 없다(바이트가 서버를 지나지 않는다).
+     *
+     * <p><b>{@code correctionEnabled} 는 {@code false} 로 둔다.</b> 보정 여부는 촬영이
+     * 끝난 뒤 사용자가 고르는 값이라 §13.2 가 덮어쓰고, MOTIF 는 영영 {@code false} 다
+     * (§13.2 — 보정을 쓰지 않는다). DB 기본값은 {@code TRUE} 지만 JPA 가 칼럼을 항상
+     * 실어 보내므로 여기 값이 들어간다.
+     *
+     * <p>타입별로 채우는 칸이 갈리는 것은 호출부가 정한다 —
+     * {@code ck_composite_jobs_type_shape} 가 CHALLENGE 에 {@code challengeSeq},
+     * MOTIF 에 {@code assetSeq} 를 강제하고 MOTIF 의 {@code editedChallengeSeq} 를 막는다.
+     *
+     * @param editedChallengeSeq 무교체({@code participantMask} 가 0·생략)면 {@code null}
+     */
+    public static CompositeJob create(UUID jobUuid, JobType jobType, Integer userSeq,
+                                      Integer challengeSeq, Integer assetSeq,
+                                      Integer editedChallengeSeq, String rawVideoKey) {
+        return new CompositeJob(jobUuid, jobType, userSeq, challengeSeq, assetSeq,
+                editedChallengeSeq, rawVideoKey);
+    }
 
     /** 산출물이 준비됐는가. 재생목록·썸네일을 읽기 전에 이걸 먼저 본다. */
     public boolean isDone() {

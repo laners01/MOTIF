@@ -11,6 +11,8 @@ import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository.AssetDetailRow;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository.AssetPurchasedRow;
+import com.ssafy.motif.domain.core.asset.MotifAsset;
+import com.ssafy.motif.domain.core.pass.MotifPassPriceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +47,35 @@ public class AssetQueryService {
     private static final String PRICE_COUNTRY_CODE = "KR";
 
     private final MotifAssetRepository motifAssetRepository;
+    private final MotifPassPriceRepository motifPassPriceRepository;
     private final MediaUrlResolver mediaUrlResolver;
+
+    /**
+     * 에셋 하나에 대한 이 회원의 이용 권한 — <b>조회 화면 밖에서 묻는 자리</b> (§13.1).
+     *
+     * <p>{@link #detail} 과 답이 같아야 하지만 <b>노출 규칙을 쓰지 않는다</b>. 상세는
+     * 판매 중단 에셋을 비구매자에게 404 로 숨기는데(§11.2), 합성 잡은 "비활성 에셋이어도
+     * 권한이 있으면 진행" 이다(DB §37 MOTIF 잡 규칙) — 어제 산 에셋이 오늘 판매 중단됐다고
+     * 내 촬영이 막히면 안 된다. 그래서 노출이 아니라 <b>권한만</b> 본다.
+     *
+     * <p>규칙 자체는 {@link MyAccess#of} 하나다 — {@code OWNED > PASS > NONE},
+     * {@code PREMIUM} 은 패스로 열리지 않는다. 여기서 다시 쓰면 숍은 {@code PASS} 라는데
+     * 촬영은 막히는 순간이 생긴다.
+     *
+     * <p>패스 조회는 개별 구매가 없을 때만 한다 — {@code OWNED} 가 먼저 답하므로
+     * 보유자에게 패스를 물을 이유가 없다({@code ProductAvailability} 와 같은 판단).
+     *
+     * @throws BusinessException 404 {@code ASSET_NOT_FOUND}
+     */
+    public MyAccess myAccess(Integer userSeq, Integer assetSeq) {
+        MotifAsset asset = motifAssetRepository.findById(assetSeq)
+                .orElseThrow(() -> new BusinessException(
+                        AssetErrorCode.ASSET_NOT_FOUND, "assetSeq: " + assetSeq));
+        boolean owned = motifAssetRepository.existsActivePurchase(userSeq, assetSeq);
+        boolean passActive = !owned && motifPassPriceRepository
+                .findActivePassExpiry(userSeq, asset.getArtistSeq()).isPresent();
+        return MyAccess.of(owned, passActive, asset.getAssetType());
+    }
 
     /**
      * §11.1 내 보유함 — <b>내가 구매한 에셋 전량</b>, 구매 최신순.

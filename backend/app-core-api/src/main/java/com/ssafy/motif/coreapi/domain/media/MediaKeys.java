@@ -25,6 +25,7 @@ package com.ssafy.motif.coreapi.domain.media;
  * public/challenge/{jobUuid}/            서명 없음
  * challenges/{uuid}/                     서명 없음 — 어드민이 올린 챌린지 원본
  * assets/{assetUuid}/                    서명 없음 — 에셋 미리보기·썸네일
+ * raw/{jobUuid}.mp4                      읽기 경로 없음 — 사용자 촬영 원본
  * </pre>
  *
  * CloudFront 의 "Restrict viewer access" 는 <b>캐시 동작 단위</b>이고 캐시 동작은
@@ -45,6 +46,27 @@ public final class MediaKeys {
     private static final String PROTECTED_PREFIX = "private/";
 
     private MediaKeys() {
+    }
+
+    /**
+     * 사용자 촬영 원본 — {@code raw/{jobUuid}.mp4} (API 명세 §13.1).
+     *
+     * <p><b>프리픽스 아래 트리가 아니라 파일 하나다.</b> 가공 대상이지 재생 대상이 아니라
+     * HLS 로 풀리지 않는다 — 워커가 읽어 합성에 쓰고, 산출물은
+     * {@link #forCompositeResult} 아래로 간다.
+     *
+     * <p><b>{@code private/} 가 아닌데도 새지 않는다.</b> CloudFront 에는 {@code raw/*}
+     * 동작이 없어 CDN 으로 열리는 주소 자체가 없고, 쓰기는 이 키로 발급한 presigned PUT
+     * (600초)뿐이다. {@code private/} 아래에 두면 "보호 등급 = 재생 대상" 이라는 규약이
+     * 흐려진다 — 그 프리픽스의 것은 전부 서명 발급 대상인데 원본은 아무도 재생하지 않는다.
+     *
+     * <p>수명주기로 지워진다 — 재시도(§13.4)가 410 {@code RAW_VIDEO_EXPIRED} 를 주는 것이
+     * 그 때문이다.
+     *
+     * @param jobUuid {@code composite_jobs.job_uuid}
+     */
+    public static String forRawUpload(String jobUuid) {
+        return "raw/" + require(jobUuid, "jobUuid") + ".mp4";
     }
 
     /**
