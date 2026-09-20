@@ -36,11 +36,13 @@ import kotlinx.coroutines.delay
 /**
  * 구독권 프로모션 배너 가로 페이저.
  * 배너가 여러 개면 점 인디케이터를 표시하고, 사용자가 드래그하지 않는 동안 자동으로 넘긴다.
+ *
+ * @param onBannerClick 배너 선택. PASS 결제 화면 진입에 필요한 아티스트 id를 올린다.
  */
 @Composable
 internal fun PassBannerPager(
     banners: List<PassBanner>,
-    onBannerClick: (Long) -> Unit,
+    onBannerClick: (artistId: Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val pagerState = rememberPagerState(
@@ -69,7 +71,7 @@ internal fun PassBannerPager(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(role = Role.Button) { onBannerClick(banner.id) },
+                    .clickable(role = Role.Button) { onBannerClick(banner.artist.id) },
             )
         }
 

@@ -5,8 +5,11 @@ import androidx.compose.ui.platform.LocalContext
 import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
+import com.ssafy.motif.core.model.shop.ArtistPass
 import com.ssafy.motif.core.model.shop.PassBanner
+import com.ssafy.motif.core.model.shop.PassPlan
 import com.ssafy.motif.core.model.shop.ShopArtistSection
+import com.ssafy.motif.feature.motif.impl.R
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 /**
@@ -34,13 +37,13 @@ internal object ShopPreviewFixtures {
 
     @Composable
     fun banners(): List<PassBanner> {
-        val thumbnailUrl = imageUrl(DesignSystemR.drawable.img_test_motif)
+        val bannerUrl = imageUrl(R.drawable.img_pass_banner)
 
         return artists().mapIndexed { index, artist ->
             PassBanner(
                 id = index + 1L,
                 artist = artist,
-                imageUrl = thumbnailUrl,
+                imageUrl = bannerUrl,
             )
         }
     }
@@ -73,6 +76,21 @@ internal object ShopPreviewFixtures {
             )
         }
     }
+
+    @Composable
+    fun pass(artistId: Long = 1L): ArtistPass =
+        ArtistPass(
+            artistId = artistId,
+            bannerImageUrl = banners().first().imageUrl,
+            headline = "좋아하는 아티스트의 MOTIF를 더 자유롭게 이용해보세요.",
+            description = "아티스트 PASS를 구독하면 구독 기간 동안 해당 아티스트의 일반 에셋을 개별 구매 없이 이용할 수 있습니다. " +
+                "새로운 일반 에셋이 추가되면 별도 결제 없이 바로 사용할 수 있습니다.",
+            plans = listOf(
+                PassPlan(id = 1L, months = 1, monthlyPrice = 9_900),
+                PassPlan(id = 2L, months = 6, monthlyPrice = 8_200),
+                PassPlan(id = 3L, months = 12, monthlyPrice = 6_000, note = "+ 시크릿 에셋"),
+            ),
+        )
 
     @Composable
     fun sections(): List<ShopArtistSection> {
