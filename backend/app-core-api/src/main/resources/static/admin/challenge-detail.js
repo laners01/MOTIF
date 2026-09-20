@@ -107,9 +107,10 @@ function renderSlots(keepActive) {
     $('slots').replaceChildren(...challenge.participants.map(slotRow));
     for (const row of $('slots').rows) row.classList.toggle('active', row.dataset.artistSeq === String(keepActive));
     $('slot-note').textContent = challenge.participants.length === 0
-        ? '슬롯 없음(솔로) — 사용자가 교체해 들어갈 자리가 없다.'
-        : `${challenge.participants.length}개. 조합은 2^${challenge.participants.length}−1 = ${(1 << challenge.participants.length) - 1}개가 필요하다.`
+        ? '슬롯 없음(솔로) — 사용자가 교체해 들어갈 자리가 없다. 슬롯 추가로 만든다.'
+        : `${challenge.participants.length}개. 조합은 최대 ${(1 << challenge.participants.length) - 1}개까지 만들 수 있고, 실제로 쓸 것만 등록하면 된다.`
           + (challenge.participants.some((p) => !p.anchor) ? ' 앵커가 빈 슬롯은 앱에서 원이 뜨지 않는다.' : '');
+    refreshSlotSaveState();
     drawDots();
 }
 
@@ -136,16 +137,42 @@ function drawDots() {
  * 편집본은 지금 키를 그대로 돌려보내 파일이 바뀌지 않게 한다 — 행 seq 만 새로 난다.
  * 합성 잡이 편집본을 참조 중이면 409 EDITED_IN_USE 로 막힌다(명세 §3.7.5).
  */
+/** 새로 추가한 행은 dataset.artistSeq 가 비어 있다 — 서버가 아직 모르는 슬롯이다. */
 const slotsDirty = () => [...$('slots').rows]
-        .some((tr) => tr.querySelector('.artist').value !== tr.dataset.artistSeq);
+        .some((tr) => tr.querySelector('.artist').value !== (tr.dataset.artistSeq ?? ''));
 
 function refreshSlotSaveState() {
+    const rows = [...$('slots').rows];
     const changed = slotsDirty();
-    $('save-slots').disabled = !changed;
-    $('slot-save-note').textContent = changed
-        ? '저장하면 슬롯·편집본 행이 다시 만들어진다 — 합성 잡이 편집본을 쓰고 있으면 막힌다'
-        : '고친 곳이 없다';
+    const blank = rows.some((tr) => !tr.querySelector('.artist').value);
+    $('save-slots').disabled = !changed || blank;
+    $('slot-save-note').textContent = blank
+        ? '아티스트를 고르지 않은 슬롯이 있다'
+        : changed
+            ? '저장하면 슬롯·편집본 행이 다시 만들어진다 — 합성 잡이 편집본을 쓰고 있으면 막힌다'
+            : '고친 곳이 없다';
 }
+
+/*
+ * 슬롯 추가 — 맨 뒤에만 붙인다.
+ *
+ * 마스크는 배열 순서로 1·2·4·8 이 매겨지고, 편집본은 "지운 슬롯 인덱스"로 조합을
+ * 표현한다. 중간에 끼워 넣으면 기존 편집본이 가리키는 인덱스가 다른 사람을 뜻하게
+ * 되어, 사용자가 왼쪽을 골랐는데 오른쪽이 지워진 영상이 나온다.
+ */
+$('add-slot').addEventListener('click', () => {
+    const tr = $('slot-row').content.firstElementChild.cloneNode(true);
+    tr.querySelector('.mask').textContent = `(새 슬롯 — 저장하면 ${1 << $('slots').rows.length})`;
+    const select = tr.querySelector('.artist');
+    select.append(new Option('선택', ''), ...artists.map((x) => new Option(artistLabel(x), x.artistSeq)));
+    select.value = '';
+    tr.querySelector('.xy').textContent = '저장 뒤 썸네일을 클릭해 찍는다';
+    tr.querySelector('.xy').className = 'xy muted';
+    tr.querySelector('.r').value = DEFAULT_R;
+    tr.querySelector('.r-label').textContent = DEFAULT_R.toFixed(4);
+    $('slots').append(tr);
+    refreshSlotSaveState();
+});
 
 /** 마스크(비트 합) → removedSlots(슬롯 인덱스 배열). §3.7.5 는 인덱스로 받는다. */
 function removedSlotsOf(mask) {
@@ -165,13 +192,14 @@ $('save-slots').addEventListener('click', async () => {
     $('save-slots').disabled = true;
     try {
         const participants = [...$('slots').rows].map((tr) => {
-            const now = challenge.participants
+            const now = tr.dataset.artistSeq && challenge.participants
                     .find((p) => String(p.artist.artistSeq) === tr.dataset.artistSeq);
             return {
                 artistSeq: Number(tr.querySelector('.artist').value),
-                // 앵커가 아직 없는 슬롯은 반지름만 화면 값으로 채워 보낸다 —
-                // x·y 는 썸네일 클릭으로 따로 찍는다
-                anchor: now?.anchor ?? {x: 0.5, y: 0.4, r: Number(tr.querySelector('.r').value)},
+                // 앵커는 필수라 새 슬롯도 값을 실어야 한다. 한가운데를 임시로 두고
+                // 저장 뒤 썸네일 클릭으로 제자리를 찍는다(§3.7.9)
+                anchor: (now && now.anchor)
+                    ?? {x: 0.5, y: 0.5, r: Number(tr.querySelector('.r').value)},
             };
         });
         const editedChallenges = challenge.editedChallenges.map((e) => ({
