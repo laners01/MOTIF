@@ -324,6 +324,12 @@ class AdminTemplateRenderTest {
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
 
+    /**
+     * {@code doesNotContain("th:")} 는 <b>인라인 스타일에도 걸린다</b> —
+     * {@code style="width:100%"} 의 {@code wid|th:|100%} 가 그렇다. 너비는
+     * {@code admin.css} 에 이미 {@code textarea { width: 100% }} 로 있으니
+     * 템플릿에 인라인으로 쓰지 않는다.
+     */
     @Test
     @DisplayName("챌린지 상세 — 레이아웃·슬롯/편집본 행 템플릿")
     void challengeDetail() {
@@ -334,6 +340,9 @@ class AdminTemplateRenderTest {
                 .contains("/admin/challenge-detail.js")
                 .contains("id=\"slot-row\"")
                 .contains("id=\"edited-row\"")
+                // 곡·소개글 수정 통로(§3.7.4) — 불변인 메인 아티스트·길이는 입력이 없다
+                .contains("id=\"song\"")
+                .contains("id=\"save\"")
                 .doesNotContain("th:");
     }
 
