@@ -4,6 +4,7 @@ import com.ssafy.motif.coreapi.domain.composite.CompositeProperties;
 import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobPayload;
 import com.ssafy.motif.coreapi.domain.composite.dto.WorkerDoneRequest;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
+import com.ssafy.motif.coreapi.global.filter.RequestIdFilter;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
@@ -15,6 +16,7 @@ import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.job.JobType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -49,7 +51,14 @@ public class CompositeJobDispatcher {
     /** 한 틱 상한 (§4.7). 밀린 잡이 많아도 한 번에 GPU 를 몰아치지 않는다. */
     private static final int BATCH_SIZE = 20;
 
-    /** 무한 루프 방지 상한 (§4.7). 사용자의 수동 재시도(§13.4)에는 상한이 없다. */
+    /**
+     * 무한 루프 방지 상한 (§4.7). 사용자의 수동 재시도(§13.4)에는 상한이 없다.
+     *
+     * <p><b>검사는 접수를 해 본 뒤에 한다.</b> 접수 전에 보면 §13.4 로 {@code attempt} 가
+     * 이 값에 닿은 잡이 <b>AI 에 한 번도 가 보지 못하고</b> 닫힌다 — 사용자에게는 "다시
+     * 시도" 버튼이 먹통으로 보인다. 수동 재시도와 자동 재접수가 칼럼 하나를 나눠 쓰는
+     * 구조라, 순서로 가른다.
+     */
     private static final int MAX_ATTEMPT = 3;
 
     static final String FAIL_STUCK = "STUCK";
@@ -98,13 +107,8 @@ public class CompositeJobDispatcher {
             return;
         }
         for (CompositeJob job : stuck) {
+            MDC.put(RequestIdFilter.MDC_KEY, requestIdOf(job));
             try {
-                if (job.getAttempt() >= MAX_ATTEMPT) {
-                    log.warn("접수 {}회 실패 — STUCK 으로 닫는다: jobUuid={}",
-                            job.getAttempt(), job.getJobUuid());
-                    completionService.fail(job.getJobUuid(), FAIL_STUCK);
-                    continue;
-                }
                 CompositeJobPayload payload = transactionTemplate.execute(status -> {
                     CompositeJob managed = compositeJobRepository.findById(job.getJobSeq())
                             .orElseThrow();
@@ -112,10 +116,17 @@ public class CompositeJobDispatcher {
                     return payloadOf(managed);
                 });
                 log.info("재접수 시도: jobUuid={} attempt={}", job.getJobUuid(), payload.attempt());
-                submitter.submit(payload);
+                // 접수를 해 보고 나서 상한을 본다 — 순서가 반대면 §13.4 재시도가 막힌다
+                if (!submitter.submit(payload) && payload.attempt() >= MAX_ATTEMPT) {
+                    log.warn("접수 {}회 실패 — STUCK 으로 닫는다: jobUuid={}",
+                            payload.attempt(), job.getJobUuid());
+                    completionService.fail(job.getJobUuid(), FAIL_STUCK);
+                }
             } catch (RuntimeException e) {
                 // 한 잡이 터져도 나머지는 계속 간다 — 다음 틱에 다시 잡힌다
                 log.error("재접수 실패: jobUuid={}", job.getJobUuid(), e);
+            } finally {
+                MDC.remove(RequestIdFilter.MDC_KEY);
             }
         }
     }
@@ -137,6 +148,7 @@ public class CompositeJobDispatcher {
         for (CompositeJob job : stuck) {
             UUID jobUuid = job.getJobUuid();
             String resultKey = MediaKeys.forWorkerOutput(job.getJobType().name(), jobUuid.toString());
+            MDC.put(RequestIdFilter.MDC_KEY, requestIdOf(job));
             try {
                 if (objectStore.exists(resultKey)) {
                     log.info("콜백 유실로 본다 — S3 에 결과가 있다: jobUuid={} key={}",
@@ -149,8 +161,24 @@ public class CompositeJobDispatcher {
                 completionService.fail(jobUuid, FAIL_STUCK);
             } catch (RuntimeException e) {
                 log.error("정체 잡 처리 실패: jobUuid={}", jobUuid, e);
+            } finally {
+                MDC.remove(RequestIdFilter.MDC_KEY);
             }
         }
+    }
+
+    /**
+     * 접수 구간의 추적 ID — {@code jobUuid} 앞 8자.
+     *
+     * <p><b>디스패처는 스케줄러 스레드라 MDC 가 비어 있다.</b> 채워 주지 않으면
+     * {@code CompositeJobSubmitter} 가 {@code X-Request-Id} 를 {@code null} 로 보내고,
+     * AI 가 되돌려줄 값이 없어 콜백에서 새 ID 가 생긴다 — 접수와 콜백이 다른 ID 로
+     * 갈려 한 잡을 한 ID 로 grep 할 수 없다(AI 서버 명세 §3.1).
+     *
+     * <p>{@code jobUuid} 에서 따는 이유는 그 값으로도 같은 줄들이 걸리기 때문이다.
+     */
+    private static String requestIdOf(CompositeJob job) {
+        return job.getJobUuid().toString().substring(0, 8);
     }
 
     /**

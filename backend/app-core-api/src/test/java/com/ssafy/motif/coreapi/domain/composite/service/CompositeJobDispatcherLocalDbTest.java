@@ -135,21 +135,42 @@ class CompositeJobDispatcherLocalDbTest {
     }
 
     @Test
-    @DisplayName("3회째는 STUCK 으로 닫고 finished(FAILED) 를 낸다 — 무한 루프를 막는다")
-    void thirdAttemptFailsAsStuck() {
+    @DisplayName("상한까지 접수가 실패하면 STUCK 으로 닫고 finished(FAILED) 를 낸다 — 무한 루프를 막는다")
+    void repeatedSubmitFailureEndsAsStuck() {
         CompositeJob job = inTransaction(() -> queuedJob(3));
         backdate(job.getJobSeq(), "3 minutes");
+        given(submitter.submit(any())).willReturn(false);
 
         dispatcher.sweep();
 
         CompositeJob saved = reload(job.getJobSeq());
         assertThat(saved.getStatus()).isEqualTo(JobStatus.FAILED);
         assertThat(saved.getFailCode()).isEqualTo(CompositeJobDispatcher.FAIL_STUCK);
-        verify(submitter, never()).submit(any());
+        // 닫기 전에 한 번은 보내 본다 — 검사가 접수 앞에 있으면 §13.4 가 막힌다
+        verify(submitter).submit(any());
         assertThat(finishedEvents()).singleElement().satisfies(e -> {
             assertThat(e.status()).isEqualTo(CompositeFinishedEvent.STATUS_FAILED);
             assertThat(e.failCode()).isEqualTo(CompositeJobDispatcher.FAIL_STUCK);
         });
+    }
+
+    @Test
+    @DisplayName("§13.4 재시도로 attempt 가 상한에 닿아도 접수는 해 본다 — 되면 STUCK 이 아니다")
+    void manualRetryIsStillSubmitted() {
+        // 사용자가 "다시 시도" 를 눌러 attempt 가 상한까지 올라온 잡이다.
+        // 접수 전에 상한을 보면 AI 에 한 번도 못 가 보고 닫혀 버튼이 먹통이 된다
+        CompositeJob job = inTransaction(() -> queuedJob(3));
+        backdate(job.getJobSeq(), "3 minutes");
+        given(submitter.submit(any())).willReturn(true);
+
+        dispatcher.sweep();
+
+        verify(submitter).submit(any());
+        CompositeJob saved = reload(job.getJobSeq());
+        assertThat(saved.getStatus()).isNotEqualTo(JobStatus.FAILED);
+        assertThat(saved.getFailCode()).isNull();
+        assertThat(saved.getAttempt()).isEqualTo((short) 4);
+        assertThat(finishedEvents()).isEmpty();
     }
 
     @Test
