@@ -674,12 +674,12 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 
 **3.7.8** — 3.7.2 와 같은 본문으로 1~4단계 검증만 수행(ffmpeg 미실행). **200** `data`: `{ "valid": true, "computedMasks": [1,2,3], "issues": [] }` — 화면이 제출 전 매트릭스 완결성을 표시하는 용도.
 
-**3.7.9 요청** *(618)* `{ "x": 0.22, "y": 0.36, "r": 0.0995 }` — 슬롯 하나의 앵커만 같은 행에서 고친다. 마스크·편집본을 건드리지 않으므로 **합성 잡이 참조 중이어도 허용**된다(3.7.5 는 편집본까지 다시 보내야 하고 `EDITED_IN_USE` 로 막혀 0017 이전 행을 채울 수 없다). `artistSeq` 가 슬롯이 아니면(메인 아티스트 포함) 400 `PARTICIPANT_INVALID`(`data: ["SLOT_NOT_FOUND"]`). **200** `data` = 3.7.3 상세. 상세 화면은 슬롯 행을 고른 뒤 썸네일을 클릭하면 이 API 를 부른다.
+**3.7.9 요청** *(618)* `{ "x": 0.22, "y": 0.36, "r": 0.0995 }` — 슬롯 하나의 앵커만 같은 행에서 고친다. 마스크·편집본을 건드리지 않으므로 **합성 잡이 참조 중이어도 허용**된다(3.7.5 는 편집본까지 다시 보내야 하고 `EDITED_IN_USE` 로 막혀 0017 이전 행을 채울 수 없다). `artistSeq` 가 그 챌린지의 슬롯이 아니면 400 `PARTICIPANT_INVALID`(`data: ["SLOT_NOT_FOUND"]`). **200** `data` = 3.7.3 상세. 상세 화면은 슬롯 행을 고른 뒤 썸네일을 클릭하면 이 API 를 부른다.
 
 | HTTP | code | 조건 |
 |---|---|---|
 | 404 | `ARTIST_NOT_FOUND` / `SONG_NOT_FOUND` / `CHALLENGE_NOT_FOUND` / `EDITED_CHALLENGE_NOT_FOUND` | 대상 없음·삭제 |
-| 400 | `PARTICIPANT_INVALID` | 메인 아티스트 포함·중복·anchor 규칙 위반·3.7.9 슬롯 아님(`data` 필드 배열) |
+| 400 | `PARTICIPANT_INVALID` | 중복·anchor 규칙 위반·3.7.9 슬롯 아님(`data` 필드 배열) |
 | 409 | `EDITED_SET_INCOMPLETE` | 편집본 조합 누락·중복·초과 |
 | 409 | `MEDIA_NOT_UPLOADED` | 키 S3 부재 |
 | 400 | `MEDIA_INVALID` | 원본 형식·방향·길이 위반 |

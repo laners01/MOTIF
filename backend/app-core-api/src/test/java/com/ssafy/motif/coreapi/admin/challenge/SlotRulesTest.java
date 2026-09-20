@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -93,17 +94,21 @@ class SlotRulesTest {
     }
 
     @Test
-    @DisplayName("메인 아티스트를 슬롯에 넣거나 슬롯끼리 겹치면 PARTICIPANT_INVALID")
+    @DisplayName("슬롯끼리 아티스트가 겹치면 PARTICIPANT_INVALID — 마스크와 인물이 1:1 이어야 한다")
     void 슬롯_아티스트_규칙() {
-        assertThatThrownBy(() -> SlotRules.checkParticipants(3, List.of(slot(3))))
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(slot(7), slot(7))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.PARTICIPANT_INVALID);
+    }
 
-        assertThatThrownBy(() -> SlotRules.checkParticipants(3, List.of(slot(7), slot(7))))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.PARTICIPANT_INVALID);
+    @Test
+    @DisplayName("메인 아티스트도 슬롯이 된다 — 2인 챌린지에서 둘 다 교체 대상일 수 있다(§7.2)")
+    void 메인_아티스트도_슬롯() {
+        // 메인(3)이 슬롯에 그대로 들어와도 통과한다. 메인은 챌린지 귀속이고
+        // 슬롯은 영상 속 자리라 층이 다르다 — 빼면 그 자리를 아무도 못 고른다
+        assertThatCode(() -> SlotRules.checkParticipants(List.of(slot(3), slot(7))))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -113,7 +118,7 @@ class SlotRulesTest {
         ParticipantRequest 반지름0 = new ParticipantRequest(9, new AnchorRequest(0.5, 0.5, 0.0));
         ParticipantRequest 경계 = new ParticipantRequest(11, new AnchorRequest(0.0, 1.0, 0.5));
 
-        assertThatThrownBy(() -> SlotRules.checkParticipants(3, List.of(밖, 반지름0, 경계)))
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(밖, 반지름0, 경계)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(reasons((BusinessException) e))
                         .containsExactly("ANCHOR_INVALID[0]", "ANCHOR_INVALID[1]"));
@@ -122,7 +127,7 @@ class SlotRulesTest {
     @Test
     @DisplayName("슬롯 하드 상한은 4 — 편집본 15개가 한계다")
     void 슬롯_상한() {
-        assertThatThrownBy(() -> SlotRules.checkParticipants(3,
+        assertThatThrownBy(() -> SlotRules.checkParticipants(
                 List.of(slot(11), slot(12), slot(13), slot(14), slot(15))))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(reasons((BusinessException) e))

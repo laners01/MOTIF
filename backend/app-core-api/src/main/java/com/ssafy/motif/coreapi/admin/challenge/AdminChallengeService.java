@@ -409,7 +409,7 @@ public class AdminChallengeService {
                     "합성 잡이 참조 중인 편집본: " + inUse, Map.of("editedChallengeSeqs", inUse));
         }
 
-        verifySlots(challenge.getArtistSeq(), challenge.getDurationMs(), slots, List.of());
+        verifySlots(challenge.getDurationMs(), slots, List.of());
 
         editedChallengeRepository.deleteByChallengeSeq(challengeSeq);
         participantRepository.deleteByIdChallengeSeq(challengeSeq);
@@ -472,8 +472,7 @@ public class AdminChallengeService {
         videoRules.checkChallengeOrigin(new VideoRules.Meta(
                 request.durationMs(), request.width(), request.height()),
                 request.thumbnailAtMs());
-        verifySlots(request.artistSeq(), request.durationMs(), request.slots(),
-                List.of(request.videoKey()));
+        verifySlots(request.durationMs(), request.slots(), List.of(request.videoKey()));
     }
 
     /**
@@ -482,9 +481,8 @@ public class AdminChallengeService {
      * @param originDurationMs 편집본 길이를 대조할 원본 길이. 교체 시에는 기존 행의 값이다
      * @param extraKeys        원본 키처럼 함께 HEAD 할 키 — 교체에서는 비어 있다(원본 재검증 없음)
      */
-    void verifySlots(Integer mainArtistSeq, long originDurationMs,
-                     ChallengeSlotsRequest slots, List<String> extraKeys) {
-        SlotRules.checkParticipants(mainArtistSeq, slots.participants());
+    void verifySlots(long originDurationMs, ChallengeSlotsRequest slots, List<String> extraKeys) {
+        SlotRules.checkParticipants(slots.participants());
         requireArtists(slots.participants().stream().map(ParticipantRequest::artistSeq).toList());
 
         // 마스크 계산이 곧 완결성 검증이다 — 결과는 버리고 예외만 본다(INSERT 때 다시 계산)

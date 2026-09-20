@@ -52,8 +52,17 @@ public final class SlotRules {
      *
      * <p>{@code data} 에 위반 필드 배열을 싣는다(§3.7 실패표 "data 필드 배열").
      * 한 건 찾고 멈추면 어드민이 슬롯 4개를 네 번 제출해야 한다.
+     *
+     * <p><b>메인 아티스트도 슬롯이 될 수 있다.</b> 둘은 다른 층이다 — 메인
+     * ({@code challenges.artist_seq})은 <b>이 챌린지가 누구 것인가</b>(목록·검색·랭킹
+     * 귀속)이고, 슬롯은 <b>영상 속 어느 자리를 사용자가 가져갈 수 있는가</b>다. 2인
+     * 챌린지에서 둘 다 교체 대상인 화면(§7.2 선택 화면)이 정상이므로, 메인을 슬롯에서
+     * 빼면 그 사람 자리를 아무도 고를 수 없다.
+     *
+     * <p>중복({@code DUPLICATE_ARTIST})은 그대로 막는다 — 같은 사람이 슬롯 둘을
+     * 차지하면 마스크와 인물이 1:1 로 맞지 않는다.
      */
-    public static void checkParticipants(Integer mainArtistSeq, List<ParticipantRequest> participants) {
+    public static void checkParticipants(List<ParticipantRequest> participants) {
         List<String> violations = new ArrayList<>();
         if (participants.size() > MAX_SLOTS) {
             violations.add("SLOT_COUNT_EXCEEDED");
@@ -61,9 +70,6 @@ public final class SlotRules {
         Set<Integer> seen = new LinkedHashSet<>();
         for (int i = 0; i < participants.size(); i++) {
             ParticipantRequest p = participants.get(i);
-            if (p.artistSeq().equals(mainArtistSeq)) {
-                violations.add("MAIN_ARTIST_IN_SLOT[" + i + "]");
-            }
             if (!seen.add(p.artistSeq())) {
                 violations.add("DUPLICATE_ARTIST[" + i + "]");
             }
