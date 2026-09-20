@@ -161,6 +161,111 @@ public interface ArtistRepository extends JpaRepository<Artist, Integer> {
     List<ArtistCardRow> findCardsBySubscriberCountDesc();
 
     /**
+     * 팬 앱 별칭 검색 (API 명세 §5.2) — <b>네이티브 1회</b>. ADR-0014.
+     *
+     * <p><b>이름 칼럼을 보지 않는다.</b> 다국어 검색이라 대상은 {@code artist_aliases} ·
+     * {@code group_aliases} 의 {@code alias} 다. 응답에 실리는 이름은 여전히
+     * {@code users.nickname} 이므로 "Karina" 로 찾아도 "카리나" 가 나온다.
+     * {@link #search}(어드민 §3.5.1)는 종전대로 {@code nickname} 을 본다 — 운영자는
+     * 등록한 이름으로 찾는다.
+     *
+     * <p><b>그룹 별칭에 걸리면 그 그룹의 비삭제 멤버 전원이 결과에 들어온다</b>(그룹 확장).
+     * 두 갈래를 {@code union all} 로 합치고 {@code source} 로 구분하는데, 그 칸이 곧
+     * "본인 매치가 그룹 확장보다 앞" 이라는 정렬 규칙이다. 별칭 테이블이 둘로 갈려 있어
+     * 이 판정이 조회 구조에서 공짜로 나온다(ADR-0014 D2).
+     *
+     * <p><b>중복 제거는 {@code distinct on} 이다.</b> 한 아티스트가 별칭 여러 개로 걸릴 때
+     * 가장 높은 매치 하나만 남긴다. 칸마다 {@code min()} 을 따로 걸면 서로 다른 행의 값이
+     * 섞여 <b>실재하지 않는 조합</b>이 정렬 키가 된다.
+     *
+     * <p><b>{@code ilike} 를 원본 칼럼에 건다.</b> {@code lower(alias)} 로 쓰면 0018 의
+     * {@code gin_trgm_ops} 인덱스에 붙지 않는다 — 인덱스가 걸린 식과 조회하는 식이 다르다.
+     * 완전 일치 판정만 {@code lower()} 를 쓰는데 그건 이미 좁혀진 행에 대한 것이라 인덱스와
+     * 무관하다.
+     *
+     * <p><b>표시용 그룹 조인에는 삭제 조건을 걸지 않는다</b>({@link #findCards} 와 같다) —
+     * 삭제된 그룹에 속한 아티스트도 그룹명은 보여준다. 삭제 조건은 <b>매칭</b> 조인에만 건다.
+     *
+     * <p>{@code size} 는 정렬·중복 제거를 마친 뒤의 단순 상한이다. 경계에서 그룹 멤버 일부가
+     * 잘려 나가는 것을 허용한다 — 그룹을 통째로 넣으면 {@code size} 가 상한이 아니게 된다.
+     *
+     * @param q        {@code trim} 한 검색어 원본 — 완전 일치 판정에만 쓴다. <b>{@code null}
+     *                 을 넘기지 않는다</b>(타입 없는 {@code null} 을 Postgres 가
+     *                 {@code bytea} 로 추론해 {@code lower(bytea)} 로 죽는다 — {@link #search}
+     *                 javadoc 의 2026-09-13 운영 500 과 같은 함정이다)
+     * @param contains {@code %q%} — LIKE 메타문자를 이스케이프한 뒤 호출부가 조립한다
+     * @param prefix   {@code q%} — 접두 일치 판정용, 같은 이스케이프를 거친다
+     */
+    @Query(value = """
+            with matches as (
+                select aa.artist_seq as artist_seq,
+                       0 as source,
+                       case when lower(aa.alias) = lower(:q) then 0
+                            when aa.alias ilike :prefix      then 1
+                            else 2 end as match_rank,
+                       length(aa.alias) as alias_len
+                  from motif_core.artist_aliases aa
+                  join motif_core.artists a
+                    on a.artist_seq = aa.artist_seq and a.is_deleted = false
+                 where aa.alias ilike :contains
+                union all
+                select a.artist_seq,
+                       1 as source,
+                       case when lower(ga.alias) = lower(:q) then 0
+                            when ga.alias ilike :prefix      then 1
+                            else 2 end,
+                       length(ga.alias)
+                  from motif_core.group_aliases ga
+                  join motif_core.artist_groups g
+                    on g.group_seq = ga.group_seq and g.is_deleted = false
+                  join motif_core.artists a
+                    on a.group_seq = g.group_seq and a.is_deleted = false
+                 where ga.alias ilike :contains
+            ), best as (
+                select distinct on (artist_seq)
+                       artist_seq, source, match_rank, alias_len
+                  from matches
+                 order by artist_seq, source, match_rank, alias_len
+            )
+            select a.artist_seq        as "artistSeq",
+                   u.nickname          as "name",
+                   u.profile_image_key as "profileImageKey",
+                   g.group_name        as "groupName"
+              from best b
+              join motif_core.artists a on a.artist_seq = b.artist_seq
+              join motif_core.users u on u.user_seq = a.user_seq
+              left join motif_core.artist_groups g on g.group_seq = a.group_seq
+             order by b.source, b.match_rank, b.alias_len,
+                      a.subscriber_count desc, a.artist_seq
+             limit :size
+            """, nativeQuery = true)
+    List<ArtistSearchRow> searchByAlias(@Param("q") String q,
+                                        @Param("contains") String contains,
+                                        @Param("prefix") String prefix,
+                                        @Param("size") int size);
+
+    /**
+     * {@link #searchByAlias} 한 행 — 정렬 키는 싣지 않는다.
+     *
+     * <p>{@code source}·{@code matchRank} 는 순서를 정하고 나면 쓰임이 없다. 응답에 없는 값을
+     * 투영에 두면 "화면이 매치 종류를 안다" 는 오해가 생긴다 — §5.2 는 본인 매치와 그룹
+     * 확장을 구분해 보여주지 않는다(결과는 항상 멤버 단위다).
+     *
+     * @param profileImageKey S3 키. URL 변환은 호출부가 한다({@code PublicMediaUrlResolver})
+     * @param groupName       솔로 아티스트는 {@code null}
+     */
+    interface ArtistSearchRow {
+
+        Integer getArtistSeq();
+
+        String getName();
+
+        String getProfileImageKey();
+
+        String getGroupName();
+    }
+
+    /**
      * 랭킹 스냅샷에 올릴 아티스트 전량 (명세 §5.1) — 비삭제만.
      *
      * <p><b>챌린지가 0개여도 포함한다.</b> 챌린지 쪽에서 집계해 얻은 목록만 쓰면 아직

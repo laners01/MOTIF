@@ -10,6 +10,7 @@ import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistSearchResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
 import com.ssafy.motif.coreapi.domain.artist.dto.SubscriptionResponse;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
@@ -24,7 +25,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 팬 앱 아티스트 API 문서 계약
- * (명세 §5.1 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §5.10 · §11.4).
+ * (명세 §5.1 · §5.2 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §5.10 · §11.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -189,6 +190,93 @@ public interface ArtistControllerDocs {
     })
     ApiResponse<ListResponse<ArtistCardResponse>> list(
             @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "아티스트 검색 (§5.2) — 자동완성 겸용",
+            description = """
+                    **타이핑 중이든 엔터 실행이든 같은 API 를 부른다.** v0.7 이 나눴던
+                    §5.9 `/artists/autocomplete` 는 v0.13 에서 여기로 통합돼 삭제됐다 —
+                    두 응답의 차이가 `isSubscribed` 한 칸뿐이었다. 온보딩 §3.2 도 이 경로를 쓴다.
+
+                    ### 무엇을 훑나
+                    이름이 아니라 **별칭 테이블**(`artist_aliases`·`group_aliases`)을 `ILIKE` 로
+                    훑는다. 언어별 별칭을 저장하므로 "Karina" 로 치든 "카리나" 로 치든 같은
+                    아티스트가 나온다.
+
+                    - **응답의 `name` 은 `users.nickname` 고정이다** — 별칭으로 찾았어도 별칭을
+                      싣지 않는다. 어느 질의로 걸렸든 화면에는 같은 이름이 뜬다.
+                    - **언어로 거르지 않는다.** 한국어 UI 사용자도 "aespa" 를 영문으로 치는 일이
+                      흔해서, 요청 언어로 필터링하면 오히려 안 나온다.
+                    - **오타 보정이 없다.** v0.12 까지의 pg_trgm 유사도 검색을 버렸다 —
+                      "카리다" 는 0건이다. 대신 순서가 결정적이다.
+                    - `q` 의 LIKE 메타문자(`%`·`_`·`\\`)는 **이스케이프해 글자 그대로** 찾는다.
+
+                    ### 그룹 매치
+                    검색어가 **그룹 별칭**에 걸리면 그 그룹의 **비삭제 멤버 전원**을 결과 목록에
+                    포함한다. 결과는 **항상 멤버 단위**이며 그룹으로 묶은 중첩 구조를 만들지 않는다.
+
+                    ### 정렬
+                    **본인 별칭으로 걸린 아티스트가 그룹 확장으로 딸려온 멤버보다 항상 앞**이다.
+                    각 덩어리 안에서는:
+
+                    | 순위 | 기준 |
+                    |---|---|
+                    | 1 | 완전 일치 (대소문자 무시) |
+                    | 2 | 접두 일치 |
+                    | 3 | 별칭 길이 오름차순 |
+                    | 4 | `subscriber_count` 내림차순 |
+                    | 5 | `artistSeq` 오름차순 |
+
+                    - 한 아티스트가 별칭 여러 개로 걸리면 **1건으로 합치고 가장 높은 매치**를
+                      정렬 키로 쓴다.
+                    - `size` 는 정렬·중복 제거를 **마친 뒤의 단순 상한**이다. 경계에서 그룹 멤버
+                      일부가 잘려 나가는 것을 허용한다 — 그룹을 통째로 넣으면 `size` 가 상한이
+                      아니게 된다.
+                    - 삭제된 아티스트·그룹은 빠진다. 별칭 행은 소프트 삭제를 따라가지 않으므로
+                      조회 시 조인에서 거른다.
+                    - 0건도 **빈 배열 200** 이다.
+
+                    ### 클라이언트 규약
+                    입력 **디바운스 300ms** + **직전 요청 취소 후 최신 질의만 반영**
+                    (`Flow.debounce` + `collectLatest`). 응답 역전으로 옛 결과가 새 결과를
+                    덮어쓰는 것을 막는다. 빈 문자열이면 호출하지 않고 목록을 비운다 —
+                    서버도 400 으로 막지만 왕복을 낭비하지 않는다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "검색 결과 (상위 size 건)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "isSubscribed": true
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-21T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "검색어가 비었거나 공백뿐 (INVALID_PARAMETER)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "인증 실패 (§1.4 공통)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<ListResponse<ArtistSearchResponse>> search(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "검색어 — 비었거나 공백뿐이면 400", example = "카리나") String q,
+            @Parameter(description = "상위 N 건 — 최대 100", example = "20") int size);
 
     @Operation(
             summary = "아티스트 상세 (§5.3)",
