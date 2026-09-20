@@ -35,11 +35,13 @@ import com.ssafy.motif.feature.motif.impl.shop.component.ShopArtistSection
  */
 /**
  * @param onProductClick 에셋 카드 선택 → 아티스트 상품 상세 이동 (artistId, assetId).
+ * @param onPassClick PASS 배너 또는 Pass 구매 버튼 선택 → PASS 결제 화면 이동 (artistId).
  */
 @Composable
 internal fun ShopScreen(
     contentPadding: PaddingValues,
     onProductClick: (artistId: Long, assetId: Long) -> Unit,
+    onPassClick: (artistId: Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ShopViewModel = hiltViewModel(),
 ) {
@@ -48,8 +50,8 @@ internal fun ShopScreen(
     ShopScreen(
         uiState = uiState,
         contentPadding = contentPadding,
-        onBannerClick = viewModel::selectBanner,
-        onPassClick = viewModel::selectPass,
+        onBannerClick = onPassClick,
+        onPassClick = onPassClick,
         onAssetClick = onProductClick,
         onLoadMore = viewModel::loadMore,
         modifier = modifier,

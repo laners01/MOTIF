@@ -1,6 +1,7 @@
 package com.ssafy.motif.feature.motif.impl.shop.detail
 
 import com.ssafy.motif.core.model.shop.ArtistPass
+import com.ssafy.motif.core.model.shop.PassPlan
 import com.ssafy.motif.core.model.shop.ShopArtistDetail
 import com.ssafy.motif.feature.motif.impl.shop.ShopMockData
 
@@ -11,7 +12,12 @@ import com.ssafy.motif.feature.motif.impl.shop.ShopMockData
 internal object ProductDetailMockData {
 
     private const val ASSET_PRICE = 3_900
-    private const val PASS_PRICE = 9_900
+
+    private val passPlans = listOf(
+        PassPlan(id = 1L, months = 1, monthlyPrice = 9_900),
+        PassPlan(id = 2L, months = 6, monthlyPrice = 8_200),
+        PassPlan(id = 3L, months = 12, monthlyPrice = 6_000, note = "+ 시크릿 에셋"),
+    )
 
     // 실기기에서 실제 재생을 확인할 수 있는 16:9 샘플 영상
     private val previewVideoUrls = listOf(
@@ -48,10 +54,10 @@ internal object ProductDetailMockData {
             },
             pass = ArtistPass(
                 artistId = artistId,
-                price = PASS_PRICE,
                 bannerImageUrl = bannerImageUrl,
                 headline = PASS_HEADLINE,
                 description = PASS_DESCRIPTION,
+                plans = passPlans,
             ),
             hasPass = section.hasPass,
         )

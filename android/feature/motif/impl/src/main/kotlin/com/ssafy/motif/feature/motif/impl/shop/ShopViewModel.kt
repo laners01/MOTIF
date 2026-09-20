@@ -21,14 +21,6 @@ class ShopViewModel @Inject constructor() : ViewModel() {
         loadFirstPage()
     }
 
-    fun selectBanner(bannerId: Long) {
-        // TODO 구독권 상품 바텀시트 노출 (별도 티켓)
-    }
-
-    fun selectPass(artistId: Long) {
-        // TODO PASS 결제 화면 이동 (별도 티켓)
-    }
-
     fun loadMore() {
         val current = _uiState.value as? ShopUiState.Success ?: return
         if (!current.hasNext) return

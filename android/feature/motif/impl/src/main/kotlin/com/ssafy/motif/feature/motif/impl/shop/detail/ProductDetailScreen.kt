@@ -27,7 +27,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.motif.AssetAvailability
-import com.ssafy.motif.core.model.shop.ArtistPass
 import com.ssafy.motif.core.model.shop.ShopArtistDetail
 import com.ssafy.motif.feature.motif.impl.component.MotifVideoPlayer
 import com.ssafy.motif.feature.motif.impl.shop.ShopPreviewFixtures
@@ -256,13 +255,7 @@ private fun previewSuccessState(): ProductDetailUiState.Success {
             artist = artist,
             introduction = "선물처럼 찾아온 최애와 함께하는 설레는 일상.\n최애 아티스트와 만드는 나만의 특별한 순간, MOTIF",
             assets = assets,
-            pass = ArtistPass(
-                artistId = artist.id,
-                price = 9_900,
-                bannerImageUrl = ShopPreviewFixtures.banners().first().imageUrl,
-                headline = "좋아하는 아티스트의 MOTIF를 더 자유롭게 이용해보세요.",
-                description = "아티스트 PASS를 구독하면 구독 기간 동안 해당 아티스트의 일반 에셋을 개별 구매 없이 이용할 수 있습니다.",
-            ),
+            pass = ShopPreviewFixtures.pass(artist.id),
             hasPass = false,
         ),
         selectedAsset = assets.first(),
