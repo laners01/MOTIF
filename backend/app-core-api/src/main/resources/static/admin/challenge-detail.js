@@ -158,6 +158,52 @@ $('edited').addEventListener('change', async (e) => {
     }
 });
 
+// ── 곡 · 소개글 (§3.7.4) ───────────────────────────────────────────────────
+
+/*
+ * 고칠 수 있는 것은 이 둘뿐이다. 원본 영상·메인 아티스트·길이는 등록 후 불변이고
+ * (R1 원본 교체 금지) 요청에 실으면 400 이라, 화면에서도 입력 자체를 두지 않는다.
+ *
+ * 곡 목록은 한 번만 받는다 — load() 가 앵커·편집본 갱신마다 다시 도는데 그때마다
+ * 부르면 select 가 계속 불어난다.
+ */
+let songsLoaded = false;
+
+const dirty = () => challenge && (
+    $('description').value !== (challenge.description ?? '')
+    || $('song').value !== String(challenge.song?.songSeq ?? ''));
+
+function refreshSaveState() {
+    const changed = dirty();
+    $('save').disabled = !changed;
+    $('save-note').textContent = changed ? '저장하지 않은 변경이 있다' : '고친 곳이 없다';
+}
+
+$('description').addEventListener('input', refreshSaveState);
+$('song').addEventListener('change', refreshSaveState);
+
+$('save').addEventListener('click', async () => {
+    clearError($('err'));
+    $('save').disabled = true;
+    try {
+        // 부분 수정이라 바뀐 것만 싣는다 — 곡을 안 건드렸는데 같은 값을 보내면
+        // 서버 로그에 의미 없는 변경으로 남는다
+        const body = {};
+        if ($('description').value !== (challenge.description ?? '')) {
+            body.description = $('description').value.trim();
+        }
+        if ($('song').value !== String(challenge.song?.songSeq ?? '')) {
+            body.songSeq = Number($('song').value);
+        }
+        await api(`/challenges/${challengeSeq}`, {method: 'PATCH', body});
+        await load();
+        $('save-note').textContent = '저장했다';
+    } catch (e) {
+        showError($('err'), e);
+        refreshSaveState();
+    }
+});
+
 // ── 로드 ───────────────────────────────────────────────────────────────────
 
 async function load() {
@@ -192,9 +238,16 @@ async function load() {
 
         set('seq', `${c.challengeSeq}${c.isDeleted ? ' (삭제됨)' : ''}`);
         set('artist', c.artist?.name ?? '');
-        set('song', c.song ? `${c.song.title} / ${c.song.singerName}` : '');
-        set('description', c.description ?? '');
         set('duration', `${(c.durationMs / 1000).toFixed(1)}초`);
+
+        if (!songsLoaded) {
+            await fillSelect($('song'), '/songs?size=100', 'songSeq',
+                    (s) => `${s.title} — ${s.singerName}`);
+            songsLoaded = true;
+        }
+        $('song').value = c.song?.songSeq ?? '';
+        $('description').value = c.description ?? '';
+        refreshSaveState();
         set('counts', `조회 ${c.viewCount} · 참여 ${c.participantCount} · 좋아요 ${c.likeCount} · 댓글 ${c.commentCount}`);
         set('jobs', `진행 중 ${c.activeJobCount}건`);
 
