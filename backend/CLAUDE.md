@@ -177,7 +177,7 @@ mediaJobPublisher.publish(
 
 ```java
 // 챌린지 슬롯을 다룰 때 — 마스크는 서버가 계산한다. 비트를 직접 쓰지 않는다
-SlotRules.checkParticipants(mainArtistSeq, participants);       // 메인 포함·중복·bbox
+SlotRules.checkParticipants(participants);                      // 중복·앵커 범위 (메인도 슬롯이 된다)
 List<Integer> masks = SlotRules.editedMasks(n, editedList);     // 2ⁿ−1 완결성 + 마스크
 adminMediaService.requireUploaded(keys);                        // HEAD, 부재 키를 data 에
 ```
