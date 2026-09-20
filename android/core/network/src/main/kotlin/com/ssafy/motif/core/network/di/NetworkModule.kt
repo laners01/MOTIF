@@ -3,6 +3,7 @@ package com.ssafy.motif.core.network.di
 import com.ssafy.motif.core.network.BuildConfig
 import com.ssafy.motif.core.network.NetworkConfig
 import com.ssafy.motif.core.network.auth.AccessTokenInterceptor
+import com.ssafy.motif.core.network.service.comment.CommentService
 import com.ssafy.motif.core.network.service.notice.NoticeService
 import dagger.Module
 import dagger.Provides
@@ -86,6 +87,13 @@ internal object NetworkModule {
         retrofit: Retrofit,
     ): NoticeService =
         retrofit.create(NoticeService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideCommentService(
+        retrofit: Retrofit,
+    ): CommentService =
+        retrofit.create(CommentService::class.java)
 
     private const val NETWORK_TIMEOUT_SECONDS = 30L
     private const val CONTENT_TYPE_JSON = "application/json"
