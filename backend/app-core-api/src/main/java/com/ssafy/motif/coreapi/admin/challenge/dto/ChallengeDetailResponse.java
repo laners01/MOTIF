@@ -49,7 +49,13 @@ public record ChallengeDetailResponse(
     }
 
     /** @param previewImageUrl 0017 이전 행은 {@code null} — §3.7.6 으로 채운다 */
+    /**
+     * @param videoKey 키도 함께 준다 — 슬롯 교체(§3.7.5)가 편집본을 <b>다시 보내야</b>
+     *                 하는데, URL 에서 키를 역산하면 CDN 주소 형태가 바뀔 때 조용히 깨진다
+     */
     public record Edited(Integer editedChallengeSeq, int participantMask,
-                         String videoUrl, String initialSceneUrl, String previewImageUrl, long jobRefCount) {
+                         String videoUrl, String initialSceneUrl, String previewImageUrl,
+                         String videoKey, String initialSceneKey, String previewImageKey,
+                         long jobRefCount) {
     }
 }

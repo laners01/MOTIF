@@ -15,6 +15,9 @@
 const DEFAULT_R = 0.0995;   // 시안 402 폭 · 지름 80 → 반지름 40/402
 const challengeSeq = location.pathname.split('/')[3];
 let challenge = null;       // 마지막으로 받은 상세 — 앵커 갱신 시 x·y 를 여기서 읽는다
+let artists = [];           // 슬롯 아티스트 교체용 후보 (§3.7.5)
+
+const artistLabel = (a) => (a.group ? `${a.name} (${a.group.groupName})` : a.name);
 
 const set = (id, text) => {
     $(id).textContent = text;
@@ -37,7 +40,13 @@ function slotRow(participant) {
     const a = participant.anchor;
     tr.dataset.artistSeq = participant.artist.artistSeq;
     tr.querySelector('.mask').textContent = participant.participantMask;
-    tr.querySelector('.artist').textContent = participant.artist?.name ?? '';
+
+    // 아티스트를 고를 수 있다(§3.7.5). dataset 은 서버가 아는 현재 주인이라
+    // 앵커 저장(§3.7.9)은 계속 그 값을 경로에 쓴다 — select 는 저장 전까지 후보다
+    const select = tr.querySelector('.artist');
+    select.append(...artists.map((x) => new Option(artistLabel(x), x.artistSeq)));
+    select.value = participant.artist.artistSeq;
+
     tr.querySelector('.xy').textContent = a ? `${a.x.toFixed(4)}, ${a.y.toFixed(4)}` : '미지정 — 행을 고르고 썸네일을 클릭';
     tr.querySelector('.xy').className = a ? 'xy' : 'xy err';
     tr.querySelector('.r').value = a?.r ?? DEFAULT_R;
@@ -119,6 +128,67 @@ function drawDots() {
             Number(tr.querySelector('.r').value) * w, p.artist?.profileImageUrl, p.participantMask));
     }
 }
+
+// ── 슬롯 아티스트 교체 (§3.7.5) ────────────────────────────────────────────
+
+/*
+ * 부분 수정 API 가 없어서 슬롯 구성을 통째로 다시 보낸다. 앵커는 지금 값 그대로,
+ * 편집본은 지금 키를 그대로 돌려보내 파일이 바뀌지 않게 한다 — 행 seq 만 새로 난다.
+ * 합성 잡이 편집본을 참조 중이면 409 EDITED_IN_USE 로 막힌다(명세 §3.7.5).
+ */
+const slotsDirty = () => [...$('slots').rows]
+        .some((tr) => tr.querySelector('.artist').value !== tr.dataset.artistSeq);
+
+function refreshSlotSaveState() {
+    const changed = slotsDirty();
+    $('save-slots').disabled = !changed;
+    $('slot-save-note').textContent = changed
+        ? '저장하면 슬롯·편집본 행이 다시 만들어진다 — 합성 잡이 편집본을 쓰고 있으면 막힌다'
+        : '고친 곳이 없다';
+}
+
+/** 마스크(비트 합) → removedSlots(슬롯 인덱스 배열). §3.7.5 는 인덱스로 받는다. */
+function removedSlotsOf(mask) {
+    const idx = [];
+    for (let i = 0; mask >> i; i++) {
+        if ((mask >> i) & 1) idx.push(i);
+    }
+    return idx;
+}
+
+$('slots').addEventListener('change', (e) => {
+    if (e.target.classList.contains('artist')) refreshSlotSaveState();
+});
+
+$('save-slots').addEventListener('click', async () => {
+    clearError($('err'));
+    $('save-slots').disabled = true;
+    try {
+        const participants = [...$('slots').rows].map((tr) => {
+            const now = challenge.participants
+                    .find((p) => String(p.artist.artistSeq) === tr.dataset.artistSeq);
+            return {
+                artistSeq: Number(tr.querySelector('.artist').value),
+                // 앵커가 아직 없는 슬롯은 반지름만 화면 값으로 채워 보낸다 —
+                // x·y 는 썸네일 클릭으로 따로 찍는다
+                anchor: now?.anchor ?? {x: 0.5, y: 0.4, r: Number(tr.querySelector('.r').value)},
+            };
+        });
+        const editedChallenges = challenge.editedChallenges.map((e) => ({
+            removedSlots: removedSlotsOf(e.participantMask),
+            videoKey: e.videoKey,
+            initialSceneKey: e.initialSceneKey,
+            previewImageKey: e.previewImageKey,
+        }));
+        await api(`/challenges/${challengeSeq}/participants`,
+                {method: 'PUT', body: {participants, editedChallenges}});
+        await load();
+        $('slot-save-note').textContent = '저장했다';
+    } catch (e) {
+        showError($('err'), e);
+        refreshSlotSaveState();
+    }
+});
 
 // ── 편집본 · 키 교체 ───────────────────────────────────────────────────────
 
@@ -240,9 +310,13 @@ async function load() {
         set('artist', c.artist?.name ?? '');
         set('duration', `${(c.durationMs / 1000).toFixed(1)}초`);
 
+        // 곡·아티스트 목록은 한 번만 받는다 — load() 는 앵커·편집본 갱신마다 다시
+        // 도는데 그때마다 부르면 select 가 계속 불어난다
         if (!songsLoaded) {
             await fillSelect($('song'), '/songs?size=100', 'songSeq',
                     (s) => `${s.title} — ${s.singerName}`);
+            const {list} = await api('/artists?size=100');
+            artists = list;
             songsLoaded = true;
         }
         $('song').value = c.song?.songSeq ?? '';
