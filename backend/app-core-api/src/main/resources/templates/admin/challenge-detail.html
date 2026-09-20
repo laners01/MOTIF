@@ -58,6 +58,13 @@
             <tbody id="slots"></tbody>
         </table>
         <p class="muted" id="slot-note"></p>
+        <!--/* 아티스트 교체는 §3.7.5 다 — 슬롯·편집본을 통째로 다시 쓴다. 편집본 키는
+               지금 것을 그대로 돌려보내므로 파일은 그대로고 행 seq 만 새로 난다.
+               합성 잡이 참조 중이면 409 EDITED_IN_USE 로 막힌다. */-->
+        <p>
+            <button type="button" id="save-slots" disabled>슬롯 아티스트 저장</button>
+            <span class="muted" id="slot-save-note">고친 곳이 없다</span>
+        </p>
     </section>
 
     <section>
@@ -74,7 +81,7 @@
     <template id="slot-row">
         <tr>
             <td class="mask"></td>
-            <td class="artist"></td>
+            <td><select class="artist"></select></td>
             <td class="xy"></td>
             <td><input type="range" min="0.02" max="0.3" step="0.005" class="r"> <span class="muted r-label"></span></td>
         </tr>

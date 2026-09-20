@@ -662,7 +662,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 }
 ```
 
-**3.7.3 성공 (200)** `data` = 3.7.1 항목 + `description`, `videoUrl`(공개 CDN), `participants[]`(artist 요약(`artistSeq`·`name`·`profileImageUrl` — 상세 화면이 슬롯 원 안에 넣는다)·mask·`anchor{x,y,r}` — 0017 이전 행은 `null`), `editedChallenges[]`(seq·mask·`videoUrl`·`initialSceneUrl`·`previewImageUrl`(0017 이전 행 `null`)·`jobRefCount`), `activeJobCount`(QUEUED/PROCESSING).
+**3.7.3 성공 (200)** `data` = 3.7.1 항목 + `description`, `videoUrl`(공개 CDN), `participants[]`(artist 요약(`artistSeq`·`name`·`profileImageUrl` — 상세 화면이 슬롯 원 안에 넣는다)·mask·`anchor{x,y,r}` — 0017 이전 행은 `null`), `editedChallenges[]`(seq·mask·`videoUrl`·`initialSceneUrl`·`previewImageUrl`(0017 이전 행 `null`)·**키 3종**(`videoKey`·`initialSceneKey`·`previewImageKey` — 슬롯 교체 §3.7.5 가 편집본을 다시 보낼 때 쓴다)·`jobRefCount`), `activeJobCount`(QUEUED/PROCESSING).
 
 **3.7.4 요청** `{ "description": "…", "songSeq": 12 }` — 부분 수정. 원본 영상·메인 아티스트는 불변(요청에 포함되면 400) *(회의 확정 R1 — 원본 교체 금지)*.
 

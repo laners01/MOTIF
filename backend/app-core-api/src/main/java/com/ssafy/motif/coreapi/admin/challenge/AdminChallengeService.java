@@ -270,6 +270,7 @@ public class AdminChallengeService {
                         mediaUrlResolver.resolve(e.getVideoKey()),
                         mediaUrlResolver.resolve(e.getInitialSceneKey()),
                         mediaUrlResolver.resolve(e.getPreviewImageKey()),
+                        e.getVideoKey(), e.getInitialSceneKey(), e.getPreviewImageKey(),
                         jobRefs.getOrDefault(e.getEditedChallengeSeq(), 0L))).toList(),
                 challengeRepository.countActiveJobs(seq));
     }
