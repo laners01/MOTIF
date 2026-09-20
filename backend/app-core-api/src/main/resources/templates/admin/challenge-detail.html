@@ -62,8 +62,13 @@
                지금 것을 그대로 돌려보내므로 파일은 그대로고 행 seq 만 새로 난다.
                합성 잡이 참조 중이면 409 EDITED_IN_USE 로 막힌다. */-->
         <p>
-            <button type="button" id="save-slots" disabled>슬롯 아티스트 저장</button>
+            <button type="button" id="add-slot">슬롯 추가</button>
+            <button type="button" id="save-slots" disabled>슬롯 저장</button>
             <span class="muted" id="slot-save-note">고친 곳이 없다</span>
+        </p>
+        <p class="muted">
+            추가한 슬롯은 <b>맨 뒤에</b> 붙는다 — 마스크가 뒤에서 늘어나야 기존 편집본의
+            조합(지운 슬롯 인덱스)이 그대로 유효하다. 앵커는 저장 뒤 썸네일을 클릭해 찍는다.
         </p>
     </section>
 
