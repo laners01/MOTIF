@@ -77,11 +77,20 @@
             <td class="member-count"></td>
             <td class="reg"></td>
             <td><button type="button" class="save">저장</button>
+                <button type="button" class="alias">별칭</button>
                 <button type="button" class="delete">삭제</button></td>
             <td class="msg muted"></td>
         </tr>
     </template>
 
+    <!--/*
+      그룹 별칭(§3.4.5~8). 그룹은 상세 화면이 없고 인라인 편집 표라, 행의 "별칭" 버튼이
+      이 패널을 그 그룹으로 연다. 계약은 아티스트 별칭(§3.5.6~9)과 같다 — aliases.js 공유.
+    */-->
+    <div th:replace="~{admin/alias-panel :: aliasPanel}"></div>
+
+    <!--/* aliases.js 가 먼저다 — defer 는 문서 순서대로 실행되고 orgs.js 가 openAliases 를 부른다 */-->
+    <script src="/admin/aliases.js" defer></script>
     <script src="/admin/orgs.js" defer></script>
 </main>
 </body>

@@ -200,9 +200,19 @@ $('groups').addEventListener('click', async (e) => {
         }), '저장됨');
         if (ok) await loadGroups();     // 멤버가 함께 옮겨졌을 수 있다 — 수를 다시 읽는다
     }
+    // 별칭(§3.4.5~8)은 그룹 수정과 트랜잭션이 다르다 — 패널이 행마다 따로 저장한다
+    if (e.target.classList.contains('alias')) {
+        const name = tr.querySelector('.name').value;
+        await openAliases(path, `그룹 #${tr.dataset.seq} ${name}`);
+        $('alias-panel').scrollIntoView();
+    }
     if (e.target.classList.contains('delete')) {
         const ok = await rowAction(tr, () => api(path, {method: 'DELETE'}), '삭제됨');
-        if (ok) await loadGroups();
+        if (ok) {
+            // 방금 지운 그룹을 패널이 보고 있으면 닫는다 — 삭제분은 별칭 API 가 404 다
+            if (aliasBase === path) closeAliases();
+            await loadGroups();
+        }
     }
 });
 

@@ -61,6 +61,13 @@
             <button type="button" id="reset" hidden>새 아티스트 등록으로</button>
             <span class="msg ok" id="msg"></span>
         </p>
+
+        <!--/*
+          별칭(§3.5.6~9)은 수정 중일 때만 뜬다 — 등록 폼에는 아직 artistSeq 가 없어 달 대상이
+          없다. 위의 "수정" 버튼과 따로 저장한다: 별칭은 artists 가 아니라 artist_aliases 에
+          있고 트랜잭션이 다르다. 폼 저장에 묶으면 이름만 고쳐도 별칭 전부가 함께 나간다.
+        */-->
+        <div th:replace="~{admin/alias-panel :: aliasPanel}"></div>
     </section>
 
     <template id="artist-row">
@@ -81,6 +88,8 @@
         </tr>
     </template>
 
+    <!--/* aliases.js 가 먼저다 — defer 는 문서 순서대로 실행되고 artists.js 가 openAliases 를 부른다 */-->
+    <script src="/admin/aliases.js" defer></script>
     <script src="/admin/artists.js" defer></script>
 </main>
 </body>
