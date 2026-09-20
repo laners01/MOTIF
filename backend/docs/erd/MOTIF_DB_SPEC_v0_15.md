@@ -2,6 +2,17 @@
 
 본 문서는 `MOTIF 데이터베이스 명세서 v0.14`에 2026-09-09 DDL 검증(R9) 회신 — 명세 결함 2건 수정과 운영 기준 보강 — 을 반영한 최신 스키마 계약이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
 
+## v0.17 반영 내용 (2026-09-20 · changeSet 0018 · [ADR-0014](../adr/0014-artist-alias-search.md))
+
+| 대상 | 변경 |
+|---|---|
+| `artist_aliases` 신설 (§41) | 아티스트의 **언어별 별칭**. 다국어 검색용 — "Karina"·"카리나" 어느 쪽으로 쳐도 같은 아티스트를 찾게 한다. `artist_seq` FK · `language_code CHAR(2)` · `alias VARCHAR(100)` |
+| `group_aliases` 신설 (§42) | 그룹의 언어별 별칭. **아티스트와 한 테이블로 합치지 않는다** — `artist_seq` FK 하나로는 그룹을 가리킬 수 없고, 폴리모픽(`target_type`+`target_seq`)으로 만들면 FK 를 못 건다. 무엇보다 **"이 매치가 그룹 매치였다" 는 사실이 테이블 구분으로 드러나야** §5.2 의 그룹 확장을 판정할 수 있다 |
+| 별칭 UNIQUE **없음** | 한 언어에 별칭 여러 개를 허용한다(`aespa`·`æspa`, 활동명·본명). 중복 입력도 막지 않는다 — §5.2 가 `artistSeq` 로 중복을 제거하므로 결과가 겹치지 않는다 |
+| GIN 인덱스 2개 | `gin_artist_aliases_alias`·`gin_group_aliases_alias` — `alias gin_trgm_ops`. **`lower(alias)` 가 아니라 원본 컬럼**에 건다(조회가 `ILIKE` 라서 그렇다. 근거는 "pg_trgm GIN" 절) |
+| 검색 대상 이전 | API §5.2 검색이 `users.nickname`·`artist_groups.group_name` 대신 별칭 테이블을 본다. **어드민 §3.5.1 목록 검색은 종전대로 `users.nickname`** 이다 — `gin_users_nickname` 을 계속 쓴다 |
+| 소프트 삭제 연쇄 **없음** | 아티스트·그룹을 소프트 삭제해도 별칭 행을 건드리지 않는다. 조회가 조인에서 `is_deleted = FALSE` 로 거른다 — 복구 시 별칭이 그대로 살아 돌아온다 |
+
 ## v0.16 반영 내용 (2026-09-18 · changeSet 0017 · S15P21D104-618)
 
 | 대상 | 변경 |
@@ -209,7 +220,7 @@ char_length(nickname) BETWEEN 1 AND 50
 - 인증 시 `users.is_deleted=FALSE`와 `user_accounts.account_status='ACTIVE'`를 모두 확인한다.
 - `rep_motif_result_seq`를 설정할 때 해당 결과가 같은 `user_seq` 소유이며 `is_deleted=FALSE`인지 검증한다.
 - 대표 결과가 소프트 삭제되면 같은 트랜잭션에서 `rep_motif_result_seq=NULL`로 변경한다.
-- 검색 대상은 `users.nickname`, `artist_groups.group_name`만 pg_trgm을 사용한다.
+- pg_trgm GIN 대상은 `users.nickname`, `artist_groups.group_name`, 그리고 v0.17 의 `artist_aliases.alias`·`group_aliases.alias` 넷뿐이다. **팬 앱 검색(API §5.2)은 별칭 두 컬럼만 본다** — `users.nickname` 을 보는 것은 어드민 §3.5.1 목록 검색이다.
 
 ## 2. 사용자 계정 (`user_accounts`)
 
@@ -340,7 +351,7 @@ WHERE is_deleted = FALSE;
 |---|---|---:|---|---|
 | `group_seq` | `INTEGER` | Y | PK, IDENTITY | 그룹 식별자 |
 | `company_seq` | `INTEGER` | Y | FK → companies | 소속사 |
-| `group_name` | `VARCHAR(50)` | Y | - | 그룹명. 중복 허용, pg_trgm 검색 대상 |
+| `group_name` | `VARCHAR(50)` | Y | - | 그룹명. 중복 허용. 어드민 §3.4.1 목록 검색 대상(pg_trgm). **팬 앱 §5.2 검색은 이 칼럼이 아니라 `group_aliases.alias` 를 본다**(v0.17) |
 | `reg_usr_seq` | `INTEGER` | Y | FK → users | 등록 행위자 |
 | `is_deleted` | `BOOLEAN` | Y | 기본값 FALSE | 소프트 삭제 여부 |
 | `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 |
@@ -1354,6 +1365,51 @@ platform IN ('ANDROID','IOS','WEB')
 - `device_tokens.is_active=TRUE` 토큰에만 푸시를 발송한다.
 - subscriber replica는 두지 않는다.
 
+## 41. 아티스트 별칭 (`artist_aliases`) *(v0.17 신설 — changeSet 0018)*
+
+아티스트를 **찾기 위한** 언어별 별칭이다. 다국어 검색(API §5.2)이 이 칼럼만 본다.
+
+**보여주기용이 아니다.** 응답의 `name` 은 언제나 `users.nickname` 이다 — 별칭을 표시에 쓰면 같은 아티스트가 질의에 따라 다른 이름으로 보이고, 공통 아티스트 요약을 쓰는 15개 엔드포인트가 전부 흔들린다(API 상세 명세 README §3.5).
+
+| 칼럼 | 타입 | 필수 | 키·제약 | 설명 |
+|---|---|---:|---|---|
+| `alias_seq` | `INTEGER` | Y | PK, IDENTITY | 별칭 식별자 |
+| `artist_seq` | `INTEGER` | Y | FK → artists, INDEX | 대상 아티스트 |
+| `language_code` | `CHAR(2)` | Y | - | ISO 639-1 (`ko`·`en`·`ja`). **검색에 쓰지 않는다** — 어드민이 언어별로 정리해 넣기 위한 구분일 뿐 |
+| `alias` | `VARCHAR(100)` | Y | GIN (`gin_trgm_ops`) | 별칭. `ILIKE '%q%'` 대상 |
+| `reg_usr_seq` | `INTEGER` | Y | FK → users | 등록 행위자 |
+| `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 |
+| `mod_dttm` | `TIMESTAMPTZ` | N | 기본값 없음 | 수정 일시 |
+
+서비스 규칙:
+
+- **UNIQUE 제약이 없다.** 한 언어에 별칭 여러 개를 허용한다(`aespa`·`æspa`, 활동명·본명). 같은 값이 두 번 들어가도 막지 않는다 — §5.2 가 `artist_seq` 로 중복을 제거하므로 결과가 겹치지 않는다.
+- **소프트 삭제 칼럼이 없다.** 아티스트를 소프트 삭제해도 이 행을 건드리지 않고, 조회가 `artists.is_deleted = FALSE` 조인으로 거른다. 복구하면 별칭이 그대로 살아 돌아온다.
+- 어드민이 직접 지우는 것(어드민 명세 §3.5.6~9)은 **하드 삭제**다. 위의 소프트 삭제 연쇄와 별개 동작이다.
+- `mod_usr_seq` 를 두지 않는다 — `artists` 와 같은 이유로 수정 주체는 감사 로그가 갖는다.
+
+## 42. 그룹 별칭 (`group_aliases`) *(v0.17 신설 — changeSet 0018)*
+
+그룹의 언어별 별칭. 구조는 §41 과 같고 `artist_seq` 자리가 `group_seq` 다.
+
+| 칼럼 | 타입 | 필수 | 키·제약 | 설명 |
+|---|---|---:|---|---|
+| `alias_seq` | `INTEGER` | Y | PK, IDENTITY | 별칭 식별자 |
+| `group_seq` | `INTEGER` | Y | FK → artist_groups, INDEX | 대상 그룹 |
+| `language_code` | `CHAR(2)` | Y | - | ISO 639-1 |
+| `alias` | `VARCHAR(100)` | Y | GIN (`gin_trgm_ops`) | 별칭 |
+| `reg_usr_seq` | `INTEGER` | Y | FK → users | 등록 행위자 |
+| `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 |
+| `mod_dttm` | `TIMESTAMPTZ` | N | 기본값 없음 | 수정 일시 |
+
+**§41 과 한 테이블로 합치지 않는다.** 세 가지 이유다:
+
+1. `artist_seq` FK 하나로는 그룹을 가리킬 수 없다. 폴리모픽(`target_type` + `target_seq`)으로 만들면 FK 를 못 걸고, 이 스키마는 모든 참조에 FK 를 건다.
+2. 그룹 별칭을 멤버별로 복제해 넣으면 별칭 한 번 고치는 데 N 행 UPDATE 이고, 멤버가 추가될 때 누락된다.
+3. **무엇보다, "이 매치가 그룹 매치였다" 는 사실이 필요하다.** §5.2 는 그룹 별칭에 걸리면 그 그룹의 멤버 전원을 결과에 넣고, 그렇게 들어온 멤버를 본인 매치보다 뒤로 정렬한다. 테이블이 갈려 있으면 그 판정이 조회 구조에서 공짜로 나온다.
+
+서비스 규칙은 §41 과 같다 — UNIQUE 없음, 소프트 삭제 연쇄 없음(조인에서 `artist_groups.is_deleted = FALSE`), 어드민 삭제는 하드.
+
 ---
 
 # 공통 삭제·카운터 정책
@@ -1380,6 +1436,7 @@ platform IN ('ANDROID','IOS','WEB')
 - `challenge_participants`, `notice_images`: 교체 시 하드 삭제/재생성
 - `edited_challenges`: 편집본 교체는 같은 행 키 갱신. 조합 폐기는 `composite_jobs` 참조 전에만 하드 삭제 가능(FK RESTRICT), 참조 후에는 유지
 - `refresh_tokens`: 활성 수명 중 `revoked_dttm`으로 폐기하고 오래된 과거 행은 운영 보존정책에 따라 주기적 하드 삭제
+- `artist_aliases`, `group_aliases`: 어드민이 지울 때 하드 삭제. **대상 아티스트·그룹의 소프트 삭제는 따라가지 않는다** — 조회가 조인에서 거른다(§41·§42)
 - `device_tokens`: 로그아웃/무효화 시 `is_active=FALSE`
 - `user_accounts`: `account_status` 사용
 - `motif_assets`, 가격 테이블: `is_active` 사용
@@ -1507,9 +1564,15 @@ WHERE status = 'ACTIVE';
 
 ## pg_trgm GIN
 
-- `gin_users_nickname` — `users USING gin (nickname gin_trgm_ops) WHERE role='ARTIST' AND is_deleted=FALSE` — 검색은 아티스트만 대상이므로 부분 GIN
-- `gin_groups_name` — `artist_groups USING gin (group_name gin_trgm_ops)`
+- `gin_users_nickname` — `users USING gin (nickname gin_trgm_ops) WHERE role='ARTIST' AND is_deleted=FALSE` — 검색은 아티스트만 대상이므로 부분 GIN. **어드민 §3.5.1 목록 검색용**이다
+- `gin_groups_name` — `artist_groups USING gin (group_name gin_trgm_ops)` — 어드민 §3.4.1 용
+- `gin_artist_aliases_alias` — `artist_aliases USING gin (alias gin_trgm_ops)` *(v0.17)* — 팬 앱 §5.2 용
+- `gin_group_aliases_alias` — `group_aliases USING gin (alias gin_trgm_ops)` *(v0.17)*
 - 곡 검색용 GIN 인덱스는 두지 않는다.
+
+**인덱스는 `lower(alias)` 가 아니라 원본 칼럼에 건다.** `gin_trgm_ops` 는 트라이그램을 뽑을 때 스스로 소문자로 내리므로 인덱스 자체가 이미 대소문자 무시이고, `ILIKE` 를 그대로 받는다. 반대로 조회를 `lower(alias) LIKE lower(?)` 로 쓰면 **인덱스에 붙지 않는다** — 인덱스가 걸린 식(`alias`)과 조회하는 식(`lower(alias)`)이 다르기 때문이다. 그래서 §5.2 조회는 JPQL 이 아니라 네이티브 `ILIKE` 로 쓴다.
+
+**이 인덱스가 성능을 좌우하지는 않는다.** pg_trgm 은 3글자 조각 기반이라 한글 2음절 질의(`카리`)는 트라이그램이 하나도 안 나와 인덱스를 못 탄다. 다만 아티스트가 수백·별칭이 천 단위라 플래너가 어차피 순차 스캔을 고르는 크기이고, 데이터가 커졌을 때 코드 변경 없이 인덱스가 쓰이기 시작하도록 미리 달아 둔다. pg_bigm 을 검토했으나 채택하지 않았다 — 근거는 [ADR-0014](../adr/0014-artist-alias-search.md).
 
 ## FK 삭제 정책
 
