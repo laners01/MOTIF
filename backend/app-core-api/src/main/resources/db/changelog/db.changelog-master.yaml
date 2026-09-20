@@ -50,3 +50,5 @@ databaseChangeLog:
       file: db/changelog/sql/0016-activity-index.sql
   - include:
       file: db/changelog/sql/0017-slot-anchor-preview.sql
+  - include:
+      file: db/changelog/sql/0018-artist-aliases.sql
