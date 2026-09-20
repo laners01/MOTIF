@@ -52,26 +52,19 @@ class SlotRulesTest {
     }
 
     @Test
-    @DisplayName("n=2 에 편집본 2개 — 누락 마스크가 data 에 담긴다")
-    void 누락() {
-        assertThatThrownBy(() -> SlotRules.editedMasks(2, List.of(edited(0), edited(1))))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> {
-                    BusinessException be = (BusinessException) e;
-                    assertThat(be.getErrorCode()).isEqualTo(AdminErrorCode.EDITED_SET_INCOMPLETE);
-                    assertThat(data(be)).containsEntry("expected", 3)
-                            .containsEntry("missingMasks", List.of(3));
-                });
+    @DisplayName("n=2 에 편집본 2개 — 누락은 허용한다. 있는 조합만 등록한다")
+    void 누락은_허용() {
+        assertThat(SlotRules.editedMasks(2, List.of(edited(0), edited(1))))
+                .containsExactly(1, 2);
     }
 
     @Test
-    @DisplayName("같은 조합을 두 번 — duplicateMasks 에 담기고, 빠진 조합도 함께 보고된다")
+    @DisplayName("같은 조합을 두 번 — duplicateMasks 에 담긴다. 어느 편집본이 쓰일지 알 수 없다")
     void 중복() {
         assertThatThrownBy(() -> SlotRules.editedMasks(2, List.of(edited(0), edited(0), edited(1))))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(data((BusinessException) e))
-                        .containsEntry("duplicateMasks", List.of(1))
-                        .containsEntry("missingMasks", List.of(3)));
+                        .containsEntry("duplicateMasks", List.of(1)));
     }
 
     @Test
@@ -167,14 +160,13 @@ class SlotRulesTest {
     }
 
     /**
-     * 0개를 허용해도 <b>부분 집합은 계속 막는다</b>. 이게 이 완화의 경계다 —
-     * 0개는 "없다"가 명확하고, 부분은 목록에서 "있다"로 보이면서 특정 조합을 고른
-     * 사용자만 촬영 직전에 404 를 맞는다.
+     * 메인 아티스트는 지워지지 않으므로(2026-09-21) 메인을 지운 조합은 만들 일이 없다.
+     * 3인 챌린지에서 슬롯 0 이 메인이면 그것을 뺀 조합만 올라온다.
      */
     @Test
-    @DisplayName("부분 집합은 여전히 막는다 — 3개 중 2개")
-    void partialEditedStillRejected() {
-        assertThatThrownBy(() -> SlotRules.editedMasks(2, List.of(edited(0), edited(1))))
-                .isInstanceOf(BusinessException.class);
+    @DisplayName("부분 집합을 허용한다 — 메인을 지운 조합은 애초에 만들지 않는다")
+    void partialEditedAllowed() {
+        assertThat(SlotRules.editedMasks(3, List.of(edited(1), edited(2), edited(1, 2))))
+                .containsExactly(2, 4, 6);
     }
 }

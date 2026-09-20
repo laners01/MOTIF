@@ -158,45 +158,47 @@ $('matrix').addEventListener('change', async (e) => {
 /**
  * 조합별 입력 완료 표시 + 등록 버튼 잠금.
  *
- * 서버 규칙은 **0개이거나 정확히 2ⁿ−1개**다(SlotRules). 그래서 화면도 두 상태만 연다 —
- * 전부 비었거나 전부 찼거나. 부분 입력이 막히는 것이 요점이다: 조합 하나만 비면
- * 그 조합을 고른 사용자만 촬영 직전에 EDITED_CHALLENGE_NOT_FOUND 를 맞는다.
+ * **채운 조합만 등록한다**(2026-09-21). 메인 아티스트는 지워지지 않으므로 메인을 지운
+ * 조합은 애초에 만들 일이 없고, 전조합(2ⁿ−1)을 강제하면 쓰지도 않을 편집본을 만들어야
+ * 한다. 행을 반쯤 채운 것(파일 3개 중 1~2개)만 막는다 — 그건 입력 중이거나 실수다.
  *
  * 전부 비우면 "표시 전용" 챌린지다 — 영상 재생과 설명 시트의 참여자 아바타는 정상이고
- * 촬영만 안 된다. AI 편집본이 나오면 PUT /challenges/{seq}/participants 로 얹는다.
+ * 촬영만 안 된다. 없는 조합을 고르면 §13.1 이 EDITED_CHALLENGE_NOT_FOUND 로 막는다.
  */
 const rowDone = (r) => Boolean(r.videoKey && r.initialSceneKey && r.previewImageKey);
+const rowEmpty = (r) => !r.videoKey && !r.initialSceneKey && !r.previewImageKey;
 
 function refresh() {
     const rows = readMatrix();
     let filled = 0;
+    let half = 0;
     for (const tr of $('matrix').rows) {
         const row = rows.find((r) => r.mask === Number(tr.dataset.mask));
         const done = rowDone(row);
         if (done) filled++;
+        else if (!rowEmpty(row)) half++;
         const cell = tr.querySelector('.done');
         cell.textContent = done ? '✓' : '–';
         cell.className = done ? 'done ok' : 'done muted';
     }
-    const partial = filled > 0 && filled < rows.length;
 
     const status = $('matrix-status');
     if (rows.length === 0) {
         status.textContent = '슬롯 0개(솔로) — 편집본 없이 등록된다.';
-    } else if (filled === 0) {
+    } else if (filled === 0 && half === 0) {
         status.textContent = `조합 ${rows.length}개 전부 비어 있다 — 편집본 없이 등록된다`
-            + '(촬영 불가, 표시 전용). AI 편집본이 나오면 슬롯 교체로 얹는다.';
+            + '(촬영 불가, 표시 전용). 나중에 슬롯 교체로 얹는다.';
     } else {
-        status.textContent = `조합 ${rows.length}개 중 ${filled}개 입력 완료`
-            + (partial ? ` — 부분 입력은 등록할 수 없다. 전부 채우거나 전부 비워라` : '');
+        status.textContent = `조합 ${rows.length}개 중 ${filled}개 입력 완료 — 채운 것만 등록된다`
+            + (half ? `. ${half}개 행은 파일이 덜 찼다 — 3개를 다 올리거나 비워라` : '');
     }
-    status.className = partial ? 'err' : 'muted';
+    status.className = half ? 'err' : 'muted';
 
     const slots = readSlots();
     $('submit').disabled = !(videoKey && meta
         && $('artist').value && $('song').value && $('description').value.trim()
         && slots.every((s) => s.artistSeq && Object.values(s.anchor).every((v) => v !== null))
-        && !partial);
+        && half === 0);
 }
 
 function buildRequest() {

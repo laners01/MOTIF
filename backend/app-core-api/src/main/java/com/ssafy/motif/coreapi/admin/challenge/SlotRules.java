@@ -95,16 +95,15 @@ public final class SlotRules {
     public static List<Integer> editedMasks(int slotCount, List<EditedChallengeRequest> editedChallenges) {
         int expected = (1 << slotCount) - 1;
 
-        // 편집본 0개는 허용한다 — "아직 촬영은 안 되는, 표시 전용 챌린지"다. 슬롯만 있으면
-        // 설명 시트의 참여자 아바타가 뜨고, 영상 재생에는 편집본이 쓰이지 않는다.
-        // 촬영을 시도하면 API 명세 §13.1 이 정의한 EDITED_CHALLENGE_NOT_FOUND 로 막힌다.
+        // 편집본은 **있는 조합만** 등록한다 — 전조합(2ⁿ−1)을 요구하지 않는다.
         //
-        // 막는 것은 여전히 **부분 집합**이다(7개 중 3개). 그쪽이 진짜 위험하다 —
-        // 목록에서는 완성된 것처럼 보이는데 특정 조합을 고른 사용자만 촬영 직전에 404 를
-        // 맞는다. 0개는 "없다"가 명확하고, 부분은 "있다"로 위장한다.
+        // 메인 아티스트는 지워지지 않는다(2026-09-21 확정). 사용자가 고르는 것은 "함께할
+        // 아티스트"이고 그 사람은 영상에 남으므로, 메인을 지운 조합은 애초에 만들 일이
+        // 없다. 전조합을 강제하면 AI 팀이 쓰지도 않을 편집본을 2ⁿ−1 개까지 만들어야 한다.
         //
-        // 편집본은 AI 산출물(565~567)이라 등록 시점에 없을 수 있다. 나온 뒤에
-        // PUT /challenges/{seq}/participants (§3.7.5) 로 슬롯과 함께 얹는다.
+        // 없는 조합을 앱이 고르는 일은 생기지 않는다 — §7.2 가 editedChallenges[] 로
+        // 실제 있는 것만 내려주고, 그래도 없는 조합이 오면 §13.1 이
+        // EDITED_CHALLENGE_NOT_FOUND 로 막는다.
         if (editedChallenges.isEmpty()) {
             return List.of();
         }
@@ -124,18 +123,14 @@ public final class SlotRules {
             }
         }
 
-        List<Integer> missing = new ArrayList<>();
-        for (int mask = 1; mask <= expected; mask++) {
-            if (!seen.contains(mask)) {
-                missing.add(mask);
-            }
-        }
-        if (!missing.isEmpty() || !duplicate.isEmpty() || !unknown.isEmpty()) {
+        // 누락은 보지 않는다. 중복과 범위 밖은 계속 막는다 — 둘은 어드민의 입력 실수이고,
+        // 중복은 같은 조합에 편집본이 둘이라 어느 것이 쓰일지 알 수 없다
+        if (!duplicate.isEmpty() || !unknown.isEmpty()) {
             throw new BusinessException(AdminErrorCode.EDITED_SET_INCOMPLETE,
-                    "편집본 조합 불완전: expected=%d missing=%s duplicate=%s unknown=%s"
-                            .formatted(expected, missing, duplicate, unknown),
+                    "편집본 조합 오류: expected≤%d duplicate=%s unknown=%s"
+                            .formatted(expected, duplicate, unknown),
                     Map.of("expected", expected,
-                            "missingMasks", missing,
+                            "missingMasks", List.of(),
                             "duplicateMasks", List.copyOf(duplicate),
                             "unknownMasks", List.copyOf(unknown)));
         }
