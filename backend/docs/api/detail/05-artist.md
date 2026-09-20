@@ -2,19 +2,19 @@
 
 공통 규약(봉투·에러 코드·시각 포맷·공통 실패 분기·비노출 규칙)은 [`README.md`](README.md)에 있다. 이 문서는 **도메인 분기만** 적는다.
 
-원본: [`MOTIF_API_명세서_v0_11.md`](../MOTIF_API_명세서_v0_11.md) §5 · DB 명세서 v0.15 §9·§10.
+원본: [`MOTIF_API_명세서_v0_11.md`](../MOTIF_API_명세서_v0_11.md) §5 (문서 내 버전 v0.13) · DB 명세서 v0.17 §9·§10·§41·§42.
 
 | # | Method | Path | 인증 | 비고 |
 |---|---|---|---|---|
 | 5.1 | GET | `/api/v1/artists/ranking` | 필요 | §3.1 온보딩·§6.2 홈 Who's On 공용 |
-| 5.2 | GET | `/api/v1/artists/search` | 필요 | §3.2 온보딩 공용 |
+| 5.2 | GET | `/api/v1/artists/search` | 필요 | §3.2 온보딩 공용 · **자동완성 겸용**(구 §5.9 통합) |
 | 5.3 | GET | `/api/v1/artists/{artistSeq}` | 필요 | |
 | 5.4 | GET | `/api/v1/artists/{artistSeq}/challenges` | 필요 | |
 | 5.5 | GET | `/api/v1/artists/{artistSeq}/notices` | 필요 | |
 | 5.6 | POST | `/api/v1/artists/{artistSeq}/subscription` | 필요 | |
 | 5.7 | DELETE | `/api/v1/artists/{artistSeq}/subscription` | 필요 | |
 | 5.8 | GET | `/api/v1/users/me/motif-results?artistSeq=` | 필요 | §11.5 와 같은 API — [`11-motif.md`](11-motif.md) 참조 |
-| 5.9 | GET | `/api/v1/artists/autocomplete` | 필요 | |
+| ~~5.9~~ | ~~GET~~ | ~~`/api/v1/artists/autocomplete`~~ | — | **삭제** — §5.2 에 통합 |
 | 5.10 | GET | `/api/v1/artists` | 필요 | 전량·구독자 수순 **(신설)** |
 
 ## 이 절 전체에 걸리는 스키마 사실
@@ -28,7 +28,18 @@
 | `groupName` | `artists.group_seq → artist_groups.group_name`. **`group_seq` 는 NULL 허용**이라 솔로면 `null` |
 | `bio` | `artists.bio` |
 
-검색·자동완성의 대상 컬럼도 같다 — `users.nickname` 과 `artist_groups.group_name` 이며, 둘 다 pg_trgm GIN 인덱스가 있다(`gin_users_nickname`, `gin_groups_name`).
+**검색 대상은 이 컬럼들이 아니다.** §5.2 검색은 별칭 테이블(`artist_aliases`·`group_aliases`)의 `alias` 를 본다 — 다국어 검색을 위해 언어별 별칭을 따로 저장한다(DB v0.17 §41·§42).
+
+두 갈래를 섞지 않는다:
+
+| 용도 | 출처 |
+|---|---|
+| **찾기** (§5.2 매칭) | `artist_aliases.alias` · `group_aliases.alias` |
+| **보여주기** (모든 응답의 `name`) | `users.nickname` — **고정** |
+
+그래서 "Karina" 로 검색해도 응답의 `name` 은 `카리나` 다. 별칭을 표시에 쓰면 같은 아티스트가 질의에 따라 다른 이름으로 보이고, 이 표(README §3.5 공통 아티스트 요약)를 쓰는 15개 엔드포인트가 전부 흔들린다.
+
+어드민 §3.5.1 아티스트 목록 검색은 여전히 `users.nickname` 대상이다(`gin_users_nickname`) — 운영자는 등록한 이름으로 찾는다. 별칭 검색은 팬 앱 전용이다.
 
 ---
 
@@ -173,11 +184,11 @@ Redis 가 죽으면 §1.4 공통 500 이다 — 랭킹은 캐시가 아니라 **
 
 ---
 
-## 5.2 GET /api/v1/artists/search — 검색 (확정 실행)
+## 5.2 GET /api/v1/artists/search — 검색 (자동완성 겸용)
 
-사용자가 **엔터를 치거나 서제스트 항목을 고른 순간** 1회 호출한다. 타이핑 중 호출은 §5.9 자동완성이다.
+**타이핑 중이든 엔터 실행이든 같은 API 를 부른다.** 원본 v0.7(R4)이 §5.2 확정 검색과 §5.9 자동완성으로 나눴던 것을 v0.13 에서 합쳤다 — 두 응답의 차이가 `isSubscribed` 한 칸뿐이었고, 경로가 둘이면 온보딩 §3.2 가 어느 쪽을 부르는지도 갈린다.
 
-pg_trgm 유사도 검색이라 오타가 보정된다. **페이지네이션이 없고** 상위 `size` 건만 준다.
+**페이지네이션이 없고** 상위 `size` 건만 준다.
 
 ### 요청
 
@@ -188,7 +199,7 @@ Authorization: Bearer {accessToken}
 
 | 파라미터 | 기본값 | 설명 |
 |---|---|---|
-| `q` | — | 검색어 |
+| `q` | — | 검색어. **필수** — 비었거나 공백뿐이면 400 |
 | `size` | 20 | 상위 N 건 |
 
 ### 성공 응답 (200)
@@ -204,7 +215,6 @@ Authorization: Bearer {accessToken}
         "artistSeq": 3,
         "name": "카리나",
         "groupName": "aespa",
-        "groupName": "aespa",
         "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
         "isSubscribed": true
       }
@@ -214,65 +224,67 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-- **결과는 항상 멤버 단위**다. 그룹명이 매치되면 **소속 멤버 전원**을 반환한다.
-- 0건도 200 + 빈 배열이다.
-- 최근 검색어는 서버가 저장하지 않는다 — **Android 로컬 처리**다(원본 §16 #19 로 기능 제외).
+**공통 아티스트 요약**(README §3.5) + `isSubscribed` 다 — §5.10 항목과 같은 모양이다. 0건도 200 + 빈 배열이다.
 
-### 실패 응답
+**결과는 항상 멤버 단위**다. 그룹으로 묶은 중첩 구조를 만들지 않는다.
 
-**도메인 분기 없음.**
+### 매칭
 
----
+`artist_aliases.alias` 와 `group_aliases.alias` 를 각각 `ILIKE '%q%'` 로 훑는다.
 
-## 5.9 GET /api/v1/artists/autocomplete — 자동완성
+| 단계 | 내용 |
+|---|---|
+| 1 | `artist_aliases` 매치 → **본인 매치** |
+| 2 | `group_aliases` 매치 → 그 그룹의 **비삭제 멤버 전원**을 결과에 추가 (**그룹 확장**) |
+| 3 | `artistSeq` 기준 중복 제거 — 가장 높은 매치를 정렬 키로 남긴다 |
+| 4 | 정렬 후 상위 `size` 로 자른다 |
 
-**타이핑 중 글자가 바뀔 때마다** 호출되는 경량 서제스트다. 응답을 최소화하려고 §5.2 와 분리했다.
+- **`language_code` 로 거르지 않는다.** 한국어 UI 사용자도 "aespa" 를 영문으로 치는 일이 흔해서, 언어로 필터링하면 오히려 안 나온다. `language_code` 는 어드민이 별칭을 언어별로 정리해 넣기 위한 저장 구분일 뿐이다.
 
-### 요청
+- **`ILIKE` 라 오타 보정이 없다.** 원본 v0.12 까지의 pg_trgm 유사도 검색을 버렸다 — "카리다" 는 0건이다. 근거는 [ADR-0014](../../adr/0014-artist-alias-search.md).
 
-```http
-GET /api/v1/artists/autocomplete?q=카리&size=10
-Authorization: Bearer {accessToken}
-```
+- 삭제된 아티스트·그룹은 제외한다. **별칭 행은 아티스트·그룹 소프트 삭제를 따라가지 않으므로** 조회 시 조인에서 `is_deleted = false` 로 거른다.
 
-### 성공 응답 (200)
+### 정렬
 
-```json
-{
-  "result": "SUCCESS",
-  "code": "SUCCESS",
-  "message": "요청이 성공했습니다.",
-  "data": {
-    "list": [
-      { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" }
-    ]
-  },
-  "timestamp": "2026-09-10T00:00:00.000Z"
-}
-```
+**본인 매치 전부가 그룹 확장 멤버보다 앞**이다. 각 덩어리 안에서:
 
-**공통 아티스트 요약**(README §3.5)을 그대로 쓴다. 원본 §16 #18 의 "자동완성 응답에 프로필 이미지를 포함할지"는 **포함으로 확정**했다 — 호출 빈도가 높긴 하지만 URL 문자열 하나 차이이고, 이것 때문에 응답 타입을 따로 만드는 비용이 더 크다.
-
-### 서버 매칭 전략 (기본안)
-
-| `q` 길이 | 방식 | 이유 |
+| 순위 | 기준 | 비고 |
 |---|---|---|
-| 1~2자 | **접두 `ILIKE 'q%'`** | trigram 은 3글자 조각 기반이라 짧은 질의에 약하다 |
-| 3자 이상 | pg_trgm 유사도(`%`, `word_similarity`) | 오타 보정 |
+| 1 | 완전 일치 | 대소문자 무시 |
+| 2 | 접두 일치 | |
+| 3 | 별칭 길이 ASC | 짧을수록 질의에 가깝다 |
+| 4 | `artists.subscriber_count` DESC | |
+| 5 | `artistSeq` ASC | 동점 tie-break — 없으면 새로고침마다 순서가 바뀐다 |
 
-둘 다 기존 GIN 인덱스로 커버된다(`gin_trgm_ops` 는 LIKE 가속을 포함한다). 유사도 내림차순, 상위 10건 고정.
+그룹 확장으로 들어온 멤버는 1~3 이 의미 없으므로(걸린 별칭이 그룹 것이다) 사실상 4·5 로 정렬된다.
 
-아티스트가 수백 규모라 **DB 직조회로 충분**하다 — 캐시를 두지 않는다.
+`size` 는 **정렬·중복 제거를 마친 뒤의 단순 상한**이다. 경계에서 그룹 멤버 일부가 잘려 나가는 것을 허용한다 — 그룹을 통째로 넣으면 `size` 가 상한이 아니게 된다.
 
 ### 클라이언트 구현 규약
 
 - **입력 디바운스 300ms** + **직전 요청 취소 후 최신 질의만 반영** (코루틴 `Flow.debounce` + `collectLatest`/`flatMapLatest`). 응답 역전으로 옛 결과가 새 결과를 덮어쓰는 것을 막는다.
-- 한글 IME 조합 중 텍스트도 그대로 보낸다 — 부분 음절도 접두 매칭된다.
-- 빈 문자열이면 **호출하지 않고** 목록을 비운다.
+- 한글 IME 조합 중 텍스트도 그대로 보낸다.
+- 빈 문자열이면 **호출하지 않고** 목록을 비운다 — 서버도 400 으로 막지만 왕복을 낭비하지 않는다.
+- 최근 검색어는 서버가 저장하지 않는다 — **Android 로컬 처리**다(원본 §16 #19 로 기능 제외).
 
 ### 실패 응답
 
-**도메인 분기 없음.**
+| 조건 | HTTP | `code` |
+|---|---|---|
+| `q` 가 비었거나 공백뿐 | 400 | `INVALID_PARAMETER` |
+
+빈 `q` 를 통과시키면 `ILIKE '%%'` 가 되어 **전체 아티스트 조회**가 된다. 그건 §5.10 의 일이다.
+
+---
+
+## ~~5.9 GET /api/v1/artists/autocomplete — 자동완성~~ — 삭제
+
+**§5.2 에 통합됐다**(v0.13). 구 §5.9 의 "1~2자 접두 / 3자 이상 pg_trgm" 2단 전략도 함께 폐기한다 — 단일 `ILIKE` 다. 클라이언트 디바운스 규약은 §5.2 로 옮겼다.
+
+원본 §16 #18("자동완성 응답에 프로필 이미지를 포함할지")은 **포함으로 종결**됐다 — 통합된 §5.2 가 공통 아티스트 요약을 그대로 쓴다.
+
+아티스트가 수백 규모라 **DB 직조회로 충분**하다 — 캐시를 두지 않는다(이 근거는 §5.2·§5.10 이 승계).
 
 ---
 
@@ -580,7 +592,7 @@ Authorization: Bearer {accessToken}
 
 - **동점 정렬이 `artistSeq` ASC 인 이유**: 구독자 0인 신인이 여러 명이면 전원 동점인데, tie-break 가 없으면 Postgres 가 주는 순서가 요청마다 달라져 같은 화면이 새로고침마다 뒤바뀐다. §5.1 스냅샷의 동점 규칙과 같은 값을 쓴다.
 - **비삭제만 낸다.** 삭제 아티스트는 §1.8 대로 없는 것으로 본다 — 목록에 남기면 눌렀을 때 §5.3 이 404 다.
-- 아티스트가 **수백 규모**라 전량이 싸다(§5.9 가 캐시를 두지 않는 것과 같은 근거). 캐시를 두지 않는다.
+- 아티스트가 **수백 규모**라 전량이 싸다(§5.2 가 캐시를 두지 않는 것과 같은 근거). 캐시를 두지 않는다.
 
 ### 실패 응답
 

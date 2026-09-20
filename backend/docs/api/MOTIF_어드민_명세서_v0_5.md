@@ -1,11 +1,11 @@
-# MOTIF 어드민 명세서 — v0.5
+# MOTIF 어드민 명세서 — v0.6
 
 | 항목 | 내용 |
 |---|---|
 | 목적 | 아티스트는 로그인하지 않는 콘텐츠 주체다. 운영팀이 **아티스트 계정을 만들고 → 콘텐츠(챌린지·에셋·공지)를 채우고 → 아티스트로서 팬과 상호작용(대행)하고 → 신고·회원·결제를 운영**하기 위한 백오피스 계약 |
 | 사용자 | 운영팀(= 프로젝트 팀원). 팬 앱 사용자·아티스트와 완전 분리 |
 | 형태 | **core-api 내 모듈** — Thymeleaf 서버 렌더 화면(`/admin/**`) + JSON API(`/api/v1/admin/**`). 별도 프로세스·별도 배포 없음 *(회의 확정 — BE 구현, Thymeleaf)* |
-| 원천 문서 | API 명세서 v0.11 · DB 명세서 v0.15 · 아키텍처 설계서 v0.2(→ v0.3 파급) · 기능 명세서(2026-09-02) · 프로젝트 지침 v2 |
+| 원천 문서 | API 명세서 v0.13 · DB 명세서 v0.17 · 아키텍처 설계서 v0.2(→ v0.3 파급) · 기능 명세서(2026-09-02) · 프로젝트 지침 v2 |
 | 표기 | **(회의 확정)** = 확정 / **(기본안 — 확인 필요)** = Claude 기본안, 회의 확정 필요 |
 | 비밀값 | 어드민 비밀번호·JWT 서명키·IAM 키는 본 문서에 적지 않는다 — "팀 비밀 저장소 참조" |
 
@@ -13,6 +13,7 @@
 > - v0.1 (2026-08): 초안 — ERD v0.1 기준(`reg_admin_seq`·`HIDDEN` 상태 등).
 > - **v0.2 (2026-09-12): API v0.11 · DB v0.15 기준 전면 재작성.** ① Thymeleaf+JSON API 형태 확정 ② 영상 메타 추출 = **어드민 요청 내 동기 ffmpeg**(인제스트 워커·EC2 워커 노드 컷) ③ 편집본·bbox = AI팀 S3 직접 업로드, 어드민은 키·좌표 입력 + 서버 완결성 검증 ④ 감사 주체 = `admins.user_seq → users(ADMIN)` (DB v0.16 요청) ⑤ 대행 = 사용자 API 서비스 재사용(전 상호작용·동일 파급) ⑥ API §16.1 어드민 반영 대기 3건(전조합 편집본·배너·title/description) 종결.
 > - **v0.3 (2026-09-12 · 팀 리뷰 R1 반영):** ① **SCG 제거** — Traefik 단일 앞단, IP 제한·JWT 검증은 core-api 필터, 레이트리밋은 Traefik 미들웨어 ② 비허용 IP **404 확정** ③ 감사 로그 **파일+볼륨 확정**(관측 도구 도입 전제) ④ 챌린지 **원본 영상 교체 금지 확정** ⑤ 곡 **불변**(수정 API·`songs` mod 컬럼 추가 **금지**) ⑥ §1.6 이벤트 발행 설명 보강 ⑦ §1.4 영상 검증 기준의 근거 보강(기준 자체는 미결 유지).
+> - **v0.6 (2026-09-20 · [ADR-0014](../adr/0014-artist-alias-search.md) 반영):** **아티스트·그룹 별칭 CRUD 신설**(§3.4.5~8 · §3.5.6~9). 팬 앱 다국어 검색(API §5.2)이 훑는 `artist_aliases`·`group_aliases`(DB v0.17)를 채우는 경로다 — 별칭을 넣을 수단이 없으면 검색 결과가 항상 0건이라 검색 API 와 짝이다. **시연 편의용이라 수정·삭제까지 열고 삭제는 하드 삭제**이며, §3.5.5 아티스트 소프트 삭제는 별칭을 건드리지 않는다(조회가 조인에서 거른다). §5 에 `ALIAS_NOT_FOUND` 추가.
 
 ---
 
@@ -459,6 +460,10 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 3.4.2 | POST | `/groups` | 등록 |
 | 3.4.3 | PATCH | `/groups/{groupSeq}` | 그룹명·소속사 수정 |
 | 3.4.4 | DELETE | `/groups/{groupSeq}` | 소프트 삭제 |
+| 3.4.5 | GET | `/groups/{groupSeq}/aliases` | 별칭 목록 **(v0.6 신설)** |
+| 3.4.6 | POST | `/groups/{groupSeq}/aliases` | 별칭 등록 **(v0.6 신설)** |
+| 3.4.7 | PUT | `/groups/{groupSeq}/aliases/{aliasSeq}` | 별칭 수정 **(v0.6 신설)** |
+| 3.4.8 | DELETE | `/groups/{groupSeq}/aliases/{aliasSeq}` | 별칭 **하드** 삭제 **(v0.6 신설)** |
 
 **3.4.1 항목** `{ "groupSeq": 2, "groupName": "aespa", "company": { "companySeq": 1, "companyName": "SM엔터테인먼트" }, "memberCount": 4, "isDeleted": false, "regDttm": "…" }`
 
@@ -466,9 +471,12 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 
 **3.4.3 요청** `{ "groupName": "aespa", "companySeq": 3 }` — 부분 수정. `companySeq` 변경 시 비삭제 멤버 전원의 `artists.company_seq` 를 같은 트랜잭션에서 갱신(DB §8). **200** `data` = 3.4.1 항목.
 
+**3.4.5~3.4.8 그룹 별칭** — 계약은 §3.5.6~3.5.9 아티스트 별칭과 **완전히 같다**(경로의 `artists/{artistSeq}` 자리가 `groups/{groupSeq}` 일 뿐). 대상이 없으면 `GROUP_NOT_FOUND`. 상세 설명은 §3.5.6 아래 한 곳에만 적는다.
+
 | HTTP | code | 조건 |
 |---|---|---|
 | 404 | `GROUP_NOT_FOUND` / `COMPANY_NOT_FOUND` | 대상 없음·삭제 |
+| 404 | `ALIAS_NOT_FOUND` | 3.4.7·3.4.8 — 별칭 없음, 또는 그 그룹의 별칭이 아님 |
 | 409 | `GROUP_IN_USE` | 3.4.4 — 비삭제 멤버 존재 |
 
 ### 3.5 아티스트 `artists` + `users(ARTIST)`
@@ -480,6 +488,10 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 3.5.3 | GET | `/artists/{artistSeq}` | 상세 |
 | 3.5.4 | PATCH | `/artists/{artistSeq}` | 수정 |
 | 3.5.5 | DELETE | `/artists/{artistSeq}` | 소프트 삭제 + 연쇄 |
+| 3.5.6 | GET | `/artists/{artistSeq}/aliases` | 별칭 목록 **(v0.6 신설)** |
+| 3.5.7 | POST | `/artists/{artistSeq}/aliases` | 별칭 등록 **(v0.6 신설)** |
+| 3.5.8 | PUT | `/artists/{artistSeq}/aliases/{aliasSeq}` | 별칭 수정 **(v0.6 신설)** |
+| 3.5.9 | DELETE | `/artists/{artistSeq}/aliases/{aliasSeq}` | 별칭 **하드** 삭제 **(v0.6 신설)** |
 
 **3.5.1 항목**
 
@@ -521,12 +533,49 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 
 **3.5.5** — 확인 대화상자 뒤 호출. 같은 트랜잭션: `artists.is_deleted`, `users.is_deleted`, 에셋·에셋 가격·패스 가격 `is_active=FALSE`. **200** `data`: `{ "deactivatedAssets": 5, "deactivatedAssetPrices": 5, "deactivatedPassPrices": 2 }`
 
+**별칭 행은 건드리지 않는다.** 팬 앱 검색이 조회 시 `artists.is_deleted = FALSE` 조인으로 거르므로(API §5.2), 지우면 복구 경로만 잃는다.
+
+**3.5.1~3.5.5 실패 분기**
+
 | HTTP | code | 조건 |
 |---|---|---|
 | 404 | `ARTIST_NOT_FOUND` / `GROUP_NOT_FOUND` / `COMPANY_NOT_FOUND` | 대상 없음·삭제 |
 | 409 | `IMAGE_NOT_UPLOADED` | 이미지 키 S3 부재(API §4.4 와 동일 코드) |
 | 409 | `ARTIST_COMPANY_LOCKED` | 그룹 소속 아티스트의 소속사 단독 변경 |
 | 409 | `ARTIST_ALREADY_DELETED` | 3.5.5 — 이미 삭제 |
+
+#### 3.5.6~3.5.9 아티스트 별칭 `artist_aliases` *(v0.6 신설)*
+
+팬 앱 다국어 검색(API §5.2)이 훑는 별칭을 운영자가 채워 넣는 경로다. **별칭을 넣을 수단이 없으면 검색 결과가 항상 0건**이라 검색 API 와 짝이다.
+
+> **이 4개 API 는 프로젝트 기능 범위가 아니라 시연 편의용이다.** 그래서 팬 앱에 없는 수정·삭제까지 열어 두고, 삭제도 소프트가 아니라 **하드 삭제**다. 프로젝트 도메인의 소프트 삭제 규약(§3.5.5)과 혼동하지 않는다 — 그쪽은 별칭을 건드리지 않는다.
+
+**3.5.6 목록** — 비페이지 전량(`ListResponse`). 한 아티스트당 몇 개 수준이라 페이지를 두지 않는다.
+
+```json
+{ "list": [ { "aliasSeq": 11, "languageCode": "ko", "alias": "카리나", "regDttm": "…" },
+            { "aliasSeq": 12, "languageCode": "en", "alias": "Karina", "regDttm": "…" } ] }
+```
+
+**3.5.7 등록 요청** `{ "languageCode": "en", "alias": "Karina" }` → **201** `{ "aliasSeq": 12 }`
+
+**3.5.8 수정 요청** — 본문은 등록과 같다(부분 수정이 아니라 전체 치환이라 `PATCH` 가 아니라 `PUT`). **200** `data` = 3.5.6 항목.
+
+**3.5.9 삭제** — **200** `data: null`.
+
+- 검증: `languageCode` 필수·ISO 639-1 소문자 2자(`^[a-z]{2}$`), `alias` 필수·공백 제거 후 1~100자.
+- **중복을 막지 않는다.** 같은 언어에 별칭 여러 개가 정상이고(`aespa`·`æspa`, 활동명·본명), 같은 값이 두 번 들어가도 409 를 내지 않는다 — DB 에 UNIQUE 가 없다(DB §41). 팬 앱 검색은 `artistSeq` 로 중복을 제거하므로 결과가 겹치지 않는다.
+- 3.5.8·3.5.9 는 `aliasSeq` 가 **경로의 아티스트 소유인지** 확인한다. 남의 별칭을 `aliasSeq` 만으로 고치는 경로를 열지 않는다 — 아니면 `ALIAS_NOT_FOUND`.
+- 삭제된 아티스트(`is_deleted=TRUE`)에는 별칭을 달지 않는다 — `ARTIST_NOT_FOUND`.
+- 감사 로그: `CREATE_ARTIST_ALIAS`·`UPDATE_ARTIST_ALIAS`·`DELETE_ARTIST_ALIAS` (그룹 쪽은 `..._GROUP_ALIAS`). 하드 삭제라 지워진 기록은 감사 로그에만 남는다.
+
+**3.5.6~3.5.9 실패 분기**
+
+| HTTP | code | 조건 |
+|---|---|---|
+| 404 | `ARTIST_NOT_FOUND` | 대상 아티스트 없음·삭제됨 |
+| 404 | `ALIAS_NOT_FOUND` | 3.5.8·3.5.9 — 별칭 없음, 또는 그 아티스트의 별칭이 아님 |
+| 400 | `INVALID_PARAMETER` | `languageCode` 형식 위반, `alias` 공백뿐 또는 100자 초과 |
 
 ### 3.6 곡 `songs`
 
@@ -941,6 +990,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | `COMPANY_IN_USE` / `GROUP_IN_USE` | 409 | 3.3.4 / 3.4.4 |
 | `ARTIST_COMPANY_LOCKED` | 409 | 3.5.4 |
 | `ARTIST_ALREADY_DELETED` | 409 | 3.5.5 |
+| `ALIAS_NOT_FOUND` | 404 | 3.4.7/8 · 3.5.8/9 — 별칭 없음, 또는 경로의 아티스트·그룹 소유가 아님 **(v0.6 신설)** |
 | `PARTICIPANT_INVALID` | 400 | 3.7.2/5 |
 | `EDITED_SET_INCOMPLETE` | 409 | 3.7.2/5 |
 | `EDITED_DURATION_MISMATCH` | 409 | 3.7.2/5/6 |
@@ -981,6 +1031,8 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | **API 명세 v0.11 → v0.12** *(v0.4 신설)* | `videoUrl` 이 단일 MP4 → HLS 마스터 재생목록. §1.7 보호 등급을 **signed URL + core-api 재생목록 리라이팅** 으로 확정. 산출물 키 규약 표 신설 |
 | **모듈 구성** *(v0.4 신설 · v0.5 갱신)* | `app-media` 신설(`job.media` 소비, 포트 8083/관리 9083). Jenkinsfile 빌드·이미지 추가, k8s 매니페스트 신설 필요. **core-api Dockerfile 은 그대로 — ffmpeg 를 넣지 않는다**. 배치는 GPU 서버 대여 전까지 SSAFY 노드 — `resources.limits.cpu: 1` 권장 |
 | **DB 명세 v0.15 → v0.16** | §6 표 1~3 |
+| **DB 명세 → v0.17** *(v0.6 신설)* | `artist_aliases`·`group_aliases` 신설(§41·§42) + GIN 2개. 반영 완료 — 본 문서가 요청하는 잔여 변경 없음 |
+| **API 명세 v0.12 → v0.13** *(v0.6 신설)* | §5.2 를 별칭 검색으로 재정의하고 §5.9 자동완성 삭제. 어드민 §3.4.5~8·§3.5.6~9 가 그 별칭을 채우는 유일한 경로다 — 둘은 같이 나간다 |
 | **기능 명세서** | 어드민 대행의 좋아요는 알림 미발송(기존 규칙 재확인), 챌린지 숨김 개념 없음(삭제만) |
 | **구현 계획서 v0.1** | 어드민 최소 세트(3.1~3.10)는 **Phase 1 말까지** 필요 — 스텁 워커 시연 전에 챌린지·에셋 실데이터가 있어야 함. 3.11~3.14 Phase 2~3, 3.15~3.16 Phase 4(컷 라인 뒤) |
 | **모노레포** | `app-core-api/src/main/java/…/admin/{web,api,service}` + `resources/templates/admin/**`. 어드민 서비스는 `domain-core` 리포지토리와 기존 도메인 서비스만 의존 — `domain-notif` 의존 금지(토큰 비활성은 이벤트) |
