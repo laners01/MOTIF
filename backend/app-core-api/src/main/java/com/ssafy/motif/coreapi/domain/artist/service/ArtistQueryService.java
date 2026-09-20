@@ -1,5 +1,6 @@
 package com.ssafy.motif.coreapi.domain.artist.service;
 
+import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.common.response.ListResponse;
@@ -8,12 +9,14 @@ import com.ssafy.motif.coreapi.domain.artist.dto.ArtistCardResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistSearchResponse;
 import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.coreapi.global.response.Cursors;
 import com.ssafy.motif.domain.core.artist.ArtistCardRow;
 import com.ssafy.motif.domain.core.artist.ArtistCount;
 import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
+import com.ssafy.motif.domain.core.artist.ArtistRepository.ArtistSearchRow;
 import com.ssafy.motif.domain.core.artist.Subscription;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
@@ -95,6 +98,76 @@ public class ArtistQueryService {
                         mediaUrlResolver.resolve(row.profileImageKey()),
                         subscribed.contains(row.artistSeq())))
                 .toList());
+    }
+
+    /**
+     * §5.2 아티스트 검색 — <b>자동완성 겸용</b>. 타이핑 중이든 엔터 실행이든 같은 API 다.
+     *
+     * <p><b>이름이 아니라 별칭을 훑는다</b>(ADR-0014). 언어별 별칭을 저장해 "Karina" 로 치든
+     * "카리나" 로 치든 같은 아티스트가 나오게 한다. 응답의 {@code name} 은 그래도
+     * {@code users.nickname} 이다 — 별칭은 찾는 데만 쓴다.
+     *
+     * <p><b>DB 조회는 2회로 고정이다</b> — 검색 1회, 구독 여부 1회({@link #list} 와 같은 방식).
+     * 항목마다 구독을 물으면 그대로 N+1 이고, 타이핑마다 불리는 API 라 그 차이가 그대로
+     * 체감 지연이 된다.
+     *
+     * <p>페이지가 없다. 상위 {@code size} 건만 주고 그 이상은 검색어를 좁히는 것이 자연스럽다.
+     */
+    public ListResponse<ArtistSearchResponse> search(Integer userSeq, String q, int size) {
+        String keyword = q == null ? "" : q.trim();
+        if (keyword.isEmpty()) {
+            // 빈 검색어를 막는 유일한 지점이다 — 컨트롤러 파라미터 제약(@NotBlank)은
+            // @Validated 없이는 동작하지 않고 이 레포에 그 선례가 없다. 그대로 내려가면
+            // ilike '%%' 가 되어 §5.10 전량 조회가 된다
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "검색어를 입력하세요.");
+        }
+
+        List<ArtistSearchRow> rows = artistRepository.searchByAlias(
+                keyword, contains(keyword), prefix(keyword), Math.min(size, MAX_SIZE));
+        if (rows.isEmpty()) {
+            // 빈 컬렉션을 in 절에 넘기지 않는다 — findSubscribedArtistSeqs 는 네이티브라
+            // `in ()` 가 문법 오류로 터진다(list() 와 같은 이유)
+            return ListResponse.of(List.of());
+        }
+
+        List<Integer> artistSeqs = rows.stream().map(ArtistSearchRow::getArtistSeq).toList();
+        Set<Integer> subscribed = Set.copyOf(
+                subscriptionRepository.findSubscribedArtistSeqs(userSeq, artistSeqs));
+
+        return ListResponse.of(rows.stream()
+                .map(row -> new ArtistSearchResponse(
+                        row.getArtistSeq(),
+                        row.getName(),
+                        row.getGroupName(),
+                        mediaUrlResolver.resolve(row.getProfileImageKey()),
+                        subscribed.contains(row.getArtistSeq())))
+                .toList());
+    }
+
+    /**
+     * LIKE 메타문자를 막는다 — 사용자가 친 글자를 <b>패턴이 아니라 값으로</b> 찾는다.
+     *
+     * <p>검색어를 {@code '%' || q || '%'} 한가운데에 끼우므로, 이스케이프하지 않으면
+     * {@code %} 한 글자가 모든 별칭에 걸려 <b>검색어와 무관한 상위 {@code size} 건</b>이
+     * 나온다({@code _} 는 아무 글자 1개가 된다). Postgres {@code ilike} 의 기본 이스케이프
+     * 문자가 {@code \} 라 별도 {@code escape} 절이 필요 없다.
+     *
+     * <p><b>{@code \} 를 먼저 치환한다.</b> 나중에 하면 앞서 넣은 이스케이프의
+     * {@code \} 까지 다시 이스케이프해 버린다.
+     */
+    private static String escapeLike(String keyword) {
+        return keyword.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+    }
+
+    private static String contains(String keyword) {
+        return "%" + escapeLike(keyword) + "%";
+    }
+
+    private static String prefix(String keyword) {
+        return escapeLike(keyword) + "%";
     }
 
     /** §5.3 아티스트 상세. */

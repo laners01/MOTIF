@@ -12,6 +12,7 @@ import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistSearchResponse;
 import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
 import com.ssafy.motif.coreapi.domain.artist.dto.SubscriptionResponse;
 import com.ssafy.motif.coreapi.domain.artist.service.ArtistMotifPassQueryService;
@@ -43,8 +44,9 @@ import org.springframework.web.bind.annotation.RestController;
  * 읽기 전용 서비스에 섞지 않는다), 패스는
  * {@link ArtistMotifPassQueryService}(§11 도메인이라 조회 서비스에 섞지 않는다).
  *
- * <p>§5.2 검색·§5.9 자동완성은 아직 없다 — 같은 {@code /artists} 경로라도 별개 티켓이라
- * 여기 매핑이 없다.
+ * <p><b>§5.2 검색이 자동완성을 겸한다</b>(v0.13). v0.7 이 나눴던 §5.9
+ * {@code /artists/autocomplete} 는 삭제됐다 — 두 응답의 차이가 {@code isSubscribed} 한
+ * 칸뿐이었다. 온보딩 §3.2 도 이 경로를 그대로 부른다.
  *
  * <p>경로가 {@code /api/v1/**} 이고 {@code /api/v1/admin/**} 이 아니므로 springdoc
  * {@code user} 그룹 문서에 자동으로 잡힌다({@code OpenApiConfig}).
@@ -79,6 +81,31 @@ public class ArtistController implements ArtistControllerDocs {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(
                 artistRankingQueryService.ranking(user.userSeq(), filter, page, size));
+    }
+
+    /**
+     * §5.2 아티스트 검색 — <b>자동완성 겸용</b>. 타이핑 중이든 엔터 실행이든 같은 API 다.
+     *
+     * <p><b>{@code /{artistSeq}} 보다 먼저 선언한다.</b> Spring 은 리터럴 경로를 경로 변수
+     * 패턴보다 우선하므로 순서가 동작을 바꾸지는 않지만, 두 매핑이 떨어져 있으면 읽는
+     * 사람이 {@code /search} 가 {@code artistSeq} 로 먹히는지 매번 확인하게 된다.
+     *
+     * <p>{@code page} 가 없다 — 상위 {@code size} 건만 주는 API 다(§5.2). 더 필요하면
+     * 검색어를 좁히는 것이 자연스럽다.
+     *
+     * <p><b>{@code q} 에 {@code @NotBlank} 를 달지 않는다.</b> 파라미터 제약은 클래스에
+     * {@code @Validated} 가 있어야 동작하는데 이 레포에는 그 선례가 없고, 전역 advice 도
+     * {@code ConstraintViolationException} 을 봉투로 바꾸지 않는다 — 달아 두면 검증이
+     * 조용히 통과하거나 봉투 밖 오류가 나간다. 빈 검색어는
+     * {@link ArtistQueryService#search} 가 {@code INVALID_PARAMETER} 로 막는다.
+     */
+    @Override
+    @GetMapping("/search")
+    public ApiResponse<ListResponse<ArtistSearchResponse>> search(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam String q,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(artistQueryService.search(user.userSeq(), q, size));
     }
 
     /**
