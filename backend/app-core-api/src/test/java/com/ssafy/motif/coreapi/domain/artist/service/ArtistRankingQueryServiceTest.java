@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +54,6 @@ class ArtistRankingQueryServiceTest {
         artistRepository = mock(ArtistRepository.class);
         subscriptionRepository = mock(SubscriptionRepository.class);
 
-        given(snapshot.previousRanks()).willReturn(Map.of());
         given(subscriptionRepository.findSubscribedArtistSeqs(anyInt(), any()))
                 .willReturn(List.of());
         // 요청한 seq 를 그대로 카드로 돌려준다 — 메타 자체는 이 테스트의 관심사가 아니다.
@@ -79,6 +79,22 @@ class ArtistRankingQueryServiceTest {
         return service.ranking(ME, filter, page, size);
     }
 
+    /** 변동이 관심사가 아닌 테스트 — 전원 "변동 없음(0)" 으로 둔다. */
+    private void snapshot(List<Integer> ranking) {
+        Map<Integer, Integer> deltas = new LinkedHashMap<>();
+        ranking.forEach(artistSeq -> deltas.put(artistSeq, 0));
+        snapshot(ranking, deltas);
+    }
+
+    /**
+     * <b>순위와 변동을 한 번에 돌려준다.</b> 서비스가 둘을 따로 읽으면 배치가 그 사이에
+     * 포인터를 옮겼을 때 서로 다른 버전이 섞이므로, 스냅샷이 한 벌로 준다(ADR-0016).
+     */
+    private void snapshot(List<Integer> ranking, Map<Integer, Integer> deltas) {
+        given(snapshot.read())
+                .willReturn(new ArtistRankingSnapshot.Snapshot(ranking, deltas));
+    }
+
     @Nested
     @DisplayName("순위")
     class Rank {
@@ -86,7 +102,7 @@ class ArtistRankingQueryServiceTest {
         @Test
         @DisplayName("스냅샷 순서대로 1-base 순위를 매긴다")
         void numbersFromOne() {
-            given(snapshot.current()).willReturn(List.of(KARINA, WINTER, NINGNING));
+            snapshot(List.of(KARINA, WINTER, NINGNING));
 
             PageResponse<ArtistRankingResponse> response = ranking(RankingFilter.ALL, 0, 20);
 
@@ -99,7 +115,7 @@ class ArtistRankingQueryServiceTest {
         @Test
         @DisplayName("점수를 다시 계산하지 않는다 — 순서는 스냅샷이 정한다")
         void doesNotRecompute() {
-            given(snapshot.current()).willReturn(List.of(NINGNING, KARINA, WINTER));
+            snapshot(List.of(NINGNING, KARINA, WINTER));
 
             assertThat(ranking(RankingFilter.ALL, 0, 20).list())
                     .extracting(ArtistRankingResponse::artistSeq)
@@ -114,9 +130,9 @@ class ArtistRankingQueryServiceTest {
         @Test
         @DisplayName("상승이 양수, 하락이 음수다")
         void upIsPositiveDownIsNegative() {
-            given(snapshot.current()).willReturn(List.of(KARINA, WINTER, NINGNING));
-            // 직전: WINTER 1위 · KARINA 3위 → KARINA 는 3→1(+2), WINTER 는 1→2(-1)
-            given(snapshot.previousRanks()).willReturn(Map.of(WINTER, 1, NINGNING, 2, KARINA, 3));
+            // 직전: WINTER 1위 · KARINA 3위 → KARINA 는 3→1(+2), WINTER 는 1→2(-1).
+            // 배치가 적재 시점에 계산해 둔 값을 읽기만 한다(ADR-0016)
+            snapshot(List.of(KARINA, WINTER, NINGNING), Map.of(KARINA, 2, WINTER, -1, NINGNING, -1));
 
             assertThat(ranking(RankingFilter.ALL, 0, 20).list())
                     .extracting(ArtistRankingResponse::rankDelta)
@@ -126,8 +142,8 @@ class ArtistRankingQueryServiceTest {
         @Test
         @DisplayName("직전 스냅샷에 없으면 null 이다 — 변동 없음(0)과 구분한다")
         void newEntryIsNull() {
-            given(snapshot.current()).willReturn(List.of(KARINA, WINTER));
-            given(snapshot.previousRanks()).willReturn(Map.of(KARINA, 1));
+            // WINTER 는 대비 버전에 없었다 — delta HASH 에 field 가 없다
+            snapshot(List.of(KARINA, WINTER), Map.of(KARINA, 0));
 
             assertThat(ranking(RankingFilter.ALL, 0, 20).list())
                     .extracting(ArtistRankingResponse::rankDelta)
@@ -141,7 +157,7 @@ class ArtistRankingQueryServiceTest {
 
         @BeforeEach
         void subscribedToKarinaAndNingning() {
-            given(snapshot.current()).willReturn(List.of(KARINA, WINTER, NINGNING, GISELLE));
+            snapshot(List.of(KARINA, WINTER, NINGNING, GISELLE));
             given(subscriptionRepository.findSubscribedArtistSeqs(anyInt(), any()))
                     .willReturn(List.of(KARINA, NINGNING));
         }
@@ -194,7 +210,7 @@ class ArtistRankingQueryServiceTest {
 
         @BeforeEach
         void fiveArtists() {
-            given(snapshot.current()).willReturn(List.of(KARINA, WINTER, NINGNING, GISELLE, 99));
+            snapshot(List.of(KARINA, WINTER, NINGNING, GISELLE, 99));
         }
 
         @Test
@@ -249,7 +265,7 @@ class ArtistRankingQueryServiceTest {
         @Test
         @DisplayName("스냅샷이 비어 있으면 빈 목록이다 — 배치 전 상태라 에러가 아니다")
         void emptySnapshotIsEmptyPage() {
-            given(snapshot.current()).willReturn(List.of());
+            snapshot(List.of());
 
             PageResponse<ArtistRankingResponse> response = ranking(RankingFilter.ALL, 0, 20);
 
@@ -262,7 +278,7 @@ class ArtistRankingQueryServiceTest {
         @Test
         @DisplayName("스냅샷에는 있는데 지워진 아티스트는 항목에서 뺀다 — 눌러도 404 인 빈 카드를 만들지 않는다")
         void dropsArtistDeletedAfterSnapshot() {
-            given(snapshot.current()).willReturn(List.of(KARINA, WINTER, NINGNING));
+            snapshot(List.of(KARINA, WINTER, NINGNING));
             given(artistRepository.findCards(any()))
                     .willReturn(List.of(card(KARINA), card(NINGNING)));
 
@@ -275,7 +291,7 @@ class ArtistRankingQueryServiceTest {
     @Test
     @DisplayName("프로필 이미지는 공개 URL 이다 — 서명하지 않는다(§1.7)")
     void profileImageIsPublicUrl() {
-        given(snapshot.current()).willReturn(List.of(KARINA));
+        snapshot(List.of(KARINA));
 
         assertThat(ranking(RankingFilter.ALL, 0, 20).list().getFirst().profileImageUrl())
                 .isEqualTo("https://cdn.motif.io/profiles/3.jpg")
@@ -285,7 +301,7 @@ class ArtistRankingQueryServiceTest {
     @Test
     @DisplayName("프로필 키가 없으면 URL 도 null 이다")
     void nullKeyGivesNullUrl() {
-        given(snapshot.current()).willReturn(List.of(KARINA));
+        snapshot(List.of(KARINA));
         given(artistRepository.findCards(any()))
                 .willReturn(List.of(new ArtistCardRow(KARINA, "카리나", null, null)));
 

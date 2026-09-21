@@ -120,18 +120,22 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
     /**
      * 아티스트 랭킹 점수의 원자료 (API 명세 §5.1) — 비삭제 챌린지 전량.
      *
-     * <p><b>점수를 SQL 에서 계산하지 않는다.</b> 감쇠는 {@code power()}·{@code extract(epoch …)}
-     * 로 DB 에서도 되지만, 그러면 공식이 쿼리 문자열 안에 갇혀 단위 테스트로 묶이지
-     * 않는다 — 가중치·반감기가 설정으로 빠지는데 정작 그 계산을 검증할 수 없게 된다.
-     * 계산은 {@code RankingScore}(순수)가 하고 여기는 재료만 꺼낸다.
+     * <p><b>점수를 SQL 에서 계산하지 않는다.</b> 공식이 쿼리 문자열 안에 갇히면 단위
+     * 테스트로 묶이지 않는다 — 가중치가 설정으로 빠지는데 정작 그 계산을 검증할 수 없게
+     * 된다. 계산은 {@code RankingScore}(순수)가 하고 여기는 재료만 꺼낸다. 게다가 최근·이전
+     * 구간 조회수는 DB 에 아예 없다(Redis 버킷 — ADR-0016).
      *
-     * <p><b>집계 없이 전량을 준다.</b> 아티스트별로 {@code sum} 해서 주면 챌린지마다 다른
-     * 나이를 잃어버린다 — 감쇠는 <b>챌린지 하나하나</b>에 걸려야 의미가 있다.
-     * 운영 규모가 수백 건이고 5분에 한 번이라 전량 스캔이 부담되지 않는다.
+     * <p><b>집계 없이 전량을 준다.</b> 아티스트별로 {@code sum} 해서 주면 챌린지별 최근
+     * 조회수를 버킷에서 찾을 키를 잃어버린다. 운영 규모가 수백 건이고 20분에 한 번이라
+     * 전량 스캔이 부담되지 않는다.
+     *
+     * <p><b>{@code view_count > 0} 같은 조건을 걸지 않는다.</b> §6.1 은 모집단을 그렇게
+     * 좁혔지만 여기서 같은 것을 하면 <b>온보딩 인기 목록(§3.1)에서 신인이 사라진다</b>
+     * — 비삭제 아티스트는 챌린지가 0개여도 0점으로 스냅샷에 들어가야 한다(ADR-0016).
      */
     @Query("""
             select new com.ssafy.motif.domain.core.challenge.ChallengeScoreRow(
-                       c.artistSeq, c.viewCount, c.participantCount, c.regDttm)
+                       c.challengeSeq, c.artistSeq, c.viewCount, c.participantCount)
             from Challenge c
             where c.deleted = false
             """)

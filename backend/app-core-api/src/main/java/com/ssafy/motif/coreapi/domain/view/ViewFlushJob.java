@@ -1,5 +1,6 @@
 package com.ssafy.motif.coreapi.domain.view;
 
+import com.ssafy.motif.coreapi.domain.artist.ranking.ArtistRankingSnapshotJob;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -23,7 +24,7 @@ import java.util.Map;
  *   4) 버킷 저장 + 인덱스 갱신
  *   5) processing 삭제
  * 그다음:
- *   6) §6.1 영상 랭킹 재계산 — 집계 성공 여부와 무관하게 돈다 (§5.1 은 다음 커밋)
+ *   6) §6.1 영상 랭킹 · §5.1 아티스트 랭킹 재계산 — 집계 성공 여부와 무관하게 돈다
  * </pre>
  *
  * <p><b>{@code processing} 을 마지막에 지운다.</b> 3~4 중 어디서 죽어도 그 구간이 Redis 에
@@ -65,15 +66,18 @@ public class ViewFlushJob {
     private final List<ViewBuffer> buffers;
     private final ViewCounterStore counterStore;
     private final VideoRankingSnapshotJob videoRankingJob;
+    private final ArtistRankingSnapshotJob artistRankingJob;
 
     public ViewFlushJob(@Qualifier("videoViewBuffer") ViewBuffer videoViewBuffer,
                         @Qualifier("challengeViewBuffer") ViewBuffer challengeViewBuffer,
                         ViewCounterStore counterStore,
-                        VideoRankingSnapshotJob videoRankingJob) {
+                        VideoRankingSnapshotJob videoRankingJob,
+                        ArtistRankingSnapshotJob artistRankingJob) {
         // 순서가 있다 — 챌린지 조회수가 §5.1 재료라 랭킹보다 먼저 반영돼야 한다
         this.buffers = List.of(videoViewBuffer, challengeViewBuffer);
         this.counterStore = counterStore;
         this.videoRankingJob = videoRankingJob;
+        this.artistRankingJob = artistRankingJob;
     }
 
     /** 스케줄러가 부르는 자리. */
@@ -97,6 +101,7 @@ public class ViewFlushJob {
         buffers.forEach(buffer -> aggregate(buffer, ts));
 
         videoRankingJob.refresh();
+        artistRankingJob.refresh();
     }
 
     private void aggregate(ViewBuffer buffer, String ts) {

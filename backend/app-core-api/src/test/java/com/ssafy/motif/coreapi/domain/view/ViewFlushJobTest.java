@@ -1,5 +1,6 @@
 package com.ssafy.motif.coreapi.domain.view;
 
+import com.ssafy.motif.coreapi.domain.artist.ranking.ArtistRankingSnapshotJob;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +37,7 @@ class ViewFlushJobTest {
     private ViewBuffer buffer;
     private ViewCounterStore counterStore;
     private VideoRankingSnapshotJob rankingJob;
+    private ArtistRankingSnapshotJob artistRankingJob;
     private ViewFlushJob job;
 
     @BeforeEach
@@ -43,9 +45,10 @@ class ViewFlushJobTest {
         buffer = mock(ViewBuffer.class);
         counterStore = mock(ViewCounterStore.class);
         rankingJob = mock(VideoRankingSnapshotJob.class);
+        artistRankingJob = mock(ArtistRankingSnapshotJob.class);
         given(buffer.getTarget()).willReturn(ViewTarget.VIDEO);
         // 챌린지 버퍼에는 아무것도 없는 mock 을 넘긴다 — 여기서 보는 것은 단계 순서다
-        job = new ViewFlushJob(buffer, mock(ViewBuffer.class), counterStore, rankingJob);
+        job = new ViewFlushJob(buffer, mock(ViewBuffer.class), counterStore, rankingJob, artistRankingJob);
 
         given(buffer.unfinished()).willReturn(List.of());
     }
@@ -68,7 +71,7 @@ class ViewFlushJobTest {
         given(buffer.readProcessing(TS)).willReturn(Map.of(101L, 3L));
         given(buffer.claimFlush(TS)).willReturn(true);
 
-        new ViewFlushJob(buffer, challengeBuffer, counterStore, rankingJob).flush(NOW);
+        new ViewFlushJob(buffer, challengeBuffer, counterStore, rankingJob, artistRankingJob).flush(NOW);
 
         verify(counterStore).add(ViewTarget.VIDEO, Map.of(101L, 3L));
         verify(counterStore).add(ViewTarget.CHALLENGE, Map.of(11L, 5L));
@@ -86,7 +89,7 @@ class ViewFlushJobTest {
         given(challengeBuffer.claimFlush(TS)).willReturn(true);
         willThrow(new IllegalStateException("redis down")).given(buffer).unfinished();
 
-        new ViewFlushJob(buffer, challengeBuffer, counterStore, rankingJob).flush(NOW);
+        new ViewFlushJob(buffer, challengeBuffer, counterStore, rankingJob, artistRankingJob).flush(NOW);
 
         verify(counterStore).add(ViewTarget.CHALLENGE, Map.of(11L, 5L));
         verify(rankingJob).refresh();

@@ -159,8 +159,10 @@ S15P21D104-181
 | 구독 카드 §4.7 `UserQueryService.subscriptions` · 집계 batch 4종(`countMineByArtists`·`countActiveByArtists`·`countPurchasedByArtists`·`findActivePasses`) | `app-core-api/.../domain/user/` · `domain-core/.../video/`·`asset/`·`pass/` | S15P21D104-284 |
 | **S3 presign·HEAD `MediaObjectStore`** · 이미지 업로드 한도 `MediaUploadProperties`(`motif.media.upload`) | `app-core-api/.../global/media/` | S15P21D104-280 |
 | 프로필 이미지 §4.3·§4.4 `UserProfileImageService` · `ProfileImagePresignRegistry`(Redis, ADR-0011) | `app-core-api/.../domain/user/` | 280 |
-| **조회수 Redis 버퍼 전량** — §8.5 묶음 수신 `VideoViewService`·`VideoViewBuffer`(키 독점) · 20분 집계 `VideoViewFlushJob` · 일괄 UPDATE `VideoViewCounterStore` · 설정 `motif.video-view` | `app-core-api/.../domain/video/view/` | S15P21D104-130 |
+| **조회수 Redis 버퍼 전량** — §7.4·§8.5 묶음 수신 `ViewService` · `ViewBuffer`(키 독점, 대상별 빈 2개) · 20분 집계 `ViewFlushJob` · 일괄 UPDATE `ViewCounterStore` · 설정 `motif.view` | `app-core-api/.../domain/view/` | S15P21D104-130 · ADR-0016 |
 | **§6.1 랭킹 재정의** — 감쇠 제거, 누적·최근1h·증감 3항(ADR-0015) · `rankDelta` · 버전 이력 LIST · `view_count > 0` 모집단 · `keep` 상한 | `app-core-api/.../domain/video/ranking/` | 130 |
+| **§5.1 랭킹 재정의** — 같은 3항 구조(ADR-0016) · 참여 수는 누적 항에만 · 가중치 0.5/0.35/0.15 · 버전 스냅샷 통일(`:prev` 폐기) | `app-core-api/.../domain/artist/ranking/` | ADR-0016 |
+| **스케줄러 소유자** `SchedulingConfig` — 풀·`setTaskScheduler` 는 레포에 여기 하나뿐 | `app-core-api/.../global/config/` | ADR-0016 |
 
 **§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed
 쿠키가 필요한데 레포에 서명 발급 수단이 없다(키페어·만료 설정 전무). 공개 URL 로 대신
@@ -225,7 +227,18 @@ MediaPlaylistQueryService.masterPlaylistUrl(job.getJobUuid());
 
 ```java
 // 조회수를 올릴 때 — DB 를 직접 UPDATE 하지 않는다. Redis 버퍼에 쌓고 20분 배치가 옮긴다
-videoViewService.accumulate(Map.of(videoSeq, count));   // §8.5. 이미 있다
+viewService.accumulate(ViewTarget.VIDEO, Map.of(videoSeq, count));   // §8.5·§7.4. 이미 있다
+// 대상을 늘릴 때는 ViewTarget 에 상수 하나 + ViewConfig 에 빈 하나다. 버퍼를 복제하지 마라 —
+// RENAMENX rotate·멱등 마커·재처리 인덱스가 두 벌이 되어 한쪽만 고쳐진다.
+// 멱등 마커 키에서 대상을 빼지 마라 — 두 대상이 같은 틱에 같은 ts 로 돌기 때문에
+// 한쪽 DB 반영이 예외도 로그도 없이 건너뛰어진다 (ADR-0016).
+// ViewBuffer 를 주입받을 때 @Qualifier 를 빠뜨리지 마라. lombok.config 가 없어
+// @RequiredArgsConstructor 는 필드의 @Qualifier 를 복사하지 않는다 — 명시적 생성자를 쓴다.
+//
+// §5.1 아티스트 랭킹에 §6.1 을 복사하지 마라: view_count > 0 모집단 필터와 keep 상한을
+// 가져오면 온보딩 인기 목록(§3.1)에서 신인이 사라지고 페이지 수가 틀어진다.
+// 참여 영상 수를 최근·증감 항에 더하지 마라 — 1시간 창에서는 0~2건이라 Wp(=100)가
+// 환산비가 아니라 on/off 스위치가 되어 순위가 동전 던지기가 된다.
 // participation_videos.view_count 를 건드리는 곳은 VideoViewCounterStore 하나뿐이다.
 // 조회마다 UPDATE 를 돌면 인기 영상 한 행에 쓰기가 몰려 잠금이 직렬화된다 (ADR-0015)
 //
