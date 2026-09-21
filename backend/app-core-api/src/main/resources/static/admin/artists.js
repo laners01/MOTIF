@@ -100,6 +100,7 @@ function toCreateForm() {
     syncCompanyLock();
     clearError($('form-err'));
     $('msg').textContent = '';
+    closeAliases();          // 등록 폼에는 별칭을 달 대상(artistSeq)이 아직 없다
 }
 
 async function toEditForm(artistSeq) {
@@ -118,6 +119,8 @@ async function toEditForm(artistSeq) {
         $('profile').value = '';
         $('motif-bg').value = '';
         $('msg').textContent = '';
+        // 별칭(§3.5.6~9)은 이 아티스트에 붙는다 — 폼 저장과 별개로 행마다 따로 저장한다
+        await openAliases(`/artists/${artistSeq}`, `아티스트 #${artistSeq} ${summary.name}`);
         $('form-title').scrollIntoView();
     } catch (e) {
         showError($('form-err'), e);
@@ -198,6 +201,8 @@ async function remove(tr) {
     clearError($('list-err'));
     try {
         const r = await api(`/artists/${seq}`, {method: 'DELETE'});
+        // 방금 지운 아티스트를 별칭 패널이 보고 있으면 닫는다 — 삭제분은 별칭 API 가 404 다
+        if (aliasBase === `/artists/${seq}`) closeAliases();
         await load();                       // load 가 list-msg 를 비우므로 메시지는 그 뒤에 쓴다
         $('list-msg').textContent = `#${seq} ${name} 삭제 완료 — 에셋 ${r.deactivatedAssets}건 · `
             + `에셋 가격 ${r.deactivatedAssetPrices}건 · PASS 가격 ${r.deactivatedPassPrices}건 비활성화됨`;

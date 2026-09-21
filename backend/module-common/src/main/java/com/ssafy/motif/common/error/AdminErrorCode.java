@@ -46,6 +46,8 @@ public enum AdminErrorCode implements ErrorCode {
     BANNER_NOT_FOUND(404, "BANNER_NOT_FOUND", "배너를 찾을 수 없습니다."),
     REPORT_NOT_FOUND(404, "REPORT_NOT_FOUND", "신고를 찾을 수 없습니다."),
     BATCH_NOT_FOUND(404, "BATCH_NOT_FOUND", "배치를 찾을 수 없습니다."),
+    /** 3.4.7/8 · 3.5.8/9 — 별칭이 없거나, 경로의 아티스트·그룹 소유가 아니다(어드민 §5). */
+    ALIAS_NOT_FOUND(404, "ALIAS_NOT_FOUND", "별칭을 찾을 수 없습니다."),
 
     /** 3.3.2/3 — 활성 회사명 중복({@code uq_companies_name_active}). */
     COMPANY_NAME_DUPLICATE(409, "COMPANY_NAME_DUPLICATE", "이미 등록된 소속사명입니다."),
