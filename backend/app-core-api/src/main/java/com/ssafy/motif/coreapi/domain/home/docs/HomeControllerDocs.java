@@ -61,9 +61,15 @@ public interface HomeControllerDocs {
                     - `videoUrl` 은 **마스터 재생목록(`master.m3u8`)** 이다 (§1.7, ADR-0010 D2).
                       참여 영상은 전부 보호 등급이라 **프리픽스 서명**이 붙는다(ADR-0012·0013) —
                       남의 `PUBLIC` 영상이어도 그렇다.
-                    - `rank` 는 스냅샷 순위다. 스냅샷이 만들어진 뒤 삭제·비공개로 바뀐 영상은 목록에서
-                      빠지므로 **번호가 건너뛸 수 있다** — 다시 매기지 않는다(다음 페이지와 어긋난다).
+                    - `rank` 는 스냅샷 순위다. 스냅샷이 만들어진 뒤 삭제·비공개로 바뀐 영상과 요청자가
+                      **"관심 없음"(§8.6)** 한 영상은 목록에서 빠지므로 **번호가 건너뛸 수 있다** —
+                      다시 매기지 않는다(다음 페이지와 어긋난다). 그래서 한 페이지의 항목 수가 요청한
+                      `size` 보다 적을 수 있고, 같은 커서라도 사람마다 다를 수 있다.
+                    - `rankDelta` 는 **직전 순위 − 현재 순위**다. 상승이 양수(5위→3위 = `+2`),
+                      하락이 음수, **신규 진입은 `null`** 이다(§5.1 과 같은 규약). 대비 구간은
+                      **1시간**이고 값은 배치가 적재 시점에 계산해 둔 것이다.
                     - 순위 배치가 아직 한 번도 돌지 않았거나 후보가 없으면 **빈 목록 200** 이다.
+                      **조회가 한 번도 없던 영상은 후보가 아니다**(`view_count > 0` — ADR-0015).
                     """)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -77,6 +83,7 @@ public interface HomeControllerDocs {
                                 "list": [
                                   {
                                     "rank": 1,
+                                    "rankDelta": 2,
                                     "videoSeq": 88,
                                     "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
                                     "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
@@ -100,6 +107,7 @@ public interface HomeControllerDocs {
                             schema = @Schema(implementation = FailResponseSchema.class)))
     })
     ApiResponse<CursorResponse<HotVideoItem>> hotVideos(
+            @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "이전 응답의 nextCursor. 생략하면 현재 순위의 1위부터") String cursor,
             @Parameter(description = "페이지 크기 (기본 10, 최대 100)") int size);
 

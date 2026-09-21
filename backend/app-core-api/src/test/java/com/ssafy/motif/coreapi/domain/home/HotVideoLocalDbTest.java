@@ -5,6 +5,7 @@ import com.ssafy.motif.coreapi.domain.home.dto.HotVideoItem;
 import com.ssafy.motif.coreapi.domain.home.service.HotVideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshot;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
+import com.ssafy.motif.coreapi.domain.video.view.VideoViewBuffer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -50,6 +52,8 @@ class HotVideoLocalDbTest {
     @Autowired
     private VideoRankingSnapshot snapshot;
     @Autowired
+    private VideoViewBuffer buffer;
+    @Autowired
     private HotVideoQueryService hotVideoQueryService;
     @Autowired
     private StringRedisTemplate redis;
@@ -73,12 +77,30 @@ class HotVideoLocalDbTest {
         clearSnapshots();
     }
 
-    /** 포인터와 이번 실행이 만든 버전 키를 모두 지운다. */
+    /** 포인터·버전 키와 조회수 버킷을 모두 지운다 — 남으면 다음 실행의 순위가 흔들린다. */
     private void clearSnapshots() {
-        Set<String> versions = redis.keys("rank:video:*");
-        if (versions != null && !versions.isEmpty()) {
-            redis.delete(versions);
+        Set<String> keys = redis.keys("rank:video:*");
+        keys.addAll(redis.keys("view:video:bucket*"));
+        if (!keys.isEmpty()) {
+            redis.delete(keys);
         }
+    }
+
+    /**
+     * 버킷 6칸을 오래된 것부터 채운다 — 인덱스가 LPUSH 라 마지막에 넣은 것이 0번이고,
+     * 최근 구간(0~2)과 이전 구간(3~5)이 그렇게 갈린다.
+     *
+     * <p>조회가 없는 칸에도 자리표시 영상을 하나 넣는다. 빈 map 은 버킷을 만들지 않아
+     * 인덱스가 밀리지 않기 때문이다 — 그러면 "이전 1시간" 이 엉뚱한 칸을 가리킨다.
+     */
+    private void seedBuckets(Long videoSeq, long previousViews, long recentViews) {
+        long filler = -1L;
+        buffer.saveBucket("t1", Map.of(videoSeq, previousViews));
+        buffer.saveBucket("t2", Map.of(filler, 1L));
+        buffer.saveBucket("t3", Map.of(filler, 1L));
+        buffer.saveBucket("t4", Map.of(videoSeq, recentViews));
+        buffer.saveBucket("t5", Map.of(filler, 1L));
+        buffer.saveBucket("t6", Map.of(filler, 1L));
     }
 
     @Test
@@ -136,15 +158,46 @@ class HotVideoLocalDbTest {
     }
 
     @Test
-    @DisplayName("조회수가 많아도 오래된 영상이 최근 영상에 밀린다 — 실제 쿼리 경로로")
-    void decayLetsRecentVideoOvertake() {
-        Long 옛날 = newVideo(10_000L, "PUBLIC", false, Instant.now().minus(Duration.ofDays(30)));
-        Long 최근 = newVideo(1_000L, "PUBLIC", false, Instant.now().minus(Duration.ofHours(6)));
+    @DisplayName("누적이 많아도 지금 조용하면 최근에 뜬 영상에 밀린다 — 실제 쿼리 경로로")
+    void recentSurgeOvertakesLargerTotal() {
+        // 게시 시각을 반대로 준다 — 시간 감쇠를 걷어냈으므로(ADR-0015) 순서에 영향이 없어야 한다
+        Long 누적만많음 = newVideo(10_000L, "PUBLIC", false, Instant.now());
+        Long 지금뜨는중 = newVideo(1_000L, "PUBLIC", false, Instant.now().minus(Duration.ofDays(30)));
+        seedBuckets(지금뜨는중, 50L, 800L);
 
         job.refresh();
 
         List<Long> ranked = rankedSeqs();
-        assertThat(ranked.indexOf(최근)).isLessThan(ranked.indexOf(옛날));
+        assertThat(ranked.indexOf(지금뜨는중)).isLessThan(ranked.indexOf(누적만많음));
+    }
+
+    @Test
+    @DisplayName("조회가 한 번도 없던 영상은 후보가 아니다 — view_count > 0 부터 랭킹에 든다")
+    void neverViewedVideoIsNotACandidate() {
+        Long videoSeq = newVideo(0L, "PUBLIC", false, Instant.now());
+
+        job.refresh();
+
+        assertThat(rankedSeqs()).doesNotContain(videoSeq);
+    }
+
+    @Test
+    @DisplayName("관심 없음 한 영상은 HOT 에서 빠진다 — 네이티브 조회가 실제로 돈다 (§8.6)")
+    void hiddenVideoIsRemovedFromHotList() {
+        Long videoSeq = newVideo(10_000_000L, "PUBLIC", false, Instant.now());
+        job.refresh();
+        assertThat(seqsOf(hotVideoQueryService.hotVideos(me, null, 100))).contains(videoSeq);
+
+        execute("insert into motif_core.video_hides (user_seq, video_seq) values (?1, ?2)",
+                me, videoSeq);
+
+        // 스냅샷은 그대로다 — 빼는 것은 읽는 쪽이다
+        assertThat(rankedSeqs()).contains(videoSeq);
+        assertThat(seqsOf(hotVideoQueryService.hotVideos(me, null, 100))).doesNotContain(videoSeq);
+    }
+
+    private List<Long> seqsOf(CursorResponse<HotVideoItem> response) {
+        return response.list().stream().map(HotVideoItem::videoSeq).toList();
     }
 
     @Test
@@ -155,7 +208,7 @@ class HotVideoLocalDbTest {
         Long videoSeq = newVideo(10_000_000L, "PUBLIC", false, Instant.now());
         job.refresh();
 
-        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(null, 100);
+        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(me, null, 100);
 
         assertThat(response.list()).isNotEmpty();
         assertThat(response.list())
@@ -179,12 +232,12 @@ class HotVideoLocalDbTest {
         }
         job.refresh();
 
-        CursorResponse<HotVideoItem> first = hotVideoQueryService.hotVideos(null, 2);
+        CursorResponse<HotVideoItem> first = hotVideoQueryService.hotVideos(me, null, 2);
         assertThat(first.list()).hasSize(2);
         assertThat(first.hasNext()).isTrue();
 
         CursorResponse<HotVideoItem> second =
-                hotVideoQueryService.hotVideos(first.nextCursor(), 2);
+                hotVideoQueryService.hotVideos(me, first.nextCursor(), 2);
 
         assertThat(second.list()).hasSize(2);
         assertThat(second.list()).extracting(HotVideoItem::videoSeq)
@@ -198,7 +251,7 @@ class HotVideoLocalDbTest {
     void emptyBeforeFirstBatch() {
         newVideo(1_000L, "PUBLIC", false, Instant.now());
 
-        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(null, 10);
+        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(me, null, 10);
 
         assertThat(response.list()).isEmpty();
         assertThat(response.hasNext()).isFalse();
@@ -210,7 +263,7 @@ class HotVideoLocalDbTest {
         newVideo(1_000L, "PUBLIC", false, Instant.now());
         job.refresh();
 
-        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(
+        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(me, 
                 com.ssafy.motif.coreapi.global.response.Cursors.encodeSnapshot(1L, 0), 10);
 
         assertThat(response.list()).isEmpty();

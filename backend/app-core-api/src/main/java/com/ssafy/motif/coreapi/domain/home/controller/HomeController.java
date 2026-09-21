@@ -41,13 +41,19 @@ public class HomeController implements HomeControllerDocs {
     private final HotVideoQueryService hotVideoQueryService;
     private final HomeActivityQueryService homeActivityQueryService;
 
-    /** §6.1 실시간 인기 참여 영상 — 커서, 스냅샷 순서 고정. */
+    /**
+     * §6.1 실시간 인기 참여 영상 — 커서, 스냅샷 순서 고정.
+     *
+     * <p>순서는 사용자와 무관하지만 <b>호출자가 필요하다</b> — 요청자의 "관심 없음"(§8.6)을
+     * 목록에서 빼기 때문이다(ADR-0015).
+     */
     @Override
     @GetMapping("/hot-videos")
     public ApiResponse<CursorResponse<HotVideoItem>> hotVideos(
+            @AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.success(hotVideoQueryService.hotVideos(cursor, size));
+        return ApiResponse.success(hotVideoQueryService.hotVideos(user.userSeq(), cursor, size));
     }
 
     /** §6.3 구독 아티스트 최신 활동 — offset 페이지, 통합 최신순 고정. */

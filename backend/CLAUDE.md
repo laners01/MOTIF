@@ -159,6 +159,8 @@ S15P21D104-181
 | 구독 카드 §4.7 `UserQueryService.subscriptions` · 집계 batch 4종(`countMineByArtists`·`countActiveByArtists`·`countPurchasedByArtists`·`findActivePasses`) | `app-core-api/.../domain/user/` · `domain-core/.../video/`·`asset/`·`pass/` | S15P21D104-284 |
 | **S3 presign·HEAD `MediaObjectStore`** · 이미지 업로드 한도 `MediaUploadProperties`(`motif.media.upload`) | `app-core-api/.../global/media/` | S15P21D104-280 |
 | 프로필 이미지 §4.3·§4.4 `UserProfileImageService` · `ProfileImagePresignRegistry`(Redis, ADR-0011) | `app-core-api/.../domain/user/` | 280 |
+| **조회수 Redis 버퍼 전량** — §8.5 묶음 수신 `VideoViewService`·`VideoViewBuffer`(키 독점) · 20분 집계 `VideoViewFlushJob` · 일괄 UPDATE `VideoViewCounterStore` · 설정 `motif.video-view` | `app-core-api/.../domain/video/view/` | S15P21D104-130 |
+| **§6.1 랭킹 재정의** — 감쇠 제거, 누적·최근1h·증감 3항(ADR-0015) · `rankDelta` · 버전 이력 LIST · `view_count > 0` 모집단 · `keep` 상한 | `app-core-api/.../domain/video/ranking/` | 130 |
 
 **§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed
 쿠키가 필요한데 레포에 서명 발급 수단이 없다(키페어·만료 설정 전무). 공개 URL 로 대신
@@ -219,6 +221,20 @@ mediaUrlResolver.resolve(video.getThumbnailKey());   // private/ 면 서명, 아
 
 // 보호 등급 영상 주소 — CDN 이 아니라 core-api 다. 문자열을 직접 조립하지 않는다
 MediaPlaylistQueryService.masterPlaylistUrl(job.getJobUuid());
+```
+
+```java
+// 조회수를 올릴 때 — DB 를 직접 UPDATE 하지 않는다. Redis 버퍼에 쌓고 20분 배치가 옮긴다
+videoViewService.accumulate(Map.of(videoSeq, count));   // §8.5. 이미 있다
+// participation_videos.view_count 를 건드리는 곳은 VideoViewCounterStore 하나뿐이다.
+// 조회마다 UPDATE 를 돌면 인기 영상 한 행에 쓰기가 몰려 잠금이 직렬화된다 (ADR-0015)
+//
+// §6.1 랭킹 점수에 시간 감쇠를 되살리지 마라 — 되살리면 오래된 영상이 지금 아무리 떠도
+// 계수에 눌려 올라오지 못한다. 그것이 이 공식을 바꾼 이유다.
+// 정규화 기준을 "그 틱의 최대값" 으로 바꾸지도 마라 — 다른 영상의 등락이 내 순위를 바꿔
+// rankDelta 에 거짓 변동이 뜬다. 기준값은 motif.video-view.ranking.scale 이다.
+// 버킷을 시각 산술로 찾지 마라 — 최근 구간은 view:video:bucket:index LIST 가 정한다.
+// 그래서 스케줄러가 벽시계에 정렬될 필요가 없다(fixedDelay 그대로 쓴다).
 ```
 
 ```java

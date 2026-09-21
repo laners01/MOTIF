@@ -8,10 +8,12 @@ import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoViewRequest;
 import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoLikeService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoReportService;
+import com.ssafy.motif.coreapi.domain.video.view.VideoViewService;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,15 +30,15 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 참여 영상 API (명세 §8.2 · §8.3 · §8.6 · §8.7 · §8.9 · §8.10). Base URL 은 {@code /api/v1}.
+ * 참여 영상 API (명세 §8.2 · §8.3 · §8.5 · §8.6 · §8.7 · §8.8 · §8.9 · §8.10).
+ * Base URL 은 {@code /api/v1}.
  *
  * <p>챌린지 경로 아래인 §8.1 피드는 {@code ChallengeVideoController} 가 따로 갖는다 —
  * 경로가 달라 한 {@code @RequestMapping} 에 묶이지 않는다.
  *
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isMine} 과
- * 타인 {@code PRIVATE} 은닉이 전부 호출자 기준이다.
- *
- * <p>§8.5 조회 · §8.8 게시는 아직 매핑이 없다.
+ * 타인 {@code PRIVATE} 은닉이 전부 호출자 기준이다. §8.5 조회 이벤트는 호출자를 쓰지
+ * 않지만 {@code SecurityConfig} 의 {@code anyRequest().authenticated()} 로 함께 막힌다.
  *
  * <p>Swagger 문서는 {@link VideoControllerDocs} 가 갖는다.
  */
@@ -50,6 +52,7 @@ public class VideoController implements VideoControllerDocs {
     private final VideoLikeService videoLikeService;
     private final VideoCommandService videoCommandService;
     private final VideoReportService videoReportService;
+    private final VideoViewService videoViewService;
 
     /**
      * §8.8 게시 — <b>201 Created</b>. 합성이 끝난 잡을 참여 영상으로 만든다.
@@ -67,6 +70,24 @@ public class VideoController implements VideoControllerDocs {
             @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody VideoPublishRequest request) {
         return ApiResponse.success(videoCommandService.publish(user, request));
+    }
+
+    /**
+     * §8.5 조회 이벤트 — <b>202 Accepted</b>. 영상별 조회수를 묶어 받는다.
+     *
+     * <p>경로에 {@code {videoSeq}} 가 없다(2026-09-21 재정의 — ADR-0015). 리터럴
+     * 세그먼트라 {@code /{videoSeq}} 계열 매핑과 겹치지 않는다.
+     *
+     * <p><b>호출자를 받지 않는다.</b> 1회 인정 기준이 미결이라(원본 §16 #3) 지금은
+     * 사용자별로 가르는 것이 없다. 정책이 정해지면 그때 principal 을 받는다 — 쓰지도
+     * 않을 파라미터를 미리 두지 않는다.
+     */
+    @Override
+    @PostMapping("/view")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApiResponse<Void> view(@Valid @RequestBody VideoViewRequest request) {
+        videoViewService.accumulate(request.views());
+        return ApiResponse.success();
     }
 
     /** §8.2 참여 영상 단건 — 뷰어 오버레이. */

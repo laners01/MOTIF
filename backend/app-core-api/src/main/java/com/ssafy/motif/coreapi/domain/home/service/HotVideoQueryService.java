@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -65,8 +66,13 @@ public class HotVideoQueryService {
      *
      * <p>{@code limit + 1} 건을 읽어 넘치면 잘라내고 그 사실을 {@code hasNext} 로
      * 쓴다 — 총 개수를 세지 않는 것이 커서 방식의 요점이다.
+     *
+     * <p><b>{@code userSeq} 를 받는다</b> *(2026-09-21 — ADR-0015)*. 요청자의 "관심
+     * 없음"(§8.6)을 목록에서 빼기 위해서다. 순서 자체는 여전히 사용자와 무관한 스냅샷이고,
+     * 빠진 자리는 {@code rank} 를 그대로 둔 채 건너뛴다 — 그래서 <b>같은 커서라도 사람마다
+     * 페이지 항목 수가 다를 수 있다</b>(§1.8 비노출과 같은 취급).
      */
-    public CursorResponse<HotVideoItem> hotVideos(String cursor, int size) {
+    public CursorResponse<HotVideoItem> hotVideos(Integer userSeq, String cursor, int size) {
         int limit = Math.clamp(size, 1, MAX_SIZE);
 
         Cursors.Snapshot at = Cursors.decodeSnapshot(cursor);
@@ -95,7 +101,7 @@ public class HotVideoQueryService {
         boolean hasNext = ranked.size() > limit;
         List<VideoRankingSnapshot.Ranked> page = hasNext ? ranked.subList(0, limit) : ranked;
 
-        List<HotVideoItem> list = cards(page);
+        List<HotVideoItem> list = cards(userSeq, page);
 
         // 마지막 순위는 §1.8 로 빠진 항목까지 포함한 자리다 — list 의 마지막을 쓰면
         // 그 항목들을 다음 페이지에서 다시 읽는다
@@ -113,24 +119,29 @@ public class HotVideoQueryService {
      * 그 사이 비노출로 바뀌어 빠진 영상은 조용히 건너뛴다 — 순위 번호는 그대로 둔다
      * ({@code HotVideoItem.rank} javadoc).
      */
-    private List<HotVideoItem> cards(List<VideoRankingSnapshot.Ranked> page) {
+    private List<HotVideoItem> cards(Integer userSeq, List<VideoRankingSnapshot.Ranked> page) {
         List<Long> videoSeqs = page.stream().map(VideoRankingSnapshot.Ranked::videoSeq).toList();
         Map<Long, HotVideoRow> rows = participationVideoRepository.findHotCards(videoSeqs).stream()
                 .collect(Collectors.toMap(HotVideoRow::videoSeq, Function.identity()));
+        // "관심 없음"(§8.6)은 §8.1 피드에만 걸려 있어 HOT 에는 계속 떴다 — 여기서 뺀다.
+        // 카드 조회가 JPQL 이고 video_hides 는 엔티티가 없어 seq 만 받아 대조한다
+        Set<Long> hidden = Set.copyOf(
+                participationVideoRepository.findHiddenVideoSeqs(userSeq, videoSeqs));
 
         List<HotVideoItem> list = new ArrayList<>(page.size());
         for (VideoRankingSnapshot.Ranked entry : page) {
             HotVideoRow row = rows.get(entry.videoSeq());
-            if (row != null) {
-                list.add(toItem(entry.rank(), row));
+            if (row != null && !hidden.contains(entry.videoSeq())) {
+                list.add(toItem(entry, row));
             }
         }
         return list;
     }
 
-    private HotVideoItem toItem(int rank, HotVideoRow row) {
+    private HotVideoItem toItem(VideoRankingSnapshot.Ranked entry, HotVideoRow row) {
         return new HotVideoItem(
-                rank,
+                entry.rank(),
+                entry.rankDelta(),
                 row.videoSeq(),
                 mediaUrlResolver.resolvePlaylist(row.videoKey()),
                 mediaUrlResolver.resolve(row.thumbnailKey()),

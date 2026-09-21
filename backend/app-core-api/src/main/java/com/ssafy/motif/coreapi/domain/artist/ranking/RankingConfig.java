@@ -22,11 +22,12 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
  * {@code interval: 5m} 만 안 되는 규칙을 남기느니, 여기서 {@code Duration} 을 그대로
  * 넘겨 등록한다 — 문자열 파싱이 아예 없어진다.
  *
- * <p><b>스케줄러 풀이 3이다.</b> 기본값은 1스레드라 {@code :current}(5분)와
+ * <p><b>스케줄러 풀이 4다.</b> 기본값은 1스레드라 {@code :current}(5분)와
  * {@code :prev}(10분)가 겹치는 틱에서 한쪽이 다른 쪽이 끝날 때까지 밀린다. 지금 규모로는
  * 밀려도 티가 안 나지만, 그 경우 <b>예외도 경고도 없이 주기만 어긋나</b> 원인을 찾기 어렵다.
- * 세 번째 자리는 §6.1 HOT 랭킹 배치 몫이다 — {@code VideoRankingConfig} 가 같은
- * {@code ScheduledTaskRegistrar} 에 작업을 더하고 스케줄러는 여기 것을 쓴다(그쪽
+ * 나머지 자리는 조회수 집계 배치({@code VideoViewConfig} — §6.1 HOT 랭킹을 마지막
+ * 단계로 함께 돌린다, ADR-0015) 몫이고 한 자리가 여유다. 그쪽은 같은
+ * {@code ScheduledTaskRegistrar} 에 작업만 더하고 스케줄러는 여기 것을 쓴다(그쪽
  * javadoc: 스케줄러를 두 곳에서 심으면 한쪽이 조용히 덮인다). <b>이 클래스를 걷어낼
  * 때 풀 설정이 함께 사라지지 않게 주의한다.</b>
  */
@@ -42,7 +43,7 @@ public class RankingConfig implements SchedulingConfigurer {
     @Bean(destroyMethod = "shutdown")
     public ThreadPoolTaskScheduler rankingTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(3);
+        scheduler.setPoolSize(4);
         scheduler.setThreadNamePrefix("ranking-sched-");
         // 종료 시 돌던 배치를 끊지 않는다 — 전량 재계산이라 중간에 끊겨도 데이터가
         // 깨지진 않지만, RENAME 직전에 끊기면 :building 키가 남는다(다음 실행이 지운다)
