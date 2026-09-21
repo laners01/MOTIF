@@ -114,12 +114,12 @@ class CompositeJobCreateLocalDbTest {
     // --- CHALLENGE (186) ---------------------------------------------------------
 
     @Test
-    @DisplayName("mask > 0 — 그 슬롯이 잡에 박히고 UPLOADED 행이 생긴다")
-    void challengeWithMaskRecordsTheSlot() {
+    @DisplayName("슬롯을 지정하면 그 슬롯이 잡에 박히고 UPLOADED 행이 생긴다")
+    void challengeWithSlotRecordsIt() {
         Integer challengeSeq = newChallenge();
         Integer slotSeq = newSlot(challengeSeq, 1, true);
 
-        CompositeJobCreateResponse response = create(challengeRequest(challengeSeq, 2));
+        CompositeJobCreateResponse response = create(challengeRequest(challengeSeq, slotSeq));
 
         CompositeJob job = job(response.jobUuid());
         assertThat(job.getJobType()).isEqualTo(JobType.CHALLENGE);
@@ -133,23 +133,21 @@ class CompositeJobCreateLocalDbTest {
     }
 
     @Test
-    @DisplayName("mask 0·생략 — 무교체다. challenge_participant_seq 가 NULL 로 남는다")
-    void challengeWithoutMaskLeavesSlotNull() {
+    @DisplayName("슬롯 생략 — 무교체다. challenge_participant_seq 가 NULL 로 남는다")
+    void challengeWithoutSlotLeavesItNull() {
         Integer challengeSeq = newChallenge();
 
-        assertThat(job(create(challengeRequest(challengeSeq, 0)).jobUuid()).getChallengeParticipantSeq())
-                .isNull();
-        assertThat(job(create(challengeRequest(challengeSeq, null)).jobUuid()).getChallengeParticipantSeq())
-                .isNull();
+        assertThat(job(create(challengeRequest(challengeSeq, null)).jobUuid())
+                .getChallengeParticipantSeq()).isNull();
     }
 
     @Test
-    @DisplayName("그 자리에 슬롯이 없으면 404")
+    @DisplayName("없는 슬롯 seq 는 404")
     void unknownSlotIsNotFound() {
         Integer challengeSeq = newChallenge();
         newSlot(challengeSeq, 0, true);
 
-        assertFails(challengeRequest(challengeSeq, 2),
+        assertFails(challengeRequest(challengeSeq, -1),
                 ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND);
     }
 
@@ -158,44 +156,45 @@ class CompositeJobCreateLocalDbTest {
      * 그 슬롯을 고르면 합성 베이스가 없으므로 여기서 막는다.
      */
     @Test
-    @DisplayName("슬롯은 있는데 편집본이 없으면 404 — §7.2 selectable=false 인 자리다")
+    @DisplayName("슬롯은 있는데 편집본이 없으면 404 — §7.5 가 화면에서 미리 잠그는 자리다")
     void slotWithoutEditedIsNotFound() {
         Integer challengeSeq = newChallenge();
-        newSlot(challengeSeq, 0, false);
+        Integer slotSeq = newSlot(challengeSeq, 0, false);
 
-        assertFails(challengeRequest(challengeSeq, 1),
+        assertFails(challengeRequest(challengeSeq, slotSeq),
                 ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND);
     }
 
     /**
-     * 조합 마스크는 "없는 편집본" 이 아니라 <b>보낼 수 없는 값</b>이라 400 이다 —
-     * 404 로 주면 클라이언트가 "어드민이 안 올렸구나" 로 잘못 읽는다.
+     * 0020 — 잡 행이 {@code challenge_seq} 와 슬롯 seq 를 함께 들고 있어 둘이 어긋나면
+     * 합성 베이스와 챌린지가 다른 잡이 만들어진다. FK 는 각자만 보므로 서비스가 대조한다.
      */
     @Test
-    @DisplayName("비트가 둘 이상인 조합 마스크는 400 — 슬롯은 하나만 고른다")
-    void combinationMaskIsRejected() {
-        Integer challengeSeq = newChallenge();
-        newSlot(challengeSeq, 0, true);
-        newSlot(challengeSeq, 1, true);
+    @DisplayName("다른 챌린지의 슬롯을 보내면 404 — 존재를 알려주지 않는다(§1.8)")
+    void slotOfAnotherChallengeIsNotFound() {
+        Integer mine = newChallenge();
+        Integer other = newChallenge();
+        Integer otherSlot = newSlot(other, 0, true);
 
-        assertFails(challengeRequest(challengeSeq, 3), CommonErrorCode.INVALID_PARAMETER);
+        assertFails(challengeRequest(mine, otherSlot),
+                ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND);
     }
 
     @Test
     @DisplayName("삭제된 챌린지는 슬롯을 보기 전에 404 다")
     void deletedChallengeIsNotFound() {
         Integer challengeSeq = newChallenge();
-        newSlot(challengeSeq, 0, true);
+        Integer slotSeq = newSlot(challengeSeq, 0, true);
         challengeRepository.findById(challengeSeq).orElseThrow().softDelete();
         entityManager.flush();
 
-        assertFails(challengeRequest(challengeSeq, 1), ChallengeErrorCode.CHALLENGE_NOT_FOUND);
+        assertFails(challengeRequest(challengeSeq, slotSeq), ChallengeErrorCode.CHALLENGE_NOT_FOUND);
     }
 
     @Test
     @DisplayName("presign 은 잡의 raw 키에 video/mp4 · 600초로 요청한다 — 조건이 서명에 박힌다")
     void presignCarriesTheRawKeyAndItsConditions() {
-        CompositeJobCreateResponse response = create(challengeRequest(newChallenge(), 0));
+        CompositeJobCreateResponse response = create(challengeRequest(newChallenge(), null));
 
         ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Long> size = ArgumentCaptor.forClass(Long.class);
@@ -227,7 +226,7 @@ class CompositeJobCreateLocalDbTest {
         long tooBig = 301L * 1024 * 1024;
 
         assertThatThrownBy(() -> create(new CompositeJobCreateRequest(
-                JobType.CHALLENGE, newChallenge(), null, 0, tooBig)))
+                JobType.CHALLENGE, newChallenge(), null, null, tooBig)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     BusinessException business = (BusinessException) e;
@@ -300,8 +299,9 @@ class CompositeJobCreateLocalDbTest {
                 .isEqualTo(expected);
     }
 
-    private static CompositeJobCreateRequest challengeRequest(Integer challengeSeq, Integer mask) {
-        return new CompositeJobCreateRequest(JobType.CHALLENGE, challengeSeq, null, mask, UPLOAD_SIZE);
+    /** @param slotSeq 교체할 슬롯. {@code null} 이면 무교체(원본 위 합성) */
+    private static CompositeJobCreateRequest challengeRequest(Integer challengeSeq, Integer slotSeq) {
+        return new CompositeJobCreateRequest(JobType.CHALLENGE, challengeSeq, null, slotSeq, UPLOAD_SIZE);
     }
 
     private static CompositeJobCreateRequest motifRequest(Integer assetSeq) {
@@ -361,9 +361,10 @@ class CompositeJobCreateLocalDbTest {
         return participantRepository.saveAndFlush(ChallengeParticipant.of(
                         challengeSeq, newArtist(), slotOrder,
                         new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                        withEdited ? "challenges/" + uuid + "/edited-" + slotOrder + ".mp4" : null,
-                        withEdited ? "challenges/" + uuid + "/scene-" + slotOrder + ".jpg" : null,
-                        withEdited ? "challenges/" + uuid + "/preview-" + slotOrder + ".jpg" : null))
+                        withEdited ? "private/edited/" + uuid + "/e-" + slotOrder + ".mp4" : null,
+                        withEdited ? "private/edited/" + uuid + "/s-" + slotOrder + ".jpg" : null,
+                        withEdited ? "private/edited/" + uuid + "/p-" + slotOrder + ".jpg" : null,
+                        withEdited ? 15_000 : null))
                 .getChallengeParticipantSeq();
     }
 

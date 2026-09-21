@@ -55,10 +55,10 @@ public record ChallengeDetailResponse(
     public record Participant(Integer challengeParticipantSeq,
                               ArtistSummary artist,
                               int slotOrder,
-                              int participantMask,
                               AnchorResponse anchor,
                               String editedChallengeUrl, String initialSceneUrl, String previewImageUrl,
                               String editedChallengeKey, String initialSceneKey, String previewImageKey,
+                              Integer editedDurationMs,
                               long jobRefCount) {
     }
 

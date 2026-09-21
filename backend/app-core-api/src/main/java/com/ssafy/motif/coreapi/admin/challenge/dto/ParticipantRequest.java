@@ -20,8 +20,10 @@ import jakarta.validation.constraints.NotNull;
  * @param previewImageKey    촬영 전 선택 화면에서 이 슬롯을 골랐을 때 썸네일 자리에 보이는
  *                           이미지. 편집본이 있어도 생략할 수 있다 — 클라이언트가 챌린지
  *                           썸네일로 폴백한다
- * @param durationMs         선택 — 보내면 편집본 길이를 원본 ±허용 오차와 대조한다(§1.4).
- *                           업로드 화면 JS 가 읽어 싣는 값이며, 없으면 길이 검증을 건너뛴다
+ * @param durationMs         편집본 길이(ms). <b>편집본을 보내면 필수다</b>(0020) — 원본
+ *                           ±허용 오차 대조(§1.4)에만 쓰고 버리던 값인데, 앱 촬영 타이머가
+ *                           이 값에 맞춰 돌게 되면서 저장한다. 업로드 화면 JS 가
+ *                           {@code <video>} 에서 읽어 자동으로 싣는다
  */
 @Schema(description = "인물 슬롯 + 편집본 (배열 순서 = 화면 좌→우)")
 public record ParticipantRequest(

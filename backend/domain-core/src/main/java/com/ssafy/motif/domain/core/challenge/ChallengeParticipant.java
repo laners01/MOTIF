@@ -80,6 +80,19 @@ public class ChallengeParticipant extends BaseTimeEntity {
     private String initialSceneKey;
 
     /**
+     * 편집본 길이(ms) — 앱 촬영 타이머가 이 값에 맞춰 돈다 (0020).
+     *
+     * <p><b>챌린지 원본 길이로 갈음하지 않는다.</b> 등록 검증이 원본 ±500ms 만 보장하므로
+     * 최대 0.5초가 어긋나는데, 그만큼 녹화 끝이 잘린다.
+     *
+     * <p>통짜 MP4 라 필요한 값이기도 하다 — HLS 면 재생목록의 {@code #EXTINF} 합으로
+     * 플레이어가 알아내지만, MP4 는 {@code moov} 를 읽기 전까지 길이를 모른다. 재생 전에
+     * 타이머 UI 를 그리려면 서버가 줘야 한다.
+     */
+    @Column(name = "edited_duration_ms")
+    private Integer editedDurationMs;
+
+    /**
      * 촬영 전 선택 화면(시안 10-2·10-3)에서 이 슬롯을 골랐을 때 썸네일 자리에 보이는
      * 이미지(AI팀 산출, changeSet 0017-02).
      *
@@ -123,7 +136,8 @@ public class ChallengeParticipant extends BaseTimeEntity {
 
     private ChallengeParticipant(Integer challengeSeq, Integer artistSeq, int slotOrder,
                                  Anchor anchor, String editedChallengeKey,
-                                 String initialSceneKey, String previewImageKey) {
+                                 String initialSceneKey, String previewImageKey,
+                                 Integer editedDurationMs) {
         this.challengeSeq = challengeSeq;
         this.artistSeq = artistSeq;
         this.slotOrder = slotOrder;
@@ -131,17 +145,20 @@ public class ChallengeParticipant extends BaseTimeEntity {
         this.editedChallengeKey = editedChallengeKey;
         this.initialSceneKey = initialSceneKey;
         this.previewImageKey = previewImageKey;
+        this.editedDurationMs = editedDurationMs;
     }
 
     /**
      * @param editedChallengeKey 편집본이 없으면 {@code null} — {@code initialSceneKey} 도 함께
      *                           {@code null} 이어야 한다(DB CHECK)
+     * @param editedDurationMs   편집본 길이. 편집본이 있으면 서비스가 필수로 받는다(§3.7.2)
      */
     public static ChallengeParticipant of(Integer challengeSeq, Integer artistSeq, int slotOrder,
                                           Anchor anchor, String editedChallengeKey,
-                                          String initialSceneKey, String previewImageKey) {
+                                          String initialSceneKey, String previewImageKey,
+                                          Integer editedDurationMs) {
         return new ChallengeParticipant(challengeSeq, artistSeq, slotOrder, anchor,
-                editedChallengeKey, initialSceneKey, previewImageKey);
+                editedChallengeKey, initialSceneKey, previewImageKey, editedDurationMs);
     }
 
     /** 앵커만 고친다(§3.7.9) — 슬롯 구성·순서는 그대로라 편집본·합성에 영향이 없다. */
@@ -156,7 +173,7 @@ public class ChallengeParticipant extends BaseTimeEntity {
      * 바뀌지 않고, 다음 합성부터 새 키를 쓴다.
      */
     public void replaceEditedKeys(String editedChallengeKey, String initialSceneKey,
-                                  String previewImageKey) {
+                                  String previewImageKey, Integer editedDurationMs) {
         if (editedChallengeKey != null) {
             this.editedChallengeKey = editedChallengeKey;
         }
@@ -165,6 +182,10 @@ public class ChallengeParticipant extends BaseTimeEntity {
         }
         if (previewImageKey != null) {
             this.previewImageKey = previewImageKey;
+        }
+        // 영상이 바뀌면 길이도 따라 바뀐다 — 옛 길이가 남으면 촬영 타이머가 어긋난다
+        if (editedDurationMs != null) {
+            this.editedDurationMs = editedDurationMs;
         }
     }
 

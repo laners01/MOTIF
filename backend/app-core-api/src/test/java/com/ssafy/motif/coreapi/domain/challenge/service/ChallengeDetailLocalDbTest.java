@@ -3,6 +3,7 @@ package com.ssafy.motif.coreapi.domain.challenge.service;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeParticipantItem;
 import com.ssafy.motif.domain.core.artist.Artist;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.artist.Subscription;
@@ -25,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,64 +95,70 @@ class ChallengeDetailLocalDbTest {
     }
 
     @Test
-    @DisplayName("슬롯은 slotOrder 오름차순 = 화면 좌→우 순서이고 anchor 가 함께 온다")
+    @DisplayName("§7.5 슬롯은 slotOrder 오름차순 = 화면 좌→우 순서이고 anchor 가 함께 온다")
     void participantsComeInSlotOrderWithAnchor() {
         Integer winter = newArtist("윈터");
         Integer ningning = newArtist("닝닝");
         // 일부러 뒤 슬롯을 먼저 넣는다 — 정렬이 삽입 순서가 아니라 slotOrder 라야 한다
         participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 1,
                 new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995),
-                "edited/1/n.mp4", "edited/1/n.jpg", "edited/1/np.jpg"));
+                "private/edited/1/n.mp4", "private/edited/1/n.jpg", "private/edited/1/np.jpg",
+                15_000));
         participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 0,
                 new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                "edited/1/w.mp4", "edited/1/w.jpg", null));
+                "private/edited/1/w.mp4", "private/edited/1/w.jpg", null, 15_000));
         entityManager.flush();
 
-        ChallengeDetailResponse detail = challengeQueryService.detail(fanSeq, challengeSeq);
+        List<ChallengeParticipantItem> slots =
+                challengeQueryService.participants(challengeSeq).list();
 
-        assertThat(detail.participants())
-                .extracting(ChallengeDetailResponse.Participant::slotOrder)
-                .containsExactly(0, 1);
-        assertThat(detail.participants())
-                .extracting(ChallengeDetailResponse.Participant::participantMask)
-                .containsExactly(1, 2);
-        assertThat(detail.participants())
-                .extracting(ChallengeDetailResponse.Participant::name)
-                .containsExactly("윈터", "닝닝");
-        assertThat(detail.participants().getFirst().anchor())
+        assertThat(slots).extracting(ChallengeParticipantItem::slotOrder).containsExactly(0, 1);
+        assertThat(slots).extracting(ChallengeParticipantItem::name).containsExactly("윈터", "닝닝");
+        assertThat(slots).extracting(ChallengeParticipantItem::challengeParticipantSeq)
+                .doesNotContainNull();
+        assertThat(slots.getFirst().anchor())
                 .isEqualTo(new ChallengeDetailResponse.Anchor(0.22, 0.36, 0.0995));
     }
 
     /**
-     * 0019 — 편집본이 슬롯에 붙으면서 {@code editedChallenges[]} 배열이 없어졌다.
-     * 고를 수 있는지는 슬롯마다 {@code selectable} 이 답한다.
+     * 0020 — {@code selectable} 을 없애고 {@code initialSceneUrl} 유무로 판정한다.
+     * DB CHECK 가 편집본 영상 ↔ 첫 장면을 짝으로 강제하므로 등가가 성립한다.
      */
     @Test
-    @DisplayName("편집본이 없는 슬롯은 selectable=false 다 — 화면이 미리 잠근다")
-    void slotWithoutEditedIsNotSelectable() {
+    @DisplayName("편집본이 없는 슬롯은 initialSceneUrl 이 null 이다 — 화면이 그걸로 잠근다")
+    void slotWithoutEditedHasNoSceneUrl() {
         Integer winter = newArtist("윈터");
         Integer ningning = newArtist("닝닝");
         participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 0,
                 new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                "edited/1/w.mp4", "edited/1/w.jpg", "edited/1/wp.jpg"));
+                "private/edited/1/w.mp4", "private/edited/1/w.jpg", "private/edited/1/wp.jpg",
+                15_000));
         participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 1,
-                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995), null, null, null));
+                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995), null, null, null, null));
         entityManager.flush();
 
-        ChallengeDetailResponse detail = challengeQueryService.detail(fanSeq, challengeSeq);
+        List<ChallengeParticipantItem> slots =
+                challengeQueryService.participants(challengeSeq).list();
 
-        assertThat(detail.participants())
-                .extracting(ChallengeDetailResponse.Participant::selectable)
-                .containsExactly(true, false);
-        // 선택 화면 이미지도 슬롯에 붙는다 — 키가 없으면 null 이고 클라이언트가 썸네일로
-        // 폴백한다. 키가 있는 쪽의 URL 은 CDN 설정에 달려 있어 여기서 값을 보지 않는다
-        assertThat(detail.participants().getLast().previewImageUrl()).isNull();
+        // 편집본 없는 슬롯은 두 이미지가 전부 null 이다. 있는 쪽의 URL 은 CDN·서명 설정에
+        // 달려 있어 여기서 값을 보지 않는다
+        assertThat(slots.getLast().initialSceneUrl()).isNull();
+        assertThat(slots.getLast().previewImageUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("§7.2 상세에는 슬롯이 없다 — §7.5 로 떨어져 나갔다(0020)")
+    void detailNoLongerCarriesSlots() {
+        assertThat(challengeQueryService.detail(fanSeq, challengeSeq)).isNotNull();
+        assertThat(ChallengeDetailResponse.class.getRecordComponents())
+                .extracting(java.lang.reflect.RecordComponent::getName)
+                .doesNotContain("participants");
     }
 
     @Test
     @DisplayName("슬롯이 없으면 빈 배열이다 — 교체 인물 없는 챌린지")
     void noSlotsYieldsEmptyList() {
-        assertThat(challengeQueryService.detail(fanSeq, challengeSeq).participants()).isEmpty();
+        assertThat(challengeQueryService.participants(challengeSeq).list()).isEmpty();
     }
 
     @Test

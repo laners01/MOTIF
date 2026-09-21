@@ -18,14 +18,17 @@ import java.util.List;
  * {@code INVALID_PARAMETER} 의 {@code data} 로 그대로 내보낸다 — {@code OrderCreateRequest}
  * 와 같은 봉투다(README §1.2).
  *
- * <p><b>{@code participantMask} 만 예외적으로 무시한다.</b> 반대 형태의 칸
+ * <p><b>{@code challengeParticipantSeq} 만 예외적으로 무시한다.</b> 반대 형태의 칸
  * ({@code challengeSeq}·{@code assetSeq})은 거절하는데 이것만 받아 넘기는 이유는
  * MOTIF 분기의 명시적 계약이기 때문이다(S15P21D104-246 — "받아도 무시").
  *
- * @param jobType         {@code CHALLENGE} | {@code MOTIF}
- * @param challengeSeq    CHALLENGE 일 때 필수 — 대상 챌린지
- * @param assetSeq        MOTIF 일 때 필수 — 대상 에셋
- * @param participantMask CHALLENGE 의 교체 슬롯 <b>하나</b>(단일 비트). {@code 0}·생략은 무교체다
+ * @param jobType                 {@code CHALLENGE} | {@code MOTIF}
+ * @param challengeSeq            CHALLENGE 일 때 필수 — 대상 챌린지
+ * @param assetSeq                MOTIF 일 때 필수 — 대상 에셋
+ * @param challengeParticipantSeq CHALLENGE 의 교체 슬롯. <b>생략이면 무교체</b>(원본 위 합성).
+ *                                0020 이전에는 {@code participantMask} 비트값이었는데,
+ *                                앱이 비트 연산을 하게 두지 않으려고 §7.5 가 준 seq 를
+ *                                그대로 받는 형태로 바꿨다 — {@code 0} 이라는 예약값도 사라졌다
  * @param contentLength   올릴 촬영본의 바이트 수. <b>이 값이 presigned URL 서명에 박힌다</b> —
  *                        SigV4 의 서명된 {@code Content-Length} 는 상한이 아니라 <b>정확히
  *                        일치</b>해야 하므로, 서버가 상한값을 대신 넣으면 그 크기 파일만
@@ -48,12 +51,11 @@ public record CompositeJobCreateRequest(
         Integer assetSeq,
 
         @Schema(description = """
-                교체할 슬롯 하나 — §7.2 participants[].participantMask 를 그대로 보낸다.
-                단일 비트(1·2·4·8)여야 하며 여러 슬롯을 OR 로 합산하지 않는다(400).
-                0 이거나 생략하면 무교체(원본 위 합성)다. MOTIF 에서는 무시된다""",
-                example = "1")
-        @PositiveOrZero
-        Integer participantMask,
+                교체할 슬롯 — §7.5 가 준 challengeParticipantSeq 를 그대로 보낸다.
+                생략하면 무교체(원본 위 합성)다. MOTIF 에서는 무시된다""",
+                example = "31")
+        @Positive
+        Integer challengeParticipantSeq,
 
         @Schema(description = """
                 올릴 촬영본의 바이트 수. 이 값이 서명에 박히므로 PUT 의 Content-Length 와
@@ -65,7 +67,7 @@ public record CompositeJobCreateRequest(
 
     /** 무교체 — {@code challenge_participant_seq = NULL} 로 원본 위에 합성한다 (§13.1). */
     public boolean isNoReplacement() {
-        return participantMask == null || participantMask == 0;
+        return challengeParticipantSeq == null;
     }
 
     /**

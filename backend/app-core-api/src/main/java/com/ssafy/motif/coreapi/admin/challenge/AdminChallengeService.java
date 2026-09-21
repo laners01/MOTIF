@@ -128,14 +128,13 @@ public class AdminChallengeService {
      * 그래서 예외를 잡아 결과로 옮기는 모양을 택했다.
      */
     public ChallengeValidateResponse validate(ChallengeCreateRequest request) {
-        List<Integer> slotMasks = slotMasks(request.participants().size());
         try {
             verify(request);
-            return new ChallengeValidateResponse(true, slotMasks, List.of());
+            return new ChallengeValidateResponse(true, List.of());
         } catch (BusinessException e) {
             ErrorCode code = e.getErrorCode();
             log.info("사전 검증 실패: code={} message={}", code.getCode(), e.getMessage());
-            return new ChallengeValidateResponse(false, slotMasks,
+            return new ChallengeValidateResponse(false,
                     List.of(new ChallengeValidateResponse.Issue(
                             code.getCode(), code.getMessage(), e.getData())));
         }
@@ -221,11 +220,6 @@ public class AdminChallengeService {
                         "존재하지 않는 챌린지: challengeSeq=" + challengeSeq));
     }
 
-    /** 슬롯 n 개의 마스크 {@code 1, 2, 4, 8} — 슬롯 i 는 {@code 1 << i} 다(§3.7.8 화면 표). */
-    static List<Integer> slotMasks(int slotCount) {
-        return IntStream.range(0, slotCount).map(SlotRules::participantMask).boxed().toList();
-    }
-
     private ChallengeDetailResponse detailOf(Challenge challenge) {
         Integer seq = challenge.getChallengeSeq();
         List<ChallengeParticipant> participants =
@@ -261,12 +255,12 @@ public class AdminChallengeService {
                         p.getChallengeParticipantSeq(),
                         artistSummary(p.getArtistSeq(), artists),
                         p.getSlotOrder(),
-                        p.participantMask(),
                         anchorOf(p),
                         mediaUrlResolver.resolve(p.getEditedChallengeKey()),
                         mediaUrlResolver.resolve(p.getInitialSceneKey()),
                         mediaUrlResolver.resolve(p.getPreviewImageKey()),
                         p.getEditedChallengeKey(), p.getInitialSceneKey(), p.getPreviewImageKey(),
+                        p.getEditedDurationMs(),
                         jobRefs.getOrDefault(p.getChallengeParticipantSeq(), 0L))).toList(),
                 challengeRepository.countActiveJobs(seq));
     }
@@ -347,7 +341,9 @@ public class AdminChallengeService {
             ParticipantRequest p = participants.get(i);
             participantRepository.save(ChallengeParticipant.of(
                     challengeSeq, p.artistSeq(), i, toAnchor(p.anchor()),
-                    p.editedChallengeKey(), p.initialSceneKey(), p.previewImageKey()));
+                    p.editedChallengeKey(), p.initialSceneKey(), p.previewImageKey(),
+                    // 편집본이 있으면 SlotRules 가 이미 필수로 확인했다
+                    p.durationMs() == null ? null : Math.toIntExact(p.durationMs())));
         }
     }
 
@@ -452,21 +448,30 @@ public class AdminChallengeService {
                     "편집본이 없는 슬롯은 editedChallengeKey·initialSceneKey 를 함께 보내야 한다",
                     List.of("EDITED_KEYS_INCOMPLETE"));
         }
+        // 영상을 새로 올리면 길이도 함께 받는다 — §7.6 이 앱에 내보내는 값이라
+        // 옛 길이가 남으면 촬영 타이머가 새 영상과 어긋난다 (0020)
+        if (request.editedChallengeKey() != null && request.durationMs() == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "편집본 영상을 바꾸면 durationMs 도 함께 보내야 한다",
+                    List.of("EDITED_DURATION_REQUIRED"));
+        }
         adminMediaService.requireUploaded(keys);
         if (request.durationMs() != null) {
             videoRules.checkEditedDuration(request.durationMs(), challenge.getDurationMs());
         }
 
         slot.replaceEditedKeys(request.editedChallengeKey(), request.initialSceneKey(),
-                request.previewImageKey());
+                request.previewImageKey(),
+                request.durationMs() == null ? null : Math.toIntExact(request.durationMs()));
 
         auditLogger.write(admin, "REPLACE_EDITED_KEYS", "CHALLENGE_PARTICIPANT",
                 challengeParticipantSeq, AdminAuditLogger.RESULT_OK);
         return new ParticipantEditedResponse(challengeParticipantSeq, slot.getArtistSeq(),
-                slot.getSlotOrder(), slot.participantMask(),
+                slot.getSlotOrder(),
                 mediaUrlResolver.resolve(slot.getEditedChallengeKey()),
                 mediaUrlResolver.resolve(slot.getInitialSceneKey()),
-                mediaUrlResolver.resolve(slot.getPreviewImageKey()));
+                mediaUrlResolver.resolve(slot.getPreviewImageKey()),
+                slot.getEditedDurationMs());
     }
 
     /** 등록 전 검증 전체 (§3.7.2 검증 1~5항) — 순서는 명세 그대로다. */
@@ -555,7 +560,7 @@ public class AdminChallengeService {
                 participantRepository.findByChallengeSeqOrderBySlotOrderAsc(seq).stream()
                         .map(p -> new ChallengeSlotsResponse.Participant(
                                 p.getChallengeParticipantSeq(), p.getArtistSeq(),
-                                p.getSlotOrder(), p.participantMask(), p.hasEdited()))
+                                p.getSlotOrder(), p.hasEdited()))
                         .toList());
     }
 }

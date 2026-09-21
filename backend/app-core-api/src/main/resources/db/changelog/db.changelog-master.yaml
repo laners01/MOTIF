@@ -54,3 +54,5 @@ databaseChangeLog:
       file: db/changelog/sql/0018-artist-aliases.sql
   - include:
       file: db/changelog/sql/0019-participant-edited-merge.sql
+  - include:
+      file: db/changelog/sql/0020-edited-private-duration.sql

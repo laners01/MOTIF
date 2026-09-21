@@ -67,13 +67,21 @@ class AdminMediaServiceTest {
         assertThat(response.uploadUrl()).contains(BUCKET).contains("X-Amz-Signature");
     }
 
+    /**
+     * 0020 — 앱이 §7.6 으로 편집본을 직접 받게 되면서 <b>보호 등급</b>으로 올라갔다.
+     * 프리픽스가 곧 등급이라({@code MediaKeys.isProtected}, CloudFront 캐시 동작
+     * {@code private/*}) 여기가 {@code edited/} 로 되돌아가면 서명이 장식이 된다 —
+     * 서버는 서명을 붙이는데 CloudFront 가 검증하지 않아 무서명 요청이 통과한다.
+     */
     @Test
-    @DisplayName("편집본은 challengeSeq 아래에, 등록 전이면 edited/pending/ 아래에 놓인다")
+    @DisplayName("편집본은 private/edited/{challengeSeq} 아래에, 등록 전이면 .../pending/ 아래에 놓인다")
     void 편집본_키() {
         assertThat(service.presign(new PresignRequest(AdminMediaKind.EDITED_VIDEO, "video/mp4", 1L, 11))
-                .objectKey()).startsWith("edited/11/").endsWith(".mp4");
+                .objectKey()).startsWith("private/edited/11/").endsWith(".mp4");
         assertThat(service.presign(new PresignRequest(AdminMediaKind.EDITED_SCENE, "image/jpeg", 1L, null))
-                .objectKey()).startsWith("edited/pending/").endsWith(".jpg");
+                .objectKey()).startsWith("private/edited/pending/").endsWith(".jpg");
+        assertThat(service.presign(new PresignRequest(AdminMediaKind.EDITED_PREVIEW, "image/jpeg", 1L, 11))
+                .objectKey()).startsWith("private/edited/11/").endsWith(".jpg");
     }
 
     @Test

@@ -3,7 +3,6 @@ package com.ssafy.motif.coreapi.domain.composite.service;
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.error.FieldErrorResponse;
 import com.ssafy.motif.common.exception.BusinessException;
-import com.ssafy.motif.coreapi.admin.challenge.SlotRules;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaProperties;
 import com.ssafy.motif.coreapi.domain.asset.AssetErrorCode;
 import com.ssafy.motif.coreapi.domain.asset.dto.MyAccess;
@@ -217,16 +216,16 @@ public class CompositeJobCommandService {
     /**
      * CHALLENGE — 챌린지가 살아 있는지 + 고른 슬롯에 편집본이 있는지.
      *
-     * <p>{@code participantMask} 가 0·생략이면 무교체라 슬롯을 찾지 않고 {@code null} 이다
-     * (§13.1 — 원본 위 합성).
+     * <p>{@code challengeParticipantSeq} 가 생략이면 무교체라 슬롯을 찾지 않고
+     * {@code null} 이다 (§13.1 — 원본 위 합성).
      *
-     * <p><b>마스크는 단일 비트여야 한다</b>(0019). 편집본이 슬롯 1개당 1개가 되면서 2명
-     * 이상을 한 번에 교체하는 조합이 없어졌다 — 조합 마스크가 오면 형태 오류로 400 이다.
-     * 400 으로 가르는 이유는 "없는 편집본" 이 아니라 <b>보낼 수 없는 값</b>이기 때문이다.
+     * <p><b>슬롯이 그 챌린지 것인지 대조한다</b>(DB SPEC §37 반정규화 정합). 잡 행이
+     * {@code challenge_seq} 와 {@code challenge_participant_seq} 를 함께 들고 있어
+     * 둘이 어긋나면 합성 베이스와 챌린지가 다른 잡이 만들어진다 — FK 는 각자만 본다.
      *
-     * <p>{@code EDITED_CHALLENGE_NOT_FOUND} 는 두 경우다 — 그 자리에 슬롯이 없거나, 슬롯은
-     * 있는데 어드민이 편집본을 아직 안 올렸거나. 전조합 완결성 강제가 없어졌으므로 후자는
-     * 정상적으로 일어날 수 있고, §7.2 의 {@code selectable} 이 화면에서 미리 걸러 준다.
+     * <p>{@code EDITED_CHALLENGE_NOT_FOUND} 는 세 경우다 — 슬롯이 없거나, 다른 챌린지의
+     * 슬롯이거나, 슬롯은 맞는데 어드민이 편집본을 아직 안 올렸거나. 셋 다 같은 코드인
+     * 이유는 §1.8 이다: 남의 챌린지 슬롯 seq 를 넣어 보고 존재를 읽을 수 없어야 한다.
      *
      * @return 슬롯 seq. 무교체면 {@code null}
      */
@@ -239,20 +238,15 @@ public class CompositeJobCommandService {
         if (request.isNoReplacement()) {
             return null;
         }
-        int mask = request.participantMask();
-        if (!SlotRules.isSingleSlotMask(mask)) {
-            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
-                    "participantMask 는 슬롯 하나의 단일 비트여야 한다: " + mask,
-                    List.of(new FieldErrorResponse("participantMask",
-                            "슬롯 하나만 고를 수 있습니다 (1·2·4·8).")));
-        }
-        return participantRepository
-                .findByChallengeSeqAndSlotOrder(challengeSeq, SlotRules.slotOrderOf(mask))
+        Integer participantSeq = request.challengeParticipantSeq();
+        return participantRepository.findById(participantSeq)
+                .filter(slot -> slot.getChallengeSeq().equals(challengeSeq))
                 .filter(ChallengeParticipant::hasEdited)
                 .map(ChallengeParticipant::getChallengeParticipantSeq)
                 .orElseThrow(() -> new BusinessException(
                         ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND,
-                        "challengeSeq: " + challengeSeq + ", participantMask: " + mask));
+                        "challengeSeq: " + challengeSeq
+                                + ", challengeParticipantSeq: " + participantSeq));
     }
 
     /**

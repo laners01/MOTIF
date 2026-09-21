@@ -119,7 +119,9 @@ S15P21D104-181
 | `AdminIpFilter`(404) · `AdminAuthFilter`(쿠키+Bearer) · `AdminJwtProvider` · `AdminSecurityConfig`(@Order(1)) | `app-core-api/.../admin/security/` | 588 |
 | `AdminPaths` — 어드민 경로 상수 | `app-core-api/.../admin/` | 588 |
 | **슬롯 앵커**(`ChallengeParticipant.Anchor` · `AnchorRequest` · §3.7.9 `updateAnchor`) — bbox 는 삭제됨. 앱 §7.2 `anchor` | `domain-core/.../challenge/` · `app-core-api/.../admin/challenge/` | S15P21D104-618 |
-| **편집본이 슬롯 행에 있다** — `ChallengeParticipant.editedChallengeKey`·`initialSceneKey`·`previewImageKey` · `slotOrder`(0-based) · 대리키 `challengeParticipantSeq`. `EditedChallenge` 엔티티·테이블은 **삭제됨**(0019) | `domain-core/.../challenge/ChallengeParticipant` | 0019 |
+| **편집본이 슬롯 행에 있다** — `ChallengeParticipant.editedChallengeKey`·`initialSceneKey`·`previewImageKey`·`editedDurationMs` · `slotOrder`(0-based) · 대리키 `challengeParticipantSeq`. `EditedChallenge` 엔티티·테이블은 **삭제됨**(0019) | `domain-core/.../challenge/ChallengeParticipant` | 0019 · 0020 |
+| **§7.5 슬롯 목록 · §7.6 편집본 영상** `ChallengeController.participants` · `ChallengeParticipantController` · `ChallengeQueryService.participants`·`editedVideo` | `app-core-api/.../domain/challenge/` | 0020 |
+| **단일 영상 파일 서명** `MediaUrlResolver.resolveVideoFile` (짧은 만료) — 이미지용 `resolve`(6시간)·HLS 용 `resolvePlaylist` 와 셋이 갈린다 | `app-core-api/.../global/media/` | 0020 |
 | presign API `AdminMediaController`·`AdminMediaService`·`AdminMediaKind` | `app-core-api/.../admin/media/` | 588 |
 | 영상 검증 `VideoRules` (폼이 보낸 길이·해상도 대조) | `app-core-api/.../admin/media/` | 589 |
 | 감사 로그 `AdminAuditLogger` + logback `ADMIN_AUDIT` 어펜더 | `app-core-api/.../admin/audit/` · `logback-spring.xml` | 555 |
@@ -184,15 +186,21 @@ mediaJobPublisher.publish(
 // 챌린지 슬롯을 다룰 때 — 순서·마스크는 서버가 정한다. 비트를 직접 쓰지 않는다
 SlotRules.checkParticipants(participants);   // 중복·앵커·편집본 키 짝 (메인도 슬롯이 된다)
 adminMediaService.requireUploaded(keys);     // HEAD, 부재 키를 data 에 (보낸 키만)
-// slotOrder 는 요청 배열의 인덱스 그대로, 마스크는 1 << slotOrder 로 파생한다
-SlotRules.participantMask(slotOrder);        // 슬롯 → 마스크 (AI 페이로드)
-SlotRules.slotOrderOf(mask);                 // 마스크 → 슬롯 (§13.1)
-SlotRules.isSingleSlotMask(mask);            // 조합 마스크를 400 으로 거른다
+// slotOrder 는 요청 배열의 인덱스 그대로다. 마스크는 AI 페이로드 안에만 남고
+// 엔티티가 파생한다 — 파생 지점을 둘로 두면 한쪽만 고쳤을 때 어긋난다
+participant.participantMask();               // 1 << slotOrder (AI 서버 명세 §3.2)
 //
-// 조합 편집본을 되살리지 마라 (0019) — 편집본은 슬롯 1개당 1개이고 사용자는 한 명만
+// 앱·어드민 API 에 마스크를 되살리지 마라 (0020) — 슬롯을 가리키는 값은
+// challengeParticipantSeq 하나다(§7.5·§7.6·§13.1). 앱이 비트 연산을 하게 두지 않는다.
+// 조합 편집본도 되살리지 마라 (0019) — 편집본은 슬롯 1개당 1개이고 사용자는 한 명만
 // 고른다. 2ⁿ−1 완결성 검증(editedMasks·EDITED_SET_INCOMPLETE)은 그래서 삭제됐다.
 // slot_order 를 display_order 처럼 "옮겨도 되는 순서" 로 다루지 마라 — 앵커·편집본과
 // 짝이고 AI 마스크가 여기서 나오므로, 바꾸면 합성이 교체하는 인물이 바뀐다.
+//
+// 편집본 키를 edited/ 로 되돌리지 마라 (0020) — 서명 여부는 프리픽스가 가르고
+// (MediaKeys.isProtected, CloudFront 캐시 동작 private/*), 옮기면 서버는 서명을
+// 붙이는데 CloudFront 가 검증하지 않아 무서명 요청이 그대로 통과한다.
+// 편집본에 durationMs 없이 키만 받지 마라 — §7.6 이 null 을 내보내 촬영 타이머가 멈춘다.
 ```
 
 ```java

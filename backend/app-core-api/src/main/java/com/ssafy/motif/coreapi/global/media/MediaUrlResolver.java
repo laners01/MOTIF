@@ -39,6 +39,25 @@ public class MediaUrlResolver {
     }
 
     /**
+     * 단일 <b>영상 파일</b> 키 → 재생 주소 (0020 — §7.6 편집본).
+     *
+     * <p>{@link #resolve} 와 같은 단일 파일인데 만료만 짧다. 이미지에 긴 만료를 준 근거
+     * ("403 이면 깨진 채 남는다")가 여기엔 없다 — 만료되면 앱이 §7.6 을 다시 부른다.
+     *
+     * <p>{@link #resolvePlaylist} 와는 <b>대상이 다르다</b>. 저쪽은 HLS 라 프리픽스 전체에
+     * 통하는 서명이 필요하고, 여기는 파일 하나라 URL 하나만 서명하면 끝난다. 편집본은
+     * {@code job.media} 를 타지 않아 렌디션이 없으므로 이쪽이다.
+     */
+    public String resolveVideoFile(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        return MediaKeys.isProtected(key)
+                ? protectedResolver.resolveVideo(key)
+                : publicResolver.resolve(key);
+    }
+
+    /**
      * 마스터 재생목록 키 → <b>재생 주소</b> (ADR-0012).
      *
      * <p>{@link #resolve} 와 나누는 이유는 <b>HLS 가 단일 파일이 아니기 때문이다</b>.

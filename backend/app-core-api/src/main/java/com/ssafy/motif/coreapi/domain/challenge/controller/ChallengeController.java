@@ -4,8 +4,10 @@ import com.ssafy.motif.common.annotation.ApiController;
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.coreapi.domain.challenge.docs.ChallengeControllerDocs;
 import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeParticipantItem;
 import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeLikeService;
 import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeQueryService;
 import com.ssafy.motif.coreapi.domain.view.ViewService;
@@ -89,6 +91,21 @@ public class ChallengeController implements ChallengeControllerDocs {
             @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable Integer challengeSeq) {
         return ApiResponse.success(challengeQueryService.detail(user.userSeq(), challengeSeq));
+    }
+
+    /**
+     * §7.5 슬롯 목록 — 촬영 전 "함께할 아티스트" 선택 화면 (0020).
+     *
+     * <p>§7.2 에서 떼어 냈다. 영상은 없고, 고른 뒤 §7.6 으로 받는다.
+     *
+     * <p>비페이지다 — 슬롯은 최대 4개로 고정이라 커서를 둘 이유가 없다(§5.4 봉투).
+     */
+    @Override
+    @GetMapping("/{challengeSeq}/participants")
+    public ApiResponse<ListResponse<ChallengeParticipantItem>> participants(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Integer challengeSeq) {
+        return ApiResponse.success(challengeQueryService.participants(challengeSeq));
     }
 
     /**

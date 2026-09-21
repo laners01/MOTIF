@@ -19,8 +19,13 @@ import java.util.Set;
  * ({@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant}).
  *
  * <p><b>순서는 서버가 정한다.</b> 슬롯은 요청 배열 순서(화면 좌→우)대로 {@code slotOrder = index}
- * 를 받고, AI 접수 페이로드의 마스크는 거기서 {@code 1 << slotOrder} 로 파생된다. 어드민이
- * 비트값이나 순서를 손으로 넣지 않으므로 인물과 자리가 어긋날 수 없다.
+ * 를 받는다. 어드민이 순서를 손으로 넣지 않으므로 인물과 자리가 어긋날 수 없다.
+ *
+ * <p><b>마스크 헬퍼는 여기 없다</b>(0020). 앱·어드민 API 가 슬롯을
+ * {@code challengeParticipantSeq} 로 가리키게 되면서 마스크가 남은 곳은 AI 접수 페이로드
+ * 하나뿐이고, 그 파생은
+ * {@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant#participantMask()} 가
+ * 맡는다 — 파생 지점을 둘로 두면 한쪽만 고쳤을 때 어긋난다.
  *
  * <p>{@link com.ssafy.motif.coreapi.admin.media.VideoRules} 와 같은 자리의 규칙 모음이고
  * 같은 성질이다 — <b>순수 계산만 한다</b>(I/O·DB 없음). 그래서 DB 없는 CI 에서 도는
@@ -45,26 +50,6 @@ public final class SlotRules {
     }
 
     /**
-     * 슬롯 {@code slotOrder} 의 AI 페이로드 마스크 — <b>단일 비트</b>다.
-     *
-     * <p>저장하지 않고 파생한다(AI 서버 명세 §3.2). 엔티티 쪽 짝은
-     * {@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant#participantMask()} 다.
-     */
-    public static int participantMask(int slotOrder) {
-        return 1 << slotOrder;
-    }
-
-    /** 마스크(단일 비트) → 슬롯 순서. §13.1 이 앱이 보낸 마스크를 슬롯으로 되돌릴 때 쓴다. */
-    public static int slotOrderOf(int singleBitMask) {
-        return Integer.numberOfTrailingZeros(singleBitMask);
-    }
-
-    /** 단일 비트인가 — {@code 0} 과 조합 마스크를 모두 거른다. §13.1 의 입력 검증이다. */
-    public static boolean isSingleSlotMask(int mask) {
-        return mask > 0 && (mask & (mask - 1)) == 0;
-    }
-
-    /**
      * 슬롯 검증 (§3.7.2 검증 2항) — 위반을 <b>전부 모아</b> 한 번에 던진다.
      *
      * <p>{@code data} 에 위반 필드 배열을 싣는다(§3.7 실패표 "data 필드 배열").
@@ -83,6 +68,9 @@ public final class SlotRules {
      * 장면이 없으면 DB CHECK({@code ck_challenge_participants_edited})가 거부한다. 둘 다
      * 비어 있는 것은 정상이다: 편집본을 아직 안 만든 슬롯이고, 사용자가 그 슬롯을 고르면
      * §13.1 이 막는다.
+     *
+     * <p><b>편집본에는 길이가 따라온다</b>({@code EDITED_DURATION_REQUIRED}, 0020) — §7.6 이
+     * 앱에 내보내는 값이라 없으면 촬영 타이머를 그릴 수 없다.
      */
     public static void checkParticipants(List<ParticipantRequest> participants) {
         List<String> violations = new ArrayList<>();
@@ -104,6 +92,10 @@ public final class SlotRules {
             // 편집본 없이 선택 화면 이미지만 올리면 화면이 고를 수 없는 그림이 남는다
             if (blank(p.editedChallengeKey()) && !blank(p.previewImageKey())) {
                 violations.add("PREVIEW_WITHOUT_EDITED[" + i + "]");
+            }
+            // 길이 없이 편집본만 받으면 §7.6 이 null 을 내보내고 앱 촬영 타이머가 멈춘다
+            if (!blank(p.editedChallengeKey()) && p.durationMs() == null) {
+                violations.add("EDITED_DURATION_REQUIRED[" + i + "]");
             }
         }
         if (!violations.isEmpty()) {

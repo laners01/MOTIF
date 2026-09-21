@@ -16,14 +16,23 @@ public enum AdminMediaKind {
     /** {@code challenges/{uuid}.mp4} — {@code raw/} 는 사용자 원본 전용이라 분리한다. */
     CHALLENGE_VIDEO(Category.VIDEO, "challenges", ".mp4", false),
 
-    /** {@code edited/{challengeSeq}/{uuid}.mp4} — 기본 경로는 AI팀 직접 업로드, presign 은 대체 경로. */
-    EDITED_VIDEO(Category.VIDEO, "edited", ".mp4", true),
+    /**
+     * {@code private/edited/{challengeSeq}/{uuid}.mp4} — 기본 경로는 AI팀 직접 업로드,
+     * presign 은 대체 경로.
+     *
+     * <p><b>{@code private/} 아래인 것이 의도다</b>(0020). 앱이 §7.6 으로 편집본 영상을
+     * 직접 받게 되면서 서명이 필요해졌는데, 서명 여부는 {@link com.ssafy.motif.coreapi.domain.media.MediaKeys#isProtected}
+     * 와 CloudFront 캐시 동작({@code private/*})이 <b>프리픽스로</b> 가른다. 여기를
+     * {@code edited/} 로 되돌리면 서버는 서명을 붙이는데 CloudFront 가 검증하지 않아
+     * 무서명 요청이 그대로 통과한다 — 예외도 로그도 없이 보호가 풀린다.
+     */
+    EDITED_VIDEO(Category.VIDEO, "private/edited", ".mp4", true),
 
-    /** {@code edited/{challengeSeq}/{uuid}.jpg} — 편집본 첫 장면. */
-    EDITED_SCENE(Category.IMAGE, "edited", ".jpg", true),
+    /** {@code private/edited/{challengeSeq}/{uuid}.jpg} — 편집본 첫 장면. */
+    EDITED_SCENE(Category.IMAGE, "private/edited", ".jpg", true),
 
-    /** {@code edited/{challengeSeq}/{uuid}.jpg} — 조합 선택 화면 이미지(S15P21D104-618). 첫 장면과 같은 자리·다른 용도라 로그에서 구분되게 kind 만 나눈다. */
-    EDITED_PREVIEW(Category.IMAGE, "edited", ".jpg", true),
+    /** {@code private/edited/{challengeSeq}/{uuid}.jpg} — 슬롯 선택 화면 이미지(S15P21D104-618). 첫 장면과 같은 자리·다른 용도라 로그에서 구분되게 kind 만 나눈다. */
+    EDITED_PREVIEW(Category.IMAGE, "private/edited", ".jpg", true),
 
     /** {@code assets/{uuid}.mp4} — 모티프 에셋 미리보기. */
     ASSET_VIDEO(Category.VIDEO, "assets", ".mp4", false),

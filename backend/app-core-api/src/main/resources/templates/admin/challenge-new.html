@@ -36,10 +36,10 @@
 
     <section>
         <!--/* 슬롯과 편집본이 한 표다 — 편집본이 슬롯 1개당 1개라 조합 매트릭스가 없어졌다(0019). */-->
-        <h2>3. 슬롯 · 편집본 <span class="muted">— 화면 좌→우 순서, 0~4개. 순서가 곧 slotOrder 이고 participantMask 는 1 &lt;&lt; slotOrder 다(§3.7.2). 메인 아티스트도 슬롯이 될 수 있다 — 영상에 나오는 사람이면 넣는다. 편집본은 <b>그 사람을 지운 영상</b>이며 한 행은 영상·첫 장면을 함께 올리거나 비운다</span></h2>
+        <h2>3. 슬롯 · 편집본 <span class="muted">— 화면 좌→우 순서, 0~4개. 순서가 곧 slotOrder 다(§3.7.2). 메인 아티스트도 슬롯이 될 수 있다 — 영상에 나오는 사람이면 넣는다. 편집본은 <b>그 사람을 지운 영상</b>이며 한 행은 영상·첫 장면을 함께 올리거나 비운다</span></h2>
         <table>
             <thead>
-            <tr><th>#</th><th>mask</th><th>아티스트</th><th>x</th><th>y</th><th>반지름</th>
+            <tr><th>#</th><th>아티스트</th><th>x</th><th>y</th><th>반지름</th>
                 <th>편집본 영상</th><th>첫 장면</th><th>선택 화면</th><th>길이(ms)</th><th>완료</th><th></th></tr>
             </thead>
             <tbody id="slots"></tbody>
@@ -70,7 +70,6 @@
     <template id="slot-row">
         <tr>
             <td class="idx"></td>
-            <td class="mask"></td>
             <td><select class="slot-artist"><option value="">선택</option></select></td>
             <td><input type="number" min="0" max="1" step="0.001" data-k="x"></td>
             <td><input type="number" min="0" max="1" step="0.001" data-k="y"></td>

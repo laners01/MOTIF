@@ -1,6 +1,7 @@
 package com.ssafy.motif.coreapi.admin.challenge;
 
 import com.ssafy.motif.common.error.AdminErrorCode;
+import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
@@ -111,29 +112,43 @@ class AdminChallengeServiceLocalDbTest {
     }
 
     @Test
-    @DisplayName("n=1 — 슬롯 1개, 순서 0·마스크 1, 편집본이 같은 행에 붙는다")
+    @DisplayName("n=1 — 슬롯 1개, 순서 0, 편집본이 같은 행에 붙는다")
     void 슬롯_하나_등록() {
         ChallengeSlotsResponse response = create(List.of(edited(newArtist())));
 
         assertThat(response.participants()).singleElement().satisfies(p -> {
             assertThat(p.slotOrder()).isZero();
-            assertThat(p.participantMask()).isEqualTo(1);
+            assertThat(p.challengeParticipantSeq()).isNotNull();
             assertThat(p.hasEdited()).isTrue();
         });
         assertThat(rows("challenge_participants", response.challengeSeq())).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("n=2 — 배열 순서가 곧 slotOrder 이고 마스크는 1·2 다")
+    @DisplayName("n=2 — 배열 순서가 곧 slotOrder 다")
     void 슬롯_둘_등록() {
         ChallengeSlotsResponse response = create(
                 List.of(edited(newArtist()), edited(newArtist())));
 
         assertThat(response.participants()).extracting(ChallengeSlotsResponse.Participant::slotOrder)
                 .containsExactly(0, 1);
-        assertThat(response.participants()).extracting(ChallengeSlotsResponse.Participant::participantMask)
-                .containsExactly(1, 2);
         assertThat(rows("challenge_participants", response.challengeSeq())).isEqualTo(2);
+    }
+
+    /**
+     * 0020 — §7.6 이 길이를 앱에 내보내므로 등록 때 저장해 둔다. 예전에는 원본 ±500ms
+     * 대조에만 쓰고 버렸다.
+     */
+    @Test
+    @DisplayName("편집본 길이가 행에 남는다 — 앱 촬영 타이머가 쓰는 값이다")
+    void 편집본_길이_저장() {
+        ChallengeSlotsResponse created = create(List.of(
+                withDuration(edited(newArtist()), ORIGIN_DURATION_MS + 120)));
+
+        assertThat(scalar("select edited_duration_ms from motif_core.challenge_participants "
+                + "where challenge_participant_seq = ?1",
+                created.participants().getFirst().challengeParticipantSeq()))
+                .isEqualTo(ORIGIN_DURATION_MS + 120);
     }
 
     @Test
@@ -215,10 +230,12 @@ class AdminChallengeServiceLocalDbTest {
     @DisplayName("S3 에 없는 키는 409 MEDIA_NOT_UPLOADED — data 에 부재 키가 담긴다")
     void 업로드되지_않은_키() {
         long before = challengeCount();
+        // 길이는 채워 둔다 — 비우면 슬롯 규칙(EDITED_DURATION_REQUIRED)이 HEAD 보다 먼저 걸린다
         ParticipantRequest 미업로드 = new ParticipantRequest(newArtist(), anchor(),
-                "edited/pending/" + UUID.randomUUID() + ".mp4",
-                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"),
-                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null);
+                "private/edited/pending/" + UUID.randomUUID() + ".mp4",
+                newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".jpg"),
+                newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".jpg"),
+                (long) ORIGIN_DURATION_MS);
 
         assertThatThrownBy(() -> create(List.of(미업로드)))
                 .isInstanceOf(BusinessException.class)
@@ -250,7 +267,7 @@ class AdminChallengeServiceLocalDbTest {
                 List.of(edited(artist), edited(artist))));
 
         assertThat(ok.valid()).isTrue();
-        assertThat(ok.slotMasks()).containsExactly(1, 2);
+        assertThat(ok.issues()).isEmpty();
         assertThat(중복.valid()).isFalse();
         assertThat(중복.issues()).singleElement()
                 .extracting(ChallengeValidateResponse.Issue::code)
@@ -299,10 +316,29 @@ class AdminChallengeServiceLocalDbTest {
         ParticipantEditedResponse response = adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
                 new ParticipantEditedUpdateRequest(newKey, null, null, (long) ORIGIN_DURATION_MS));
 
-        assertThat(response.participantMask()).isEqualTo(1);
+        assertThat(response.slotOrder()).isZero();
+        assertThat(response.durationMs()).isEqualTo(ORIGIN_DURATION_MS);
         assertThat(scalar("select 1 from motif_core.challenge_participants "
                 + "where challenge_participant_seq = ?1 and edited_challenge_key = '" + newKey + "'", slotSeq))
                 .isEqualTo(1);
+    }
+
+    /**
+     * 0020 — 영상을 바꾸면 길이도 함께 와야 한다. 옛 길이가 남으면 §7.6 이 새 영상과
+     * 어긋난 타이머 값을 앱에 내보낸다.
+     */
+    @Test
+    @DisplayName("영상만 바꾸고 길이를 빼면 400")
+    void 영상_교체에는_길이가_따라온다() {
+        ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
+        Integer slotSeq = created.participants().getFirst().challengeParticipantSeq();
+        String newKey = newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".mp4");
+
+        assertThatThrownBy(() -> adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
+                new ParticipantEditedUpdateRequest(newKey, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_PARAMETER);
     }
 
     /**
@@ -324,9 +360,10 @@ class AdminChallengeServiceLocalDbTest {
         // 저장된 키를 본다
         ParticipantEditedResponse filled = adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
                 new ParticipantEditedUpdateRequest(newKey,
-                        newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null, null));
+                        newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null,
+                        (long) ORIGIN_DURATION_MS));
 
-        assertThat(filled.participantMask()).isEqualTo(1);
+        assertThat(filled.slotOrder()).isZero();
         assertThat(scalar("select 1 from motif_core.challenge_participants "
                 + "where challenge_participant_seq = ?1 and edited_challenge_key = '" + newKey
                 + "' and initial_scene_key is not null", slotSeq)).isEqualTo(1);
@@ -464,12 +501,17 @@ class AdminChallengeServiceLocalDbTest {
         return new ParticipantRequest(artistSeq, anchor(), null, null, null, null);
     }
 
-    /** 편집본이 붙은 슬롯. 키는 업로드된 것으로 친다 — 부재 케이스는 별도 테스트가 직접 만든다. */
+    /**
+     * 편집본이 붙은 슬롯. 키는 업로드된 것으로 친다 — 부재 케이스는 별도 테스트가 직접 만든다.
+     *
+     * <p>길이를 채워 둔다 — 0020 부터 편집본에는 길이가 필수다({@code EDITED_DURATION_REQUIRED}).
+     */
     private ParticipantRequest edited(Integer artistSeq) {
         return new ParticipantRequest(artistSeq, anchor(),
-                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4"),
-                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"),
-                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null);
+                newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".mp4"),
+                newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".jpg"),
+                newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".jpg"),
+                (long) ORIGIN_DURATION_MS);
     }
 
     private static ParticipantRequest withDuration(ParticipantRequest slot, long durationMs) {
