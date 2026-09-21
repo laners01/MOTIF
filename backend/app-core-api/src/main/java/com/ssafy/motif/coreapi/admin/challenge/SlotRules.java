@@ -4,6 +4,7 @@ import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
+import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -97,6 +98,9 @@ public final class SlotRules {
             if (!blank(p.editedChallengeKey()) && p.durationMs() == null) {
                 violations.add("EDITED_DURATION_REQUIRED[" + i + "]");
             }
+            if (!protectedKeys(p)) {
+                violations.add("EDITED_KEY_NOT_PROTECTED[" + i + "]");
+            }
         }
         if (!violations.isEmpty()) {
             throw new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
@@ -106,6 +110,28 @@ public final class SlotRules {
 
     private static boolean blank(String key) {
         return key == null || key.isBlank();
+    }
+
+    /**
+     * 편집본 3키가 전부 보호 프리픽스인가 ({@code EDITED_KEY_NOT_PROTECTED}, 0020).
+     *
+     * <p><b>HEAD 만으로는 부족하다.</b> {@code requireUploaded} 는 "그 자리에 파일이 있나"
+     * 만 보므로, AI 팀이 옛 경로({@code edited/…})에 올린 키를 그대로 등록하면 통과한다.
+     * 그 상태로 저장되면 {@link MediaKeys#isProtected} 가 {@code false} 라 §7.5·§7.6 이
+     * <b>서명 없이</b> 내보낸다 — 404 가 아니라 예외도 로그도 없이 보호가 풀린다.
+     *
+     * <p>어드민 presign 은 {@link com.ssafy.motif.coreapi.admin.media.AdminMediaKind} 가
+     * 이미 {@code private/edited/…} 로 발급하므로 화면 업로드 경로는 저절로 통과한다.
+     * 이 검사가 잡는 것은 <b>키를 손으로 붙여 넣는 경로</b>다.
+     */
+    private static boolean protectedKeys(ParticipantRequest p) {
+        return isProtectedOrAbsent(p.editedChallengeKey())
+                && isProtectedOrAbsent(p.initialSceneKey())
+                && isProtectedOrAbsent(p.previewImageKey());
+    }
+
+    private static boolean isProtectedOrAbsent(String key) {
+        return blank(key) || MediaKeys.isProtected(key);
     }
 
     /**

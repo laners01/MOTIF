@@ -439,6 +439,14 @@ public class AdminChallengeService {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
                     "editedChallengeKey·initialSceneKey·previewImageKey 중 하나는 있어야 한다");
         }
+        // HEAD 만으로는 옛 경로(edited/…)를 걸러내지 못한다 — 저장되면 §7.5·§7.6 이
+        // 서명 없이 내보낸다(0020). 등록(§3.7.2)은 SlotRules 가 같은 검사를 한다
+        List<String> unprotected = keys.stream().filter(k -> !MediaKeys.isProtected(k)).toList();
+        if (!unprotected.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "편집본 키는 보호 프리픽스여야 한다: " + unprotected,
+                    List.of("EDITED_KEY_NOT_PROTECTED"));
+        }
         // 편집본이 없던 슬롯은 영상·첫 장면을 함께 받아야 한다 — 한쪽만 채우면
         // ck_challenge_participants_edited 가 거부하고 500 으로 샌다
         if (!slot.hasEdited()
