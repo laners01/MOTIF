@@ -16,6 +16,15 @@
 -- 원본 ±500ms 대조에만 쓰고 있었다. 앱 촬영 타이머가 편집본 길이에 맞아야 해서 남긴다 —
 -- 챌린지 원본 길이로 갈음하면 최대 0.5초가 어긋나 녹화 끝이 잘린다.
 --
+-- ⚠ **이 changeset 은 DB 의 키 문자열만 바꾼다 — S3 오브젝트는 옮기지 않는다.**
+-- 배포 환경에 편집본 파일이 있으면 배포 전에 S3 에서 먼저 옮겨야 하고, 안 그러면 앱이
+-- 받는 주소가 전부 404 다. Liquibase 가 할 수 있는 일이 아니라 런북에 남긴다:
+--
+--   aws s3 mv s3://motif-media/edited/ s3://motif-media/private/edited/ --recursive
+--
+-- 순서는 **S3 이동 → 배포** 다. 반대로 하면 그 사이에 들어온 요청이 옛 경로를 본다.
+-- (2026-09-21 기준 로컬·운영 모두 challenge_participants 0건이라 실제 옮길 파일은 없다.)
+--
 -- (주석 줄을 "changeset" 으로 시작하지 않는다 — formatted SQL 파서가 선언으로 읽는다.)
 
 --changeset claude:0020-01-edited-duration
