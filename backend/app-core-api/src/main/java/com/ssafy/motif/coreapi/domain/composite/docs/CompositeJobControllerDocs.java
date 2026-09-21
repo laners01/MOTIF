@@ -60,19 +60,23 @@ public interface CompositeJobControllerDocs {
             오류 배열이 실린다 — 무시하지 않고 거절한다. DB 도 두 칸이 함께 차는 것을 막는다.
             `participantMask` 만 MOTIF 에서 조용히 무시된다.
 
-            ### participantMask — 슬롯 조합 (CHALLENGE)
+            ### participantMask — 교체할 슬롯 하나 (CHALLENGE)
 
-            §7.2 의 `participants[].participantMask` 는 슬롯마다 **단일 비트**(1, 2, 4 …)다.
-            여러 슬롯을 고르면 **비트 OR 로 합산**해서 보낸다 — 윈터(1) + 닝닝(2) = `3`.
+            §7.2 의 `participants[].participantMask` 를 **그대로** 보낸다. 슬롯마다 **단일
+            비트**(1, 2, 4, 8 = `1 << slotOrder`)다.
+
+            **여러 슬롯을 합산하지 않는다.** 편집본이 슬롯 1개당 1개라 2명 이상을 한 번에
+            교체하는 조합이 없다 — 사용자가 고르는 것은 함께할 아티스트 한 명이다.
 
             | 값 | 서버 동작 |
             |---|---|
-            | `0` 또는 생략 | 무교체 — `edited_challenge_seq = NULL` 로 원본 위에 합성 |
-            | `> 0` | `(challengeSeq, participantMask)` 로 편집본을 조회해 잡에 기록. **없으면 404** |
+            | `0` 또는 생략 | 무교체 — `challenge_participant_seq = NULL` 로 원본 위에 합성 |
+            | 단일 비트 | 그 슬롯을 조회해 잡에 기록. 슬롯이 없거나 편집본이 없으면 **404** |
+            | 조합(비트 2개 이상) | **400** `INVALID_PARAMETER` — 보낼 수 없는 값이다 |
 
-            `EDITED_CHALLENGE_NOT_FOUND` 는 **운영 전제가 깨졌을 때만** 나온다 — 어드민이 슬롯
-            전 조합(`1 … 2ⁿ−1`)의 편집본을 등록하기로 했기 때문이다(§7.2). 사용자가 이 오류를
-            보면 촬영 직전에 막힌 것이다.
+            `EDITED_CHALLENGE_NOT_FOUND` 는 그 자리에 슬롯이 없거나, 슬롯은 있는데 어드민이
+            편집본을 아직 안 올린 경우다. 후자는 정상적으로 일어날 수 있고 §7.2 의
+            `participants[].selectable` 이 화면에서 미리 걸러 준다.
 
             ### MOTIF 이용 권한 — 선결제 원칙
 
@@ -103,7 +107,7 @@ public interface CompositeJobControllerDocs {
             """;
 
     String REQUEST_CHALLENGE_EXAMPLE = """
-            { "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 3, "contentLength": 20971520 }""";
+            { "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 1, "contentLength": 20971520 }""";
 
     String REQUEST_MOTIF_EXAMPLE = """
             { "jobType": "MOTIF", "assetSeq": 21, "contentLength": 20971520 }""";
@@ -167,7 +171,7 @@ public interface CompositeJobControllerDocs {
                             examples = @ExampleObject(value = CREATE_EXAMPLE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "jobType 없음 · 형태 불일치 · participantMask 가 음수 · contentLength 가 0 이하이거나 상한 초과 (`INVALID_PARAMETER`)",
+                    description = "jobType 없음 · 형태 불일치 · participantMask 가 음수이거나 단일 비트가 아님 · contentLength 가 0 이하이거나 상한 초과 (`INVALID_PARAMETER`)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = FailResponseSchema.class),
                             examples = @ExampleObject(value = SHAPE_FAIL_EXAMPLE))),

@@ -13,9 +13,8 @@ import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeResponse;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeUpdateRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantEditedResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantEditedUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaKind;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaService;
@@ -33,11 +32,8 @@ import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeListRow;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
-import com.ssafy.motif.domain.core.challenge.ChallengeParticipantId;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
-import com.ssafy.motif.domain.core.challenge.EditedChallenge;
-import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.song.Song;
 import com.ssafy.motif.domain.core.song.SongRepository;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
@@ -64,10 +60,13 @@ import java.util.stream.Stream;
 /**
  * 챌린지 등록 (어드민 명세 §3.7.2, 부록 A) — S15P21D104-559.
  *
- * <p><b>all-or-nothing 이다.</b> {@code challenges} · {@code challenge_participants} ·
- * {@code edited_challenges} 를 한 트랜잭션에 넣는다. 부분 등록을 허용하면 편집본이
- * 덜 채워진 챌린지가 앱에 노출되고, 사용자가 조합을 골랐을 때 촬영 직전에 404 를
- * 만난다(API 명세 §13.1). {@code challenges} 에 상태 컬럼이 없는 이유이기도 하다.
+ * <p><b>all-or-nothing 이다.</b> {@code challenges} 와 {@code challenge_participants} 를 한
+ * 트랜잭션에 넣는다. 부분 등록을 허용하면 슬롯이 덜 채워진 챌린지가 앱에 노출된다.
+ * {@code challenges} 에 상태 컬럼이 없는 이유이기도 하다.
+ *
+ * <p><b>편집본은 슬롯 행에 같이 들어간다</b>(0019) — {@code edited_challenges} 테이블은
+ * 없어졌고 조합 완결성 강제도 함께 사라졌다. 편집본이 비어 있는 슬롯은 오류가 아니라
+ * "아직 안 만든 자리" 이고, 사용자가 그 슬롯을 고르면 §13.1 이 404 로 막는다.
  *
  * <p><b>검증이 전부 끝난 뒤에 첫 INSERT 가 나간다</b>(§3.7.2 "전부 통과해야 트랜잭션
  * 진입"). 그래서 어느 단계에서 걸려도 남는 행이 없다 — 롤백에 기대기 전에 순서로
@@ -84,7 +83,6 @@ public class AdminChallengeService {
 
     private final ChallengeRepository challengeRepository;
     private final ChallengeParticipantRepository participantRepository;
-    private final EditedChallengeRepository editedChallengeRepository;
     private final ArtistRepository artistRepository;
     private final SongRepository songRepository;
     private final AdminMediaService adminMediaService;
@@ -126,18 +124,18 @@ public class AdminChallengeService {
      * 으로 돌려준다. 조합이 덜 찬 상태는 오류가 아니라 정상적인 중간 상태다.
      *
      * <p><b>등록과 같은 {@link #verify} 를 탄다.</b> 검증 로직을 따로 쓰면 사전 검증은
-     * 통과하는데 등록은 실패하는 조합이 생긴다 — 화면의 "등록" 버튼이 거짓말을 하게 된다.
+     * 통과하는데 등록은 실패하는 입력이 생긴다 — 화면의 "등록" 버튼이 거짓말을 하게 된다.
      * 그래서 예외를 잡아 결과로 옮기는 모양을 택했다.
      */
     public ChallengeValidateResponse validate(ChallengeCreateRequest request) {
-        List<Integer> computedMasks = expectedMasks(request.participants().size());
+        List<Integer> slotMasks = slotMasks(request.participants().size());
         try {
             verify(request);
-            return new ChallengeValidateResponse(true, computedMasks, List.of());
+            return new ChallengeValidateResponse(true, slotMasks, List.of());
         } catch (BusinessException e) {
             ErrorCode code = e.getErrorCode();
             log.info("사전 검증 실패: code={} message={}", code.getCode(), e.getMessage());
-            return new ChallengeValidateResponse(false, computedMasks,
+            return new ChallengeValidateResponse(false, slotMasks,
                     List.of(new ChallengeValidateResponse.Issue(
                             code.getCode(), code.getMessage(), e.getData())));
         }
@@ -223,25 +221,23 @@ public class AdminChallengeService {
                         "존재하지 않는 챌린지: challengeSeq=" + challengeSeq));
     }
 
-    /** 슬롯 n 개가 요구하는 조합 {@code 1 … 2ⁿ−1} — 화면 매트릭스의 행 목록이다. */
-    static List<Integer> expectedMasks(int slotCount) {
-        return IntStream.rangeClosed(1, (1 << slotCount) - 1).boxed().toList();
+    /** 슬롯 n 개의 마스크 {@code 1, 2, 4, 8} — 슬롯 i 는 {@code 1 << i} 다(§3.7.8 화면 표). */
+    static List<Integer> slotMasks(int slotCount) {
+        return IntStream.range(0, slotCount).map(SlotRules::participantMask).boxed().toList();
     }
 
     private ChallengeDetailResponse detailOf(Challenge challenge) {
         Integer seq = challenge.getChallengeSeq();
         List<ChallengeParticipant> participants =
-                participantRepository.findByIdChallengeSeqOrderByParticipantMask(seq);
-        List<EditedChallenge> edited =
-                editedChallengeRepository.findByChallengeSeqOrderByParticipantMask(seq);
+                participantRepository.findByChallengeSeqOrderBySlotOrderAsc(seq);
 
         List<Integer> artistSeqs = new ArrayList<>();
         artistSeqs.add(challenge.getArtistSeq());
-        participants.forEach(p -> artistSeqs.add(p.artistSeq()));
+        participants.forEach(p -> artistSeqs.add(p.getArtistSeq()));
         Map<Integer, ArtistName> artists = artistRepository.findNames(Set.copyOf(artistSeqs)).stream()
                 .collect(Collectors.toMap(ArtistName::artistSeq, a -> a));
 
-        Map<Integer, Long> jobRefs = jobRefCounts(edited);
+        Map<Integer, Long> jobRefs = jobRefCounts(participants);
         Song song = songRepository.findById(challenge.getSongSeq()).orElse(null);
 
         return new ChallengeDetailResponse(
@@ -254,7 +250,7 @@ public class AdminChallengeService {
                 mediaUrlResolver.resolve(challenge.getThumbnailKey()),
                 challenge.getDurationMs(),
                 participants.size(),
-                edited.size(),
+                (int) participants.stream().filter(ChallengeParticipant::hasEdited).count(),
                 challenge.getViewCount(),
                 challenge.getParticipantCount(),
                 challenge.getLikeCount(),
@@ -262,16 +258,16 @@ public class AdminChallengeService {
                 challenge.isDeleted(),
                 challenge.getRegDttm(),
                 participants.stream().map(p -> new ChallengeDetailResponse.Participant(
-                        artistSummary(p.artistSeq(), artists),
-                        p.getParticipantMask(),
-                        anchorOf(p))).toList(),
-                edited.stream().map(e -> new ChallengeDetailResponse.Edited(
-                        e.getEditedChallengeSeq(), e.getParticipantMask(),
-                        mediaUrlResolver.resolve(e.getVideoKey()),
-                        mediaUrlResolver.resolve(e.getInitialSceneKey()),
-                        mediaUrlResolver.resolve(e.getPreviewImageKey()),
-                        e.getVideoKey(), e.getInitialSceneKey(), e.getPreviewImageKey(),
-                        jobRefs.getOrDefault(e.getEditedChallengeSeq(), 0L))).toList(),
+                        p.getChallengeParticipantSeq(),
+                        artistSummary(p.getArtistSeq(), artists),
+                        p.getSlotOrder(),
+                        p.participantMask(),
+                        anchorOf(p),
+                        mediaUrlResolver.resolve(p.getEditedChallengeKey()),
+                        mediaUrlResolver.resolve(p.getInitialSceneKey()),
+                        mediaUrlResolver.resolve(p.getPreviewImageKey()),
+                        p.getEditedChallengeKey(), p.getInitialSceneKey(), p.getPreviewImageKey(),
+                        jobRefs.getOrDefault(p.getChallengeParticipantSeq(), 0L))).toList(),
                 challengeRepository.countActiveJobs(seq));
     }
 
@@ -289,15 +285,15 @@ public class AdminChallengeService {
         return a == null ? null : new ChallengeDetailResponse.AnchorResponse(a.getX(), a.getY(), a.getR());
     }
 
-    /** 참조 0 건인 편집본은 group by 결과에 행이 없다 — 호출부가 기본값 0 을 쓴다. */
-    private Map<Integer, Long> jobRefCounts(List<EditedChallenge> edited) {
-        if (edited.isEmpty()) {
+    /** 참조 0 건인 슬롯은 group by 결과에 행이 없다 — 호출부가 기본값 0 을 쓴다. */
+    private Map<Integer, Long> jobRefCounts(List<ChallengeParticipant> participants) {
+        if (participants.isEmpty()) {
             return Map.of();
         }
         Map<Integer, Long> counts = new HashMap<>();
-        editedChallengeRepository.countJobRefs(
-                        edited.stream().map(EditedChallenge::getEditedChallengeSeq).toList())
-                .forEach(row -> counts.put(row.getEditedChallengeSeq(), row.getJobCount()));
+        participantRepository.countJobRefs(participants.stream()
+                        .map(ChallengeParticipant::getChallengeParticipantSeq).toList())
+                .forEach(row -> counts.put(row.getChallengeParticipantSeq(), row.getJobCount()));
         return counts;
     }
 
@@ -339,21 +335,19 @@ public class AdminChallengeService {
         return videoKey.substring(ORIGIN_PREFIX.length(), videoKey.length() - ORIGIN_EXTENSION.length());
     }
 
-    /** 슬롯·편집본 INSERT — 등록(§3.7.2)과 슬롯 교체(§3.7.5)가 공유한다. */
+    /**
+     * 슬롯 INSERT — 등록(§3.7.2)과 슬롯 교체(§3.7.5)가 공유한다.
+     *
+     * <p>편집본이 같은 행에 들어가므로 INSERT 가 한 종류다(0019). <b>배열 인덱스가 곧
+     * {@code slotOrder}</b> 이고, 그래서 어드민이 순서를 손으로 넣을 자리가 없다.
+     */
     void saveSlots(Integer challengeSeq, ChallengeSlotsRequest slots) {
         List<ParticipantRequest> participants = slots.participants();
         for (int i = 0; i < participants.size(); i++) {
             ParticipantRequest p = participants.get(i);
             participantRepository.save(ChallengeParticipant.of(
-                    challengeSeq, p.artistSeq(), SlotRules.participantMask(i), toAnchor(p.anchor())));
-        }
-
-        List<EditedChallengeRequest> edited = slots.editedChallenges();
-        List<Integer> masks = SlotRules.editedMasks(participants.size(), edited);
-        for (int i = 0; i < edited.size(); i++) {
-            editedChallengeRepository.save(EditedChallenge.of(challengeSeq, masks.get(i),
-                    edited.get(i).videoKey(), edited.get(i).initialSceneKey(),
-                    edited.get(i).previewImageKey()));
+                    challengeSeq, p.artistSeq(), i, toAnchor(p.anchor()),
+                    p.editedChallengeKey(), p.initialSceneKey(), p.previewImageKey()));
         }
     }
 
@@ -365,7 +359,7 @@ public class AdminChallengeService {
      * 슬롯 앵커 단독 수정 (§3.7.9) — 같은 행 UPDATE 다.
      *
      * <p>§3.7.5 슬롯 교체는 편집본까지 다시 보내야 하고 합성 이력이 있으면 409 라, 0017 이전
-     * 행의 빈 앵커를 채울 길이 없다. 앵커는 마스크·편집본 완결성과 무관하므로 잡 참조 중이어도
+     * 행의 빈 앵커를 채울 길이 없다. 앵커는 슬롯 순서·편집본과 무관하므로 잡 참조 중이어도
      * 허용된다 — 바뀌는 것은 선택 화면의 원 위치뿐이다.
      */
     @Transactional
@@ -377,7 +371,7 @@ public class AdminChallengeService {
                     "앵커 규칙 위반: " + anchor, List.of("ANCHOR_INVALID"));
         }
         ChallengeParticipant slot = participantRepository
-                .findById(new ChallengeParticipantId(challengeSeq, artistSeq))
+                .findByChallengeSeqAndArtistSeq(challengeSeq, artistSeq)
                 .orElseThrow(() -> new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
                         "슬롯이 아닌 아티스트: challengeSeq=%d artistSeq=%d".formatted(challengeSeq, artistSeq),
                         List.of("SLOT_NOT_FOUND")));
@@ -391,7 +385,7 @@ public class AdminChallengeService {
     /**
      * 슬롯 구성 전체 교체 (§3.7.5) — 기존 슬롯·편집본을 하드 삭제하고 재생성한다.
      *
-     * <p><b>합성 이력이 있으면 거절한다.</b> {@code composite_jobs.edited_challenge_seq} 의
+     * <p><b>합성 이력이 있으면 거절한다.</b> {@code composite_jobs.challenge_participant_seq} 의
      * FK 가 {@code ON DELETE RESTRICT} 라 지울 수도 없거니와, 지울 수 있다 해도 지워서는
      * 안 된다 — 이미 그 편집본 위에 합성된 참여 영상들이 근거를 잃는다. 결국
      * <b>참여가 시작된 챌린지의 슬롯 구성은 사실상 고정</b>이고, 화면은 이 응답으로
@@ -404,18 +398,16 @@ public class AdminChallengeService {
                                                ChallengeSlotsRequest slots) {
         Challenge challenge = requireChallenge(challengeSeq);
 
-        List<Integer> inUse = editedChallengeRepository.findSeqsReferencedByJobs(challengeSeq);
+        List<Integer> inUse = participantRepository.findSeqsReferencedByJobs(challengeSeq);
         if (!inUse.isEmpty()) {
             throw new BusinessException(AdminErrorCode.EDITED_IN_USE,
-                    "합성 잡이 참조 중인 편집본: " + inUse, Map.of("editedChallengeSeqs", inUse));
+                    "합성 잡이 참조 중인 슬롯: " + inUse, Map.of("challengeParticipantSeqs", inUse));
         }
 
         verifySlots(challenge.getDurationMs(), slots, List.of());
 
-        editedChallengeRepository.deleteByChallengeSeq(challengeSeq);
-        participantRepository.deleteByIdChallengeSeq(challengeSeq);
+        participantRepository.deleteByChallengeSeq(challengeSeq);
         // DELETE 를 INSERT 보다 먼저 DB 에 내보낸다 — 이유는 리포지토리 javadoc
-        editedChallengeRepository.flush();
         participantRepository.flush();
 
         saveSlots(challengeSeq, slots);
@@ -426,40 +418,55 @@ public class AdminChallengeService {
     }
 
     /**
-     * 편집본 키 교체 (§3.7.6) — 같은 행 UPDATE 라 조합이 유지된다.
+     * 슬롯 편집본 키 교체 (§3.7.6) — 같은 행 UPDATE 라 인물·순서가 유지된다.
      *
      * <p>{@link #replaceSlots} 와 달리 <b>사용 중이어도 허용</b>한다. 결과물은 별도
      * 오브젝트라 이미 합성된 참여 영상이 바뀌지 않고, 이미 발급된 잡은 큐 메시지를
      * 잡 행에서 재구성하므로 다음 합성부터 새 키를 쓴다.
+     *
+     * <p><b>편집본이 없던 슬롯을 채우는 통로이기도 하다</b>(0019). 그때는 영상과 첫 장면을
+     * <b>함께</b> 보내야 한다 — DB CHECK 가 짝을 강제한다.
      */
     @Transactional
-    public EditedChallengeResponse replaceEditedKeys(AuthenticatedAdmin admin, Integer editedChallengeSeq,
-                                                     EditedChallengeUpdateRequest request) {
-        EditedChallenge edited = editedChallengeRepository.findById(editedChallengeSeq)
+    public ParticipantEditedResponse replaceEditedKeys(AuthenticatedAdmin admin,
+                                                       Integer challengeParticipantSeq,
+                                                       ParticipantEditedUpdateRequest request) {
+        ChallengeParticipant slot = participantRepository.findById(challengeParticipantSeq)
                 .orElseThrow(() -> new BusinessException(ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND,
-                        "존재하지 않는 편집본: editedChallengeSeq=" + editedChallengeSeq));
-        Challenge challenge = requireChallenge(edited.getChallengeSeq());
+                        "존재하지 않는 슬롯: challengeParticipantSeq=" + challengeParticipantSeq));
+        Challenge challenge = requireChallenge(slot.getChallengeSeq());
 
-        List<String> keys = Stream.of(request.videoKey(), request.initialSceneKey(), request.previewImageKey())
+        List<String> keys = Stream.of(request.editedChallengeKey(), request.initialSceneKey(),
+                        request.previewImageKey())
                 .filter(Objects::nonNull)
                 .toList();
         if (keys.isEmpty()) {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
-                    "videoKey·initialSceneKey·previewImageKey 중 하나는 있어야 한다");
+                    "editedChallengeKey·initialSceneKey·previewImageKey 중 하나는 있어야 한다");
+        }
+        // 편집본이 없던 슬롯은 영상·첫 장면을 함께 받아야 한다 — 한쪽만 채우면
+        // ck_challenge_participants_edited 가 거부하고 500 으로 샌다
+        if (!slot.hasEdited()
+                && (request.editedChallengeKey() == null || request.initialSceneKey() == null)) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "편집본이 없는 슬롯은 editedChallengeKey·initialSceneKey 를 함께 보내야 한다",
+                    List.of("EDITED_KEYS_INCOMPLETE"));
         }
         adminMediaService.requireUploaded(keys);
         if (request.durationMs() != null) {
             videoRules.checkEditedDuration(request.durationMs(), challenge.getDurationMs());
         }
 
-        edited.replaceKeys(request.videoKey(), request.initialSceneKey(), request.previewImageKey());
+        slot.replaceEditedKeys(request.editedChallengeKey(), request.initialSceneKey(),
+                request.previewImageKey());
 
-        auditLogger.write(admin, "REPLACE_EDITED_KEYS", "EDITED_CHALLENGE",
-                editedChallengeSeq, AdminAuditLogger.RESULT_OK);
-        return new EditedChallengeResponse(editedChallengeSeq, edited.getParticipantMask(),
-                mediaUrlResolver.resolve(edited.getVideoKey()),
-                mediaUrlResolver.resolve(edited.getInitialSceneKey()),
-                mediaUrlResolver.resolve(edited.getPreviewImageKey()));
+        auditLogger.write(admin, "REPLACE_EDITED_KEYS", "CHALLENGE_PARTICIPANT",
+                challengeParticipantSeq, AdminAuditLogger.RESULT_OK);
+        return new ParticipantEditedResponse(challengeParticipantSeq, slot.getArtistSeq(),
+                slot.getSlotOrder(), slot.participantMask(),
+                mediaUrlResolver.resolve(slot.getEditedChallengeKey()),
+                mediaUrlResolver.resolve(slot.getInitialSceneKey()),
+                mediaUrlResolver.resolve(slot.getPreviewImageKey()));
     }
 
     /** 등록 전 검증 전체 (§3.7.2 검증 1~5항) — 순서는 명세 그대로다. */
@@ -479,6 +486,9 @@ public class AdminChallengeService {
     /**
      * 슬롯·편집본 검증 (§3.7.2 검증 2~5항) — 등록과 슬롯 교체(§3.7.5)가 공유한다.
      *
+     * <p>0019 이후 편집본이 슬롯에 붙으므로 검증도 슬롯 배열 한 번을 훑는다. 조합 완결성
+     * ({@code EDITED_SET_INCOMPLETE})은 없어졌고, 키 짝 검사가 {@link SlotRules} 로 들어갔다.
+     *
      * @param originDurationMs 편집본 길이를 대조할 원본 길이. 교체 시에는 기존 행의 값이다
      * @param extraKeys        원본 키처럼 함께 HEAD 할 키 — 교체에서는 비어 있다(원본 재검증 없음)
      */
@@ -486,20 +496,17 @@ public class AdminChallengeService {
         SlotRules.checkParticipants(slots.participants());
         requireArtists(slots.participants().stream().map(ParticipantRequest::artistSeq).toList());
 
-        // 마스크 계산이 곧 완결성 검증이다 — 결과는 버리고 예외만 본다(INSERT 때 다시 계산)
-        SlotRules.editedMasks(slots.participants().size(), slots.editedChallenges());
-
+        // 보내지 않은 키는 HEAD 목록에서 뺀다 — 편집본이 없는 슬롯은 정상이다
         List<String> keys = new ArrayList<>(extraKeys);
-        slots.editedChallenges().forEach(edited -> {
-            keys.add(edited.videoKey());
-            keys.add(edited.initialSceneKey());
-            keys.add(edited.previewImageKey());
-        });
+        slots.participants().forEach(p -> Stream.of(
+                        p.editedChallengeKey(), p.initialSceneKey(), p.previewImageKey())
+                .filter(Objects::nonNull)
+                .forEach(keys::add));
         adminMediaService.requireUploaded(keys);
 
-        slots.editedChallenges().stream()
-                .filter(edited -> edited.durationMs() != null)
-                .forEach(edited -> videoRules.checkEditedDuration(edited.durationMs(), originDurationMs));
+        slots.participants().stream()
+                .filter(p -> p.durationMs() != null)
+                .forEach(p -> videoRules.checkEditedDuration(p.durationMs(), originDurationMs));
     }
 
     /** 아티스트가 전부 존재하고 비삭제인지 — 개수 비교로 끝낸다(어느 것인지는 응답에 담지 않는다). */
@@ -545,12 +552,10 @@ public class AdminChallengeService {
         return new ChallengeSlotsResponse(
                 seq, challenge.getDurationMs(),
                 mediaUrlResolver.resolve(challenge.getThumbnailKey()),
-                participantRepository.findByIdChallengeSeqOrderByParticipantMask(seq).stream()
-                        .map(p -> new ChallengeSlotsResponse.Participant(p.artistSeq(), p.getParticipantMask()))
-                        .toList(),
-                editedChallengeRepository.findByChallengeSeqOrderByParticipantMask(seq).stream()
-                        .map(e -> new ChallengeSlotsResponse.Edited(
-                                e.getEditedChallengeSeq(), e.getParticipantMask()))
+                participantRepository.findByChallengeSeqOrderBySlotOrderAsc(seq).stream()
+                        .map(p -> new ChallengeSlotsResponse.Participant(
+                                p.getChallengeParticipantSeq(), p.getArtistSeq(),
+                                p.getSlotOrder(), p.participantMask(), p.hasEdited()))
                         .toList());
     }
 }

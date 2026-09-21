@@ -115,22 +115,23 @@ Authorization: Bearer {accessToken}
       {
         "artistSeq": 7,
         "name": "윈터",
+        "slotOrder": 0,
         "participantMask": 1,
         "profileImageUrl": "https://cdn.motif.io/profiles/7a1b.jpg",
-        "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 }
+        "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
+        "selectable": true,
+        "previewImageUrl": "https://cdn.motif.io/edited/11/p1.jpg"
       },
       {
         "artistSeq": 9,
         "name": "닝닝",
+        "slotOrder": 1,
         "participantMask": 2,
         "profileImageUrl": "https://cdn.motif.io/profiles/9c2d.jpg",
-        "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 }
+        "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 },
+        "selectable": false,
+        "previewImageUrl": null
       }
-    ],
-    "editedChallenges": [
-      { "participantMask": 1, "previewImageUrl": "https://cdn.motif.io/edited/11/p1.jpg" },
-      { "participantMask": 2, "previewImageUrl": "https://cdn.motif.io/edited/11/p2.jpg" },
-      { "participantMask": 3, "previewImageUrl": "https://cdn.motif.io/edited/11/p3.jpg" }
     ]
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
@@ -139,30 +140,37 @@ Authorization: Bearer {accessToken}
 
 ### `participants` — 교체 가능한 인물 슬롯
 
-사용자가 **자기 얼굴로 바꿔 넣을 수 있는 자리**다. 추가 참여 아티스트 목록이며, 슬롯 항목은 아티스트 요약이 아니라 `artistSeq`·`name`·`participantMask`·`profileImageUrl`·`anchor` 로 구성된 전용 형태다. **챌린지 주인(`artist`)은 슬롯이 아니다** — 원이 뜨지 않고 교체되지 않는다.
+사용자가 **자기 얼굴로 바꿔 넣을 수 있는 자리**다. 추가 참여 아티스트 목록이며, 슬롯 항목은 아티스트 요약이 아니라 `artistSeq`·`name`·`slotOrder`·`participantMask`·`profileImageUrl`·`anchor`·`selectable`·`previewImageUrl` 로 구성된 전용 형태다. **챌린지 주인(`artist`)은 슬롯이 아니다** — 원이 뜨지 않고 교체되지 않는다.
+
+배열은 `slotOrder` 오름차순 = **화면 좌→우**다.
 
 | 필드 | 설명 |
 |---|---|
-| `participantMask` | 그 슬롯을 가리키는 **단일 비트**(1, 2, 4, 8 …). DB CHECK 로 2의 거듭제곱이 강제된다. **0 은 예약값**이라 발급되지 않는다 |
+| `slotOrder` | 화면 좌→우 순서, **0부터** *(2026-09-21)* |
+| `participantMask` | 그 슬롯을 가리키는 **단일 비트**(`1 << slotOrder` = 1, 2, 4, 8). §13.1 에 **그대로** 실어 보낸다 |
 | `anchor` | **촬영 전 선택 화면(10-1~3)에서 프로필 원이 앉는 자리** *(2026-09-18 — bbox 대체)*. **썸네일 대비 0~1 비율**: `x`·`r` 은 가로, `y` 는 세로 기준. 뷰 크기 `W×H` 로 그리면 중심 `(x·W, y·H)`, 반지름 `r·W`. 시안(402 폭, 지름 80)이면 `r ≈ 0.0995`. 어드민이 아직 찍지 않은 옛 슬롯은 **`null`** — 원을 숨긴다 |
+| `selectable` | 이 슬롯을 지운 편집본이 있는가 *(2026-09-21)*. `false` 면 **화면에서 잠근다** — 보내 봐야 §13.1 이 404 다 |
+| `previewImageUrl` | 이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지 *(2026-09-18 · 2026-09-21 슬롯으로 이전)*. `null` 이면 `thumbnailUrl` 로 폴백 |
 
 `bbox` 는 **삭제됐다**(2026-09-18, S15P21D104-618). 사각형 중심은 몸통이라 원 자리로 쓸 수 없었고, 촬영 가이드 오버레이도 쓰이지 않았다.
 
-사용자가 여러 슬롯을 고르면 클라이언트가 **비트 OR 로 합산**해 §13.1 의 `participantMask` 로 보낸다 — 예를 들어 윈터(1)와 닝닝(2)을 고르면 `3` 이다. 무교체(원본 위 합성)는 `0` 또는 생략이다.
+### 슬롯은 **하나만** 고른다 *(2026-09-21)*
 
-### `editedChallenges` — 조합별 선택 화면 이미지 *(2026-09-18)*
+편집본이 슬롯 1개당 1개로 정리되면서 **여러 명을 한 번에 교체하는 조합이 없어졌다.** 사용자가 고르는 것은 "함께할 아티스트 한 명"이다.
 
-원을 눌러 조합을 고를 때마다 **썸네일 자리 이미지가 바뀐다**(10-2·10-3 — 배경 교체 개념). 조합 `mask` 당 한 장이고 어드민이 편집본과 함께 등록한다. 클라이언트는 고른 슬롯의 `participantMask` 를 OR 한 값과 같은 항목의 `previewImageUrl` 을 띄운다.
+- 고른 슬롯의 `participantMask` 를 **그대로** §13.1 에 보낸다. **OR 로 합산하지 않는다** — 조합 값을 보내면 400 `INVALID_PARAMETER` 다.
+- 무교체(원본 위 합성)는 `0` 또는 생략이다.
+- 원을 누를 때 **썸네일 자리 이미지가 바뀐다**(10-2·10-3 — 배경 교체 개념). 그 슬롯 항목의 `previewImageUrl` 을 띄운다.
 
 | 상황 | 표시 |
 |---|---|
-| 아무 것도 안 고름(mask 0) | `thumbnailUrl` — 항목이 따로 없다 |
-| 항목이 있고 `previewImageUrl` 이 있다 | 그 이미지 |
-| `previewImageUrl` 이 `null`(옛 편집본, 어드민 미업로드) 또는 항목 없음(편집본 0개 챌린지) | `thumbnailUrl` 로 폴백 |
+| 아무 것도 안 고름 | `thumbnailUrl` |
+| 고른 슬롯에 `previewImageUrl` 이 있다 | 그 이미지 |
+| `previewImageUrl` 이 `null`(어드민 미업로드) | `thumbnailUrl` 로 폴백 |
 
-편집본이 있으면 항목은 항상 **2ⁿ−1 개 전조합**이다(어드민 등록 규칙). 마스크 오름차순.
+**`editedChallenges[]` 배열은 삭제됐다** *(2026-09-21)* — 조합 `mask` 를 OR 해 맞춰 보던 대조가 필요 없어졌다. 슬롯 항목이 자기 이미지를 들고 온다.
 
-`availableMasks` 필드는 **삭제됐다**(R4). 대신 **운영 전제**가 있다 — 어드민이 **슬롯 조합의 편집본을 전부 등록**한다(슬롯 1~2개면 조합이 1~3개라 현실적이다). 이 전제가 깨지면 조합 유효성은 §13.1 의 404 `EDITED_CHALLENGE_NOT_FOUND` 로만 사후에 드러나, 사용자가 촬영 직전에 실패를 겪는다.
+`availableMasks` 필드도 **삭제된 상태**다(R4). 고를 수 있는지는 항목마다 `selectable` 이 답하고 *(2026-09-21)*, 그래도 없는 슬롯을 보내면 §13.1 의 404 `EDITED_CHALLENGE_NOT_FOUND` 가 사후 판별한다. **전 조합 등록 운영 전제는 폐기됐다** — 편집본이 빈 슬롯은 정상이고, 그래서 `selectable` 이 화면 단 차단으로 들어왔다.
 
 ### 실패 응답
 

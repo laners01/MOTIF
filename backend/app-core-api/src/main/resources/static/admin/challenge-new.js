@@ -1,8 +1,10 @@
 /*
  * 챌린지 등록 (어드민 명세 v0.5 §3.7, 부록 A) — S15P21D104-564 · 618.
  *
- * 부록 A 시퀀스: presign → S3 PUT → 슬롯 n개 입력 → 2ⁿ−1 조합 표 → validate → 등록.
+ * 부록 A 시퀀스: presign → S3 PUT → 슬롯 n개 입력(편집본 포함) → validate → 등록.
  * 길이·해상도는 <video> 가 읽어 폼에 싣는다(§1.4) — core-api 에 ffmpeg 가 없다.
+ *
+ * 2ⁿ−1 조합 표가 없어졌다(0019) — 편집본이 슬롯 1개당 1개라 슬롯 행이 곧 편집본 행이다.
  *
  * 방향·길이 규칙(세로·≤60초 등)은 여기서 미리 막지 않는다. 수치는 서버 설정값
  * (motif.admin.media.rules)이고 VideoRules 가 소유한다 — 화면에 복사하면 한쪽만
@@ -10,7 +12,7 @@
  */
 
 const MAX_SLOTS = 4;        // §3.7.2 하드 상한 4 (기본안)
-const MATRIX_KEYS = ['videoKey', 'initialSceneKey', 'previewImageKey', 'durationMs'];
+const EDITED_KEYS = ['editedChallengeKey', 'initialSceneKey', 'previewImageKey', 'durationMs'];
 
 let artists = [];
 let videoKey = null;        // 업로드 완료된 원본 키
@@ -18,36 +20,31 @@ let meta = null;            // {durationMs, width, height}
 
 // ── 표 읽기 ────────────────────────────────────────────────────────────────
 
-/** 슬롯 표 → participants. 배열 순서가 곧 화면 좌→우이자 mask 비트 자리다(§3.7.2). */
+/**
+ * 슬롯 표 → participants. 배열 순서가 곧 화면 좌→우이자 {@code slotOrder} 다(§3.7.2).
+ * 편집본 키도 같은 행에서 읽는다 — 그 사람을 지운 영상이 그 사람의 슬롯에 붙는다(0019).
+ */
 function readSlots() {
-    return [...$('slots').rows].map((tr) => ({
-        artistSeq: Number(tr.querySelector('.slot-artist').value) || null,
-        anchor: Object.fromEntries([...tr.querySelectorAll('[data-k]')]
-            .map((input) => [input.dataset.k, input.value === '' ? null : Number(input.value)])),
+    const anchorOf = (tr) => Object.fromEntries(['x', 'y', 'r'].map((k) => {
+        const v = tr.querySelector(`[data-k="${k}"]`).value;
+        return [k, v === '' ? null : Number(v)];
     }));
-}
-
-function readMatrix() {
-    return [...$('matrix').rows].map((tr) => {
+    return [...$('slots').rows].map((tr) => {
         const val = (k) => tr.querySelector(`[data-k="${k}"]`).value.trim();
         return {
-            mask: Number(tr.dataset.mask),
-            removedSlots: JSON.parse(tr.dataset.removed),
-            ...Object.fromEntries(MATRIX_KEYS.map((k) => [k, val(k)])),
+            artistSeq: Number(tr.querySelector('.slot-artist').value) || null,
+            anchor: anchorOf(tr),
+            ...Object.fromEntries(EDITED_KEYS.map((k) => [k, val(k)])),
         };
     });
 }
 
 // ── 슬롯 ───────────────────────────────────────────────────────────────────
 
-const slotLabel = (tr, i) => {
-    const select = tr.querySelector('.slot-artist');
-    return select.value ? select.selectedOptions[0].text : `슬롯 ${i}`;
-};
-
 function renumber() {
     [...$('slots').rows].forEach((tr, i) => {
         tr.querySelector('.idx').textContent = i;
+        tr.querySelector('.mask').textContent = 1 << i;
     });
     $('add-slot').disabled = $('slots').rows.length >= MAX_SLOTS;
 }
@@ -67,7 +64,7 @@ $('add-slot').addEventListener('click', () => {
     $('slots').append(tr);
     setActive(tr);
     renumber();
-    renderMatrix();
+    refresh();
 });
 
 $('slots').addEventListener('click', (e) => {
@@ -76,62 +73,31 @@ $('slots').addEventListener('click', (e) => {
     if (e.target.classList.contains('del')) {
         tr.remove();
         renumber();
-        renderMatrix();
+        refresh();
         drawDots();
         return;
     }
     setActive(tr);
 });
 
-// 슬롯이 바뀌면 조합 수·라벨·원이 따라 바뀐다
+// 슬롯이 바뀌면 완료 표시·원이 따라 바뀐다
 $('slots').addEventListener('input', (e) => {
     if (e.target.dataset.k === 'r') {
         e.target.closest('tr').querySelector('.r-label').textContent = Number(e.target.value).toFixed(4);
     }
-    renderMatrix();
+    refresh();
     drawDots();
 });
 
-// ── 편집본 매트릭스 ────────────────────────────────────────────────────────
+// ── 편집본 업로드 ──────────────────────────────────────────────────────────
 
 /**
- * 슬롯 n개 → mask 1 … 2ⁿ−1 전 조합을 한 행씩. 서버가 요구하는 집합과 같은 규칙으로
- * 화면이 먼저 만들어 둔다 — 어드민이 조합을 빠뜨릴 여지를 없앤다(§3.7.2 검증 3).
- * 이미 넣은 키는 mask 로 되살린다.
- */
-function renderMatrix() {
-    const rows = [...$('slots').rows];
-    const names = rows.map(slotLabel);
-    const kept = new Map(readMatrix().map((r) => [r.mask, r]));
-
-    $('matrix').replaceChildren();
-    for (let mask = 1; mask <= (1 << rows.length) - 1; mask++) {
-        const removed = names.map((_, i) => i).filter((i) => mask & (1 << i));
-        const tr = $('matrix-row').content.firstElementChild.cloneNode(true);
-        tr.dataset.mask = mask;
-        tr.dataset.removed = JSON.stringify(removed);
-        tr.querySelector('.mask').textContent = mask;
-        tr.querySelector('.removed').textContent = removed.map((i) => `${i}. ${names[i]}`).join(', ');
-        const prev = kept.get(mask);
-        if (prev) {
-            for (const k of MATRIX_KEYS) {
-                tr.querySelector(`[data-k="${k}"]`).value = prev[k];
-            }
-        }
-        $('matrix').append(tr);
-    }
-    refresh();
-}
-
-$('matrix').addEventListener('input', refresh);
-
-/**
- * 매트릭스 파일 → presign → S3 PUT → 옆 키 칸에 채운다(§3.2). AI팀이 키를 직접 주면
+ * 파일 → presign → S3 PUT → 옆 키 칸에 채운다(§3.2). AI팀이 키를 직접 주면
  * 텍스트 칸에 붙여도 된다 — 서버는 키만 받는다. 아직 challengeSeq 가 없어
  * edited/pending/ 아래로 발급된다. 영상은 <video> 로 길이를 읽어 durationMs 도 채운다 —
  * 서버가 원본 ±500ms 를 대조한다.
  */
-$('matrix').addEventListener('change', async (e) => {
+$('slots').addEventListener('change', async (e) => {
     const input = e.target;
     if (input.type !== 'file' || !input.files[0]) return;
     const tr = input.closest('tr');
@@ -142,7 +108,7 @@ $('matrix').addEventListener('change', async (e) => {
     keyInput.value = '';
     keyInput.placeholder = '업로드 중…';
     try {
-        if (input.dataset.for === 'videoKey') {
+        if (input.dataset.for === 'editedChallengeKey') {
             const m = await videoMeta(file, document.createElement('video'));
             tr.querySelector('[data-k="durationMs"]').value = m.durationMs;
         }
@@ -156,49 +122,48 @@ $('matrix').addEventListener('change', async (e) => {
 });
 
 /**
- * 조합별 입력 완료 표시 + 등록 버튼 잠금.
+ * 슬롯별 편집본 입력 완료 표시 + 등록 버튼 잠금.
  *
- * **채운 조합만 등록한다**(2026-09-21). 메인 아티스트는 지워지지 않으므로 메인을 지운
- * 조합은 애초에 만들 일이 없고, 전조합(2ⁿ−1)을 강제하면 쓰지도 않을 편집본을 만들어야
- * 한다. 행을 반쯤 채운 것(파일 3개 중 1~2개)만 막는다 — 그건 입력 중이거나 실수다.
+ * **채운 슬롯만 편집본을 갖는다.** 비운 슬롯도 정상 등록된다 — 그 자리는 앱에서
+ * 고를 수 없고(§7.2 `selectable: false`), 나중에 §3.7.6 으로 채운다.
  *
- * 전부 비우면 "표시 전용" 챌린지다 — 영상 재생과 설명 시트의 참여자 아바타는 정상이고
- * 촬영만 안 된다. 없는 조합을 고르면 §13.1 이 EDITED_CHALLENGE_NOT_FOUND 로 막는다.
+ * 막는 것은 **반쯤 채운 행**이다. 영상과 첫 장면은 짝이라 DB CHECK 가 한쪽만 있는 행을
+ * 거부하고, 선택 화면만 올린 행은 고를 수 없는 그림이 남는다 — 서버 SlotRules 와 같은 규칙.
  */
-const rowDone = (r) => Boolean(r.videoKey && r.initialSceneKey && r.previewImageKey);
-const rowEmpty = (r) => !r.videoKey && !r.initialSceneKey && !r.previewImageKey;
+const rowDone = (r) => Boolean(r.editedChallengeKey && r.initialSceneKey);
+const rowEmpty = (r) => !r.editedChallengeKey && !r.initialSceneKey && !r.previewImageKey;
 
 function refresh() {
-    const rows = readMatrix();
+    const rows = readSlots();
     let filled = 0;
     let half = 0;
-    for (const tr of $('matrix').rows) {
-        const row = rows.find((r) => r.mask === Number(tr.dataset.mask));
+    rows.forEach((row, i) => {
         const done = rowDone(row);
         if (done) filled++;
         else if (!rowEmpty(row)) half++;
-        const cell = tr.querySelector('.done');
+        const cell = $('slots').rows[i].querySelector('.done');
         cell.textContent = done ? '✓' : '–';
         cell.className = done ? 'done ok' : 'done muted';
-    }
+    });
+    // 편집본 없이 선택 화면만 올린 행 — 서버도 PREVIEW_WITHOUT_EDITED 로 막는다
+    const orphanPreview = rows.filter((r) => !r.editedChallengeKey && r.previewImageKey).length;
 
     const status = $('matrix-status');
     if (rows.length === 0) {
-        status.textContent = '슬롯 0개(솔로) — 편집본 없이 등록된다.';
+        status.textContent = '슬롯 0개(솔로) — 사용자가 교체해 들어갈 자리가 없다.';
     } else if (filled === 0 && half === 0) {
-        status.textContent = `조합 ${rows.length}개 전부 비어 있다 — 편집본 없이 등록된다`
-            + '(촬영 불가, 표시 전용). 나중에 슬롯 교체로 얹는다.';
+        status.textContent = `슬롯 ${rows.length}개 전부 편집본이 비어 있다 — 그대로 등록된다`
+            + '(촬영 불가, 표시 전용). 나중에 §3.7.6 으로 얹는다.';
     } else {
-        status.textContent = `조합 ${rows.length}개 중 ${filled}개 입력 완료 — 채운 것만 등록된다`
-            + (half ? `. ${half}개 행은 파일이 덜 찼다 — 3개를 다 올리거나 비워라` : '');
+        status.textContent = `슬롯 ${rows.length}개 중 ${filled}개에 편집본이 있다 — 나머지는 앱에서 고를 수 없다`
+            + (half ? `. ${half}개 행은 덜 찼다 — 영상과 첫 장면을 함께 올리거나 셋 다 비워라` : '');
     }
     status.className = half ? 'err' : 'muted';
 
-    const slots = readSlots();
     $('submit').disabled = !(videoKey && meta
         && $('artist').value && $('song').value && $('description').value.trim()
-        && slots.every((s) => s.artistSeq && Object.values(s.anchor).every((v) => v !== null))
-        && half === 0);
+        && rows.every((s) => s.artistSeq && Object.values(s.anchor).every((v) => v !== null))
+        && half === 0 && orphanPreview === 0);
 }
 
 function buildRequest() {
@@ -213,15 +178,16 @@ function buildRequest() {
         // 선택 — 없으면 워커가 1.5초를 쓴다. 서버가 durationMs 와 대조해
         // 영상 밖이면 THUMBNAIL_AT_OUT_OF_RANGE 로 막는다(§4.8)
         thumbnailAtMs: thumbnailAtMs(),
-        participants: readSlots(),
-        // 키가 하나도 없으면 빈 배열을 보낸다 — 빈 문자열을 실어 보내면 @NotBlank 400 이다
-        editedChallenges: readMatrix().filter(rowDone).map((r) => ({
-            removedSlots: r.removedSlots,
-            videoKey: r.videoKey,
-            initialSceneKey: r.initialSceneKey,
-            previewImageKey: r.previewImageKey,
+        // 빈 키는 실어 보내지 않는다 — 빈 문자열이 가면 "편집본 있음" 으로 읽혀
+        // ck_challenge_participants_edited 에 걸린다
+        participants: readSlots().map((s) => ({
+            artistSeq: s.artistSeq,
+            anchor: s.anchor,
+            ...(s.editedChallengeKey ? {editedChallengeKey: s.editedChallengeKey} : {}),
+            ...(s.initialSceneKey ? {initialSceneKey: s.initialSceneKey} : {}),
+            ...(s.previewImageKey ? {previewImageKey: s.previewImageKey} : {}),
             // 선택 — 넣으면 서버가 원본 ±500ms 를 대조한다(§3.7.2 검증 5)
-            ...(r.durationMs ? {durationMs: Number(r.durationMs)} : {}),
+            ...(s.durationMs ? {durationMs: Number(s.durationMs)} : {}),
         })),
     };
 }
@@ -290,10 +256,15 @@ function drawDots() {
 
 // ── 5. 검증·등록 ───────────────────────────────────────────────────────────
 
-/** 409 EDITED_SET_INCOMPLETE 의 마스크 목록을 표에서 짚어 준다(§3.7.2 검증 3). */
-function markMasks(data) {
-    const bad = new Set([...(data?.missingMasks ?? []), ...(data?.duplicateMasks ?? [])]);
-    for (const tr of $('matrix').rows) tr.classList.toggle('missing', bad.has(Number(tr.dataset.mask)));
+/**
+ * 400 PARTICIPANT_INVALID 의 위반 목록을 표에서 짚어 준다(§3.7.2 검증 2).
+ * {@code data} 는 {@code ["ANCHOR_INVALID[1]", …]} 처럼 슬롯 인덱스를 끝에 달고 온다.
+ */
+function markSlots(data) {
+    const bad = new Set((Array.isArray(data) ? data : [])
+        .map((v) => Number(String(v).match(/\[(\d+)]$/)?.[1]))
+        .filter((i) => !Number.isNaN(i)));
+    [...$('slots').rows].forEach((tr, i) => tr.classList.toggle('missing', bad.has(i)));
 }
 
 function setResult(text, ok, extra) {
@@ -304,11 +275,11 @@ function setResult(text, ok, extra) {
 $('validate').addEventListener('click', async () => {
     clearError($('err'));
     $('issues').replaceChildren();
-    markMasks(null);
+    markSlots(null);
     step('validate', 'doing');
     try {
-        // 3.7.8 — 등록과 같은 본문으로 검증만. 제출 전에 매트릭스 완결성을 확인한다
-        const {valid, computedMasks = [], issues = []} = await api('/challenges/validate',
+        // 3.7.8 — 등록과 같은 본문으로 검증만. 제출 전에 슬롯 규칙을 확인한다
+        const {valid, slotMasks = [], issues = []} = await api('/challenges/validate',
             {method: 'POST', body: buildRequest()});
         step('validate', valid ? 'done' : 'fail');
         $('issues').append(...issues.map((issue) => {
@@ -317,10 +288,11 @@ $('validate').addEventListener('click', async () => {
             li.textContent = typeof issue === 'string' ? issue : JSON.stringify(issue);
             return li;
         }));
-        setResult(valid ? `검증 통과 — 마스크 ${computedMasks.join(', ')}` : '검증 실패', valid);
+        setResult(valid ? `검증 통과 — 마스크 ${slotMasks.join(', ')}` : '검증 실패', valid);
+        if (!valid) markSlots(issues[0]?.data);
     } catch (e) {
         step('validate', 'fail');
-        markMasks(e.data);
+        markSlots(e.data);
         showError($('err'), e);
     }
 });
@@ -335,11 +307,12 @@ $('submit').addEventListener('click', async () => {
         const detail = document.createElement('a');
         detail.href = `/admin/challenges/${created.challengeSeq}`;
         detail.textContent = '상세 보기';
+        const withEdited = created.participants.filter((p) => p.hasEdited).length;
         setResult(`등록 완료 — challengeSeq ${created.challengeSeq},`
-            + ` 편집본 ${created.editedChallenges.length}건. `, true, detail);
+            + ` 슬롯 ${created.participants.length}개(편집본 ${withEdited}개). `, true, detail);
     } catch (e) {
         step('create', 'fail');
-        markMasks(e.data);
+        markSlots(e.data);
         showError($('err'), e);
         $('submit').disabled = false;
     }

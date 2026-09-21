@@ -233,7 +233,7 @@ master.m3u8                 ← videoUrl 이 가리키는 것
 | **챌린지 원본 (§7.1·§7.2)** | **HLS** | 피드에서 참여 영상과 **같이 스와이프**된다. 한쪽만 MP4 면 그 구간에서 ABR 이 동작하지 않는다 |
 | **모티프 에셋 미리보기 (§11.1·§11.2)** | **HLS** | 숍 화면에서 재생된다. **가로** 영상이지만 사다리가 짧은 변 기준이라 같은 파라미터로 간다 *(2026-09-17 — 어드민 명세 v0.5 §8 #17 "MP4 유지" 를 뒤집었다)* |
 | 사용자 원본 업로드 (`raw_video_key`) | MP4 | 재생하지 않는다. 합성 워커의 **입력**이다 |
-| 편집본 소스 (`edited_challenges.video_key`) | MP4 | 같음 — 워커 입력 |
+| 편집본 소스 (`challenge_participants.edited_challenge_key`) | MP4 | 같음 — 워커 입력 |
 
 **산출물 키 규약 — 최상위 프리픽스가 곧 보호 등급이다**
 
@@ -929,23 +929,25 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 ```json
 {
   "participants": [
-    { "artistSeq": 7, "name": "윈터", "participantMask": 1,
+    { "artistSeq": 7, "name": "윈터", "slotOrder": 0, "participantMask": 1,
       "profileImageUrl": "https://cdn.example/profiles/uuid.jpg",
-      "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 } }
-  ],
-  "editedChallenges": [
-    { "participantMask": 1, "previewImageUrl": "https://cdn.example/edited/11/p1.jpg" }
+      "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
+      "selectable": true,
+      "previewImageUrl": "https://cdn.example/edited/11/p1.jpg" }
   ]
 }
 ```
 
-- `participants` = 교체 가능한 인물 슬롯(추가 참여 아티스트 — `groupName` 제거 **(회의 확정)**). 챌린지 주인은 슬롯이 아니다(원 없음·교체 불가).
+- `participants` = 교체 가능한 인물 슬롯(추가 참여 아티스트 — `groupName` 제거 **(회의 확정)**). 챌린지 주인은 슬롯이 아니다(원 없음·교체 불가). 배열은 `slotOrder` 오름차순 = 화면 좌→우.
 - `anchor` **(2026-09-18, S15P21D104-618 — `bbox` 대체)** = 촬영 전 선택 화면(10-1~3)에서 프로필 원이 앉는 자리. **썸네일 대비 0~1 비율**(`x`·`r` 가로, `y` 세로) — 뷰 `W×H` 에 중심 `(x·W, y·H)`, 반지름 `r·W`. 시안(402 폭·지름 80)이면 `r ≈ 0.0995`. 어드민이 아직 찍지 않은 옛 슬롯은 `null` → 원 숨김. `bbox` 는 삭제.
-- `editedChallenges` **(2026-09-18)** = 조합(`mask`)별 **선택 화면 이미지**. 고른 슬롯 마스크를 OR 한 값과 같은 항목의 `previewImageUrl` 을 썸네일 자리에 띄운다(배경 교체 개념). mask 0(무선택)은 항목이 없고 `thumbnailUrl` 이 그 화면. `previewImageUrl` 이 `null`(옛 편집본)이거나 항목이 없으면 썸네일로 폴백. 편집본이 있으면 항상 2ⁿ−1 전조합, 마스크 오름차순. 상세는 [`detail/07-challenge.md`](detail/07-challenge.md).
+- **`editedChallenges[]` 배열 삭제 (2026-09-21 · DB v0.18)** — 편집본이 슬롯 1개당 1개가 되면서 슬롯 항목 안으로 들어왔다. `slotOrder`·`selectable`·`previewImageUrl` 이 그 자리를 대신한다. 상세는 [`detail/07-challenge.md`](detail/07-challenge.md).
+- **사용자는 슬롯을 하나만 고른다 (2026-09-21)** — 여러 명을 한 번에 교체하는 조합은 없다. `participantMask` 는 **단일 비트**(`1 << slotOrder` = 1·2·4·8)이고 §13.1 에 **그대로** 싣는다. OR 로 합산하면 400 이다.
+- `selectable` **(2026-09-21)** = 그 슬롯을 지운 편집본이 있는가. `false` 면 그대로 §13.1 에 보내도 `EDITED_CHALLENGE_NOT_FOUND` 이므로 **화면에서 미리 잠근다**.
+- `previewImageUrl` **(2026-09-18 · 2026-09-21 슬롯으로 이전)** = 이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지(배경 교체 개념). `null` 이면 `thumbnailUrl` 로 폴백하고, 아무 슬롯도 고르지 않은 상태도 `thumbnailUrl` 이다.
 - `profileImageUrl` 추가 **(2026-09-14)** — 설명 시트(화면 3-2)가 참여자를 아바타로 그린다. 값은 `users.profile_image_key` 를 응답 조립 시점에 CDN URL 로 바꾼 것이며 저장 컬럼이 아니다. 미등록이면 `null`.
-- **편집본이 0개인 챌린지가 있을 수 있다** **(2026-09-14)** — 슬롯은 등록됐지만 AI 편집본이 아직 없는 상태다. 재생·표시는 정상이고 촬영만 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로 막힌다. 어드민 등록이 **0개 또는 정확히 2ⁿ−1개**만 허용하므로 부분 집합은 존재하지 않는다.
+- **슬롯이 전부 `selectable: false` 인 챌린지가 있을 수 있다** **(2026-09-14 · 2026-09-21 개정)** — 슬롯은 등록됐지만 AI 편집본이 아직 없는 상태다. 재생·표시는 정상이고 촬영만 막힌다. 일부 슬롯만 비는 것도 **정상**이다 — 전 조합 등록 전제가 폐기됐다.
 
-- `availableMasks` 삭제 **(회의 확정 R4)** — **운영 전제: 슬롯 조합의 편집본은 어드민이 전부 등록**한다(슬롯 1~2개 = 조합 1~3개 수준이라 현실적). 이 전제가 깨지면 조합 유효성은 13.1 의 404(`EDITED_CHALLENGE_NOT_FOUND`)로만 사후 판별되어 사용자가 촬영 직전에 실패를 겪는다 — 전제 유지 여부는 §16 #28.
+- `availableMasks` 삭제 **(회의 확정 R4)** — 고를 수 있는 슬롯인지는 항목마다 `selectable` 이 답한다 **(2026-09-21)**. 그래도 없는 슬롯이 오면 13.1 의 404(`EDITED_CHALLENGE_NOT_FOUND`)가 사후 판별한다.
 
 **실패 분기**
 
@@ -1501,11 +1503,14 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 
 ### 13.1 POST /composite-jobs
 
-**요청** `{ "jobType": "MOTIF", "assetSeq": 21 }` 또는 `{ "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 1 }`
+**요청** `{ "jobType": "MOTIF", "assetSeq": 21 }` 또는 `{ "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 1 }` — `participantMask` 는 §7.2 가 준 값 하나를 그대로.
 
-- CHALLENGE 의 `participantMask` **(기본안 — R3 편집본 파급)**: 사용자가 선택한 교체 슬롯 조합. `0` 또는 생략 = 무교체(원본 위 합성, `edited_challenge_seq=NULL`). `> 0` 이면 서버가 `(challengeSeq, participantMask)` 편집본을 조회해 잡에 `edited_challenge_seq` 로 기록 — 없으면 404 `EDITED_CHALLENGE_NOT_FOUND`.
+- CHALLENGE 의 `participantMask` **(2026-09-21 개정 — DB v0.18)**: 사용자가 고른 교체 슬롯 **하나**. §7.2 의 `participants[].participantMask` 를 그대로 보낸다.
+  - `0` 또는 생략 = 무교체(원본 위 합성, `challenge_participant_seq=NULL`).
+  - **단일 비트**(1·2·4·8)이면 서버가 그 슬롯을 조회해 잡에 `challenge_participant_seq` 로 기록한다. 슬롯이 없거나 그 슬롯에 편집본이 없으면 404 `EDITED_CHALLENGE_NOT_FOUND`.
+  - **비트가 둘 이상인 조합 값은 400 `INVALID_PARAMETER`** — 여러 명 동시 교체는 없어졌다(편집본이 슬롯 1개당 1개). "없는 편집본"이 아니라 보낼 수 없는 값이라 404 가 아니다.
 
-- 검증: CHALLENGE — 챌린지 비삭제 (+ 위 편집본 매칭). MOTIF — **이용 권한(개별 구매 ACTIVE ∪ 유효 PASS) 필수(C3 선결제 — 회의 확정)**, `participantMask` 미사용.
+- 검증: CHALLENGE — 챌린지 비삭제 (+ 위 슬롯 매칭). MOTIF — **이용 권한(개별 구매 ACTIVE ∪ 유효 PASS) 필수(C3 선결제 — 회의 확정)**, `participantMask` 미사용.
 
 - 처리: `UPLOADED` 잡 생성 + `raw/{uuid}.mp4` presigned PUT 발급. 클라는 **동기·로딩 UI**로 원본 S3 직행 업로드.
 
@@ -1520,7 +1525,8 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 | HTTP | code | 조건 |
 |---|---|---|
 | 404 | `CHALLENGE_NOT_FOUND` / `ASSET_NOT_FOUND` | 대상 없음 |
-| 404 | `EDITED_CHALLENGE_NOT_FOUND` | 선택 슬롯 조합의 편집본 없음(CHALLENGE, `participantMask > 0`) |
+| 404 | `EDITED_CHALLENGE_NOT_FOUND` | 그 자리에 슬롯이 없거나 슬롯에 편집본이 없음(CHALLENGE, `participantMask` 단일 비트) |
+| 400 | `INVALID_PARAMETER` | `participantMask` 가 단일 비트가 아님 — 슬롯은 하나만 고른다 **(2026-09-21)** |
 | 403 | `ASSET_ACCESS_DENIED` | MOTIF 이용 권한 없음 → 클라는 구매 화면 유도 |
 
 ### 13.2 POST /composite-jobs/{jobUuid}/request
@@ -1690,8 +1696,8 @@ module-common 의 에러 enum 은 이 표와 1:1 로 구현한다(`code`, `httpS
 | 13 | 4.9 답글 프리뷰 개수(기본 2)·내 댓글 다건 시 최신 1개 | §4.9 | 클라 확인 |
 | 14 | 5.3 상단 모티프 자동재생 목록 개수(기본 5)·signed URL 갱신 UX | §5.3 | 클라 확인 |
 | 15 | ~~에셋 표시명~~ — **종결(R6)**: `motif_assets.title` 컬럼 신설(DB v0.11), 11.1/11.2/6.3 응답 반영 | §6.3, 11.1/2 | 확정 |
-| 16 | `participantMask` — **부분 종결(R7)**: CHECK `>= 0` 확정, **0 = 현재 발급하지 않는 예약값**. 편집본/슬롯 최종 형태는 #17·NULL 정책과 함께 잔여 | §7.2, 13.1 | 부분 확정 |
-| 17 | ~~편집본 전조합 등록 전제~~ — **종결(R8)**: 어드민이 슬롯 전 조합 편집본을 필수 등록(+서버 완결성 검증). 어드민 명세 반영 대기 | §7.2, 13.1 | 확정 |
+| 16 | ~~`participantMask`~~ — **종결(2026-09-21 · DB v0.18)**: DB 컬럼은 `slot_order` 로 대체되고, API 의 `participantMask` 는 `1 << slotOrder` 인 **단일 비트**로 확정. `0`=무교체는 유지, 조합 값은 400 | §7.2, 13.1 | 확정 |
+| 17 | ~~편집본 전조합 등록 전제~~ — **폐기(2026-09-21 · DB v0.18)**: 편집본이 슬롯 1개당 1개가 되어 조합 자체가 없어졌다. 전조합 등록·완결성 검증(`EDITED_SET_INCOMPLETE`) 삭제. 편집본이 빈 슬롯은 정상이고 §7.2 `selectable` 이 화면에서 거른다 | §7.2, 13.1 | 확정 |
 | 18 | ~~자동완성 응답 프로필 이미지 포함 여부 · 1~2자 prefix/3자+ trgm 전략~~ — **종결(v0.13)**: §5.9 를 §5.2 에 통합하며 소멸. 프로필 이미지는 포함, 2단 전략은 단일 `ILIKE` 로 폐기 | §5.2 | 확정 |
 
 **이번 v0.8에서 종결된 기존 안건**

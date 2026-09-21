@@ -222,8 +222,9 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
                    c.challengeSeq, c.artistSeq, u.nickname,
                    s.songSeq, s.title, s.singerName,
                    c.thumbnailKey, c.durationMs,
-                   (select count(p) from ChallengeParticipant p where p.id.challengeSeq = c.challengeSeq),
-                   (select count(e) from EditedChallenge e where e.challengeSeq = c.challengeSeq),
+                   (select count(p) from ChallengeParticipant p where p.challengeSeq = c.challengeSeq),
+                   (select count(e) from ChallengeParticipant e
+                     where e.challengeSeq = c.challengeSeq and e.editedChallengeKey is not null),
                    c.viewCount, c.participantCount, c.likeCount, c.commentCount,
                    c.deleted, c.regDttm)
               from Challenge c, Artist a, User u, Song s

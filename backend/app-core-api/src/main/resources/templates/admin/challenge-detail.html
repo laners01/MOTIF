@@ -4,7 +4,8 @@
 <body>
 <!--/*
   §3.7.3 상세 + 같은 행을 고치는 두 통로 — 슬롯 앵커(§3.7.9)·편집본 키(§3.7.6).
-  슬롯 구성 교체(§3.7.5)·삭제는 별도 티켓이라 버튼을 두지 않는다.
+  둘 다 슬롯 표 한 곳에서 한다: 편집본이 슬롯 1개당 1개라 행이 1:1 이다(0019).
+  삭제는 별도 티켓이라 버튼을 두지 않는다.
 
   등록 직후 "무엇이 들어갔나"를 확인하는 용도가 크다. 그래서 원본 영상을 실제로 재생해
   보여준다 — 키만 맞고 파일이 엉뚱한 경우가 목록 숫자로는 드러나지 않는다.
@@ -50,15 +51,17 @@
     </section>
 
     <section>
-        <h2>3. 슬롯 <span class="muted">— 마스크 오름차순이 화면 좌→우다. 행을 클릭해 고른 뒤 썸네일을 클릭하면 앵커가 그 자리로 저장된다(§3.7.9)</span></h2>
+        <!--/* 슬롯과 편집본이 한 표다 — 편집본이 슬롯 1개당 1개라 행이 1:1 로 대응한다(0019). */-->
+        <h2>3. 슬롯 · 편집본 <span class="muted">— 순서 오름차순이 화면 좌→우다. 행을 클릭해 고른 뒤 썸네일을 클릭하면 앵커가 그 자리로 저장된다(§3.7.9). 파일을 고르면 그 행의 편집본 키가 바뀐다(§3.7.6) — 합성 잡이 참조 중이어도 된다</span></h2>
         <table>
             <thead>
-            <tr><th>마스크</th><th>아티스트</th><th>앵커 (x, y)</th><th>반지름</th></tr>
+            <tr><th>순서</th><th>마스크</th><th>아티스트</th><th>앵커 (x, y)</th><th>반지름</th>
+                <th>편집본 영상</th><th>첫 장면</th><th>선택 화면</th><th>참조 잡</th></tr>
             </thead>
             <tbody id="slots"></tbody>
         </table>
         <p class="muted" id="slot-note"></p>
-        <!--/* 아티스트 교체는 §3.7.5 다 — 슬롯·편집본을 통째로 다시 쓴다. 편집본 키는
+        <!--/* 아티스트 교체는 §3.7.5 다 — 슬롯을 통째로 다시 쓴다. 편집본 키는
                지금 것을 그대로 돌려보내므로 파일은 그대로고 행 seq 만 새로 난다.
                합성 잡이 참조 중이면 409 EDITED_IN_USE 로 막힌다. */-->
         <p>
@@ -67,36 +70,20 @@
             <span class="muted" id="slot-save-note">고친 곳이 없다</span>
         </p>
         <p class="muted">
-            추가한 슬롯은 <b>맨 뒤에</b> 붙는다 — 마스크가 뒤에서 늘어나야 기존 편집본의
-            조합(지운 슬롯 인덱스)이 그대로 유효하다. 앵커는 저장 뒤 썸네일을 클릭해 찍는다.
+            추가한 슬롯은 <b>맨 뒤에</b> 붙는다 — 순서가 뒤에서 늘어나야 앞 슬롯의 순서·마스크가
+            그대로 유지된다. 중간에 끼우면 이미 합성된 영상이 가리키던 자리가 다른 사람이 된다.
+            앵커와 편집본은 저장 뒤에 채운다.
         </p>
-    </section>
-
-    <section>
-        <h2>4. 편집본 <span class="muted">— 파일을 고르면 업로드 후 그 행의 키가 바뀐다(§3.7.6). 합성 잡이 참조 중이어도 된다</span></h2>
-        <table>
-            <thead>
-            <tr><th>#</th><th>지운 슬롯(마스크)</th><th>영상</th><th>첫 장면</th><th>선택 화면</th><th>참조 잡</th></tr>
-            </thead>
-            <tbody id="edited"></tbody>
-        </table>
-        <p class="muted" id="edited-note"></p>
     </section>
 
     <template id="slot-row">
         <tr>
+            <td class="order"></td>
             <td class="mask"></td>
             <td><select class="artist"></select></td>
             <td class="xy"></td>
             <td><input type="range" min="0.02" max="0.3" step="0.005" class="r"> <span class="muted r-label"></span></td>
-        </tr>
-    </template>
-
-    <template id="edited-row">
-        <tr>
-            <td class="seq"></td>
-            <td class="mask"></td>
-            <td class="media video"><span class="link"></span><input type="file" accept="video/mp4,video/quicktime" data-kind="EDITED_VIDEO" data-for="videoKey"></td>
+            <td class="media video"><span class="link"></span><input type="file" accept="video/mp4,video/quicktime" data-kind="EDITED_VIDEO" data-for="editedChallengeKey"></td>
             <td class="media scene"><span class="link"></span><input type="file" accept="image/jpeg,image/png" data-kind="EDITED_SCENE" data-for="initialSceneKey"></td>
             <td class="media preview"><span class="link"></span><input type="file" accept="image/jpeg,image/png" data-kind="EDITED_PREVIEW" data-for="previewImageKey"></td>
             <td class="jobs"></td>

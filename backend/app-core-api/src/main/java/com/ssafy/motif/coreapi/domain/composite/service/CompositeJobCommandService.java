@@ -3,6 +3,7 @@ package com.ssafy.motif.coreapi.domain.composite.service;
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.error.FieldErrorResponse;
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.admin.challenge.SlotRules;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaProperties;
 import com.ssafy.motif.coreapi.domain.asset.AssetErrorCode;
 import com.ssafy.motif.coreapi.domain.asset.dto.MyAccess;
@@ -16,9 +17,9 @@ import com.ssafy.motif.coreapi.domain.composite.dto.CompositeJobRetryResponse;
 import com.ssafy.motif.coreapi.domain.composite.CompositeErrorCode;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
-import com.ssafy.motif.domain.core.challenge.EditedChallenge;
-import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.job.JobStatus;
@@ -56,7 +57,7 @@ public class CompositeJobCommandService {
 
     private final CompositeJobRepository compositeJobRepository;
     private final ChallengeRepository challengeRepository;
-    private final EditedChallengeRepository editedChallengeRepository;
+    private final ChallengeParticipantRepository participantRepository;
     private final AssetQueryService assetQueryService;
     private final MediaObjectStore objectStore;
     /**
@@ -96,7 +97,7 @@ public class CompositeJobCommandService {
         CompositeJob job = switch (request.jobType()) {
             case CHALLENGE -> CompositeJob.create(jobUuid, JobType.CHALLENGE, userSeq,
                     request.challengeSeq(), null,
-                    editedChallengeSeq(request), rawKey);
+                    challengeParticipantSeq(request), rawKey);
             case MOTIF -> CompositeJob.create(jobUuid, JobType.MOTIF, userSeq,
                     null, requireAssetAccess(userSeq, request.assetSeq()), null, rawKey);
         };
@@ -214,18 +215,22 @@ public class CompositeJobCommandService {
     }
 
     /**
-     * CHALLENGE — 챌린지가 살아 있는지 + 고른 조합의 편집본이 있는지.
+     * CHALLENGE — 챌린지가 살아 있는지 + 고른 슬롯에 편집본이 있는지.
      *
-     * <p>{@code participantMask} 가 0·생략이면 무교체라 편집본을 찾지 않고 {@code null} 이다
-     * (§13.1 — 원본 위 합성). 그 조합에는 행 자체가 없다.
+     * <p>{@code participantMask} 가 0·생략이면 무교체라 슬롯을 찾지 않고 {@code null} 이다
+     * (§13.1 — 원본 위 합성).
      *
-     * <p><b>{@code EDITED_CHALLENGE_NOT_FOUND} 는 운영 전제가 깨졌을 때만 나온다</b> —
-     * 어드민이 {@code 1 … 2ⁿ−1} 전조합을 등록하기로 했기 때문이다(§7.2). 사용자가 이걸
-     * 보면 촬영 직전에 막힌 것이다.
+     * <p><b>마스크는 단일 비트여야 한다</b>(0019). 편집본이 슬롯 1개당 1개가 되면서 2명
+     * 이상을 한 번에 교체하는 조합이 없어졌다 — 조합 마스크가 오면 형태 오류로 400 이다.
+     * 400 으로 가르는 이유는 "없는 편집본" 이 아니라 <b>보낼 수 없는 값</b>이기 때문이다.
      *
-     * @return 편집본 seq. 무교체면 {@code null}
+     * <p>{@code EDITED_CHALLENGE_NOT_FOUND} 는 두 경우다 — 그 자리에 슬롯이 없거나, 슬롯은
+     * 있는데 어드민이 편집본을 아직 안 올렸거나. 전조합 완결성 강제가 없어졌으므로 후자는
+     * 정상적으로 일어날 수 있고, §7.2 의 {@code selectable} 이 화면에서 미리 걸러 준다.
+     *
+     * @return 슬롯 seq. 무교체면 {@code null}
      */
-    private Integer editedChallengeSeq(CompositeJobCreateRequest request) {
+    private Integer challengeParticipantSeq(CompositeJobCreateRequest request) {
         Integer challengeSeq = request.challengeSeq();
         if (!challengeRepository.existsByChallengeSeqAndDeletedFalse(challengeSeq)) {
             throw new BusinessException(ChallengeErrorCode.CHALLENGE_NOT_FOUND,
@@ -234,13 +239,20 @@ public class CompositeJobCommandService {
         if (request.isNoReplacement()) {
             return null;
         }
-        return editedChallengeRepository
-                .findByChallengeSeqAndParticipantMask(challengeSeq, request.participantMask())
-                .map(EditedChallenge::getEditedChallengeSeq)
+        int mask = request.participantMask();
+        if (!SlotRules.isSingleSlotMask(mask)) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "participantMask 는 슬롯 하나의 단일 비트여야 한다: " + mask,
+                    List.of(new FieldErrorResponse("participantMask",
+                            "슬롯 하나만 고를 수 있습니다 (1·2·4·8).")));
+        }
+        return participantRepository
+                .findByChallengeSeqAndSlotOrder(challengeSeq, SlotRules.slotOrderOf(mask))
+                .filter(ChallengeParticipant::hasEdited)
+                .map(ChallengeParticipant::getChallengeParticipantSeq)
                 .orElseThrow(() -> new BusinessException(
                         ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND,
-                        "challengeSeq: " + challengeSeq
-                                + ", participantMask: " + request.participantMask()));
+                        "challengeSeq: " + challengeSeq + ", participantMask: " + mask));
     }
 
     /**

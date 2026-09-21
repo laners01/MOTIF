@@ -12,9 +12,9 @@ import java.util.List;
  * <p><b>{@code title} 이 없다</b> — R3 에서 {@code challenges.title} 컬럼이 삭제됐고,
  * 화면 식별은 곡명({@code song.title})과 아티스트로 한다.
  *
- * <p><b>{@code availableMasks} 도 없다</b>(회의 확정 R4). 슬롯 조합의 편집본은 어드민이
- * 전부 등록한다는 운영 전제이고, 조합 유효성은 §13.1 의 {@code EDITED_CHALLENGE_NOT_FOUND}
- * 로만 사후 판별된다.
+ * <p><b>{@code availableMasks} 도 없다</b>(회의 확정 R4). 고를 수 있는 슬롯인지는 항목마다
+ * {@code participants[].selectable} 로 내려가고, 그래도 없는 슬롯을 보내면 §13.1 의
+ * {@code EDITED_CHALLENGE_NOT_FOUND} 가 사후 판별한다.
  *
  * @param participantCount 게시 참여 수 — <b>PUBLIC·PRIVATE 를 모두 포함</b>한다.
  *                         PRIVATE 영상의 조회 비노출(§1.8)과 카운트 집계는 분리된 규칙이다
@@ -52,12 +52,8 @@ public record ChallengeDetailResponse(
         @Schema(description = "챌린지 소개글")
         String description,
 
-        @Schema(description = "교체 가능한 인물 슬롯. 마스크 오름차순 = 화면 좌→우")
-        List<Participant> participants,
-
-        @Schema(description = "조합(mask)별 선택 화면 이미지. 선택한 슬롯 마스크를 OR 한 값으로 고른다. "
-                + "mask 0(무선택)은 없다 — thumbnailUrl 이 그 화면이다. 편집본이 없는 챌린지는 빈 배열")
-        List<EditedPreview> editedChallenges
+        @Schema(description = "교체 가능한 인물 슬롯. slotOrder 오름차순 = 화면 좌→우")
+        List<Participant> participants
 ) {
 
     /** §7.1·§7.2 {@code artist} — {@code groupName} 은 제거됐다(회의 확정). */
@@ -87,8 +83,12 @@ public record ChallengeDetailResponse(
      *
      * <p>{@code groupName} 은 제거됐다(회의 확정).
      *
-     * @param participantMask <b>단일 비트</b>({@code 1, 2, 4, 8}). 서버가 화면 좌→우
-     *                        순서대로 {@code 1 << index} 로 부여한 값이다
+     * <p><b>편집본 정보가 여기 들어왔다</b>(0019). 예전에는 조합별 {@code editedChallenges[]}
+     * 배열이 따로 있었지만, 편집본이 슬롯 1개당 1개가 되면서 배열 하나로 합쳐졌다 —
+     * 사용자는 <b>함께할 아티스트 한 명</b>을 고르고, 그 슬롯의 마스크 하나를 §13.1 에 보낸다.
+     *
+     * @param participantMask <b>단일 비트</b>({@code 1, 2, 4, 8}) = {@code 1 << slotOrder}.
+     *                        §13.1 의 {@code participantMask} 에 그대로 싣는다
      */
     public record Participant(
             Integer artistSeq,
@@ -96,7 +96,10 @@ public record ChallengeDetailResponse(
             @Schema(description = "아티스트 표시 이름 (users.nickname)", example = "윈터")
             String name,
 
-            @Schema(description = "단일 비트 마스크 (1·2·4·8)", example = "1")
+            @Schema(description = "화면 좌→우 순서, 0부터", example = "0")
+            int slotOrder,
+
+            @Schema(description = "단일 비트 마스크 (1·2·4·8) = 1 << slotOrder", example = "1")
             int participantMask,
 
             @Schema(description = "프로필 이미지 URL. 미등록이면 null")
@@ -104,7 +107,16 @@ public record ChallengeDetailResponse(
 
             @Schema(description = "선택 화면에서 프로필 원이 앉는 자리. 어드민이 아직 안 찍은 옛 슬롯은 null — 원을 숨긴다",
                     nullable = true)
-            Anchor anchor
+            Anchor anchor,
+
+            @Schema(description = """
+                    이 슬롯을 고를 수 있는가. 편집본(그 사람을 지운 영상)이 아직 없으면 false 이고,
+                    그래도 §13.1 로 보내면 EDITED_CHALLENGE_NOT_FOUND 다 — 화면에서 미리 잠근다""")
+            boolean selectable,
+
+            @Schema(description = "이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지. 없으면 null — thumbnailUrl 로 폴백한다",
+                    nullable = true)
+            String previewImageUrl
     ) {
     }
 
@@ -120,18 +132,4 @@ public record ChallengeDetailResponse(
     ) {
     }
 
-    /**
-     * §7.2 {@code editedChallenges[]} — 이 조합을 골랐을 때 썸네일 자리에 보이는 이미지.
-     * 사용자가 고른 슬롯의 {@code participantMask} 를 OR 한 값과 같은 항목을 쓴다.
-     *
-     * @param previewImageUrl 어드민이 아직 안 올린 옛 편집본은 null — 썸네일로 폴백한다
-     */
-    public record EditedPreview(
-            @Schema(description = "지운 슬롯 비트 OR 합 (1 … 2ⁿ−1)", example = "3")
-            int participantMask,
-
-            @Schema(nullable = true)
-            String previewImageUrl
-    ) {
-    }
 }

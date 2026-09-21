@@ -289,10 +289,10 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 1. 원본 영상 presign → 브라우저 PUT → `videoKey`.
 2. 메인 아티스트·곡(기존 선택 또는 즉시 신규 등록)·소개글 입력.
 3. **슬롯 입력** — 교체 가능한 추가 참여 아티스트를 **화면 좌→우 순서**로 추가하고 bbox 4좌표(원본 px, 좌상단 원점)를 입력. 좌표·편집본은 **AI팀이 산출해 S3 `edited/{challengeSeq}/…` 에 올려둔 값** *(회의 확정)* — 어드민은 옮겨 적는다. 서버가 `participant_mask` 를 순서대로 1·2·4… 부여(수기 비트 입력 없음 → 오류 차단).
-4. **편집본 매트릭스** — 슬롯 n개면 서버가 2ⁿ−1 조합을 표로 보여주고, 필요한 조합만 채운다. **채운 조합만 등록된다**(2026-09-21 — 메인 아티스트는 지워지지 않으므로 전조합을 만들 이유가 없다). 한 행은 파일 3개를 다 올리거나 비운다.
+4. **편집본** — 슬롯 행마다 그 사람을 지운 영상·첫 장면·선택 화면을 채운다. **매트릭스 단계가 없어졌다**(2026-09-21 — 편집본이 슬롯 1개당 1개라 3번과 한 표다). 영상·첫 장면은 함께 올리거나 함께 비운다. **비운 슬롯도 정상 등록**되고 앱에서 고를 수 없을 뿐이다.
 5. 제출 → 서버 검증 → 동기 ffmpeg(§1.4) → 트랜잭션 INSERT → `challenge.created` 발행.
 
-서버 검증(§3.7 참조): 아티스트·곡 비삭제, 슬롯 아티스트 중복 없음·비삭제(메인도 슬롯 가능), bbox CHECK(우하단 > 좌상단, ≥0), 편집본 집합은 부분 허용(중복·범위 밖만 409 `EDITED_SET_INCOMPLETE`), 모든 키 HEAD, 편집본 길이 = 원본 ±500ms **(기본안)**.
+서버 검증(§3.7 참조): 아티스트·곡 비삭제, 슬롯 아티스트 중복 없음·비삭제(메인도 슬롯 가능), 앵커 CHECK(`0 ≤ x,y ≤ 1 · 0 < r ≤ 0.5`), 편집본 키 짝(영상 ↔ 첫 장면), 보낸 키 전부 HEAD, 편집본 길이 = 원본 ±500ms **(기본안)**.
 
 - **슬롯 0개**(솔로 챌린지) 허용 → 편집본 0개, 참여는 원본 위 합성(`composite_jobs.edited_challenge_seq NULL` 경로). ⚠ 이 경우 NULL 경로가 **유일한 참여 방식**이므로 DB 미결 #8(NULL 허용 여부)은 "허용 유지"가 필요하다 — 근거로 제출(§6 #5).
 - 슬롯 수 운영 권고 ≤ 3(편집본 7개), 하드 상한 4(15개) **(기본안)**.
@@ -591,7 +591,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 
 **실패 분기** — 공통 외 없음. (`SONG_NOT_FOUND` 는 3.7.2/3.7.4 에서 곡 참조 시 사용.)
 
-### 3.7 챌린지 `challenges` · `challenge_participants` · `edited_challenges` ★★
+### 3.7 챌린지 `challenges` · `challenge_participants`(편집본 포함) ★★
 
 | # | Method | Path | 설명 |
 |---|---|---|---|
@@ -600,7 +600,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 3.7.3 | GET | `/challenges/{challengeSeq}` | 상세 |
 | 3.7.4 | PATCH | `/challenges/{challengeSeq}` | 소개글·곡 수정 |
 | 3.7.5 | PUT | `/challenges/{challengeSeq}/participants` | 슬롯 구성 전체 교체(잡 참조 없을 때만) |
-| 3.7.6 | PATCH | `/edited-challenges/{editedChallengeSeq}` | 편집본 키 교체 |
+| 3.7.6 | PATCH | `/challenge-participants/{challengeParticipantSeq}/edited` | 슬롯 편집본 키 교체 *(2026-09-21 — 구 `/edited-challenges/{seq}`)* |
 | 3.7.7 | DELETE | `/challenges/{challengeSeq}` | 소프트 삭제 |
 | 3.7.8 | POST | `/challenges/validate` | 등록 전 사전 검증(dry-run) **(기본안 — 화면 편의)** |
 | 3.7.9 | PATCH | `/challenges/{challengeSeq}/participants/{artistSeq}` | 슬롯 앵커 단독 수정 *(2026-09-18, 618)* |
@@ -626,61 +626,62 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
   "videoKey": "challenges/3f9c….mp4",
   "durationMs": 15000, "width": 1080, "height": 1920,
   "participants": [
-    { "artistSeq": 7, "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 } },
+    { "artistSeq": 7, "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
+      "editedChallengeKey": "edited/11/e1.mp4", "initialSceneKey": "edited/11/e1.jpg",
+      "previewImageKey": "edited/11/p1.jpg", "durationMs": 15020 },
     { "artistSeq": 9, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } }
-  ],
-  "editedChallenges": [
-    { "removedSlots": [0],    "videoKey": "edited/11/e1.mp4", "initialSceneKey": "edited/11/e1.jpg", "previewImageKey": "edited/11/p1.jpg", "durationMs": 15020 },
-    { "removedSlots": [1],    "videoKey": "edited/11/e2.mp4", "initialSceneKey": "edited/11/e2.jpg", "previewImageKey": "edited/11/p2.jpg" },
-    { "removedSlots": [0, 1], "videoKey": "edited/11/e3.mp4", "initialSceneKey": "edited/11/e3.jpg", "previewImageKey": "edited/11/p3.jpg" }
   ]
 }
 ```
 
-- `participants` 배열 순서 = **화면 좌→우**. 서버가 `participant_mask = 1 << index` 부여(1, 2, 4 …). `removedSlots` 는 이 배열의 인덱스 집합 → 서버가 `mask = Σ 2^idx` 계산. 어드민은 비트값을 직접 다루지 않는다.
+- **`editedChallenges[]` 배열 삭제 (2026-09-21 · DB v0.18)** — 편집본이 슬롯 1개당 1개가 되면서 `participants[]` 안으로 들어왔다. 편집본은 **그 슬롯의 아티스트를 지운 영상**이라 그 사람의 행에 붙는 것이 자연스럽다. `removedSlots` 조합 표기는 사라졌다.
+- `participants` 배열 순서 = **화면 좌→우** = `slot_order`(0부터). 서버가 부여하며 어드민은 순서·비트값을 직접 다루지 않는다. AI 페이로드의 `participant_mask` 는 `1 << slot_order` 로 파생한다.
 - `anchor` *(618)* = 선택 화면에서 이 슬롯의 **프로필 원이 앉는 자리**. **썸네일 대비 0~1 비율** — `x`·`r` 은 가로, `y` 는 세로 기준. 시안(402×874, 지름 80)의 반지름이 기본값 `40/402 ≈ 0.0995`. 어드민 화면은 원본 프레임(썸네일 시각으로 스크럽한 것)을 **클릭**해 찍고 반지름은 슬라이더. 클라이언트는 렌더 크기를 곱한다 — 중심 `(x·W, y·H)`, 반지름 `r·W`.
-- `previewImageKey` *(618)* = 이 조합을 골랐을 때 **썸네일 자리에 보이는 이미지**(AI팀 산출, 배경 교체 개념). mask 당 1장이라 편집본 행에 붙는다. mask 0(무선택)은 행이 없고 챌린지 썸네일이 그 화면이다. 어드민 매트릭스는 영상·첫 장면·선택 화면 **셋을 파일로 올리거나**(presign `EDITED_*`) AI팀이 준 키를 붙인다.
+- `editedChallengeKey`·`initialSceneKey` **(2026-09-21)** = 그 아티스트를 지운 편집본 영상과 첫 장면(AI팀 산출). **짝이라 함께 보내거나 함께 비운다** — DB CHECK 가 한쪽만 있는 행을 거부한다. **둘 다 비우는 것은 정상**이고, 그 슬롯은 앱에서 고를 수 없다(§7.2 `selectable: false`). 나중에 §3.7.6 으로 채운다.
+- `previewImageKey` *(618 · 2026-09-21 슬롯으로 이전)* = 이 슬롯을 골랐을 때 **썸네일 자리에 보이는 이미지**(AI팀 산출, 배경 교체 개념). 편집본이 있어도 생략할 수 있다(앱이 챌린지 썸네일로 폴백). 편집본 없이 이것만 보내면 400 `PARTICIPANT_INVALID`(`PREVIEW_WITHOUT_EDITED[i]`) — 고를 수 없는 그림이 남는다. 어드민 화면은 셋을 파일로 올리거나(presign `EDITED_*`) AI팀이 준 키를 붙인다.
 - 검증 순서(전부 통과해야 트랜잭션 진입):
   1. `artistSeq`·`songSeq` 비삭제, `description` 비어있지 않음(DB NOT NULL).
-  2. `participants`: 0~4개 **(하드 상한 4 — 기본안)**, 각 `artistSeq` ≠ 메인·서로 다름·비삭제, anchor `0 ≤ x,y ≤ 1 · 0 < r ≤ 0.5`(`ANCHOR_INVALID[i]`).
-  3. `editedChallenges` 집합: 개수 = 2ⁿ−1, 각 `removedSlots` 비어있지 않고 인덱스 범위 내·중복 없음, 계산된 마스크 집합 = {1 … 2ⁿ−1} 전체. 부족·중복·초과 → 409 `EDITED_SET_INCOMPLETE`, `data`: `{ "expected": 3, "missingMasks": [3], "duplicateMasks": [], "unknownMasks": [] }`.
-  4. `videoKey`·모든 편집본 키·첫 장면 키·선택 화면 키 HEAD → 부재 시 409 `MEDIA_NOT_UPLOADED`, `data`: 부재 키 목록.
-  5. *(v0.5)* 폼이 보낸 `durationMs`·`width`·`height` 규칙 검증(§1.4) — **서버 ffmpeg 없음**. 편집본 각 `durationMs` = 원본 ±500ms → 위반 409 `EDITED_DURATION_MISMATCH`. `thumbnail_key` 는 산출물 규약으로 계산해 넣는다(파일은 app-media 가 만든다).
-- 처리(트랜잭션): `challenges` INSERT(`video_key` = 업로드한 원본 MP4 키) → `challenge_participants` n행 → `edited_challenges` 2ⁿ−1행 → 커밋 후 **`challenge.created` + `job.media` 발행** *(v0.4)*.
+  2. `participants`: 0~4개 **(하드 상한 4 — 기본안)**, 각 `artistSeq` 서로 다름·비삭제(**메인도 슬롯 가능**), anchor `0 ≤ x,y ≤ 1 · 0 < r ≤ 0.5`(`ANCHOR_INVALID[i]`), 편집본 키 짝(`EDITED_KEYS_INCOMPLETE[i]`)·편집본 없는 선택 화면(`PREVIEW_WITHOUT_EDITED[i]`). 위반은 **전부 모아** 400 `PARTICIPANT_INVALID` 의 `data` 배열로.
+  3. ~~`editedChallenges` 조합 완결성~~ — **2026-09-21 삭제.** 조합이 없어져 `EDITED_SET_INCOMPLETE` 도 함께 사라졌다. 편집본이 비어 있는 슬롯은 오류가 아니다.
+  4. `videoKey`·**보낸** 편집본 키·첫 장면 키·선택 화면 키 HEAD → 부재 시 409 `MEDIA_NOT_UPLOADED`, `data`: 부재 키 목록. 보내지 않은 키는 대상이 아니다.
+  5. *(v0.5)* 폼이 보낸 `durationMs`·`width`·`height` 규칙 검증(§1.4) — **서버 ffmpeg 없음**. 슬롯의 `durationMs` = 원본 ±500ms → 위반 409 `EDITED_DURATION_MISMATCH`. `thumbnail_key` 는 산출물 규약으로 계산해 넣는다(파일은 app-media 가 만든다).
+- 처리(트랜잭션): `challenges` INSERT(`video_key` = 업로드한 원본 MP4 키) → `challenge_participants` n행(편집본 키 포함) → 커밋 후 **`challenge.created` + `job.media` 발행** *(v0.4)*.
 - *(v0.4)* `job.media` 가 처리되면 `video_key` 가 `challenges/{uuid}/master.m3u8` 로 바뀐다.
   **그 전에도 원본 MP4 로 재생된다** — ABR 만 없다(§1.4). 응답의 `videoUrl` 은 그 시점의
   `video_key` 를 그대로 반영하므로 등록 직후에는 MP4 주소가 나올 수 있다.
-- n = 0(솔로): `editedChallenges` 는 빈 배열이어야 하며 편집본 없이 등록된다.
+- n = 0(솔로): `participants` 가 빈 배열이고 교체 자리 없이 등록된다.
 
 **성공 (201)** `data`:
 
 ```json
 {
   "challengeSeq": 11, "durationMs": 15000, "thumbnailUrl": "https://cdn…/challenges/{uuid}/thumb.jpg",
-  "participants": [ { "artistSeq": 7, "participantMask": 1 }, { "artistSeq": 9, "participantMask": 2 } ],
-  "editedChallenges": [ { "editedChallengeSeq": 31, "participantMask": 1 }, { "editedChallengeSeq": 32, "participantMask": 2 }, { "editedChallengeSeq": 33, "participantMask": 3 } ]
+  "participants": [
+    { "challengeParticipantSeq": 31, "artistSeq": 7, "slotOrder": 0, "participantMask": 1, "hasEdited": true },
+    { "challengeParticipantSeq": 32, "artistSeq": 9, "slotOrder": 1, "participantMask": 2, "hasEdited": false }
+  ]
 }
 ```
 
-**3.7.3 성공 (200)** `data` = 3.7.1 항목 + `description`, `videoUrl`(공개 CDN), `participants[]`(artist 요약(`artistSeq`·`name`·`profileImageUrl` — 상세 화면이 슬롯 원 안에 넣는다)·mask·`anchor{x,y,r}` — 0017 이전 행은 `null`), `editedChallenges[]`(seq·mask·`videoUrl`·`initialSceneUrl`·`previewImageUrl`(0017 이전 행 `null`)·**키 3종**(`videoKey`·`initialSceneKey`·`previewImageKey` — 슬롯 교체 §3.7.5 가 편집본을 다시 보낼 때 쓴다)·`jobRefCount`), `activeJobCount`(QUEUED/PROCESSING).
+**3.7.3 성공 (200)** `data` = 3.7.1 항목 + `description`, `videoUrl`(공개 CDN), `participants[]` — 슬롯 한 줄에 인물·자리·편집본이 모두 들어간다 *(2026-09-21)*: `challengeParticipantSeq`·artist 요약(`artistSeq`·`name`·`profileImageUrl` — 상세 화면이 슬롯 원 안에 넣는다)·`slotOrder`·`participantMask`·`anchor{x,y,r}`(0017 이전 행은 `null`)·URL 3종(`editedChallengeUrl`·`initialSceneUrl`·`previewImageUrl`)·**키 3종**(`editedChallengeKey`·`initialSceneKey`·`previewImageKey` — 슬롯 교체 §3.7.5 가 편집본을 다시 보낼 때 쓴다)·`jobRefCount`. 그리고 `editedCount`(편집본이 올라온 슬롯 수)·`activeJobCount`(QUEUED/PROCESSING).
 
 **3.7.4 요청** `{ "description": "…", "songSeq": 12 }` — 부분 수정. 원본 영상·메인 아티스트는 불변(요청에 포함되면 400) *(회의 확정 R1 — 원본 교체 금지)*.
 
-**3.7.5 요청** = 3.7.2 의 `participants` + `editedChallenges` — 기존 슬롯·편집본을 하드 삭제하고 재생성(DB §13 규칙). 편집본 중 하나라도 `composite_jobs` 가 참조하면 409 `EDITED_IN_USE`(`data`: 참조 편집본 seq 목록). 검증·응답은 3.7.2 와 동일(원본 재추출 없음).
+**3.7.5 요청** = 3.7.2 의 `participants` — 기존 슬롯을 하드 삭제하고 재생성(DB §13 규칙). 슬롯 중 하나라도 `composite_jobs` 가 참조하면 409 `EDITED_IN_USE`(`data.challengeParticipantSeqs`: 참조 슬롯 seq 목록). 검증·응답은 3.7.2 와 동일(원본 재추출 없음). **아티스트를 바꾼 슬롯은 편집본 키를 함께 보내지 않는다** — 옛 영상은 이전 사람을 지운 것이라 새 주인에게는 틀린 베이스다(화면이 비우고 저장 뒤 §3.7.6 으로 다시 올린다).
 
-**3.7.6 요청** `{ "videoKey": "edited/11/e1b.mp4", "initialSceneKey": "edited/11/e1b.jpg", "previewImageKey": "edited/11/p1b.jpg" }` — 부분 수정, 같은 행 키 갱신(`mod_dttm`). HEAD + 길이 검증. **200** `data`: `{ "editedChallengeSeq": 31, "participantMask": 1, "videoUrl": "…", "initialSceneUrl": "…", "previewImageUrl": "…" }`. 이미 발급된 잡은 큐 메시지를 잡 행에서 재구성하므로 다음 합성부터 새 키를 쓴다. `previewImageKey` 는 0017 이전 행(`null`)을 채우는 통로이기도 하다 — 상세 화면의 편집본 행에서 파일을 고르면 presign → 이 API 로 이어진다.
+**3.7.6 요청** `{ "editedChallengeKey": "edited/11/e1b.mp4", "initialSceneKey": "edited/11/e1b.jpg", "previewImageKey": "edited/11/p1b.jpg" }` — 부분 수정, 같은 행 키 갱신(`mod_dttm`). HEAD + 길이 검증. 대상은 `challengeParticipantSeq` 다 *(2026-09-21 — 구 `editedChallengeSeq`)*. **200** `data`: `{ "challengeParticipantSeq": 31, "artistSeq": 7, "slotOrder": 0, "participantMask": 1, "editedChallengeUrl": "…", "initialSceneUrl": "…", "previewImageUrl": "…" }`. 인물·순서가 그대로라 합성 잡이 참조 중이어도 허용된다 — 이미 발급된 잡은 큐 메시지를 잡 행에서 재구성하므로 다음 합성부터 새 키를 쓴다. **편집본이 없던 슬롯을 채우는 통로이기도 하다** *(2026-09-21)* — 그때는 `editedChallengeKey`·`initialSceneKey` 를 **함께** 보내야 한다(400). `previewImageKey` 는 0017 이전 행(`null`)을 채우는 통로다.
 
 **3.7.7** — 소프트 삭제. **200** `data: null`. 확인 대화상자에 "참여 영상 n건이 앱에서 비노출됨" 안내.
 
-**3.7.8** — 3.7.2 와 같은 본문으로 1~4단계 검증만 수행(ffmpeg 미실행). **200** `data`: `{ "valid": true, "computedMasks": [1,2,3], "issues": [] }` — 화면이 제출 전 매트릭스 완결성을 표시하는 용도.
+**3.7.8** — 3.7.2 와 같은 본문으로 1~4단계 검증만 수행(ffmpeg 미실행). **200** `data`: `{ "valid": true, "slotMasks": [1,2], "issues": [] }` *(2026-09-21 — 구 `computedMasks` 는 조합 `1 … 2ⁿ−1` 이었다)* — 화면이 제출 전 슬롯 규칙 위반을 표시하는 용도.
 
-**3.7.9 요청** *(618)* `{ "x": 0.22, "y": 0.36, "r": 0.0995 }` — 슬롯 하나의 앵커만 같은 행에서 고친다. 마스크·편집본을 건드리지 않으므로 **합성 잡이 참조 중이어도 허용**된다(3.7.5 는 편집본까지 다시 보내야 하고 `EDITED_IN_USE` 로 막혀 0017 이전 행을 채울 수 없다). `artistSeq` 가 그 챌린지의 슬롯이 아니면 400 `PARTICIPANT_INVALID`(`data: ["SLOT_NOT_FOUND"]`). **200** `data` = 3.7.3 상세. 상세 화면은 슬롯 행을 고른 뒤 썸네일을 클릭하면 이 API 를 부른다.
+**3.7.9 요청** *(618)* `{ "x": 0.22, "y": 0.36, "r": 0.0995 }` — 슬롯 하나의 앵커만 같은 행에서 고친다. 순서·편집본을 건드리지 않으므로 **합성 잡이 참조 중이어도 허용**된다(3.7.5 는 슬롯을 통째로 다시 만들어야 하고 `EDITED_IN_USE` 로 막혀 0017 이전 행을 채울 수 없다). `artistSeq` 가 그 챌린지의 슬롯이 아니면 400 `PARTICIPANT_INVALID`(`data: ["SLOT_NOT_FOUND"]`). **200** `data` = 3.7.3 상세. 상세 화면은 슬롯 행을 고른 뒤 썸네일을 클릭하면 이 API 를 부른다.
 
 | HTTP | code | 조건 |
 |---|---|---|
-| 404 | `ARTIST_NOT_FOUND` / `SONG_NOT_FOUND` / `CHALLENGE_NOT_FOUND` / `EDITED_CHALLENGE_NOT_FOUND` | 대상 없음·삭제 |
-| 400 | `PARTICIPANT_INVALID` | 중복·anchor 규칙 위반·3.7.9 슬롯 아님(`data` 필드 배열) |
-| 409 | `EDITED_SET_INCOMPLETE` | 편집본 조합 누락·중복·초과 |
+| 404 | `ARTIST_NOT_FOUND` / `SONG_NOT_FOUND` / `CHALLENGE_NOT_FOUND` / `EDITED_CHALLENGE_NOT_FOUND` | 대상 없음·삭제 (§3.7.6 은 슬롯이 없을 때 `EDITED_CHALLENGE_NOT_FOUND`) |
+| 400 | `PARTICIPANT_INVALID` | 중복·anchor 규칙 위반·편집본 키 짝 깨짐·3.7.9 슬롯 아님(`data` 필드 배열) |
+| ~~409~~ | ~~`EDITED_SET_INCOMPLETE`~~ | **2026-09-21 삭제** — 조합이 없어져 완결성 검증 자체가 사라졌다 |
 | 409 | `MEDIA_NOT_UPLOADED` | 키 S3 부재 |
 | 400 | `MEDIA_INVALID` | 원본 형식·방향·길이 위반 |
 | 409 | `EDITED_DURATION_MISMATCH` | 편집본 길이 ≠ 원본 |
@@ -992,7 +993,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | `ARTIST_ALREADY_DELETED` | 409 | 3.5.5 |
 | `ALIAS_NOT_FOUND` | 404 | 3.4.7/8 · 3.5.8/9 — 별칭 없음, 또는 경로의 아티스트·그룹 소유가 아님 **(v0.6 신설)** |
 | `PARTICIPANT_INVALID` | 400 | 3.7.2/5 |
-| `EDITED_SET_INCOMPLETE` | 409 | 3.7.2/5 |
+| ~~`EDITED_SET_INCOMPLETE`~~ | ~~409~~ | **2026-09-21 미사용** — 조합 폐기로 던지는 곳이 없어졌다. `AdminErrorCode` 에는 남겨 둔다(§5 표는 코드를 지우지 않는다) |
 | `EDITED_DURATION_MISMATCH` | 409 | 3.7.2/5/6 |
 | `EDITED_IN_USE` | 409 | 3.7.5 |
 | `PRICE_ACTIVATION_BLOCKED` | 409 | 3.8.6 / 3.9.2 |
@@ -1072,7 +1073,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 |---|---|---|
 | 아티스트가 직접 안 쓰는데 왜 계정을 만드나 | 팬 앱의 "아티스트 댓글 상단 고정·♥ 표시·정렬 가중"이 전부 `users.role='ARTIST'` 행 기준으로 동작 — 어드민이 그 계정으로 **대행**하면 특별 코드 없이 자동 반영. 로그인 수단(OAuth·계정)은 만들지 않아 탈취 표면 0 | Act-As(대행) + Audit Log |
 | 어드민이 서버에 영상을 올리면 원칙 ①(바이트 미통과) 위반 아닌가 | 업로드는 여전히 브라우저→S3 presigned. 서버는 메타 추출을 위해 시킹으로 일부만 읽음. 어드민 트래픽은 총 수십 건이라 비동기 워커+스테이징 테이블보다 **동기가 단순·안전** — 문서에 의도적 예외로 명시 | Valet Key, Claim-Check |
-| 편집본이 빠지면 사용자는 어떻게 되나 | 등록 API 가 2ⁿ−1 조합 완결성을 검증하고 **전부 유효할 때만** 커밋(all-or-nothing) — 불완전한 챌린지가 존재할 수 없음. 사용자 API 의 404 는 방어선 | 원자 트랜잭션, Fail-fast validation |
+| 편집본이 빠지면 사용자는 어떻게 되나 | *(2026-09-21 개정)* 편집본이 빈 슬롯은 **정상 상태**다 — 앱 §7.2 가 `selectable: false` 로 내려 그 자리를 화면에서 잠그고, 그래도 §13.1 로 오면 `EDITED_CHALLENGE_NOT_FOUND` 가 막는다. 등록은 여전히 all-or-nothing 이지만 검증 대상은 조합 완결성이 아니라 슬롯 규칙이다 | 원자 트랜잭션, 화면 선차단 + 서버 방어선 |
 | 어드민 페이지 보안은 | Traefik 뒤 core-api `AdminIpFilter` 로 테일넷/팀 IP 한정 + 어드민 전용 JWT(서명키·`typ` 분리) + HttpOnly·SameSite=Strict 쿠키 + 감사 컬럼·감사 로그 파일. 공개 인터넷에서는 경로 자체가 404 | Citadel, Defense in depth |
 | 회원 정지 시 알림 토큰은 왜 이벤트로 끄나 | `device_tokens` 소유권이 알림 서비스(스키마 격리) — 코어는 HTTP 도 직접 UPDATE 도 못 함. 이벤트로 통보해 소유권 경계를 지킴 | 소유권 경계(멀티모듈), EDA |
 | 어드민이 잘못 눌러 대행하면 | 아티스트 행위로 기록되지만 감사 로그 파일에 어드민·시각·대상이 남고, 댓글 삭제·좋아요 취소로 즉시 되돌릴 수 있음 | Compensating action |
@@ -1086,14 +1087,14 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 [어드민 브라우저]                    [core-api /api/v1/admin]            [S3]
  1. 원본 파일 선택 ─── POST /media/presign {CHALLENGE_VIDEO} ─▶ uploadUrl, objectKey
  2. PUT 파일 ──────────────────────────────────────────────────────▶ challenges/{uuid}.mp4
- 3. 슬롯 n개 입력(좌→우, bbox) → JS 가 2ⁿ−1 조합 표 생성
- 4. 조합마다 AI팀이 준 edited/{…}.mp4 · .jpg 키 입력
- 5. POST /challenges/validate ─▶ computedMasks, issues (표에 누락 표시)
- 6. POST /challenges ─▶ HEAD ×(1+2·(2ⁿ−1)) → ffprobe/ffmpeg → INSERT ×(1+n+2ⁿ−1) → 201
+ 3. 슬롯 n개 입력(좌→우, 앵커는 프레임 클릭) — 한 행이 곧 편집본 행이다
+ 4. 슬롯마다 AI팀이 준 edited/{…}.mp4 · .jpg 키 입력(비워도 된다)
+ 5. POST /challenges/validate ─▶ slotMasks, issues (위반 슬롯 표시)
+ 6. POST /challenges ─▶ HEAD ×(1+3n) → INSERT ×(1+n) → 201
  7. AFTER_COMMIT challenge.created ─▶ RabbitMQ ─▶ 알림 서비스 팬아웃 FCM
 ```
 
-소요: 6단계가 원본 1회 + 편집본 2ⁿ−1회 ffprobe 로 n=2 기준 약 5~8초 — 화면은 진행 표시(스피너) 후 상세로 이동.
+**2ⁿ−1 조합 표 단계가 없어졌다** *(2026-09-21)* — 편집본이 슬롯 1개당 1개라 3·4번이 한 표다. HEAD·INSERT 횟수도 지수에서 선형으로 내려왔다.
 
 ## 부록 B. 어드민 계정 시드 절차
 

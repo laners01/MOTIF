@@ -116,7 +116,8 @@
 정렬이 어긋나는 순간 조용히 깨진다(D4).
 
 반대로 **재생하지 않는 파일은 MP4 로 둔다**: 사용자 원본 업로드
-(`raw_video_key`), 편집본 소스(`edited_challenges.video_key`). 워커의 입력이다.
+(`raw_video_key`), 편집본 소스(`challenge_participants.edited_challenge_key` — 0019
+이전에는 `edited_challenges.video_key`). 워커의 입력이다.
 
 **D2. 화질 적응(ABR)을 채택한다 — HLS 다중 렌디션, 재생 중 전환.**
 영상 단위 URL 선택이 아니라 재생 중 전환이다. 근거는 §근거 R3.

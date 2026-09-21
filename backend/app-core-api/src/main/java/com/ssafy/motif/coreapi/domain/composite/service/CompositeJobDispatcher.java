@@ -7,10 +7,9 @@ import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.global.filter.RequestIdFilter;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
-import com.ssafy.motif.domain.core.challenge.EditedChallenge;
-import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.job.JobType;
@@ -65,7 +64,6 @@ public class CompositeJobDispatcher {
 
     private final CompositeJobRepository compositeJobRepository;
     private final ChallengeRepository challengeRepository;
-    private final EditedChallengeRepository editedChallengeRepository;
     private final ChallengeParticipantRepository challengeParticipantRepository;
     private final MotifAssetRepository motifAssetRepository;
     private final CompositeJobSubmitter submitter;
@@ -194,16 +192,16 @@ public class CompositeJobDispatcher {
                     .orElseThrow(() -> new IllegalStateException(
                             "잡이 가리키는 에셋이 없다: assetSeq=" + job.getAssetSeq())));
         }
-        EditedChallenge edited = job.getEditedChallengeSeq() == null ? null
-                : editedChallengeRepository.findById(job.getEditedChallengeSeq())
+        ChallengeParticipant edited = job.getChallengeParticipantSeq() == null ? null
+                : challengeParticipantRepository.findById(job.getChallengeParticipantSeq())
                         .orElseThrow(() -> new IllegalStateException(
-                                "잡이 가리키는 편집본이 없다: " + job.getEditedChallengeSeq()));
+                                "잡이 가리키는 슬롯이 없다: " + job.getChallengeParticipantSeq()));
         return CompositeJobPayloads.from(job,
                 challengeRepository.findById(job.getChallengeSeq())
                         .orElseThrow(() -> new IllegalStateException(
                                 "잡이 가리키는 챌린지가 없다: " + job.getChallengeSeq())),
                 edited,
                 challengeParticipantRepository
-                        .findByIdChallengeSeqOrderByParticipantMask(job.getChallengeSeq()));
+                        .findByChallengeSeqOrderBySlotOrderAsc(job.getChallengeSeq()));
     }
 }

@@ -3,27 +3,24 @@ package com.ssafy.motif.coreapi.admin.challenge;
 import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * 슬롯·마스크 규칙 (어드민 명세 §3.7.2 검증 2·3항) — S15P21D104-559.
+ * 슬롯 규칙 (어드민 명세 §3.7.2 검증 2항) — S15P21D104-559, 0019 개정.
  *
- * <p><b>챌린지 등록의 핵심 불변식은 하나다 — 편집본은 0개이거나 정확히 2ⁿ−1 개다.</b>
- * 그 사이(부분 집합)는 없다.
- * 사용자는 촬영 전에 "누구를 뺄지"를 고르고, 서버는 그 조합의 편집본을 꺼내 준다.
- * 조합 하나가 비면 그 사용자는 <b>촬영 직전에</b> {@code EDITED_CHALLENGE_NOT_FOUND} 를
- * 만난다(API 명세 §13.1 주석). 그래서 등록 시점에 전조합을 강제한다.
+ * <p><b>편집본은 슬롯 1개당 1개다</b>(0019). 예전에는 "편집본은 0개이거나 정확히 2ⁿ−1 개"
+ * 라는 조합 완결성 불변식이 여기 있었는데, 사용자가 고르는 것이 <b>함께할 아티스트 한 명</b>
+ * 으로 정리되면서 조합 자체가 없어졌다. 편집본은 이제 슬롯 행에 같이 실린다
+ * ({@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant}).
  *
- * <p><b>마스크는 서버가 계산한다.</b> 슬롯은 요청 배열 순서(화면 좌→우)대로
- * {@code 1 << index}, 편집본은 {@code removedSlots} 인덱스 집합을 {@code Σ 2^idx} 로
- * 환산한다. 어드민이 비트값을 손으로 넣지 않으므로 오타로 조합이 어긋날 수 없다.
+ * <p><b>순서는 서버가 정한다.</b> 슬롯은 요청 배열 순서(화면 좌→우)대로 {@code slotOrder = index}
+ * 를 받고, AI 접수 페이로드의 마스크는 거기서 {@code 1 << slotOrder} 로 파생된다. 어드민이
+ * 비트값이나 순서를 손으로 넣지 않으므로 인물과 자리가 어긋날 수 없다.
  *
  * <p>{@link com.ssafy.motif.coreapi.admin.media.VideoRules} 와 같은 자리의 규칙 모음이고
  * 같은 성질이다 — <b>순수 계산만 한다</b>(I/O·DB 없음). 그래서 DB 없는 CI 에서 도는
@@ -34,17 +31,37 @@ public final class SlotRules {
     /**
      * 슬롯 하드 상한 (§ADMIN-06 기본안, 운영 권고는 ≤ 3).
      *
-     * <p>설정값으로 빼지 않는다 — 튜닝 노브가 아니라 AI팀이 만들어야 하는 편집본
-     * 개수({@code 2⁴−1 = 15})가 정하는 한계다. 바꾸려면 그 파이프라인이 먼저 바뀐다.
+     * <p>설정값으로 빼지 않는다 — 튜닝 노브가 아니라 한 챌린지에서 교체 자리를 몇 개까지
+     * 두느냐는 기획 결정이고, 화면(선택 화면의 프로필 원)과 AI팀 산출물이 함께 움직여야
+     * 바뀌는 값이다. {@code ck_challenge_participants_slot_order} 가 DB 에서도 같은 값을
+     * 강제하므로 여기만 고치면 INSERT 가 거부된다.
+     *
+     * <p>0019 이전의 근거("AI팀이 {@code 2⁴−1 = 15} 개를 만들어야 한다")는 조합 편집본과
+     * 함께 없어졌다 — 지금 편집본 수는 슬롯 수와 같아 상한에 선형으로만 늘어난다.
      */
     public static final int MAX_SLOTS = 4;
 
     private SlotRules() {
     }
 
-    /** 슬롯 i 의 {@code participant_mask} — 단일 비트다(DB CHECK). */
-    public static int participantMask(int index) {
-        return 1 << index;
+    /**
+     * 슬롯 {@code slotOrder} 의 AI 페이로드 마스크 — <b>단일 비트</b>다.
+     *
+     * <p>저장하지 않고 파생한다(AI 서버 명세 §3.2). 엔티티 쪽 짝은
+     * {@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant#participantMask()} 다.
+     */
+    public static int participantMask(int slotOrder) {
+        return 1 << slotOrder;
+    }
+
+    /** 마스크(단일 비트) → 슬롯 순서. §13.1 이 앱이 보낸 마스크를 슬롯으로 되돌릴 때 쓴다. */
+    public static int slotOrderOf(int singleBitMask) {
+        return Integer.numberOfTrailingZeros(singleBitMask);
+    }
+
+    /** 단일 비트인가 — {@code 0} 과 조합 마스크를 모두 거른다. §13.1 의 입력 검증이다. */
+    public static boolean isSingleSlotMask(int mask) {
+        return mask > 0 && (mask & (mask - 1)) == 0;
     }
 
     /**
@@ -60,7 +77,12 @@ public final class SlotRules {
      * 빼면 그 사람 자리를 아무도 고를 수 없다.
      *
      * <p>중복({@code DUPLICATE_ARTIST})은 그대로 막는다 — 같은 사람이 슬롯 둘을
-     * 차지하면 마스크와 인물이 1:1 로 맞지 않는다.
+     * 차지하면 자리와 인물이 1:1 로 맞지 않는다.
+     *
+     * <p><b>편집본 키는 짝이어야 한다</b>({@code EDITED_KEYS_INCOMPLETE}) — 영상만 있고 첫
+     * 장면이 없으면 DB CHECK({@code ck_challenge_participants_edited})가 거부한다. 둘 다
+     * 비어 있는 것은 정상이다: 편집본을 아직 안 만든 슬롯이고, 사용자가 그 슬롯을 고르면
+     * §13.1 이 막는다.
      */
     public static void checkParticipants(List<ParticipantRequest> participants) {
         List<String> violations = new ArrayList<>();
@@ -76,6 +98,13 @@ public final class SlotRules {
             if (!validAnchor(p.anchor())) {
                 violations.add("ANCHOR_INVALID[" + i + "]");
             }
+            if (blank(p.editedChallengeKey()) != blank(p.initialSceneKey())) {
+                violations.add("EDITED_KEYS_INCOMPLETE[" + i + "]");
+            }
+            // 편집본 없이 선택 화면 이미지만 올리면 화면이 고를 수 없는 그림이 남는다
+            if (blank(p.editedChallengeKey()) && !blank(p.previewImageKey())) {
+                violations.add("PREVIEW_WITHOUT_EDITED[" + i + "]");
+            }
         }
         if (!violations.isEmpty()) {
             throw new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
@@ -83,80 +112,8 @@ public final class SlotRules {
         }
     }
 
-    /**
-     * 편집본 마스크 계산 + 전조합 완결성 검증 (§3.7.2 검증 3항).
-     *
-     * <p>실패는 409 {@code EDITED_SET_INCOMPLETE} 이고 {@code data} 는 명세가 정한
-     * {@code {expected, missingMasks, duplicateMasks, unknownMasks}} 다 — 화면이 매트릭스에
-     * 어느 칸이 비었는지 바로 표시한다.
-     *
-     * @return 요청 순서 그대로의 마스크 목록 — 편집본 행을 만들 때 짝으로 쓴다
-     */
-    public static List<Integer> editedMasks(int slotCount, List<EditedChallengeRequest> editedChallenges) {
-        int expected = (1 << slotCount) - 1;
-
-        // 편집본은 **있는 조합만** 등록한다 — 전조합(2ⁿ−1)을 요구하지 않는다.
-        //
-        // 메인 아티스트는 지워지지 않는다(2026-09-21 확정). 사용자가 고르는 것은 "함께할
-        // 아티스트"이고 그 사람은 영상에 남으므로, 메인을 지운 조합은 애초에 만들 일이
-        // 없다. 전조합을 강제하면 AI 팀이 쓰지도 않을 편집본을 2ⁿ−1 개까지 만들어야 한다.
-        //
-        // 없는 조합을 앱이 고르는 일은 생기지 않는다 — §7.2 가 editedChallenges[] 로
-        // 실제 있는 것만 내려주고, 그래도 없는 조합이 오면 §13.1 이
-        // EDITED_CHALLENGE_NOT_FOUND 로 막는다.
-        if (editedChallenges.isEmpty()) {
-            return List.of();
-        }
-
-        List<Integer> masks = new ArrayList<>(editedChallenges.size());
-        Set<Integer> unknown = new LinkedHashSet<>();
-        Set<Integer> seen = new LinkedHashSet<>();
-        Set<Integer> duplicate = new LinkedHashSet<>();
-        for (EditedChallengeRequest edited : editedChallenges) {
-            int mask = maskOf(edited.removedSlots(), slotCount);
-            masks.add(mask);
-            // 0(원본) · 범위 밖 인덱스는 기대 집합에 없는 값이므로 unknown 으로 묶는다
-            if (mask <= 0 || mask > expected) {
-                unknown.add(mask);
-            } else if (!seen.add(mask)) {
-                duplicate.add(mask);
-            }
-        }
-
-        // 누락은 보지 않는다. 중복과 범위 밖은 계속 막는다 — 둘은 어드민의 입력 실수이고,
-        // 중복은 같은 조합에 편집본이 둘이라 어느 것이 쓰일지 알 수 없다
-        if (!duplicate.isEmpty() || !unknown.isEmpty()) {
-            throw new BusinessException(AdminErrorCode.EDITED_SET_INCOMPLETE,
-                    "편집본 조합 오류: expected≤%d duplicate=%s unknown=%s"
-                            .formatted(expected, duplicate, unknown),
-                    Map.of("expected", expected,
-                            "missingMasks", List.of(),
-                            "duplicateMasks", List.copyOf(duplicate),
-                            "unknownMasks", List.copyOf(unknown)));
-        }
-        return masks;
-    }
-
-    /**
-     * {@code removedSlots} → 비트 OR 합. 범위를 벗어난 인덱스·중복·빈 배열은
-     * {@code -1}(= 기대 집합 밖)로 접어 호출부가 {@code unknownMasks} 로 보고하게 한다.
-     */
-    private static int maskOf(List<Integer> removedSlots, int slotCount) {
-        if (removedSlots == null || removedSlots.isEmpty()) {
-            return -1;
-        }
-        int mask = 0;
-        for (Integer slot : removedSlots) {
-            if (slot == null || slot < 0 || slot >= slotCount) {
-                return -1;
-            }
-            int bit = participantMask(slot);
-            if ((mask & bit) != 0) {
-                return -1;      // 같은 슬롯을 두 번 적었다
-            }
-            mask |= bit;
-        }
-        return mask;
+    private static boolean blank(String key) {
+        return key == null || key.isBlank();
     }
 
     /**
