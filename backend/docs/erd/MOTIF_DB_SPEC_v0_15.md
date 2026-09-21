@@ -2,6 +2,21 @@
 
 본 문서는 `MOTIF 데이터베이스 명세서 v0.14`에 2026-09-09 DDL 검증(R9) 회신 — 명세 결함 2건 수정과 운영 기준 보강 — 을 반영한 최신 스키마 계약이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
 
+## v0.18 반영 내용 (2026-09-21 · changeSet 0019)
+
+**스키마 정리가 아니라 모델 변경이다** — 편집본이 "지운 슬롯 조합" 단위에서 **참가자 1명당 1개**로 바뀐다. 사용자가 고르는 것은 함께할 아티스트 한 명이고, 2명 이상을 한 번에 지운 편집본은 만들지 않는다.
+
+| 대상 | 변경 |
+|---|---|
+| `edited_challenges` 폐기 (§14) | 테이블 삭제. 세 키가 `challenge_participants` 로 이관 — `video_key` → `edited_challenge_key`, `initial_scene_key`·`preview_image_key` 는 이름 그대로 |
+| `challenge_participants` 대리키 (§13) | `challenge_participant_seq INTEGER IDENTITY` 를 PK 로. 복합 PK `(challenge_seq, artist_seq)` 는 UNIQUE 로 내린다 — `composite_jobs` 가 칼럼 하나로 슬롯을 가리켜야 한다 |
+| `participant_mask` → `slot_order` | 조합이 없어져 비트값이 필요 없다. 화면 좌→우 **0부터**. AI 페이로드의 `participant_mask` 는 `1 << slot_order` 로 파생하므로 계약(AI 서버 명세 §3.2)은 칸 하나 바뀌지 않는다 |
+| `ck_challenge_participants_edited` 신설 | 영상·첫 장면은 **짝** — 둘 다 NULL(편집본 미등록) 또는 둘 다 NOT NULL. `preview_image_key` 는 짝에 넣지 않는다(편집본이 있어도 없을 수 있다) |
+| `challenge_participants` 감사 컬럼 신설 | `reg_dttm`·`mod_dttm`. v0.15 Q4 에서 "교체 = 하드 삭제/재생성이라 이력이 무의미" 로 뺐던 것을 되돌린다 — 편집본 키가 같은 행에서 UPDATE 되므로(§3.7.6) 이력이 의미를 얻었다 |
+| `composite_jobs.edited_challenge_seq` → `challenge_participant_seq` | FK 대상이 편집본 행에서 슬롯 행으로. `ck_composite_jobs_type_shape` 도 새 칼럼명으로 재작성 |
+| **전 조합 등록 전제 폐기** *(구 회의 확정 R8)* | 편집본이 비어 있는 슬롯이 정상 상태가 된다. 앱 §7.2 가 `selectable` 로 내려 화면에서 잠그고, 그래도 오면 §13.1 `EDITED_CHALLENGE_NOT_FOUND`. 어드민의 조합 완결성 검증(`EDITED_SET_INCOMPLETE`)은 사라진다 |
+| 기존 행 처리 | 슬롯은 **전부 살린다**(앵커 포함, 마스크 지수 → `slot_order`). 편집본은 **단일 비트인 것만** 옮긴다 — 조합 편집본은 새 모델에 자리가 없다. 그 편집본을 쓰던 잡은 참조를 끊어 무교체로 읽힌다 |
+
 ## v0.17 반영 내용 (2026-09-20 · changeSet 0018 · [ADR-0014](../adr/0014-artist-alias-search.md))
 
 | 대상 | 변경 |
@@ -455,27 +470,36 @@ WHERE is_deleted = FALSE;
 - 삭제된 챌린지에 속한 참여 영상은 자체 `is_deleted=FALSE`여도 일반 API에서 노출하지 않는다.
 - `participant_count`는 `COUNT(*) WHERE challenge_seq=? AND is_deleted=FALSE`와 일치해야 하며 visibility는 조건에 포함하지 않는다.
 
-## 13. 챌린지 추가 참여 아티스트 (`challenge_participants`)
+## 13. 챌린지 추가 참여 아티스트 · 편집본 (`challenge_participants`)
 
 메인 `challenges.artist_seq`를 제외한 추가 참여 아티스트만 저장한다. 각 행은 합성 시 사용자가 교체해 들어갈 수 있는 **인물 슬롯**이며, 메인 아티스트는 교체 대상이 아니다 *(회의 확정)*.
 
+**v0.18(changeSet 0019)에서 편집본이 이 테이블로 들어왔다.** 편집본은 "그 사람을 지운 영상"이고 슬롯 1개당 1개다 — 사용자가 고르는 것이 **함께할 아티스트 한 명**이므로 2명 이상을 동시에 지운 조합이 없어졌다. 조합을 표현하던 `participant_mask` 는 `slot_order` 로 바뀌었고 `edited_challenges`(구 §14)는 폐기됐다.
+
 | 칼럼 | 타입 | 필수 | 키·제약 | 설명 |
 |---|---|---:|---|---|
-| `challenge_seq` | `INTEGER` | Y | PK, FK → challenges | 챌린지 |
-| `artist_seq` | `INTEGER` | Y | PK, FK → artists | 추가 참여 아티스트 |
-| `participant_mask` | `INTEGER` | Y | CHECK (`>= 0`), 복합 UNIQUE | 슬롯 비트값. 화면 좌측 인물부터 1, 2, 4, 8 … 0 허용 — **현재 발급하지 않는 예약값** *(회의 확정 R7)* |
+| `challenge_participant_seq` | `INTEGER` | Y | PK, IDENTITY | 슬롯 식별자 *(v0.18 · changeSet 0019 — `composite_jobs` 가 이 값을 가리킨다)* |
+| `challenge_seq` | `INTEGER` | Y | FK → challenges, 복합 UNIQUE ×2 | 챌린지 |
+| `artist_seq` | `INTEGER` | Y | FK → artists, 복합 UNIQUE | 추가 참여 아티스트 |
+| `slot_order` | `INTEGER` | Y | CHECK, 복합 UNIQUE | 화면 좌→우 순서, **0부터**. AI 페이로드의 `participant_mask` 는 `1 << slot_order` 로 파생한다 *(v0.18 — 구 `participant_mask` 컬럼 대체)* |
 | `anchor_x` | `DOUBLE PRECISION` | N | CHECK | 선택 화면 프로필 원 중심 x — **썸네일 가로 대비 0~1 비율** *(v0.16 · changeSet 0017)* |
 | `anchor_y` | `DOUBLE PRECISION` | N | CHECK | 원 중심 y — 썸네일 세로 대비 0~1 비율 |
 | `anchor_r` | `DOUBLE PRECISION` | N | CHECK | 원 반지름 — 썸네일 가로 대비 비율, `0 < r ≤ 0.5`. 시안(402 폭·지름 80) 기본값 `0.0995` |
+| `edited_challenge_key` | `VARCHAR(255)` | N | CHECK | **이 아티스트를 지운** 편집본 영상 S3 키 — CHALLENGE 합성의 베이스. `NULL` 이면 편집본이 아직 없는 슬롯이다 *(v0.18 — 구 `edited_challenges.video_key`)* |
+| `initial_scene_key` | `VARCHAR(255)` | N | CHECK | 촬영 가이드용 첫 장면 이미지 키. `edited_challenge_key` 와 **짝** *(v0.18)* |
+| `preview_image_key` | `VARCHAR(255)` | N | - | 촬영 전 선택 화면에서 이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지 키(AI팀 산출). 편집본이 있어도 `NULL` 일 수 있다 — 클라이언트가 챌린지 썸네일로 폴백한다 *(v0.16 · v0.18 이관)* |
+| `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 *(v0.18 신설 — 편집본 키를 갖게 되어 이력이 의미를 얻었다)* |
+| `mod_dttm` | `TIMESTAMPTZ` | N | 기본값 없음 | 수정 일시 |
+| ~~`participant_mask`~~ | — | — | — | **v0.18 삭제** — 조합이 없어져 `slot_order` 가 대신한다 |
 | ~~`bbox_left_top_x/y` · `bbox_right_bottom_x/y`~~ | — | — | — | **v0.16 삭제** — 사각형 중심은 원 자리가 못 되고, 원본 해상도를 저장하지 않아 비율로 바꿀 수도 없었다 |
 
-복합 PK: `(challenge_seq, artist_seq)`. UNIQUE: `uq_challenge_participants_mask (challenge_seq, participant_mask)`.
+PK: `challenge_participant_seq`. UNIQUE: `uq_challenge_participants_artist (challenge_seq, artist_seq)` · `uq_challenge_participants_slot_order (challenge_seq, slot_order)`.
 
 CHECK:
 
 ```sql
-participant_mask >= 0
-AND (participant_mask & (participant_mask - 1)) = 0
+-- ck_challenge_participants_slot_order (0019) — 상한은 슬롯 하드 상한 4 와 같은 값이다
+slot_order >= 0 AND slot_order < 4
 ```
 
 ```sql
@@ -484,39 +508,34 @@ AND (participant_mask & (participant_mask - 1)) = 0
 OR (anchor_x BETWEEN 0 AND 1 AND anchor_y BETWEEN 0 AND 1 AND anchor_r > 0 AND anchor_r <= 0.5)
 ```
 
+```sql
+-- ck_challenge_participants_edited (0019) — 영상과 첫 장면은 짝이다. 둘 다 NULL(편집본
+-- 미등록)이거나 둘 다 채워져 있다. preview_image_key 는 이 짝에 들어가지 않는다
+(edited_challenge_key IS NULL AND initial_scene_key IS NULL)
+OR (edited_challenge_key IS NOT NULL AND initial_scene_key IS NOT NULL)
+```
+
 서비스 규칙:
 
-- `artist_seq <> challenges.artist_seq`를 검증한다.
-- `participant_mask`는 단일 비트(2의 거듭제곱)만 저장한다. 화면 좌측 인물부터 1, 2, 4 … 순으로 부여하며 챌린지 내 중복은 UNIQUE가 차단한다. **CHECK 하한은 `>= 0`** *(회의 확정 R3·R7 유지)* — 비트식 `(mask & (mask-1)) = 0` 은 0도 통과시키므로 CHECK 조합은 `{0} ∪ {2^k}` 를 허용하며, **0 은 현재 발급하지 않는 예약값**이다 *(회의 확정 R7 — 활용처는 편집본 정책과 함께 재론)*.
+- **메인 아티스트도 슬롯이 될 수 있다** — `artist_seq = challenges.artist_seq` 를 막지 않는다. 메인은 "이 챌린지가 누구 것인가"(귀속)이고 슬롯은 "영상 속 어느 자리를 가져갈 수 있는가"라 층이 다르다. 슬롯끼리의 중복만 UNIQUE 가 막는다.
+- `slot_order` 는 **요청 배열 순서대로 서버가 부여한다**(어드민 §3.7.2). 어드민이 직접 입력하지 않으므로 인물과 자리가 어긋날 수 없다.
+- **`slot_order` 는 재정렬용 숫자가 아니다.** `notice_images.display_order` 와 이름이 비슷하지만 성질이 다르다 — 앵커·편집본과 짝이고 AI 페이로드의 마스크가 여기서 파생되므로, 순서를 바꾸면 **합성이 교체하는 인물이 바뀐다**. 슬롯 구성은 개별 이동이 아니라 통째로 지웠다 다시 만든다(어드민 §3.7.5).
 - 앵커는 **비율**이라 좌표계가 따로 없다 — 클라이언트는 썸네일을 그린 뷰 크기 `W×H` 를 곱해 중심 `(x·W, y·H)`, 반지름 `r·W` 로 원을 그린다. **`NULL` 은 0017 이전 행**이며 어드민 §3.7.9 로 채운다(그때까지 앱은 원을 숨긴다). 신규 등록은 서비스가 필수로 받는다.
-- 추가 참여자 교체 시 관계 행을 하드 삭제/재생성한다. 이때 비트 배정이 바뀌면 기존 `edited_challenges.participant_mask`가 실제 슬롯과 어긋나므로, 같은 트랜잭션에서 해당 챌린지의 편집본 마스크 전부가 현행 슬롯 비트 합집합의 부분집합인지 재검증하고 불일치 편집본을 함께 정리한다.
-- 배포 환경에 기존 행이 있는 경우 신규 changeSet에서 bbox·마스크 백필 후 `NOT NULL`을 적용한다.
-- 감사 컬럼(`reg_dttm`/`mod_dttm`)을 두지 않는 것은 **의도**다 — 교체 시 하드 삭제/재생성이라 행 이력이 무의미(`notice_images` 동일) *(회의 확정 R9 — Q4)*.
-
-## 14. 챌린지 편집본 (`edited_challenges`)
-
-특정 추가 참여자 슬롯 조합을 영상에서 지워둔 사전 편집 영상이다. CHALLENGE 합성의 베이스 영상이며, 사용자가 선택한 슬롯 조합과 `participant_mask`가 일치하는 행이 있어야 해당 조합으로 참여할 수 있다.
-
-| 칼럼 | 타입 | 필수 | 키·제약 | 설명 |
-|---|---|---:|---|---|
-| `edited_challenge_seq` | `INTEGER` | Y | PK, IDENTITY | 편집본 식별자 |
-| `challenge_seq` | `INTEGER` | Y | FK → challenges | 원본 챌린지 |
-| `participant_mask` | `INTEGER` | Y | CHECK (`>= 0`), 복합 UNIQUE | 지워진 슬롯 비트 OR 합. `0` 은 현재 발급하지 않는 예약값 *(회의 확정 R7 — 원본(무교체) 참여는 composite_jobs 의 `edited_challenge_seq NULL` 경로를 사용)* |
-| `video_key` | `VARCHAR(255)` | Y | - | 편집본 영상 S3 키 |
-| `initial_scene_key` | `VARCHAR(255)` | Y | - | 촬영 가이드용 첫 장면 이미지 키 |
-| `preview_image_key` | `VARCHAR(255)` | N | - | 촬영 전 선택 화면에서 이 조합을 골랐을 때 썸네일 자리에 보이는 이미지 키(AI팀 산출). mask 당 1장. **`NULL` 은 0017 이전 행** — 어드민 §3.7.6 으로 채운다 *(v0.16 · changeSet 0017)* |
-| `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 |
-| `mod_dttm` | `TIMESTAMPTZ` | N | 기본값 없음 | 수정 일시 |
-
-UNIQUE: `uq_edited_challenges_mask (challenge_seq, participant_mask)` — 조합당 편집본 1개.
-
-서비스 규칙:
-
-- `participant_mask`의 모든 비트는 해당 챌린지 `challenge_participants.participant_mask` 합집합의 부분집합이어야 한다. 교차 테이블 규칙이므로 CHECK가 아니라 서비스 트랜잭션 불변식으로 강제한다.
-- **전 조합 등록 전제** *(회의 확정 R8)*: 어드민은 슬롯 등록·변경 시 가능한 모든 슬롯 조합(슬롯 n개 → 2^n−1개)의 편집본을 함께 등록한다. 서버(어드민 API)는 조합 완결성을 검증하며, 미등록 조합은 정상 흐름에서 발생하지 않는다 — 사용자 API 의 404(`EDITED_CHALLENGE_NOT_FOUND`)는 방어선으로만 남는다.
-- 단일 슬롯 교체 편집본은 해당 비트 1개, 복수 인원 동시 교체 편집본은 비트 OR 값을 저장한다.
+- **편집본이 없는 슬롯은 정상 상태다** *(v0.18 — 전 조합 등록 전제 폐기)*. 앱 §7.2 가 `participants[].selectable = false` 로 내려 화면에서 잠그고, 그래도 §13.1 로 오면 `EDITED_CHALLENGE_NOT_FOUND` 가 막는다.
+- 편집본 영상/첫 장면 교체는 같은 행의 키 갱신으로 처리한다(`mod_dttm` 기록, 어드민 §3.7.6). 인물·순서가 그대로라 `composite_jobs` 가 참조 중이어도 허용된다 — 결과물은 별도 오브젝트다.
+- 슬롯 구성 교체는 하드 삭제/재생성이다. `composite_jobs` 가 참조하는 행은 FK RESTRICT 라 지울 수 없고, 어드민 API 가 먼저 409 `EDITED_IN_USE` 로 거른다.
 - 자체 `is_deleted`를 두지 않는다. 노출·참여 가능 여부는 원본 `challenges.is_deleted`를 따른다.
-- 영상/첫 장면 교체는 같은 행의 키 갱신으로 처리한다(`mod_dttm` 기록). `composite_jobs`가 참조하는 행은 하드 삭제하지 않는다(FK RESTRICT).
+
+## 14. ~~챌린지 편집본 (`edited_challenges`)~~ — v0.18 폐기
+
+**changeSet 0019 에서 삭제됐다.** 편집본이 슬롯 1개당 1개가 되면서 §13 `challenge_participants` 로 합쳐졌다(`video_key` → `edited_challenge_key`, `initial_scene_key`·`preview_image_key` 는 이름 그대로).
+
+없어진 개념:
+
+- **조합 마스크** — `participant_mask` 가 비트 OR 합이라 슬롯 n개면 `1 … 2ⁿ−1` 이었다. 사용자가 고르는 것이 함께할 아티스트 한 명으로 정리되면서 조합 자체가 사라졌다.
+- **전 조합 등록 전제** *(구 회의 확정 R8)* 와 어드민의 조합 완결성 검증(`EDITED_SET_INCOMPLETE`). 이제 편집본이 비어 있는 슬롯은 오류가 아니라 "아직 안 만든 자리"다.
+
+번호는 비워 두지 않고 그대로 둔다 — 이후 절 번호가 밀리면 다른 문서의 상호 참조가 전부 어긋난다.
 
 ---
 
@@ -1202,7 +1221,7 @@ AND (canceled_dttm IS NULL OR canceled_dttm >= started_dttm)
 | `user_seq` | `INTEGER` | Y | FK → users | 요청 사용자 |
 | `challenge_seq` | `INTEGER` | N | FK → challenges | CHALLENGE 잡 대상 |
 | `asset_seq` | `INTEGER` | N | FK → motif_assets | MOTIF 잡 대상 |
-| `edited_challenge_seq` | `INTEGER` | N | FK → edited_challenges | CHALLENGE 잡 합성 베이스 편집본. `NULL`이면 원본 영상 위 합성 *(기본안 — 확인 필요)* |
+| `challenge_participant_seq` | `INTEGER` | N | FK → challenge_participants | CHALLENGE 잡의 **교체 대상 슬롯** — 그 사람을 지운 편집본이 합성 베이스다. `NULL`이면 원본 영상 위 합성 *(v0.18 · changeSet 0019 — 구 `edited_challenge_seq`)* |
 | `raw_video_key` | `VARCHAR(255)` | Y | - | 사용자 원본 영상 |
 | `correction_enabled` | `BOOLEAN` | Y | 기본값 TRUE | 보정 사용 여부 |
 | `status` | `VARCHAR(12)` | Y | 기본값 UPLOADED, CHECK | `UPLOADED`, `QUEUED`, `PROCESSING`, `DONE`, `FAILED` |
@@ -1227,7 +1246,7 @@ OR
   job_type = 'MOTIF'
   AND asset_seq IS NOT NULL
   AND challenge_seq IS NULL
-  AND edited_challenge_seq IS NULL
+  AND challenge_participant_seq IS NULL
 )
 ```
 
@@ -1276,9 +1295,10 @@ CHALLENGE 잡:
 
 - 결과 최종화 직전 `challenges.is_deleted=FALSE`를 다시 확인한다.
 - 챌린지가 삭제된 경우 참여 영상은 생성하지 않고 잡을 `FAILED` 처리한다. 이때 최종 FAILED CHECK를 만족하도록 결과키를 저장하지 않는다.
-- 잡 생성 시 `edited_challenge_seq`가 지정되면 그 행의 `challenge_seq`가 잡의 `challenge_seq`와 일치하는지 검증한다(반정규화 정합 — 서비스 불변식).
-- 합성 베이스 키는 편집본 `video_key`(`edited_challenge_seq`가 `NULL`이면 원본 `challenges.video_key`)이며, 큐 메시지는 최초 발행과 스윕 재큐 모두 잡 행에서 재구성한다.
-- `NULL` 허용(무교체 원본 합성)은 기본안이다. 편집본 필수로 확정되면 `job_type='CHALLENGE'` 분기에 `edited_challenge_seq IS NOT NULL`을 추가한다 *(기본안 — 확인 필요)*.
+- 잡 생성 시 `challenge_participant_seq`가 지정되면 그 행의 `challenge_seq`가 잡의 `challenge_seq`와 일치하는지 검증한다(반정규화 정합 — 서비스 불변식).
+- 합성 베이스 키는 슬롯의 `edited_challenge_key`(`challenge_participant_seq`가 `NULL`이면 원본 `challenges.video_key`)이며, 큐 메시지는 최초 발행과 스윕 재큐 모두 잡 행에서 재구성한다.
+- **편집본이 없는 슬롯은 잡에 실리지 않는다** *(v0.18)*. `edited_challenge_key IS NULL` 인 슬롯을 고르면 §13.1 이 `EDITED_CHALLENGE_NOT_FOUND` 로 막으므로, 이 칼럼이 가리키는 행에는 언제나 베이스가 있다.
+- `NULL` 허용(무교체 원본 합성)은 기본안이다. 편집본 필수로 확정되면 `job_type='CHALLENGE'` 분기에 `challenge_participant_seq IS NOT NULL`을 추가한다 *(기본안 — 확인 필요)*.
 
 MOTIF 잡:
 
@@ -1433,8 +1453,7 @@ platform IN ('ANDROID','IOS','WEB')
 - `subscriptions`, 일반 좋아요, 댓글 좋아요: 관계 해제 시 하드 삭제
 - 댓글 삭제 시 해당 댓글 좋아요는 하드 삭제
 - `video_hides`: 행 존재 자체가 상태, 해제 시 하드 삭제 가능
-- `challenge_participants`, `notice_images`: 교체 시 하드 삭제/재생성
-- `edited_challenges`: 편집본 교체는 같은 행 키 갱신. 조합 폐기는 `composite_jobs` 참조 전에만 하드 삭제 가능(FK RESTRICT), 참조 후에는 유지
+- `challenge_participants`, `notice_images`: 교체 시 하드 삭제/재생성. 슬롯은 `composite_jobs` 참조 전에만 하드 삭제 가능(FK RESTRICT), 참조 후에는 유지 — 편집본 키 교체는 같은 행 키 갱신이라 참조 중에도 된다 *(v0.18 — 구 `edited_challenges` 규칙 흡수)*
 - `refresh_tokens`: 활성 수명 중 `revoked_dttm`으로 폐기하고 오래된 과거 행은 운영 보존정책에 따라 주기적 하드 삭제
 - `artist_aliases`, `group_aliases`: 어드민이 지울 때 하드 삭제. **대상 아티스트·그룹의 소프트 삭제는 따라가지 않는다** — 조회가 조인에서 거른다(§41·§42)
 - `device_tokens`: 로그아웃/무효화 시 `is_active=FALSE`
@@ -1489,8 +1508,8 @@ platform IN ('ANDROID','IOS','WEB')
 - `uq_refresh_tokens_hash` — `refresh_tokens(token_hash)`
 - `uq_companies_name_active` — `(company_name) WHERE is_deleted=FALSE`
 - `uq_artists_user` — `artists(user_seq)`
-- `uq_challenge_participants_mask` — `challenge_participants(challenge_seq, participant_mask)`
-- `uq_edited_challenges_mask` — `edited_challenges(challenge_seq, participant_mask)`
+- `uq_challenge_participants_artist` — `challenge_participants(challenge_seq, artist_seq)` *(v0.18 — 구 복합 PK)*
+- `uq_challenge_participants_slot_order` — `challenge_participants(challenge_seq, slot_order)` *(v0.18 — 구 `uq_challenge_participants_mask`)*
 - `uq_participation_videos_job` — `participation_videos(job_seq)`
 - 신고 4종 — reporter + 실제 target 조합 UNIQUE
 - `uq_notice_images_order` — `(notice_seq, display_order)`
@@ -1606,10 +1625,10 @@ WHERE status = 'ACTIVE';
 5. 사용자 차단 기능 도입 시점
 6. ~~SECRET 판정 규칙~~ — **종결(R5/R6)**: 별도 판정 없음, NORMAL 과 동일 취급(PASS 커버 포함·카드 집계 포함)
 7. 향후 회원 탈퇴 구현 시 `user_accounts.account_status`에 `WITHDRAWN`을 추가할지 여부
-8. CHALLENGE 잡의 `edited_challenge_seq` `NULL` 허용(무교체 원본 합성 모드) 유지 여부 — **팀 논의 예정(R8)**. 편집본 필수로 확정되면 CHECK 강화 + 앱 참여 흐름에서 "원본 그대로 참여" 제거
-9. bbox·`participant_mask` 산출 주체와 등록 흐름(AI 파이프라인 산출 vs 어드민 수기 입력) — 어드민 명세서 반영 필요
-10. ~~편집본 미존재 조합 처리~~ — **종결(R8)**: 전 조합 등록 전제 확정으로 정상 흐름에서 미발생(404 는 방어선)
-11. ~~participant_mask 0 의미~~ — **부분 종결(R7)**: CHECK `>= 0` 확정, 0 은 현재 발급하지 않는 예약값(원본 참여는 `edited_challenge_seq NULL` 경로). 활용처는 편집본 정책(#8·#10)과 함께 재론
+8. CHALLENGE 잡의 `challenge_participant_seq` `NULL` 허용(무교체 원본 합성 모드) 유지 여부 — **팀 논의 예정(R8)**. 편집본 필수로 확정되면 CHECK 강화 + 앱 참여 흐름에서 "원본 그대로 참여" 제거
+9. 앵커·슬롯 순서 산출 주체와 등록 흐름(AI 파이프라인 산출 vs 어드민 수기 입력) — 어드민 명세서 반영 필요
+10. ~~편집본 미존재 조합 처리~~ — **재종결(v0.18)**: 조합 자체가 없어졌다. 편집본이 비어 있는 슬롯은 정상 상태이고, §7.2 `selectable` 이 화면에서 걸러 §13.1 의 404 가 예외가 아닌 정상 방어선이 된다. 구 종결(R8 "전 조합 등록 전제")은 폐기
+11. ~~participant_mask 0 의미~~ — **종결(v0.18)**: 컬럼이 `slot_order` 로 대체돼 질문이 사라졌다. 순서는 `>= 0` 이고 0 은 맨 왼쪽 슬롯이라 예약값이 아니다. 무교체 참여는 종전대로 `challenge_participant_seq NULL` 경로
 12. ~~recent_search_terms 존치~~ — **종결(R7)**: 컬럼·CHECK·백업 플러시 규칙 삭제(신규 changeSet `DROP COLUMN`)
 13. ~~모티프 에셋 표시명~~ — **종결(R6)**: `motif_assets.title` 컬럼 신설
 

@@ -91,9 +91,8 @@ Content-Type: application/json
   "base_video_key": "edited/11/7d2f…e1.mp4",
   "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
   "correction_enabled": true,
-  "participant_mask": 3,
+  "participant_mask": 2,
   "slots": [
-    { "participant_mask": 1, "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 } },
     { "participant_mask": 2, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } }
   ],
   "base_duration_ms": 15000
@@ -126,8 +125,8 @@ Content-Type: application/json
 | `base_video_key` | string | 합성 베이스. **항상 MP4** |
 | `output_video_key` | string | 결과를 올릴 키. **이 키에 그대로 PUT.** 재시도면 덮어쓴다 |
 | `correction_enabled` | bool | 사용자가 고른 보정 여부. MOTIF 는 항상 `false`. 뜻은 AI 팀 정의(§9 #1) |
-| `participant_mask` | int | 교체 슬롯 비트 합. `0` = 무교체(`slots` 빈 배열) |
-| `slots[]` | array | 교체 대상만. `anchor` 는 **썸네일 대비 0~1 비율**(`x`·`r` 가로, `y` 세로)로 베이스에 곱하면 대략의 인물 자리다. **위치 힌트**이고 픽셀 bbox 는 없다. 옛 챌린지는 `null` 일 수 있다 |
+| `participant_mask` | int | 교체 슬롯 비트. `0` = 무교체(`slots` 빈 배열). **2026-09-21 이후 언제나 단일 비트**(1·2·4·8)다 — 편집본이 슬롯 1개당 1개로 정리돼 2명 이상을 한 번에 교체하는 조합이 없어졌다. 필드·타입은 그대로이므로 파싱은 바뀌지 않는다 |
+| `slots[]` | array | 교체 대상만 — 위 변경으로 **0개 또는 1개**다(배열 형태는 유지). `anchor` 는 **썸네일 대비 0~1 비율**(`x`·`r` 가로, `y` 세로)로 베이스에 곱하면 대략의 인물 자리다. **위치 힌트**이고 픽셀 bbox 는 없다. 옛 챌린지는 `null` 일 수 있다 |
 | `base_duration_ms` | int | 베이스 길이(ms). 결과 길이의 기준 |
 
 **접수 서비스가 줄 응답**
@@ -328,5 +327,5 @@ S3_BUCKET=motif-media
 | 6 | MOTIF 결과 방향 — 에셋(가로) + 촬영본(세로) | 베이스(에셋)를 따른다 |
 | 7 | 잡 1개 벽시계 시간 · `--task-timeout` | 30분. 실측 후 조정 |
 
-> 챌린지 편집본·앵커 산출(슬롯 n개당 2ⁿ−1개)은 합성 연동과 별개 트랙이다.
+> 챌린지 편집본·앵커 산출(**슬롯 n개당 n개** — 2026-09-21 에 조합이 폐기됐다)은 합성 연동과 별개 트랙이다.
 > 상세는 [`MOTIF_AI서버_명세서_v0_2.md`](MOTIF_AI서버_명세서_v0_2.md) §7 을 본다.

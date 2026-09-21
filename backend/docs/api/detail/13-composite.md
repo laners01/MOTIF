@@ -45,7 +45,7 @@
 ### 요청 — CHALLENGE
 
 ```json
-{ "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 3, "contentLength": 20971520 }
+{ "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 1, "contentLength": 20971520 }
 ```
 
 | 필드 | 필수 | 설명 |
@@ -53,7 +53,7 @@
 | `jobType` | Y | `CHALLENGE` \| `MOTIF` |
 | `challengeSeq` | CHALLENGE | 대상 챌린지 |
 | `assetSeq` | MOTIF | 대상 에셋 |
-| `participantMask` | N (CHALLENGE) | 교체할 슬롯 조합. **`0` 또는 생략 = 무교체**(원본 위 합성) |
+| `participantMask` | N (CHALLENGE) | 교체할 슬롯 **하나**(단일 비트). **`0` 또는 생략 = 무교체**(원본 위 합성) |
 | `contentLength` | Y | 올릴 촬영본의 **바이트 수** |
 
 ### `contentLength` 를 왜 보내나 (2026-09-19 추가)
@@ -68,18 +68,21 @@
 상한을 넘으면 **400 `INVALID_PARAMETER`** 이고 `data.maxBytes` 에 한도가 실린다.
 `Content-Type` 은 `video/mp4` 고정이라 보내지 않는다.
 
-### `participantMask` — 슬롯 조합
+### `participantMask` — 교체할 슬롯 하나 *(2026-09-21 개정)*
 
-§7.2 의 `participants[].participantMask` 는 슬롯마다 **단일 비트**(1, 2, 4 …)다. 사용자가 여러 슬롯을 고르면 **비트 OR 로 합산**해서 보낸다 — 윈터(1) + 닝닝(2) = `3`.
+§7.2 의 `participants[].participantMask` 를 **그대로** 보낸다. 슬롯마다 **단일 비트**(`1 << slotOrder` = 1, 2, 4, 8)다.
+
+**여러 슬롯을 합산하지 않는다.** 편집본이 슬롯 1개당 1개라 2명 이상을 한 번에 교체하는 조합이 없어졌다 — 사용자가 고르는 것은 함께할 아티스트 한 명이다.
 
 | 값 | 서버 동작 |
 |---|---|
-| `0` 또는 생략 | 무교체 — `edited_challenge_seq = NULL` 로 원본 위에 합성 |
-| `> 0` | `(challengeSeq, participantMask)` 로 **편집본을 조회**해 잡에 `edited_challenge_seq` 기록. **없으면 404** |
+| `0` 또는 생략 | 무교체 — `challenge_participant_seq = NULL` 로 원본 위에 합성 |
+| 단일 비트 | 그 슬롯을 조회해 잡에 `challenge_participant_seq` 기록. 슬롯이 없거나 그 슬롯에 편집본이 없으면 **404** |
+| 조합(비트 2개 이상) | **400** `INVALID_PARAMETER` — 보낼 수 없는 값이다 |
 
 ### 검증
 
-- **CHALLENGE** — 챌린지가 비삭제인지 + 위 편집본 매칭
+- **CHALLENGE** — 챌린지가 비삭제인지 + 위 슬롯 매칭
 - **MOTIF** — **이용 권한 필수**(개별 구매 ACTIVE ∪ 유효 PASS). 선결제 원칙이라 권한 없이는 촬영을 시작할 수 없다. `participantMask` 는 쓰지 않는다
 
 ### 성공 응답 (201)
@@ -104,9 +107,9 @@
 
 | HTTP | code | 조건 |
 |---|---|---|
-| 400 | `INVALID_PARAMETER` | 형태 불일치, 또는 `contentLength` 가 상한 초과 (`data.maxBytes`) |
+| 400 | `INVALID_PARAMETER` | 형태 불일치, `participantMask` 가 단일 비트가 아님, 또는 `contentLength` 가 상한 초과 (`data.maxBytes`) |
 | 404 | `CHALLENGE_NOT_FOUND` / `ASSET_NOT_FOUND` | 대상 없음 |
-| 404 | `EDITED_CHALLENGE_NOT_FOUND` | 선택한 슬롯 조합의 편집본이 없음(CHALLENGE, `participantMask > 0`) |
+| 404 | `EDITED_CHALLENGE_NOT_FOUND` | 그 자리에 슬롯이 없거나 슬롯에 편집본이 없음(CHALLENGE, `participantMask` 단일 비트) |
 | 403 | `ASSET_ACCESS_DENIED` | MOTIF 이용 권한 없음 — 클라이언트는 **구매 화면으로 유도** |
 
 ```json
@@ -119,7 +122,7 @@
 }
 ```
 
-`EDITED_CHALLENGE_NOT_FOUND` 는 **운영 전제가 깨졌을 때만** 나온다 — 어드민이 슬롯 전 조합의 편집본을 등록하기로 했기 때문이다(§7.2). 이 오류를 사용자가 보면 촬영 직전에 막히는 것이므로, 어드민 등록 시 완결성 검증이 필요하다.
+`EDITED_CHALLENGE_NOT_FOUND` 는 두 경우다 *(2026-09-21 개정)* — 그 자리에 슬롯이 없거나, 슬롯은 있는데 어드민이 편집본을 아직 안 올렸거나. **후자는 정상적으로 일어날 수 있다**(전 조합 등록 전제 폐기). 그래서 §7.2 가 슬롯마다 `selectable` 을 내려 주며, 클라이언트는 그 값으로 **미리 잠가** 사용자가 촬영 직전에 막히는 일을 없앤다.
 
 ---
 
