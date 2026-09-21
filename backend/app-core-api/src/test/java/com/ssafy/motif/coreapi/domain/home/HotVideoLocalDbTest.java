@@ -182,6 +182,25 @@ class HotVideoLocalDbTest {
     }
 
     @Test
+    @DisplayName("관심 없음 한 영상은 HOT 에서 빠진다 — 네이티브 조회가 실제로 돈다 (§8.6)")
+    void hiddenVideoIsRemovedFromHotList() {
+        Long videoSeq = newVideo(10_000_000L, "PUBLIC", false, Instant.now());
+        job.refresh();
+        assertThat(seqsOf(hotVideoQueryService.hotVideos(me, null, 100))).contains(videoSeq);
+
+        execute("insert into motif_core.video_hides (user_seq, video_seq) values (?1, ?2)",
+                me, videoSeq);
+
+        // 스냅샷은 그대로다 — 빼는 것은 읽는 쪽이다
+        assertThat(rankedSeqs()).contains(videoSeq);
+        assertThat(seqsOf(hotVideoQueryService.hotVideos(me, null, 100))).doesNotContain(videoSeq);
+    }
+
+    private List<Long> seqsOf(CursorResponse<HotVideoItem> response) {
+        return response.list().stream().map(HotVideoItem::videoSeq).toList();
+    }
+
+    @Test
     @DisplayName("카드 JPQL 이 돈다 — 곡·작성자가 채워져 내려간다")
     void hotCardQueryRuns() {
         // 로컬 DB 에 남아 있는 다른 영상보다 확실히 앞에 오도록 크게 준다 —
@@ -189,7 +208,7 @@ class HotVideoLocalDbTest {
         Long videoSeq = newVideo(10_000_000L, "PUBLIC", false, Instant.now());
         job.refresh();
 
-        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(null, 100);
+        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(me, null, 100);
 
         assertThat(response.list()).isNotEmpty();
         assertThat(response.list())
@@ -213,12 +232,12 @@ class HotVideoLocalDbTest {
         }
         job.refresh();
 
-        CursorResponse<HotVideoItem> first = hotVideoQueryService.hotVideos(null, 2);
+        CursorResponse<HotVideoItem> first = hotVideoQueryService.hotVideos(me, null, 2);
         assertThat(first.list()).hasSize(2);
         assertThat(first.hasNext()).isTrue();
 
         CursorResponse<HotVideoItem> second =
-                hotVideoQueryService.hotVideos(first.nextCursor(), 2);
+                hotVideoQueryService.hotVideos(me, first.nextCursor(), 2);
 
         assertThat(second.list()).hasSize(2);
         assertThat(second.list()).extracting(HotVideoItem::videoSeq)
@@ -232,7 +251,7 @@ class HotVideoLocalDbTest {
     void emptyBeforeFirstBatch() {
         newVideo(1_000L, "PUBLIC", false, Instant.now());
 
-        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(null, 10);
+        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(me, null, 10);
 
         assertThat(response.list()).isEmpty();
         assertThat(response.hasNext()).isFalse();
@@ -244,7 +263,7 @@ class HotVideoLocalDbTest {
         newVideo(1_000L, "PUBLIC", false, Instant.now());
         job.refresh();
 
-        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(
+        CursorResponse<HotVideoItem> response = hotVideoQueryService.hotVideos(me, 
                 com.ssafy.motif.coreapi.global.response.Cursors.encodeSnapshot(1L, 0), 10);
 
         assertThat(response.list()).isEmpty();

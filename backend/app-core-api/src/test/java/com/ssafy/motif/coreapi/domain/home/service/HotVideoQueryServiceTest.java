@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -38,6 +39,7 @@ class HotVideoQueryServiceTest {
 
     private static final long VERSION = 1788998400000L;
     private static final String CDN = "https://cdn.motif.io";
+    private static final Integer ME = 5;
 
     private VideoRankingSnapshot snapshot;
     private ParticipationVideoRepository participationVideoRepository;
@@ -47,6 +49,9 @@ class HotVideoQueryServiceTest {
     void setUp() {
         snapshot = mock(VideoRankingSnapshot.class);
         participationVideoRepository = mock(ParticipationVideoRepository.class);
+        // 대부분의 테스트는 "관심 없음" 이 없는 상태를 본다 — 필요한 테스트만 덮는다
+        given(participationVideoRepository.findHiddenVideoSeqs(any(), any()))
+                .willReturn(List.of());
 
         // HOT 후보도 보호 등급이다(ADR-0013) — 서명 경로를 태우지 않으면 URL 이
         // 통째로 null 이어도 테스트가 통과한다
@@ -72,11 +77,45 @@ class HotVideoQueryServiceTest {
     void noSnapshotGivesEmptyList() {
         given(snapshot.currentVersion()).willReturn(null);
 
-        CursorResponse<HotVideoItem> response = service.hotVideos(null, 10);
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 10);
 
         assertThat(response.list()).isEmpty();
         assertThat(response.hasNext()).isFalse();
         assertThat(response.nextCursor()).isNull();
+    }
+
+    @Test
+    @DisplayName("스냅샷의 rankDelta 를 그대로 싣는다 — 신규 진입은 null 이다")
+    void carriesRankDelta() {
+        given(snapshot.currentVersion()).willReturn(VERSION);
+        given(snapshot.page(VERSION, 0, 3))
+                .willReturn(List.of(new Ranked(1, 88L, 2), new Ranked(2, 12L, null)));
+        given(participationVideoRepository.findHotCards(List.of(88L, 12L)))
+                .willReturn(List.of(row(88L), row(12L)));
+
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 2);
+
+        assertThat(response.list()).extracting(HotVideoItem::videoSeq, HotVideoItem::rankDelta)
+                .containsExactly(tuple(88L, 2), tuple(12L, null));
+    }
+
+    @Test
+    @DisplayName("관심 없음 한 영상은 빠지고 rank 는 그대로 건너뛴다 (§8.6)")
+    void hiddenVideoIsRemovedButRankIsKept() {
+        given(snapshot.currentVersion()).willReturn(VERSION);
+        given(snapshot.page(VERSION, 0, 4))
+                .willReturn(List.of(new Ranked(1, 88L, 0), new Ranked(2, 12L, 0),
+                        new Ranked(3, 7L, 0)));
+        given(participationVideoRepository.findHotCards(List.of(88L, 12L, 7L)))
+                .willReturn(List.of(row(88L), row(12L), row(7L)));
+        given(participationVideoRepository.findHiddenVideoSeqs(ME, List.of(88L, 12L, 7L)))
+                .willReturn(List.of(12L));
+
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 3);
+
+        // 번호를 다시 매기면 같은 커서로 받은 다음 페이지와 어긋난다
+        assertThat(response.list()).extracting(HotVideoItem::videoSeq, HotVideoItem::rank)
+                .containsExactly(tuple(88L, 1), tuple(7L, 3));
     }
 
     @Test
@@ -86,7 +125,7 @@ class HotVideoQueryServiceTest {
         given(snapshot.page(VERSION, 0, 3)).willReturn(List.of(new Ranked(1, 88L, null)));
         given(participationVideoRepository.findHotCards(List.of(88L))).willReturn(List.of(row(88L)));
 
-        CursorResponse<HotVideoItem> response = service.hotVideos(null, 2);
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 2);
 
         assertThat(response.list()).singleElement()
                 .satisfies(item -> {
@@ -112,7 +151,7 @@ class HotVideoQueryServiceTest {
         given(participationVideoRepository.findHotCards(List.of(88L, 12L)))
                 .willReturn(List.of(row(88L), row(12L)));
 
-        CursorResponse<HotVideoItem> response = service.hotVideos(null, 2);
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 2);
 
         assertThat(response.list()).hasSize(2);
         assertThat(response.hasNext()).isTrue();
@@ -127,7 +166,7 @@ class HotVideoQueryServiceTest {
         given(participationVideoRepository.findHotCards(List.of(7L))).willReturn(List.of(row(7L)));
 
         CursorResponse<HotVideoItem> response =
-                service.hotVideos(Cursors.encodeSnapshot(VERSION, 2), 2);
+                service.hotVideos(ME, Cursors.encodeSnapshot(VERSION, 2), 2);
 
         assertThat(response.list()).singleElement()
                 .extracting(HotVideoItem::rank).isEqualTo(3);
@@ -141,7 +180,7 @@ class HotVideoQueryServiceTest {
         given(snapshot.page(anyLong(), anyInt(), anyInt())).willReturn(List.of());
 
         CursorResponse<HotVideoItem> response =
-                service.hotVideos(Cursors.encodeSnapshot(VERSION, 40), 10);
+                service.hotVideos(ME, Cursors.encodeSnapshot(VERSION, 40), 10);
 
         assertThat(response.list()).isEmpty();
         assertThat(response.hasNext()).isFalse();
@@ -158,7 +197,7 @@ class HotVideoQueryServiceTest {
         given(participationVideoRepository.findHotCards(any()))
                 .willReturn(List.of(row(7L), row(88L), row(12L)));
 
-        CursorResponse<HotVideoItem> response = service.hotVideos(null, 3);
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 3);
 
         assertThat(response.list()).extracting(HotVideoItem::videoSeq)
                 .containsExactly(88L, 12L, 7L);
@@ -174,7 +213,7 @@ class HotVideoQueryServiceTest {
         given(participationVideoRepository.findHotCards(any()))
                 .willReturn(List.of(row(88L), row(7L)));
 
-        CursorResponse<HotVideoItem> response = service.hotVideos(null, 3);
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 3);
 
         assertThat(response.list()).extracting(HotVideoItem::rank).containsExactly(1, 3);
     }
@@ -188,7 +227,7 @@ class HotVideoQueryServiceTest {
         // 1·2위가 모두 비노출이라 목록은 비지만, 다음 페이지는 2위 다음부터여야 한다
         given(participationVideoRepository.findHotCards(any())).willReturn(List.of());
 
-        CursorResponse<HotVideoItem> response = service.hotVideos(null, 2);
+        CursorResponse<HotVideoItem> response = service.hotVideos(ME, null, 2);
 
         assertThat(response.list()).isEmpty();
         assertThat(Cursors.decodeSnapshot(response.nextCursor()))
@@ -201,7 +240,7 @@ class HotVideoQueryServiceTest {
         given(snapshot.currentVersion()).willReturn(VERSION);
         given(snapshot.page(VERSION, 0, 101)).willReturn(List.of());
 
-        service.hotVideos(null, 500);
+        service.hotVideos(ME, null, 500);
 
         org.mockito.Mockito.verify(snapshot).page(VERSION, 0, 101);
     }

@@ -408,6 +408,24 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
                                   @Param("videoSeqs") Collection<Long> videoSeqs);
 
     /**
+     * 한 페이지 분 "관심 없음" 을 한 번에 (API 명세 §6.1 · §8.6).
+     *
+     * <p>§8.1 피드는 순서 쿼리가 네이티브라 {@code not exists} 를 거기 직접 걸지만, §6.1 은
+     * 순서가 Redis 스냅샷에서 오고 카드 조회가 JPQL 이라 같은 방법을 쓸 수 없다
+     * ({@code video_hides} 는 엔티티가 없다). 숨긴 {@code videoSeq} 만 돌려주고 호출부가
+     * {@code Set} 으로 대조한다 — {@link #findLikedVideoSeqs} 와 같은 구조다.
+     *
+     * <p><b>왜 §6.1 에도 거는가</b> *(2026-09-21 — ADR-0015)*. 지금까지 §8.1 피드에만
+     * 걸려 있어서, 관심 없음을 누른 영상이 <b>홈 HOT 에는 계속 떴다</b>.
+     */
+    @Query(value = """
+            select video_seq from motif_core.video_hides
+             where user_seq = :userSeq and video_seq in (:videoSeqs)
+            """, nativeQuery = true)
+    List<Long> findHiddenVideoSeqs(@Param("userSeq") Integer userSeq,
+                                   @Param("videoSeqs") Collection<Long> videoSeqs);
+
+    /**
      * 관심 없음 (API 명세 §8.6) — 이후 §8.1 피드에서 그 영상을 뺀다.
      *
      * <p><b>네이티브다.</b> {@code video_hides} 는 엔티티가 없다 — §8.1 이 같은 테이블을

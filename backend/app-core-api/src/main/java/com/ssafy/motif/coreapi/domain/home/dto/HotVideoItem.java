@@ -12,15 +12,21 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * <p>홈 가로 캐러셀과 세로 뷰어가 <b>같은 항목</b>을 쓴다(R4 — 뷰어용 API 가 따로
  * 없다).
  *
- * @param rank   스냅샷 순위. 커서로 이어 받아도 이어지는 번호이며, 사이에 비노출로
- *               빠진 영상이 있으면 <b>건너뛴 번호가 생긴다</b>(§1.8). 다시 매기면 같은
- *               커서로 받은 다음 페이지와 어긋난다
- * @param author 작성자 요약. {@code profileImageUrl} 은 카드에 쓰지 않아 싣지 않는다
+ * @param rank      스냅샷 순위. 커서로 이어 받아도 이어지는 번호이며, 사이에 비노출로
+ *                  빠진 영상이 있으면 <b>건너뛴 번호가 생긴다</b>(§1.8). 다시 매기면 같은
+ *                  커서로 받은 다음 페이지와 어긋난다
+ * @param rankDelta 직전 순위 − 현재 순위 — 상승이 양수다. <b>신규 진입은
+ *                  {@code null}</b>(§5.1 과 같은 규약). 대비 구간은 1시간이고, 값은 배치가
+ *                  적재 시점에 계산해 둔 것이다(ADR-0015)
+ * @param author    작성자 요약. {@code profileImageUrl} 은 카드에 쓰지 않아 싣지 않는다
  */
 @Schema(description = "HOT 참여 영상 카드 (§6.1)")
 public record HotVideoItem(
         @Schema(description = "스냅샷 순위(1-base)")
         int rank,
+
+        @Schema(description = "직전 순위 − 현재 순위. 상승이 양수, 신규 진입은 null", nullable = true)
+        Integer rankDelta,
 
         Long videoSeq,
 
