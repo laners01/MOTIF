@@ -212,7 +212,8 @@ class CompositeJobPayloadsTest {
     /** 편집본이 붙은 슬롯 — 베이스 키는 명세 예시의 값 그대로다. */
     private static ChallengeParticipant participant(int artistSeq, int slotOrder, Anchor anchor) {
         return ChallengeParticipant.of(11, artistSeq, slotOrder, anchor,
-                "edited/11/7d2f…e1.mp4", "edited/11/scene.jpg", "edited/11/preview.jpg");
+                "edited/11/7d2f…e1.mp4", "edited/11/scene.jpg", "edited/11/preview.jpg",
+                15_000);
     }
 
     private static Map<String, Object> asMap(CompositeJobPayload payload) {

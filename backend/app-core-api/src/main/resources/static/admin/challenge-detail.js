@@ -42,7 +42,6 @@ function slotRow(participant) {
     tr.dataset.artistSeq = participant.artist.artistSeq;
     tr.dataset.seq = participant.challengeParticipantSeq;
     tr.querySelector('.order').textContent = participant.slotOrder;
-    tr.querySelector('.mask').textContent = participant.participantMask;
 
     // 아티스트를 고를 수 있다(§3.7.5). dataset 은 서버가 아는 현재 주인이라
     // 앵커 저장(§3.7.9)은 계속 그 값을 경로에 쓴다 — select 는 저장 전까지 후보다
@@ -64,6 +63,8 @@ function slotRow(participant) {
     tr.querySelector('.preview .link').replaceChildren(
         participant.previewImageUrl ? link(participant.previewImageUrl, '열기')
             : warn('없음 — 앱이 썸네일로 대신 보여준다'));
+    tr.querySelector('.dur').textContent = participant.editedDurationMs
+        ? `${(participant.editedDurationMs / 1000).toFixed(2)}초` : '—';
     tr.querySelector('.jobs').textContent = participant.jobRefCount;
     return tr;
 }
@@ -145,7 +146,7 @@ function drawDots() {
         if (!p?.anchor) continue;
         // 사진은 dot() 공용(admin.js) — 반지름은 저장값이 아니라 슬라이더 현재값이라 조절 중에도 따라온다
         $('thumb-wrap').append(dot(tr.classList.contains('active'), p.anchor.x * w, p.anchor.y * h,
-            Number(tr.querySelector('.r').value) * w, p.artist?.profileImageUrl, p.participantMask));
+            Number(tr.querySelector('.r').value) * w, p.artist?.profileImageUrl, p.slotOrder));
     }
 }
 
@@ -180,13 +181,12 @@ function refreshSlotSaveState() {
  */
 $('add-slot').addEventListener('click', () => {
     const tr = $('slot-row').content.firstElementChild.cloneNode(true);
-    const order = $('slots').rows.length;
-    tr.querySelector('.order').textContent = `(새 — ${order})`;
-    tr.querySelector('.mask').textContent = `(저장하면 ${1 << order})`;
+    tr.querySelector('.order').textContent = `(새 — ${$('slots').rows.length})`;
     for (const cell of tr.querySelectorAll('.media .link')) {
         cell.replaceChildren(document.createTextNode('저장 뒤에 올린다'));
     }
     for (const input of tr.querySelectorAll('.media input[type=file]')) input.disabled = true;
+    tr.querySelector('.dur').textContent = '—';
     tr.querySelector('.jobs').textContent = '0';
     const select = tr.querySelector('.artist');
     select.append(new Option('선택', ''), ...artists.map((x) => new Option(artistLabel(x), x.artistSeq)));
@@ -223,6 +223,8 @@ $('save-slots').addEventListener('click', async () => {
                 editedChallengeKey: keep ? now.editedChallengeKey : null,
                 initialSceneKey: keep ? now.initialSceneKey : null,
                 previewImageKey: keep ? now.previewImageKey : null,
+                // 편집본을 들고 가면 길이도 같이 가야 한다 — 서버가 짝으로 요구한다
+                durationMs: keep ? now.editedDurationMs : null,
             };
         });
         await api(`/challenges/${challengeSeq}/participants`,

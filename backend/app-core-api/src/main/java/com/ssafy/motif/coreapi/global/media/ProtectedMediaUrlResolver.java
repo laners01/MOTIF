@@ -38,9 +38,31 @@ public class ProtectedMediaUrlResolver {
         if (key == null || key.isBlank() || baseUrl == null || baseUrl.isBlank()) {
             return null;
         }
+        // 이미지용 만료를 쓴다 — 썸네일·프로필은 만료돼도 재생목록처럼 다시 받아
+        // 복구되지 않는다(<img> 가 403 을 받으면 깨진 채 남는다)
+        return signer.signImage(absolute(key));
+    }
+
+    /**
+     * 단일 영상 파일 — <b>짧은 만료</b>로 서명한다 (0020, §7.6 편집본).
+     *
+     * <p>{@link #resolve} 와 나누는 이유는 <b>복구 경로가 있기 때문이다</b>. 이미지에
+     * 긴 만료를 준 근거는 "403 을 받으면 깨진 채 남는다" 였는데, 이쪽은 만료되면 앱이
+     * §7.6 을 다시 불러 새 URL 을 받는다 — 재생목록과 같은 모양이라 만료를 길게 잡을
+     * 이유가 없고, 그만큼 URL 이 새어 나갔을 때 열려 있는 창이 짧아진다.
+     *
+     * <p>HLS 가 아니라 <b>통짜 MP4</b> 라서 여기 있다. 재생목록이면 조각마다 서명이
+     * 따라붙어야 해 {@code signPrefix} 를 써야 한다.
+     */
+    public String resolveVideo(String key) {
+        if (key == null || key.isBlank() || baseUrl == null || baseUrl.isBlank()) {
+            return null;
+        }
+        return signer.sign(absolute(key));
+    }
+
+    private String absolute(String key) {
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        // 이미지용 만료를 쓴다 — 이 클래스가 만드는 것은 단일 파일 주소뿐이고,
-        // 그쪽은 만료돼도 재생목록처럼 다시 받아 복구되지 않는다
-        return signer.signImage(base + "/" + key);
+        return base + "/" + key;
     }
 }

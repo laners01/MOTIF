@@ -44,7 +44,6 @@ function readSlots() {
 function renumber() {
     [...$('slots').rows].forEach((tr, i) => {
         tr.querySelector('.idx').textContent = i;
-        tr.querySelector('.mask').textContent = 1 << i;
     });
     $('add-slot').disabled = $('slots').rows.length >= MAX_SLOTS;
 }
@@ -279,7 +278,7 @@ $('validate').addEventListener('click', async () => {
     step('validate', 'doing');
     try {
         // 3.7.8 — 등록과 같은 본문으로 검증만. 제출 전에 슬롯 규칙을 확인한다
-        const {valid, slotMasks = [], issues = []} = await api('/challenges/validate',
+        const {valid, issues = []} = await api('/challenges/validate',
             {method: 'POST', body: buildRequest()});
         step('validate', valid ? 'done' : 'fail');
         $('issues').append(...issues.map((issue) => {
@@ -288,7 +287,7 @@ $('validate').addEventListener('click', async () => {
             li.textContent = typeof issue === 'string' ? issue : JSON.stringify(issue);
             return li;
         }));
-        setResult(valid ? `검증 통과 — 마스크 ${slotMasks.join(', ')}` : '검증 실패', valid);
+        setResult(valid ? '검증 통과' : '검증 실패', valid);
         if (!valid) markSlots(issues[0]?.data);
     } catch (e) {
         step('validate', 'fail');

@@ -4,10 +4,14 @@ import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeParticipantItem;
+import com.ssafy.motif.coreapi.domain.challenge.dto.EditedVideoResponse;
 import com.ssafy.motif.coreapi.global.response.Cursors;
-import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.coreapi.global.media.MediaSigningProperties;
+import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.domain.core.artist.ArtistListRow;
 import com.ssafy.motif.domain.core.artist.ArtistName;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
@@ -48,7 +52,15 @@ public class ChallengeQueryService {
     private final ArtistRepository artistRepository;
     private final SongRepository songRepository;
     private final SubscriptionRepository subscriptionRepository;
-    private final PublicMediaUrlResolver mediaUrlResolver;
+    /**
+     * 등급 판정 지점 (0020 — 구 {@code PublicMediaUrlResolver}).
+     *
+     * <p>§7.5·§7.6 이 {@code private/edited/…} 를 내보내게 되면서 공개 전용 리졸버로는
+     * 서명이 붙지 않는다. 호출부가 두 리졸버 중 하나를 직접 고르지 않는 것이 규약이다 —
+     * 한 곳만 고쳤을 때 보호돼야 할 것이 무기명으로 새거나 공개 것이 403 이 된다.
+     */
+    private final MediaUrlResolver mediaUrlResolver;
+    private final MediaSigningProperties signingProperties;
 
     /** §1.9 size 상한 — 커서 목록 공통. */
     private static final int MAX_SIZE = 100;
@@ -111,8 +123,9 @@ public class ChallengeQueryService {
                                          boolean liked, boolean subscribed) {
         return new ChallengeFeedItem(
                 c.getChallengeSeq(),
-                // 챌린지 원본은 공개 등급이라 서명 없는 CloudFront URL 이다 (§1.7)
-                mediaUrlResolver.resolve(c.getVideoKey()),
+                // 챌린지 원본은 HLS 다 — 공개 등급이라 서명은 붙지 않지만, 재생목록은
+                // 조각을 더 요청하므로 단일 파일용 resolve 가 아니라 이쪽이다 (§1.7, ADR-0012)
+                mediaUrlResolver.resolvePlaylist(c.getVideoKey()),
                 mediaUrlResolver.resolve(c.getThumbnailKey()),
                 c.getDurationMs(),
                 new ChallengeFeedItem.Artist(
@@ -148,8 +161,8 @@ public class ChallengeQueryService {
 
         return new ChallengeDetailResponse(
                 challenge.getChallengeSeq(),
-                // 챌린지 원본은 공개 등급이라 서명 없는 CloudFront URL 이다 (§1.7)
-                mediaUrlResolver.resolve(challenge.getVideoKey()),
+                // 챌린지 원본은 HLS 다 — 공개 등급이라 서명은 붙지 않는다 (§1.7, ADR-0012)
+                mediaUrlResolver.resolvePlaylist(challenge.getVideoKey()),
                 mediaUrlResolver.resolve(challenge.getThumbnailKey()),
                 challenge.getDurationMs(),
                 new ChallengeDetailResponse.Artist(
@@ -162,28 +175,31 @@ public class ChallengeQueryService {
                 challenge.getCommentCount(),
                 challengeRepository.isLikedBy(challengeSeq, userSeq),
                 subscriptionRepository.existsByIdUserSeqAndIdArtistSeq(userSeq, challenge.getArtistSeq()),
-                challenge.getDescription(),
-                participants(challengeSeq));
+                challenge.getDescription());
     }
 
     /**
-     * 슬롯 목록 — {@code slotOrder} 오름차순이 곧 화면 좌→우 순서다.
+     * §7.5 슬롯 목록 — {@code slotOrder} 오름차순이 곧 화면 좌→우 순서다.
      *
-     * <p><b>선택 화면 이미지가 여기 실린다</b>(0019). 예전에는 조합별 {@code editedChallenges[]}
-     * 배열을 따로 내려 안드로이드가 마스크를 OR 해 맞춰 봤지만, 편집본이 슬롯 1개당 1개가
-     * 되면서 그 대조가 필요 없어졌다 — 고른 슬롯 항목의 이미지를 그대로 쓴다.
+     * <p><b>§7.2 에서 떼어 냈다</b>(0020). 촬영 전 선택 화면(시안 10-1~3)이 쓰는 데이터라
+     * 상세 Bottom Sheet 와 수명이 다르고, 편집본 이미지가 서명 URL 이 되면서 만료가 붙었다 —
+     * 상세를 열어 둔 채 오래 머물면 이미지가 죽는다. 필요한 화면이 직접 부르게 한다.
+     *
+     * <p><b>영상은 여기 없다.</b> 고른 뒤 §7.6 으로 따로 받는다.
      *
      * <p>이름과 프로필 키를 {@code ArtistRepository.findNames} 로 <b>한 번에</b> 가져온다.
      * 슬롯은 최대 4개지만 하나씩 조회하면 그대로 N+1 이고, 그 메서드가 이 용도로 이미 있다.
-     *
-     * <p>{@code profileImageUrl} 은 저장값이 아니라 <b>응답 조립 시점에 만드는 값</b>이다 —
-     * 메인 아티스트와 같은 방식이다. 설명 시트의 참여자 아바타가 이걸 쓴다.
      */
-    private List<ChallengeDetailResponse.Participant> participants(Integer challengeSeq) {
+    public ListResponse<ChallengeParticipantItem> participants(Integer challengeSeq) {
+        // 삭제된 챌린지는 없는 것으로 답한다 (§1.8)
+        if (!challengeRepository.existsByChallengeSeqAndDeletedFalse(challengeSeq)) {
+            throw new BusinessException(
+                    ChallengeErrorCode.CHALLENGE_NOT_FOUND, "challengeSeq: " + challengeSeq);
+        }
         List<ChallengeParticipant> slots =
                 participantRepository.findByChallengeSeqOrderBySlotOrderAsc(challengeSeq);
         if (slots.isEmpty()) {
-            return List.of();
+            return ListResponse.of(List.of());
         }
 
         Map<Integer, ArtistName> artists = artistRepository
@@ -191,20 +207,46 @@ public class ChallengeQueryService {
                 .stream()
                 .collect(Collectors.toMap(ArtistName::artistSeq, a -> a));
 
-        return slots.stream()
+        return ListResponse.of(slots.stream()
                 .map(slot -> {
                     ArtistName artist = artists.get(slot.getArtistSeq());
-                    return new ChallengeDetailResponse.Participant(
+                    return new ChallengeParticipantItem(
+                            slot.getChallengeParticipantSeq(),
                             slot.getArtistSeq(),
                             artist == null ? null : artist.name(),
                             slot.getSlotOrder(),
-                            slot.participantMask(),
                             artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey()),
                             toAnchor(slot.anchorOrNull()),
-                            slot.hasEdited(),
+                            mediaUrlResolver.resolve(slot.getInitialSceneKey()),
                             mediaUrlResolver.resolve(slot.getPreviewImageKey()));
                 })
-                .toList();
+                .toList());
+    }
+
+    /**
+     * §7.6 편집본 영상 — 촬영 화면이 배경으로 재생한다.
+     *
+     * <p><b>통짜 MP4 다.</b> 편집본은 {@code job.media} 를 타지 않아 렌디션이 없으므로
+     * {@code resolvePlaylist} 가 아니라 {@code resolveVideoFile} 이다.
+     *
+     * <p>404 는 세 경우를 한 코드로 묶는다 — 슬롯 없음 · 삭제된 챌린지 소속 · 편집본 미등록.
+     * 가르면 남의 챌린지 슬롯 seq 를 넣어 보고 존재를 읽을 수 있다(§1.8).
+     */
+    public EditedVideoResponse editedVideo(Integer challengeParticipantSeq) {
+        ChallengeParticipant slot = participantRepository.findById(challengeParticipantSeq)
+                .filter(ChallengeParticipant::hasEdited)
+                .filter(p -> challengeRepository.existsByChallengeSeqAndDeletedFalse(p.getChallengeSeq()))
+                .orElseThrow(() -> new BusinessException(
+                        ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND,
+                        "challengeParticipantSeq: " + challengeParticipantSeq));
+
+        return new EditedVideoResponse(
+                slot.getChallengeParticipantSeq(),
+                slot.getChallengeSeq(),
+                slot.getArtistSeq(),
+                mediaUrlResolver.resolveVideoFile(slot.getEditedChallengeKey()),
+                slot.getEditedDurationMs(),
+                signingProperties.ttl().toSeconds());
     }
 
     /** 0017 이전 슬롯은 앵커가 없다 — null 로 내려 클라이언트가 원을 숨긴다. */

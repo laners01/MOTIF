@@ -21,37 +21,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 실제 DB 가 필요한 케이스는 {@code AdminChallengeServiceLocalDbTest} 가 맡는다.
  *
  * <p>0019 로 <b>조합 완결성 검사가 통째로 없어졌다</b> — 편집본이 슬롯 1개당 1개라 마스크
- * 조합이라는 개념 자체가 사라졌다. 그 자리를 키 짝 검사와 단일 비트 판정이 대신한다.
+ * 조합이라는 개념 자체가 사라졌다. 0020 에서는 <b>마스크 헬퍼까지 없어졌다</b> — 앱·어드민이
+ * 슬롯을 {@code challengeParticipantSeq} 로 가리키게 되면서 마스크가 남은 곳은 AI 접수
+ * 페이로드 하나뿐이고, 그 파생은 엔티티가 맡는다. 남은 검사는 인물·앵커·편집본 짝이다.
  */
 class SlotRulesTest {
-
-    @Test
-    @DisplayName("슬롯 마스크는 배열 순서대로 1·2·4·8 — 어드민이 비트를 입력하지 않는다")
-    void 슬롯_마스크() {
-        assertThat(List.of(SlotRules.participantMask(0), SlotRules.participantMask(1),
-                SlotRules.participantMask(2), SlotRules.participantMask(3)))
-                .containsExactly(1, 2, 4, 8);
-    }
-
-    @Test
-    @DisplayName("마스크 ↔ 순서는 왕복한다 — §13.1 이 앱이 보낸 마스크를 슬롯으로 되돌린다")
-    void 마스크_왕복() {
-        for (int order = 0; order < SlotRules.MAX_SLOTS; order++) {
-            assertThat(SlotRules.slotOrderOf(SlotRules.participantMask(order))).isEqualTo(order);
-        }
-    }
-
-    @Test
-    @DisplayName("단일 비트만 슬롯이다 — 0 과 조합 마스크는 §13.1 에서 400 이다")
-    void 단일_비트_판정() {
-        assertThat(SlotRules.isSingleSlotMask(1)).isTrue();
-        assertThat(SlotRules.isSingleSlotMask(8)).isTrue();
-        assertThat(SlotRules.isSingleSlotMask(0)).isFalse();
-        assertThat(SlotRules.isSingleSlotMask(-1)).isFalse();
-        // 3 = 슬롯 0·1 을 함께 고른 옛 조합 마스크. 이제 보낼 수 없는 값이다
-        assertThat(SlotRules.isSingleSlotMask(3)).isFalse();
-        assertThat(SlotRules.isSingleSlotMask(6)).isFalse();
-    }
 
     @Test
     @DisplayName("슬롯끼리 아티스트가 겹치면 PARTICIPANT_INVALID — 자리와 인물이 1:1 이어야 한다")
@@ -122,10 +96,11 @@ class SlotRulesTest {
     @Test
     @DisplayName("영상만 있고 첫 장면이 없으면 EDITED_KEYS_INCOMPLETE — 둘은 짝이다")
     void 편집본_키는_짝() {
+        // 길이는 채워 둔다 — 안 그러면 EDITED_DURATION_REQUIRED 까지 섞여 무엇을 보는지 흐려진다
         ParticipantRequest 영상만 = new ParticipantRequest(7, anchor(),
-                "edited/1/v.mp4", null, null, null);
+                "private/edited/1/v.mp4", null, null, 15_000L);
         ParticipantRequest 장면만 = new ParticipantRequest(9, anchor(),
-                null, "edited/1/s.jpg", null, null);
+                null, "private/edited/1/s.jpg", null, null);
 
         assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(영상만, 장면만)))
                 .isInstanceOf(BusinessException.class)
@@ -137,12 +112,28 @@ class SlotRulesTest {
     @DisplayName("편집본 없이 선택 화면만 올리면 막는다 — 고를 수 없는 그림이 남는다")
     void 편집본_없는_선택화면() {
         ParticipantRequest 프리뷰만 = new ParticipantRequest(7, anchor(),
-                null, null, "edited/1/p.jpg", null);
+                null, null, "private/edited/1/p.jpg", null);
 
         assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(프리뷰만)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(reasons((BusinessException) e))
                         .containsExactly("PREVIEW_WITHOUT_EDITED[0]"));
+    }
+
+    /**
+     * 0020 — §7.6 이 앱에 길이를 내보내므로 편집본에는 길이가 따라와야 한다. 없으면
+     * 촬영 타이머를 그릴 수 없고, 챌린지 원본 길이로 갈음하면 ±500ms 만큼 끝이 잘린다.
+     */
+    @Test
+    @DisplayName("편집본에 길이가 없으면 EDITED_DURATION_REQUIRED")
+    void 편집본에는_길이가_따라온다() {
+        ParticipantRequest 길이없음 = new ParticipantRequest(7, anchor(),
+                "private/edited/1/v.mp4", "private/edited/1/s.jpg", null, null);
+
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(길이없음)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(reasons((BusinessException) e))
+                        .containsExactly("EDITED_DURATION_REQUIRED[0]"));
     }
 
     private static AnchorRequest anchor() {
@@ -158,10 +149,11 @@ class SlotRulesTest {
         return participant(artistSeq, anchor());
     }
 
-    /** 편집본이 붙은 슬롯. */
+    /** 편집본이 붙은 슬롯 — 길이까지 있어야 통과한다(0020). */
     private static ParticipantRequest edited(int artistSeq) {
         return new ParticipantRequest(artistSeq, anchor(),
-                "edited/1/v.mp4", "edited/1/s.jpg", "edited/1/p.jpg", null);
+                "private/edited/1/v.mp4", "private/edited/1/s.jpg", "private/edited/1/p.jpg",
+                15_000L);
     }
 
     @SuppressWarnings("unchecked")

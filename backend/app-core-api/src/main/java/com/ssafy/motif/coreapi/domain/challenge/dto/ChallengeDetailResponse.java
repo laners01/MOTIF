@@ -2,18 +2,20 @@ package com.ssafy.motif.coreapi.domain.challenge.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.util.List;
-
 /**
  * 명세 §7.2 성공 응답의 {@code data} — 챌린지 상세 Bottom Sheet.
  *
- * <p>§7.1 피드 항목 + {@code description} + 슬롯 정보다.
+ * <p>§7.1 피드 항목 + {@code description} 이다.
  *
  * <p><b>{@code title} 이 없다</b> — R3 에서 {@code challenges.title} 컬럼이 삭제됐고,
  * 화면 식별은 곡명({@code song.title})과 아티스트로 한다.
  *
- * <p><b>{@code availableMasks} 도 없다</b>(회의 확정 R4). 고를 수 있는 슬롯인지는 항목마다
- * {@code participants[].selectable} 로 내려가고, 그래도 없는 슬롯을 보내면 §13.1 의
+ * <p><b>{@code participants[]} 가 §7.5 로 떨어져 나갔다</b>(0020). 촬영 선택 화면이 쓰는
+ * 데이터라 이 시트와 수명이 다르고, 편집본 이미지에 서명 만료가 붙으면서 상세를 열어 둔
+ * 채 오래 머물면 죽는 값이 됐다. 참여자 아바타가 필요한 화면은 §7.5 를 부른다.
+ *
+ * <p><b>{@code availableMasks} 도 없다</b>(회의 확정 R4). 고를 수 있는 슬롯인지는 §7.5 의
+ * {@code initialSceneUrl} 유무가 답하고, 그래도 없는 슬롯을 보내면 §13.1 의
  * {@code EDITED_CHALLENGE_NOT_FOUND} 가 사후 판별한다.
  *
  * @param participantCount 게시 참여 수 — <b>PUBLIC·PRIVATE 를 모두 포함</b>한다.
@@ -50,10 +52,7 @@ public record ChallengeDetailResponse(
         boolean isSubscribed,
 
         @Schema(description = "챌린지 소개글")
-        String description,
-
-        @Schema(description = "교체 가능한 인물 슬롯. slotOrder 오름차순 = 화면 좌→우")
-        List<Participant> participants
+        String description
 ) {
 
     /** §7.1·§7.2 {@code artist} — {@code groupName} 은 제거됐다(회의 확정). */
@@ -75,48 +74,6 @@ public record ChallengeDetailResponse(
 
             @Schema(example = "aespa")
             String singerName
-    ) {
-    }
-
-    /**
-     * §7.2 {@code participants[]} — 교체 가능한 추가 참여 아티스트 슬롯.
-     *
-     * <p>{@code groupName} 은 제거됐다(회의 확정).
-     *
-     * <p><b>편집본 정보가 여기 들어왔다</b>(0019). 예전에는 조합별 {@code editedChallenges[]}
-     * 배열이 따로 있었지만, 편집본이 슬롯 1개당 1개가 되면서 배열 하나로 합쳐졌다 —
-     * 사용자는 <b>함께할 아티스트 한 명</b>을 고르고, 그 슬롯의 마스크 하나를 §13.1 에 보낸다.
-     *
-     * @param participantMask <b>단일 비트</b>({@code 1, 2, 4, 8}) = {@code 1 << slotOrder}.
-     *                        §13.1 의 {@code participantMask} 에 그대로 싣는다
-     */
-    public record Participant(
-            Integer artistSeq,
-
-            @Schema(description = "아티스트 표시 이름 (users.nickname)", example = "윈터")
-            String name,
-
-            @Schema(description = "화면 좌→우 순서, 0부터", example = "0")
-            int slotOrder,
-
-            @Schema(description = "단일 비트 마스크 (1·2·4·8) = 1 << slotOrder", example = "1")
-            int participantMask,
-
-            @Schema(description = "프로필 이미지 URL. 미등록이면 null")
-            String profileImageUrl,
-
-            @Schema(description = "선택 화면에서 프로필 원이 앉는 자리. 어드민이 아직 안 찍은 옛 슬롯은 null — 원을 숨긴다",
-                    nullable = true)
-            Anchor anchor,
-
-            @Schema(description = """
-                    이 슬롯을 고를 수 있는가. 편집본(그 사람을 지운 영상)이 아직 없으면 false 이고,
-                    그래도 §13.1 로 보내면 EDITED_CHALLENGE_NOT_FOUND 다 — 화면에서 미리 잠근다""")
-            boolean selectable,
-
-            @Schema(description = "이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지. 없으면 null — thumbnailUrl 로 폴백한다",
-                    nullable = true)
-            String previewImageUrl
     ) {
     }
 

@@ -2,8 +2,10 @@ package com.ssafy.motif.coreapi.domain.challenge.docs;
 
 import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.ListResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
+import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeParticipantItem;
 import com.ssafy.motif.coreapi.domain.view.dto.ViewRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
@@ -107,22 +109,12 @@ public interface ChallengeControllerDocs {
                       곡명(`song.title`)과 아티스트로 한다.
                     - `participantCount` 는 게시 참여 수이며 **PUBLIC·PRIVATE 를 모두 포함**한다.
                       PRIVATE 영상의 조회 비노출(§1.8)과 카운트 집계는 분리된 규칙이다.
-                    - `participants` 는 교체 가능한 인물 슬롯이다. 배열은 `slotOrder` 오름차순
-                      = 화면 좌→우 순서이고, `participantMask` 는 **단일 비트**(`1 << slotOrder`
-                      = 1·2·4·8)로 §13.1 에 그대로 실어 보낸다.
-                      `anchor` 는 촬영 전 선택 화면에서 프로필 원이 앉는 자리로 **썸네일 대비 0~1 비율**
-                      (`x`·`r` 가로, `y` 세로)이다 — 어드민이 아직 찍지 않은 옛 슬롯은 `null`.
-                      `profileImageUrl` 은 설명 시트의 참여자 아바타용이며 미등록이면 `null` 이다.
-                    - **사용자는 슬롯을 하나만 고른다.** 여러 명을 한 번에 교체하는 조합은 없다 —
-                      편집본이 슬롯 1개당 1개이기 때문이다. 조합 마스크를 §13.1 에 보내면 400 이다.
-                    - `selectable` 이 `false` 면 그 슬롯을 지운 편집본이 아직 없다는 뜻이다.
-                      그대로 §13.1 에 보내면 `EDITED_CHALLENGE_NOT_FOUND` 이므로 화면에서 잠근다.
-                    - `previewImageUrl` 은 그 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지다.
-                      `null` 이면 `thumbnailUrl` 로 폴백한다. 무선택(아무 슬롯도 안 고름)도 `thumbnailUrl` 이다.
-                    - **슬롯이 전부 `selectable: false` 인 챌린지가 있다.** 슬롯은 등록됐지만 AI
-                      편집본이 아직 없는 상태로, 재생·표시는 정상이고 촬영만 막힌다.
-                    - **`availableMasks` 는 없다** (회의 확정 R4). 고를 수 있는지는 항목마다
-                      `selectable` 로 내려가고, 그래도 없는 슬롯을 보내면 §13.1 의
+                    - **`participants[]` 가 없다** (2026-09-21 — §7.5 로 분리). 촬영 선택 화면이
+                      쓰는 데이터라 이 시트와 수명이 다르고, 편집본 이미지에 서명 만료가 붙으면서
+                      상세를 열어 둔 채 오래 머물면 죽는 값이 됐다. 참여자 아바타가 필요한 화면은
+                      §7.5 `GET /challenges/{challengeSeq}/participants` 를 부른다.
+                    - **`availableMasks` 도 없다** (회의 확정 R4). 고를 수 있는지는 §7.5 의
+                      `initialSceneUrl` 유무가 답하고, 그래도 없는 슬롯을 보내면 §13.1 의
                       `EDITED_CHALLENGE_NOT_FOUND` 가 사후 판별한다.
                     - 삭제된 챌린지는 **없는 것으로 답한다**(404) — §1.8 공통 비노출.
 
@@ -150,19 +142,7 @@ public interface ChallengeControllerDocs {
                                         "commentCount": 210,
                                         "isLiked": false,
                                         "isSubscribed": true,
-                                        "description": "같이 춰요!",
-                                        "participants": [
-                                          {
-                                            "artistSeq": 7,
-                                            "name": "윈터",
-                                            "slotOrder": 0,
-                                            "participantMask": 1,
-                                            "profileImageUrl": "https://cdn.../profiles/7.jpg",
-                                            "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-                                            "selectable": true,
-                                            "previewImageUrl": "https://cdn.../challenges/{uuid}/preview-1.jpg"
-                                          }
-                                        ]
+                                        "description": "같이 춰요!"
                                       },
                                       "timestamp": "2026-09-14T00:00:00.000Z"
                                     }"""))),
@@ -180,6 +160,83 @@ public interface ChallengeControllerDocs {
                                     }""")))
     })
     ApiResponse<ChallengeDetailResponse> detail(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "챌린지 seq", example = "11") Integer challengeSeq);
+
+    @Operation(
+            summary = "챌린지 슬롯 목록 (§7.5)",
+            description = """
+                    촬영 전 **"함께할 아티스트" 선택 화면**(시안 10-1~3)의 데이터다 (2026-09-21 신설).
+
+                    - **인증 필요.**
+                    - 배열은 `slotOrder` 오름차순 = **화면 좌→우**. 슬롯은 최대 4개라 비페이지다(§5.4 봉투).
+                    - **영상이 없다.** 편집본 영상은 슬롯을 고른 뒤 §7.6 으로 따로 받는다 —
+                      화면이 갈리고, 서명 URL 은 만료가 있어 필요한 시점에 받아야 한다.
+                    - **슬롯은 하나만 고른다.** 여러 명을 한 번에 교체하는 조합은 없다 —
+                      편집본이 슬롯 1개당 1개이기 때문이다. 고른 슬롯의 `challengeParticipantSeq` 를
+                      §7.6·§13.1 에 그대로 보낸다. **비트 마스크는 앱 계약에서 사라졌다.**
+                    - **`initialSceneUrl` 이 `null` 이면 그 슬롯은 고를 수 없다.** 편집본(그 사람을
+                      지운 영상)이 아직 없다는 뜻이고, DB 가 영상 ↔ 첫 장면을 짝으로 강제하므로
+                      이 값의 유무가 곧 판정이다. 그대로 §13.1 에 보내면
+                      `EDITED_CHALLENGE_NOT_FOUND` 이므로 **화면에서 미리 잠근다.**
+                    - `previewImageUrl` 은 그 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지다.
+                      `null` 이면 §7.2 의 `thumbnailUrl` 로 폴백한다. 아무 슬롯도 안 고른 상태도 같다.
+                    - `anchor` 는 프로필 원이 앉는 자리로 **썸네일 대비 0~1 비율**(`x`·`r` 가로,
+                      `y` 세로)이다 — 어드민이 아직 찍지 않은 옛 슬롯은 `null` 이라 원을 숨긴다.
+                    - **이미지 두 장은 서명 URL 이다.** 키가 `private/edited/…` 라 만료가 있고,
+                      만료되면 이 API 를 다시 부른다.
+                    - **슬롯이 전부 잠긴 챌린지가 있다.** 슬롯은 등록됐지만 AI 편집본이 아직 없는
+                      상태로, 재생·표시는 정상이고 촬영만 막힌다. 일부만 비는 것도 정상이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "슬롯 목록",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "challengeParticipantSeq": 31,
+                                            "artistSeq": 7,
+                                            "name": "윈터",
+                                            "slotOrder": 0,
+                                            "profileImageUrl": "https://cdn.../profiles/7.jpg",
+                                            "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
+                                            "initialSceneUrl": "https://cdn.../private/edited/11/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
+                                            "previewImageUrl": "https://cdn.../private/edited/11/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
+                                          },
+                                          {
+                                            "challengeParticipantSeq": 32,
+                                            "artistSeq": 9,
+                                            "name": "닝닝",
+                                            "slotOrder": 1,
+                                            "profileImageUrl": "https://cdn.../profiles/9.jpg",
+                                            "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 },
+                                            "initialSceneUrl": null,
+                                            "previewImageUrl": null
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-21T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 챌린지",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "CHALLENGE_NOT_FOUND",
+                                      "message": "존재하지 않는 챌린지입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-21T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<ChallengeParticipantItem>> participants(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "챌린지 seq", example = "11") Integer challengeSeq);
 

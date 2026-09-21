@@ -18,12 +18,11 @@ public record ChallengeSlotsResponse(
         List<Participant> participants) {
 
     /**
-     * @param slotOrder       화면 좌→우, 0부터
-     * @param participantMask {@code 1 << slotOrder} — 앱이 §13.1 에 그대로 실어 보낸다
-     * @param hasEdited       이 슬롯을 지운 편집본이 올라와 있는가. {@code false} 면 사용자가
-     *                        그 슬롯을 고를 때 §13.1 이 404 다
+     * @param slotOrder 화면 좌→우, 0부터
+     * @param hasEdited 이 슬롯을 지운 편집본이 올라와 있는가. {@code false} 면 사용자가
+     *                  그 슬롯을 고를 때 §13.1 이 404 다
      */
     public record Participant(Integer challengeParticipantSeq, Integer artistSeq,
-                              int slotOrder, int participantMask, boolean hasEdited) {
+                              int slotOrder, boolean hasEdited) {
     }
 }
