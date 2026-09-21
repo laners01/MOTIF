@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,7 +37,10 @@ class VideoViewServiceTest {
     @BeforeEach
     void setUp() {
         buffer = mock(VideoViewBuffer.class);
-        service = new VideoViewService(buffer, new VideoViewProperties(MAX_VIDEOS, MAX_COUNT));
+        // 집계 쪽 설정은 이 테스트가 쓰지 않는다 — 검증 규칙만 본다
+        service = new VideoViewService(buffer, new VideoViewProperties(
+                MAX_VIDEOS, MAX_COUNT,
+                Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24)));
     }
 
     @Test

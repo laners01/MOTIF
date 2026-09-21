@@ -2,6 +2,8 @@ package com.ssafy.motif.coreapi.domain.video.view;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /**
  * 조회수 집계 설정 (API 명세 §8.5 · ADR-0015).
  *
@@ -17,7 +19,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param maxVideosPerRequest 한 요청에 담을 수 있는 영상 수. 넘으면 요청 전체가 400 이다
  * @param maxCountPerVideo    영상 하나에 실을 수 있는 조회수. 넘으면 요청 전체가 400 이다
+ * @param interval            집계 배치 주기. <b>버킷이 개수 기반이라 이 값만 내리면
+ *                            "최근 1시간" 의 실제 길이가 함께 줄어든다</b> — 시연에서
+ *                            낮출 때는 {@code recent-buckets} 를 같이 올려야 한다
+ * @param bucketTtl           20분 버킷 HASH 의 수명. 최근·이전 구간을 덮고도 재처리·관찰
+ *                            여유가 남을 만큼
+ * @param bucketKeep          버킷 인덱스 LIST 보존 개수. 여기서 밀려난 버킷은 TTL 이
+ *                            지우기 전이라도 조회 대상에서 빠진다
+ * @param flushMarkerTtl      "이 구간은 DB 에 넣었다" 는 멱등 마커의 수명. 재처리가 이보다
+ *                            늦으면 같은 조회수가 두 번 반영된다 — 넉넉히 둔다
  */
 @ConfigurationProperties(prefix = "motif.video-view")
-public record VideoViewProperties(int maxVideosPerRequest, int maxCountPerVideo) {
+public record VideoViewProperties(int maxVideosPerRequest, int maxCountPerVideo,
+                                  Duration interval, Duration bucketTtl, int bucketKeep,
+                                  Duration flushMarkerTtl) {
 }
