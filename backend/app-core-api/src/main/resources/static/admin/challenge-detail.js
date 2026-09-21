@@ -2,9 +2,10 @@
  * 챌린지 상세 (어드민 명세 v0.5 §3.7.3) + 같은 행 수정 두 가지 — S15P21D104-618.
  *
  *  - 슬롯 앵커(§3.7.9): 행을 고르고 썸네일을 클릭 → PATCH /challenges/{seq}/participants/{artistSeq}
- *  - 편집본 키(§3.7.6): 파일 고르면 presign → S3 PUT → PATCH /edited-challenges/{seq}
+ *  - 편집본 키(§3.7.6): 파일 고르면 presign → S3 PUT → PATCH /challenge-participants/{seq}/edited
  *
- * 둘 다 마스크·조합을 건드리지 않아 합성 잡이 참조 중이어도 허용된다. 0017 이전에 등록된
+ * 둘이 한 표에 있다 — 편집본이 슬롯 1개당 1개라 행이 1:1 로 대응한다(0019).
+ * 둘 다 인물·순서를 건드리지 않아 합성 잡이 참조 중이어도 허용된다. 0017 이전에 등록된
  * 챌린지는 앵커·선택 화면이 비어 있고(null) 여기서 채운다.
  *
  * videoUrl 은 app-media 가 후처리를 끝내면 master.m3u8 로 바뀐다. 그 전에는 원본 MP4 라
@@ -39,6 +40,8 @@ function slotRow(participant) {
     const tr = $('slot-row').content.firstElementChild.cloneNode(true);
     const a = participant.anchor;
     tr.dataset.artistSeq = participant.artist.artistSeq;
+    tr.dataset.seq = participant.challengeParticipantSeq;
+    tr.querySelector('.order').textContent = participant.slotOrder;
     tr.querySelector('.mask').textContent = participant.participantMask;
 
     // 아티스트를 고를 수 있다(§3.7.5). dataset 은 서버가 아는 현재 주인이라
@@ -51,8 +54,22 @@ function slotRow(participant) {
     tr.querySelector('.xy').className = a ? 'xy' : 'xy err';
     tr.querySelector('.r').value = a?.r ?? DEFAULT_R;
     tr.querySelector('.r-label').textContent = (a?.r ?? DEFAULT_R).toFixed(4);
+
+    tr.querySelector('.video .link').replaceChildren(
+        participant.editedChallengeUrl ? link(participant.editedChallengeUrl, '열기')
+            : warn('없음 — 이 슬롯은 촬영이 막힌다'));
+    tr.querySelector('.scene .link').replaceChildren(
+        participant.initialSceneUrl ? link(participant.initialSceneUrl, '열기')
+            : warn('없음 — 영상과 함께 올려야 한다'));
+    tr.querySelector('.preview .link').replaceChildren(
+        participant.previewImageUrl ? link(participant.previewImageUrl, '열기')
+            : warn('없음 — 앱이 썸네일로 대신 보여준다'));
+    tr.querySelector('.jobs').textContent = participant.jobRefCount;
     return tr;
 }
+
+const warn = (text) => Object.assign(document.createElement('span'),
+    {className: 'err', textContent: text});
 
 const activeRow = () => $('slots').querySelector('tr.active');
 
@@ -106,9 +123,11 @@ async function saveAnchor(tr, x, y) {
 function renderSlots(keepActive) {
     $('slots').replaceChildren(...challenge.participants.map(slotRow));
     for (const row of $('slots').rows) row.classList.toggle('active', row.dataset.artistSeq === String(keepActive));
+    const noEdited = challenge.participants.filter((p) => !p.editedChallengeKey).length;
     $('slot-note').textContent = challenge.participants.length === 0
         ? '슬롯 없음(솔로) — 사용자가 교체해 들어갈 자리가 없다. 슬롯 추가로 만든다.'
-        : `${challenge.participants.length}개. 조합은 최대 ${(1 << challenge.participants.length) - 1}개까지 만들 수 있고, 실제로 쓸 것만 등록하면 된다.`
+        : `${challenge.participants.length}개. 슬롯 하나당 편집본 하나이고, 사용자는 한 명만 고른다.`
+          + (noEdited ? ` 편집본이 빈 슬롯 ${noEdited}개는 고르면 EDITED_CHALLENGE_NOT_FOUND 다.` : '')
           + (challenge.participants.some((p) => !p.anchor) ? ' 앵커가 빈 슬롯은 앱에서 원이 뜨지 않는다.' : '');
     refreshSlotSaveState();
     drawDots();
@@ -133,9 +152,9 @@ function drawDots() {
 // ── 슬롯 아티스트 교체 (§3.7.5) ────────────────────────────────────────────
 
 /*
- * 부분 수정 API 가 없어서 슬롯 구성을 통째로 다시 보낸다. 앵커는 지금 값 그대로,
- * 편집본은 지금 키를 그대로 돌려보내 파일이 바뀌지 않게 한다 — 행 seq 만 새로 난다.
- * 합성 잡이 편집본을 참조 중이면 409 EDITED_IN_USE 로 막힌다(명세 §3.7.5).
+ * 부분 수정 API 가 없어서 슬롯 구성을 통째로 다시 보낸다. 앵커·편집본 키는 지금 값을
+ * 그대로 돌려보내 파일이 바뀌지 않게 한다 — 행 seq 만 새로 난다.
+ * 합성 잡이 슬롯을 참조 중이면 409 EDITED_IN_USE 로 막힌다(명세 §3.7.5).
  */
 /** 새로 추가한 행은 dataset.artistSeq 가 비어 있다 — 서버가 아직 모르는 슬롯이다. */
 const slotsDirty = () => [...$('slots').rows]
@@ -149,20 +168,26 @@ function refreshSlotSaveState() {
     $('slot-save-note').textContent = blank
         ? '아티스트를 고르지 않은 슬롯이 있다'
         : changed
-            ? '저장하면 슬롯·편집본 행이 다시 만들어진다 — 합성 잡이 편집본을 쓰고 있으면 막힌다'
+            ? '저장하면 슬롯 행이 다시 만들어진다 — 합성 잡이 슬롯을 쓰고 있으면 막힌다'
             : '고친 곳이 없다';
 }
 
 /*
  * 슬롯 추가 — 맨 뒤에만 붙인다.
  *
- * 마스크는 배열 순서로 1·2·4·8 이 매겨지고, 편집본은 "지운 슬롯 인덱스"로 조합을
- * 표현한다. 중간에 끼워 넣으면 기존 편집본이 가리키는 인덱스가 다른 사람을 뜻하게
- * 되어, 사용자가 왼쪽을 골랐는데 오른쪽이 지워진 영상이 나온다.
+ * slot_order 는 배열 순서 그대로이고 마스크는 1 << slot_order 다. 중간에 끼워 넣으면
+ * 뒤 슬롯의 순서가 한 칸씩 밀려, 이미 합성된 영상이 가리키던 자리가 다른 사람이 된다.
  */
 $('add-slot').addEventListener('click', () => {
     const tr = $('slot-row').content.firstElementChild.cloneNode(true);
-    tr.querySelector('.mask').textContent = `(새 슬롯 — 저장하면 ${1 << $('slots').rows.length})`;
+    const order = $('slots').rows.length;
+    tr.querySelector('.order').textContent = `(새 — ${order})`;
+    tr.querySelector('.mask').textContent = `(저장하면 ${1 << order})`;
+    for (const cell of tr.querySelectorAll('.media .link')) {
+        cell.replaceChildren(document.createTextNode('저장 뒤에 올린다'));
+    }
+    for (const input of tr.querySelectorAll('.media input[type=file]')) input.disabled = true;
+    tr.querySelector('.jobs').textContent = '0';
     const select = tr.querySelector('.artist');
     select.append(new Option('선택', ''), ...artists.map((x) => new Option(artistLabel(x), x.artistSeq)));
     select.value = '';
@@ -173,15 +198,6 @@ $('add-slot').addEventListener('click', () => {
     $('slots').append(tr);
     refreshSlotSaveState();
 });
-
-/** 마스크(비트 합) → removedSlots(슬롯 인덱스 배열). §3.7.5 는 인덱스로 받는다. */
-function removedSlotsOf(mask) {
-    const idx = [];
-    for (let i = 0; mask >> i; i++) {
-        if ((mask >> i) & 1) idx.push(i);
-    }
-    return idx;
-}
 
 $('slots').addEventListener('change', (e) => {
     if (e.target.classList.contains('artist')) refreshSlotSaveState();
@@ -194,22 +210,23 @@ $('save-slots').addEventListener('click', async () => {
         const participants = [...$('slots').rows].map((tr) => {
             const now = tr.dataset.artistSeq && challenge.participants
                     .find((p) => String(p.artist.artistSeq) === tr.dataset.artistSeq);
+            // 아티스트를 바꾼 행은 편집본을 들고 가지 않는다 — 그 영상은 이전 사람을
+            // 지운 것이라 새 주인에게는 틀린 베이스다. 들고 가면 사용자가 A 를 골랐는데
+            // B 가 지워진 영상 위에 합성된다. 저장 뒤 §3.7.6 으로 다시 올린다
+            const keep = now && String(now.artist.artistSeq) === tr.querySelector('.artist').value;
             return {
                 artistSeq: Number(tr.querySelector('.artist').value),
                 // 앵커는 필수라 새 슬롯도 값을 실어야 한다. 한가운데를 임시로 두고
                 // 저장 뒤 썸네일 클릭으로 제자리를 찍는다(§3.7.9)
                 anchor: (now && now.anchor)
                     ?? {x: 0.5, y: 0.5, r: Number(tr.querySelector('.r').value)},
+                editedChallengeKey: keep ? now.editedChallengeKey : null,
+                initialSceneKey: keep ? now.initialSceneKey : null,
+                previewImageKey: keep ? now.previewImageKey : null,
             };
         });
-        const editedChallenges = challenge.editedChallenges.map((e) => ({
-            removedSlots: removedSlotsOf(e.participantMask),
-            videoKey: e.videoKey,
-            initialSceneKey: e.initialSceneKey,
-            previewImageKey: e.previewImageKey,
-        }));
         await api(`/challenges/${challengeSeq}/participants`,
-                {method: 'PUT', body: {participants, editedChallenges}});
+                {method: 'PUT', body: {participants}});
         await load();
         $('slot-save-note').textContent = '저장했다';
     } catch (e) {
@@ -218,39 +235,46 @@ $('save-slots').addEventListener('click', async () => {
     }
 });
 
-// ── 편집본 · 키 교체 ───────────────────────────────────────────────────────
+// ── 편집본 키 교체 (§3.7.6) ────────────────────────────────────────────────
 
-function editedRow(edited) {
-    const tr = $('edited-row').content.firstElementChild.cloneNode(true);
-    tr.dataset.seq = edited.editedChallengeSeq;
-    tr.querySelector('.seq').textContent = edited.editedChallengeSeq;
-    tr.querySelector('.mask').textContent = edited.participantMask;
-    tr.querySelector('.video .link').replaceChildren(link(edited.videoUrl, '열기'));
-    tr.querySelector('.scene .link').replaceChildren(link(edited.initialSceneUrl, '열기'));
-    tr.querySelector('.preview .link').replaceChildren(
-        edited.previewImageUrl ? link(edited.previewImageUrl, '열기')
-            : Object.assign(document.createElement('span'), {className: 'err', textContent: '없음 — 올려야 앱 선택 화면이 바뀐다'}));
-    tr.querySelector('.jobs').textContent = edited.jobRefCount;
-    return tr;
-}
+/*
+ * 파일 → presign(edited/{challengeSeq}/) → S3 PUT → §3.7.6 PATCH.
+ * 영상은 길이도 실어 서버가 원본과 대조한다.
+ *
+ * 편집본이 없던 슬롯은 영상·첫 장면을 함께 보내야 서버가 받는다(DB CHECK 가 짝을
+ * 강제한다). 그래서 영상 하나만 고르면 첫 장면도 고르라고 막고, 둘이 다 준비된
+ * 뒤에 한 번에 PATCH 한다 — 한쪽만 먼저 보내면 400 이다.
+ */
+const pending = new Map();      // challengeParticipantSeq → 모아 둔 키
 
-/** 파일 → presign(edited/{challengeSeq}/) → S3 PUT → §3.7.6 PATCH. 영상은 길이도 실어 서버가 원본과 대조한다. */
-$('edited').addEventListener('change', async (e) => {
+$('slots').addEventListener('change', async (e) => {
     const input = e.target;
     if (input.type !== 'file' || !input.files[0]) return;
     const tr = input.closest('tr');
+    const seq = tr.dataset.seq;
     const file = input.files[0];
     clearError($('err'));
     input.disabled = true;
     try {
-        const body = {};
-        if (input.dataset.for === 'videoKey') {
+        const body = pending.get(seq) ?? {};
+        if (input.dataset.for === 'editedChallengeKey') {
             body.durationMs = (await videoMeta(file, document.createElement('video'))).durationMs;
         }
         body[input.dataset.for] = await upload(file, input.dataset.kind, Number(challengeSeq));
-        await api(`/edited-challenges/${tr.dataset.seq}`, {method: 'PATCH', body});
+
+        // 편집본이 없던 슬롯 — 짝이 갖춰질 때까지 모아 둔다
+        const hadEdited = participantOf(tr)?.editedChallengeKey;
+        if (!hadEdited && !(body.editedChallengeKey && body.initialSceneKey)) {
+            pending.set(seq, body);
+            $('slot-note').textContent =
+                '편집본이 없던 슬롯이다 — 영상과 첫 장면을 둘 다 골라야 저장된다.';
+            return;
+        }
+        pending.delete(seq);
+        await api(`/challenge-participants/${seq}/edited`, {method: 'PATCH', body});
         await load();
     } catch (err) {
+        pending.delete(seq);
         showError($('err'), err);
         input.disabled = false;
     }
@@ -354,12 +378,6 @@ async function load() {
         set('jobs', `진행 중 ${c.activeJobCount}건`);
 
         renderSlots(activeRow()?.dataset.artistSeq);
-
-        $('edited').replaceChildren(...c.editedChallenges.map(editedRow));
-        $('edited-note').textContent = c.editedChallenges.length === 0
-            ? '편집본 없음 — 표시 전용이다. 사용자가 촬영을 시도하면 EDITED_CHALLENGE_NOT_FOUND 가 난다. AI 산출물이 나오면 슬롯 교체(§3.7.5)로 얹는다.'
-            : `${c.editedChallenges.length}건.`
-              + (c.editedChallenges.some((e) => !e.previewImageUrl) ? ' 선택 화면이 빈 조합은 앱이 썸네일로 대신 보여준다.' : '');
     } catch (e) {
         showError($('err'), e);
     }

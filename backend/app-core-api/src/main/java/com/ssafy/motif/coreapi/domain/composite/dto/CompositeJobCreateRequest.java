@@ -25,7 +25,7 @@ import java.util.List;
  * @param jobType         {@code CHALLENGE} | {@code MOTIF}
  * @param challengeSeq    CHALLENGE 일 때 필수 — 대상 챌린지
  * @param assetSeq        MOTIF 일 때 필수 — 대상 에셋
- * @param participantMask CHALLENGE 의 교체 슬롯 조합(비트 OR 합). {@code 0}·생략은 무교체다
+ * @param participantMask CHALLENGE 의 교체 슬롯 <b>하나</b>(단일 비트). {@code 0}·생략은 무교체다
  * @param contentLength   올릴 촬영본의 바이트 수. <b>이 값이 presigned URL 서명에 박힌다</b> —
  *                        SigV4 의 서명된 {@code Content-Length} 는 상한이 아니라 <b>정확히
  *                        일치</b>해야 하므로, 서버가 상한값을 대신 넣으면 그 크기 파일만
@@ -48,9 +48,10 @@ public record CompositeJobCreateRequest(
         Integer assetSeq,
 
         @Schema(description = """
-                교체할 슬롯 조합 — §7.2 participants[].participantMask 의 비트 OR 합.
+                교체할 슬롯 하나 — §7.2 participants[].participantMask 를 그대로 보낸다.
+                단일 비트(1·2·4·8)여야 하며 여러 슬롯을 OR 로 합산하지 않는다(400).
                 0 이거나 생략하면 무교체(원본 위 합성)다. MOTIF 에서는 무시된다""",
-                example = "3")
+                example = "1")
         @PositiveOrZero
         Integer participantMask,
 
@@ -62,7 +63,7 @@ public record CompositeJobCreateRequest(
         long contentLength
 ) {
 
-    /** 무교체 — {@code edited_challenge_seq = NULL} 로 원본 위에 합성한다 (§13.1). */
+    /** 무교체 — {@code challenge_participant_seq = NULL} 로 원본 위에 합성한다 (§13.1). */
     public boolean isNoReplacement() {
         return participantMask == null || participantMask == 0;
     }

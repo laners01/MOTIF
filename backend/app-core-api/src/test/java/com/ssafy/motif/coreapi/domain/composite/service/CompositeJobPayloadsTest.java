@@ -6,7 +6,6 @@ import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant.Anchor;
-import com.ssafy.motif.domain.core.challenge.EditedChallenge;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.JobType;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>맵 비교라 <b>순서가 아니라 집합</b>을 본다. 대신 누락·오타·여분 칸을 전부 잡는다.
  *
+ * <p><b>0019 로 값의 범위가 좁아졌다</b> — 칸은 그대로지만 {@code participant_mask} 가 언제나
+ * 단일 비트이고 {@code slots} 는 0개 또는 1개다. 편집본이 슬롯 1개당 1개라 조합이 없어졌다.
+ * 명세의 예시도 그에 맞춰 바뀌었다(계약은 additive-only라 칸은 하나도 건드리지 않았다).
+ *
  * <p>{@code CompositeJobPayloads} 가 순수 계산이라 DB 도 스프링 컨텍스트도 없다.
  */
 class CompositeJobPayloadsTest {
@@ -52,9 +55,8 @@ class CompositeJobPayloadsTest {
               "base_video_key": "edited/11/7d2f…e1.mp4",
               "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
               "correction_enabled": true,
-              "participant_mask": 3,
+              "participant_mask": 2,
               "slots": [
-                { "participant_mask": 1, "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 } },
                 { "participant_mask": 2, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } }
               ],
               "base_duration_ms": 15000
@@ -80,10 +82,11 @@ class CompositeJobPayloadsTest {
     void challengePayloadMatchesTheSpec() {
         CompositeJob job = challengeJob(true);
         Challenge challenge = challenge("challenges/8a1b/master.m3u8", 15_000);
-        EditedChallenge edited = EditedChallenge.of(
-                11, 3, "edited/11/7d2f…e1.mp4", "edited/11/scene.jpg", "edited/11/preview.jpg");
+        // 슬롯 1(= slotOrder 1, 마스크 2)을 고른 사용자. 그 사람을 지운 편집본이 베이스다
+        List<ChallengeParticipant> participants = participants();
+        ChallengeParticipant edited = participants.get(1);
 
-        CompositeJobPayload payload = CompositeJobPayloads.from(job, challenge, edited, participants());
+        CompositeJobPayload payload = CompositeJobPayloads.from(job, challenge, edited, participants);
 
         assertThat(asMap(payload)).isEqualTo(parse(SPEC_CHALLENGE));
     }
@@ -130,27 +133,45 @@ class CompositeJobPayloadsTest {
     // --- slots -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("교체 대상 슬롯만 담는다 — 마스크에 없는 슬롯은 빠진다")
+    @DisplayName("교체 대상 슬롯만 담는다 — 고르지 않은 슬롯은 빠진다")
     void slotsCarryOnlyTheSelectedOnes() {
-        EditedChallenge onlySecond = EditedChallenge.of(11, 2, "edited/11/b.mp4", "s.jpg", "p.jpg");
+        List<ChallengeParticipant> participants = participants();
 
         CompositeJobPayload payload = CompositeJobPayloads.from(
                 challengeJob(true), challenge("challenges/8a1b.mp4", 15_000),
-                onlySecond, participants());
+                participants.get(1), participants);
 
         assertThat(payload.participantMask()).isEqualTo(2);
         assertThat(payload.slots()).singleElement()
                 .satisfies(slot -> assertThat(slot.participantMask()).isEqualTo(2));
     }
 
+    /**
+     * 0019 이후 슬롯 배열은 언제나 1개다 — 조합이 없어져 마스크에 비트가 하나뿐이다.
+     * 배열 계약은 그대로 두었으므로 이 사실을 여기 고정해 둔다.
+     */
+    @Test
+    @DisplayName("슬롯 3개짜리 챌린지라도 교체 대상은 1개다")
+    void slotsAlwaysHoldAtMostOne() {
+        List<ChallengeParticipant> participants = participants();
+        for (ChallengeParticipant chosen : participants) {
+            CompositeJobPayload payload = CompositeJobPayloads.from(
+                    challengeJob(true), challenge("challenges/8a1b.mp4", 15_000),
+                    chosen, participants);
+
+            assertThat(payload.slots()).hasSize(1);
+            assertThat(payload.participantMask()).isEqualTo(chosen.participantMask());
+        }
+    }
+
     @Test
     @DisplayName("0017 이전 행은 anchor 가 null 이다 — 위치 힌트라 없어도 보낸다")
     void anchorlessSlotSerializesAsNull() {
-        List<ChallengeParticipant> old = List.of(ChallengeParticipant.of(11, 5, 1, null));
+        ChallengeParticipant old = participant(5, 0, null);
 
         CompositeJobPayload payload = CompositeJobPayloads.from(
                 challengeJob(true), challenge("challenges/8a1b.mp4", 15_000),
-                EditedChallenge.of(11, 1, "edited/11/a.mp4", "s.jpg", "p.jpg"), old);
+                old, List.of(old));
 
         assertThat(payload.slots()).singleElement()
                 .satisfies(slot -> assertThat(slot.anchor()).isNull());
@@ -183,9 +204,15 @@ class CompositeJobPayloadsTest {
 
     private static List<ChallengeParticipant> participants() {
         return List.of(
-                ChallengeParticipant.of(11, 5, 1, new Anchor(0.22, 0.36, 0.0995)),
-                ChallengeParticipant.of(11, 6, 2, new Anchor(0.72, 0.34, 0.0995)),
-                ChallengeParticipant.of(11, 7, 4, new Anchor(0.50, 0.30, 0.0995)));
+                participant(5, 0, new Anchor(0.22, 0.36, 0.0995)),
+                participant(6, 1, new Anchor(0.72, 0.34, 0.0995)),
+                participant(7, 2, new Anchor(0.50, 0.30, 0.0995)));
+    }
+
+    /** 편집본이 붙은 슬롯 — 베이스 키는 명세 예시의 값 그대로다. */
+    private static ChallengeParticipant participant(int artistSeq, int slotOrder, Anchor anchor) {
+        return ChallengeParticipant.of(11, artistSeq, slotOrder, anchor,
+                "edited/11/7d2f…e1.mp4", "edited/11/scene.jpg", "edited/11/preview.jpg");
     }
 
     private static Map<String, Object> asMap(CompositeJobPayload payload) {

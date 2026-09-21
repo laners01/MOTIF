@@ -8,9 +8,8 @@ import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsRequest;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeResponse;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeUpdateRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantEditedResponse;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantEditedUpdateRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
@@ -103,47 +102,56 @@ class AdminChallengeServiceLocalDbTest {
     }
 
     @Test
-    @DisplayName("n=0(솔로) — 편집본 0개로 등록된다. 원본 위 합성이 유일한 참여 경로다")
+    @DisplayName("n=0(솔로) — 슬롯 0개로 등록된다. 원본 위 합성이 유일한 참여 경로다")
     void 솔로_등록() {
-        ChallengeSlotsResponse response = create(List.of(), List.of());
+        ChallengeSlotsResponse response = create(List.of());
 
         assertThat(response.participants()).isEmpty();
-        assertThat(response.editedChallenges()).isEmpty();
         assertThat(rows("challenges", response.challengeSeq())).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("n=1 — 편집본 1개, 마스크 1")
+    @DisplayName("n=1 — 슬롯 1개, 순서 0·마스크 1, 편집본이 같은 행에 붙는다")
     void 슬롯_하나_등록() {
-        Integer slot = newArtist();
+        ChallengeSlotsResponse response = create(List.of(edited(newArtist())));
 
-        ChallengeSlotsResponse response = create(List.of(slot(slot)), List.of(edited(0)));
-
-        assertThat(response.participants()).extracting(ChallengeSlotsResponse.Participant::participantMask)
-                .containsExactly(1);
-        assertThat(response.editedChallenges()).extracting(ChallengeSlotsResponse.Edited::participantMask)
-                .containsExactly(1);
+        assertThat(response.participants()).singleElement().satisfies(p -> {
+            assertThat(p.slotOrder()).isZero();
+            assertThat(p.participantMask()).isEqualTo(1);
+            assertThat(p.hasEdited()).isTrue();
+        });
+        assertThat(rows("challenge_participants", response.challengeSeq())).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("n=2 — 슬롯 2개·편집본 3개(1,2,3)가 한 트랜잭션에 들어간다")
+    @DisplayName("n=2 — 배열 순서가 곧 slotOrder 이고 마스크는 1·2 다")
     void 슬롯_둘_등록() {
         ChallengeSlotsResponse response = create(
-                List.of(slot(newArtist()), slot(newArtist())),
-                List.of(edited(0), edited(1), edited(0, 1)));
+                List.of(edited(newArtist()), edited(newArtist())));
 
+        assertThat(response.participants()).extracting(ChallengeSlotsResponse.Participant::slotOrder)
+                .containsExactly(0, 1);
         assertThat(response.participants()).extracting(ChallengeSlotsResponse.Participant::participantMask)
                 .containsExactly(1, 2);
-        assertThat(response.editedChallenges()).extracting(ChallengeSlotsResponse.Edited::participantMask)
-                .containsExactly(1, 2, 3);
         assertThat(rows("challenge_participants", response.challengeSeq())).isEqualTo(2);
-        assertThat(rows("edited_challenges", response.challengeSeq())).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("편집본 없는 슬롯도 등록된다 — 앱에서 고를 수 없을 뿐이다(0019)")
+    void 편집본_없는_슬롯도_등록() {
+        ChallengeSlotsResponse response = create(List.of(edited(newArtist()), slot(newArtist())));
+
+        assertThat(response.participants()).extracting(ChallengeSlotsResponse.Participant::hasEdited)
+                .containsExactly(true, false);
+        assertThat(scalar("select count(*) from motif_core.challenge_participants "
+                + "where challenge_seq = ?1 and edited_challenge_key is null", response.challengeSeq()))
+                .isEqualTo(1);
     }
 
     @Test
     @DisplayName("등록 성공이면 커밋 후 메시지 2건 — challenge.created + job.media")
     void 메시지_두_건() {
-        create(List.of(), List.of());
+        create(List.of());
 
         verify(rabbitTemplate).convertAndSend(eq(Exchanges.MOTIF_TOPIC),
                 eq(RoutingKeys.CHALLENGE_CREATED), any(ChallengeCreatedEvent.class));
@@ -151,52 +159,44 @@ class AdminChallengeServiceLocalDbTest {
                 eq(RoutingKeys.JOB_MEDIA), any(MediaJobRequestedEvent.class));
     }
 
+    /**
+     * {@code ck_challenge_participants_edited} 가 짝을 강제하므로 서버가 먼저 400 으로
+     * 돌려준다 — 통과시키면 DB 예외가 500 으로 샌다.
+     */
     @Test
-    @DisplayName("편집본 1개가 누락되면 challenges 행도 남지 않고 메시지도 0건이다")
-    void 누락은_전체_롤백() {
-        Integer slotA = newArtist();
-        Integer slotB = newArtist();
+    @DisplayName("영상만 있고 첫 장면이 없으면 challenges 행도 남지 않고 메시지도 0건이다")
+    void 키_짝이_깨지면_전체_롤백() {
         long before = challengeCount();
+        ParticipantRequest 영상만 = new ParticipantRequest(newArtist(), anchor(),
+                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4"), null, null, null);
 
-        assertThatThrownBy(() -> create(List.of(slot(slotA), slot(slotB)),
-                List.of(edited(0), edited(1))))
+        assertThatThrownBy(() -> create(List.of(영상만)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.EDITED_SET_INCOMPLETE);
+                .isEqualTo(AdminErrorCode.PARTICIPANT_INVALID);
 
         assertThat(challengeCount()).isEqualTo(before);
         verify(rabbitTemplate, never()).convertAndSend(any(String.class), any(String.class), any(Object.class));
     }
 
     @Test
-    @DisplayName("중복 조합도 409 — 개수는 맞아도 집합이 다르다")
-    void 중복_조합() {
-        assertThatThrownBy(() -> create(
-                List.of(slot(newArtist()), slot(newArtist())),
-                List.of(edited(0), edited(0), edited(1))))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.EDITED_SET_INCOMPLETE);
-    }
+    @DisplayName("슬롯 아티스트가 겹치면 400 — 자리와 인물이 1:1 이어야 한다")
+    void 중복_아티스트() {
+        Integer artist = newArtist();
 
-    @Test
-    @DisplayName("범위를 벗어난 슬롯 인덱스도 409")
-    void 범위_초과_조합() {
-        assertThatThrownBy(() -> create(
-                List.of(slot(newArtist())),
-                List.of(edited(3))))
+        assertThatThrownBy(() -> create(List.of(edited(artist), edited(artist))))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.EDITED_SET_INCOMPLETE);
+                .isEqualTo(AdminErrorCode.PARTICIPANT_INVALID);
     }
 
     @Test
     @DisplayName("편집본 길이가 ±500ms 를 넘으면 409 EDITED_DURATION_MISMATCH")
     void 길이_불일치() {
         long before = challengeCount();
-        EditedChallengeRequest 길이초과 = withDuration(edited(0), ORIGIN_DURATION_MS + 501);
+        ParticipantRequest 길이초과 = withDuration(edited(newArtist()), ORIGIN_DURATION_MS + 501);
 
-        assertThatThrownBy(() -> create(List.of(slot(newArtist())), List.of(길이초과)))
+        assertThatThrownBy(() -> create(List.of(길이초과)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.EDITED_DURATION_MISMATCH);
@@ -206,21 +206,21 @@ class AdminChallengeServiceLocalDbTest {
     @Test
     @DisplayName("±500ms 경계 안쪽은 통과한다")
     void 길이_허용_오차() {
-        EditedChallengeRequest 경계 = withDuration(edited(0), ORIGIN_DURATION_MS + 500);
+        ParticipantRequest 경계 = withDuration(edited(newArtist()), ORIGIN_DURATION_MS + 500);
 
-        assertThat(create(List.of(slot(newArtist())), List.of(경계)).editedChallenges()).hasSize(1);
+        assertThat(create(List.of(경계)).participants()).hasSize(1);
     }
 
     @Test
     @DisplayName("S3 에 없는 키는 409 MEDIA_NOT_UPLOADED — data 에 부재 키가 담긴다")
     void 업로드되지_않은_키() {
         long before = challengeCount();
-        EditedChallengeRequest 미업로드 = new EditedChallengeRequest(
-                List.of(0), "edited/pending/" + UUID.randomUUID() + ".mp4",
+        ParticipantRequest 미업로드 = new ParticipantRequest(newArtist(), anchor(),
+                "edited/pending/" + UUID.randomUUID() + ".mp4",
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null);
 
-        assertThatThrownBy(() -> create(List.of(slot(newArtist())), List.of(미업로드)))
+        assertThatThrownBy(() -> create(List.of(미업로드)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(AdminErrorCode.MEDIA_NOT_UPLOADED));
@@ -232,7 +232,7 @@ class AdminChallengeServiceLocalDbTest {
     void 가로_원본_거부() {
         assertThatThrownBy(() -> adminChallengeService.create(ADMIN, new ChallengeCreateRequest(
                 mainArtist, songSeq, "소개글", videoKey, (long) ORIGIN_DURATION_MS, null, 1920, 1080,
-                List.of(), List.of())))
+                List.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.MEDIA_INVALID);
@@ -242,78 +242,103 @@ class AdminChallengeServiceLocalDbTest {
     @DisplayName("사전 검증은 DB 를 바꾸지 않는다 — 실패도 200 이고 사유가 issues 에 담긴다")
     void 사전_검증은_무변경() {
         long before = challengeCount();
-        Integer slotA = newArtist();
-        Integer slotB = newArtist();
+        Integer artist = newArtist();
 
         ChallengeValidateResponse ok = adminChallengeService.validate(request(
-                List.of(slot(slotA), slot(slotB)), List.of(edited(0), edited(1), edited(0, 1))));
-        ChallengeValidateResponse 누락 = adminChallengeService.validate(request(
-                List.of(slot(slotA), slot(slotB)), List.of(edited(0), edited(1))));
+                List.of(edited(artist), edited(newArtist()))));
+        ChallengeValidateResponse 중복 = adminChallengeService.validate(request(
+                List.of(edited(artist), edited(artist))));
 
         assertThat(ok.valid()).isTrue();
-        assertThat(ok.computedMasks()).containsExactly(1, 2, 3);
-        assertThat(누락.valid()).isFalse();
-        assertThat(누락.issues()).singleElement()
+        assertThat(ok.slotMasks()).containsExactly(1, 2);
+        assertThat(중복.valid()).isFalse();
+        assertThat(중복.issues()).singleElement()
                 .extracting(ChallengeValidateResponse.Issue::code)
-                .isEqualTo(AdminErrorCode.EDITED_SET_INCOMPLETE.getCode());
+                .isEqualTo(AdminErrorCode.PARTICIPANT_INVALID.getCode());
         assertThat(challengeCount()).isEqualTo(before);
     }
 
     @Test
-    @DisplayName("슬롯 교체 — 같은 마스크를 다시 쓰므로 DELETE 가 INSERT 보다 먼저 나가야 한다")
+    @DisplayName("슬롯 교체 — 같은 순서를 다시 쓰므로 DELETE 가 INSERT 보다 먼저 나가야 한다")
     void 슬롯_교체() {
-        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
+        ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
 
         ChallengeSlotsResponse replaced = adminChallengeService.replaceSlots(ADMIN,
                 created.challengeSeq(),
-                new ChallengeSlotsRequest(List.of(slot(newArtist()), slot(newArtist())),
-                        List.of(edited(0), edited(1), edited(0, 1))));
+                new ChallengeSlotsRequest(List.of(edited(newArtist()), edited(newArtist()))));
 
-        assertThat(replaced.editedChallenges()).extracting(ChallengeSlotsResponse.Edited::participantMask)
-                .containsExactly(1, 2, 3);
+        assertThat(replaced.participants()).extracting(ChallengeSlotsResponse.Participant::slotOrder)
+                .containsExactly(0, 1);
         assertThat(rows("challenge_participants", created.challengeSeq())).isEqualTo(2);
-        assertThat(rows("edited_challenges", created.challengeSeq())).isEqualTo(3);
     }
 
     @Test
-    @DisplayName("합성 이력이 있는 편집본이 하나라도 있으면 슬롯 교체는 409 EDITED_IN_USE")
-    void 사용_중인_편집본은_교체_거부() {
-        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
+    @DisplayName("합성 이력이 있는 슬롯이 하나라도 있으면 슬롯 교체는 409 EDITED_IN_USE")
+    void 사용_중인_슬롯은_교체_거부() {
+        ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
         newCompositeJob(created.challengeSeq(),
-                created.editedChallenges().getFirst().editedChallengeSeq());
+                created.participants().getFirst().challengeParticipantSeq());
 
         assertThatThrownBy(() -> adminChallengeService.replaceSlots(ADMIN, created.challengeSeq(),
-                new ChallengeSlotsRequest(List.of(), List.of())))
+                new ChallengeSlotsRequest(List.of())))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(AdminErrorCode.EDITED_IN_USE);
 
-        assertThat(rows("edited_challenges", created.challengeSeq())).isEqualTo(1);
+        assertThat(rows("challenge_participants", created.challengeSeq())).isEqualTo(1);
     }
 
     @Test
     @DisplayName("편집본 키 교체는 사용 중이어도 성공한다 — 결과물은 별도 오브젝트다")
     void 편집본_키_교체() {
-        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
-        Integer editedSeq = created.editedChallenges().getFirst().editedChallengeSeq();
-        newCompositeJob(created.challengeSeq(), editedSeq);
+        ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
+        Integer slotSeq = created.participants().getFirst().challengeParticipantSeq();
+        newCompositeJob(created.challengeSeq(), slotSeq);
         String newKey = newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4");
 
-        EditedChallengeResponse response = adminChallengeService.replaceEditedKeys(ADMIN, editedSeq,
-                new EditedChallengeUpdateRequest(newKey, null, null, (long) ORIGIN_DURATION_MS));
+        ParticipantEditedResponse response = adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
+                new ParticipantEditedUpdateRequest(newKey, null, null, (long) ORIGIN_DURATION_MS));
 
         assertThat(response.participantMask()).isEqualTo(1);
-        assertThat(scalar("select 1 from motif_core.edited_challenges "
-                + "where edited_challenge_seq = ?1 and video_key = '" + newKey + "'", editedSeq))
+        assertThat(scalar("select 1 from motif_core.challenge_participants "
+                + "where challenge_participant_seq = ?1 and edited_challenge_key = '" + newKey + "'", slotSeq))
                 .isEqualTo(1);
+    }
+
+    /**
+     * 편집본이 없던 슬롯은 영상만 보내면 DB CHECK 에 걸린다 — 서버가 먼저 400 으로 거른다.
+     * 0019 로 "편집본 없는 슬롯" 이 정상 상태가 되면서 새로 생긴 경로다.
+     */
+    @Test
+    @DisplayName("편집본 없던 슬롯에 영상만 보내면 400 — 첫 장면과 함께 보내야 한다")
+    void 빈_슬롯은_키_둘을_함께() {
+        ChallengeSlotsResponse created = create(List.of(slot(newArtist())));
+        Integer slotSeq = created.participants().getFirst().challengeParticipantSeq();
+        String newKey = newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4");
+
+        assertThatThrownBy(() -> adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
+                new ParticipantEditedUpdateRequest(newKey, null, null, null)))
+                .isInstanceOf(BusinessException.class);
+
+        // 둘을 함께 보내면 채워진다. URL 은 CDN 설정에 달려 있어 로컬에서는 null 이라
+        // 저장된 키를 본다
+        ParticipantEditedResponse filled = adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
+                new ParticipantEditedUpdateRequest(newKey,
+                        newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null, null));
+
+        assertThat(filled.participantMask()).isEqualTo(1);
+        assertThat(scalar("select 1 from motif_core.challenge_participants "
+                + "where challenge_participant_seq = ?1 and edited_challenge_key = '" + newKey
+                + "' and initial_scene_key is not null", slotSeq)).isEqualTo(1);
     }
 
     @Test
     @DisplayName("앵커 단독 수정은 잡 참조 중이어도 같은 행을 고친다 — 0017 이전 행을 채우는 통로 (§3.7.9)")
     void 앵커_수정() {
         Integer slotArtist = newArtist();
-        ChallengeSlotsResponse created = create(List.of(slot(slotArtist)), List.of(edited(0)));
-        newCompositeJob(created.challengeSeq(), created.editedChallenges().getFirst().editedChallengeSeq());
+        ChallengeSlotsResponse created = create(List.of(edited(slotArtist)));
+        newCompositeJob(created.challengeSeq(),
+                created.participants().getFirst().challengeParticipantSeq());
 
         var detail = adminChallengeService.updateAnchor(ADMIN, created.challengeSeq(), slotArtist,
                 new AnchorRequest(0.7, 0.3, 0.12));
@@ -333,7 +358,7 @@ class AdminChallengeServiceLocalDbTest {
     @Test
     @DisplayName("목록은 아티스트·곡·슬롯 수·편집본 수를 쿼리 한 번에 준다 — 필터는 아티스트·곡 (§3.7.1)")
     void 목록_필터와_집계() {
-        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
+        ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
 
         PageResponse<ChallengeListItem> page =
                 adminChallengeService.list(mainArtist, null, false, PageResponses.pageable(0, 20));
@@ -363,7 +388,7 @@ class AdminChallengeServiceLocalDbTest {
     @Test
     @DisplayName("소프트 삭제된 챌린지는 기본으로 빠지고 includeDeleted=true 로만 보인다")
     void 목록_삭제_포함() {
-        ChallengeSlotsResponse created = create(List.of(), List.of());
+        ChallengeSlotsResponse created = create(List.of());
         inTransaction(() -> {
             execute("update motif_core.challenges set is_deleted = true where challenge_seq = ?1",
                     created.challengeSeq());
@@ -378,9 +403,9 @@ class AdminChallengeServiceLocalDbTest {
     }
 
     @Test
-    @DisplayName("삭제(§3.7.7)는 is_deleted 만 세운다 — 참여 영상·댓글·슬롯·편집본 행은 남는다 (DB §12)")
+    @DisplayName("삭제(§3.7.7)는 is_deleted 만 세운다 — 참여 영상·댓글·슬롯 행은 남는다 (DB §12)")
     void 삭제는_자식을_연쇄하지_않는다() {
-        ChallengeSlotsResponse created = create(List.of(slot(newArtist())), List.of(edited(0)));
+        ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
         Integer seq = created.challengeSeq();
         newParticipationVideo(seq);
         newChallengeComment(seq);
@@ -392,7 +417,6 @@ class AdminChallengeServiceLocalDbTest {
         assertThat(rows("participation_videos", seq)).isEqualTo(1);
         assertThat(rows("challenge_comments", seq)).isEqualTo(1);
         assertThat(rows("challenge_participants", seq)).isEqualTo(1);
-        assertThat(rows("edited_challenges", seq)).isEqualTo(1);
         // 참여 영상이 스스로 삭제되지도 않는다 — 비노출은 조회 쪽이 거르는 일이다
         assertThat(scalar("select count(*) from motif_core.participation_videos "
                 + "where challenge_seq = ?1 and is_deleted = false", seq)).isEqualTo(1);
@@ -401,7 +425,7 @@ class AdminChallengeServiceLocalDbTest {
     @Test
     @DisplayName("이미 삭제된 챌린지의 재삭제는 404 — 없는 변경을 성공으로 보고하지 않는다")
     void 삭제_재삭제는_404() {
-        ChallengeSlotsResponse created = create(List.of(), List.of());
+        ChallengeSlotsResponse created = create(List.of());
         adminChallengeService.delete(ADMIN, created.challengeSeq());
 
         assertThatThrownBy(() -> adminChallengeService.delete(ADMIN, created.challengeSeq()))
@@ -420,34 +444,37 @@ class AdminChallengeServiceLocalDbTest {
 
     // --- 픽스처 -------------------------------------------------------------
 
-    private ChallengeSlotsResponse create(List<ParticipantRequest> participants,
-                                          List<EditedChallengeRequest> edited) {
-        ChallengeSlotsResponse response = adminChallengeService.create(ADMIN, request(participants, edited));
+    private ChallengeSlotsResponse create(List<ParticipantRequest> participants) {
+        ChallengeSlotsResponse response = adminChallengeService.create(ADMIN, request(participants));
         createdChallenges.add(response.challengeSeq());
         return response;
     }
 
-    private ChallengeCreateRequest request(List<ParticipantRequest> participants,
-                                           List<EditedChallengeRequest> edited) {
+    private ChallengeCreateRequest request(List<ParticipantRequest> participants) {
         return new ChallengeCreateRequest(mainArtist, songSeq, "Supernova 챌린지", videoKey,
-                (long) ORIGIN_DURATION_MS, null, 1080, 1920, participants, edited);
+                (long) ORIGIN_DURATION_MS, null, 1080, 1920, participants);
     }
 
+    private static AnchorRequest anchor() {
+        return new AnchorRequest(0.22, 0.36, 0.0995);
+    }
+
+    /** 편집본 없는 슬롯 — 0019 이후 정상 상태다. */
     private ParticipantRequest slot(Integer artistSeq) {
-        return new ParticipantRequest(artistSeq, new AnchorRequest(0.22, 0.36, 0.0995));
+        return new ParticipantRequest(artistSeq, anchor(), null, null, null, null);
     }
 
-    /** 편집본 키는 업로드된 것으로 친다 — 부재 케이스는 별도 테스트가 직접 만든다. */
-    private EditedChallengeRequest edited(Integer... removedSlots) {
-        return new EditedChallengeRequest(List.of(removedSlots),
+    /** 편집본이 붙은 슬롯. 키는 업로드된 것으로 친다 — 부재 케이스는 별도 테스트가 직접 만든다. */
+    private ParticipantRequest edited(Integer artistSeq) {
+        return new ParticipantRequest(artistSeq, anchor(),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4"),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"),
                 newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null);
     }
 
-    private static EditedChallengeRequest withDuration(EditedChallengeRequest edited, long durationMs) {
-        return new EditedChallengeRequest(edited.removedSlots(), edited.videoKey(),
-                edited.initialSceneKey(), edited.previewImageKey(), durationMs);
+    private static ParticipantRequest withDuration(ParticipantRequest slot, long durationMs) {
+        return new ParticipantRequest(slot.artistSeq(), slot.anchor(), slot.editedChallengeKey(),
+                slot.initialSceneKey(), slot.previewImageKey(), durationMs);
     }
 
     private String newUploadedKey(String key) {
@@ -500,14 +527,14 @@ class AdminChallengeServiceLocalDbTest {
         });
     }
 
-    /** 합성 이력 = {@code composite_jobs} 가 편집본을 참조하는 상태 (§3.7.5 판정 근거). */
-    private void newCompositeJob(Integer challengeSeq, Integer editedChallengeSeq) {
+    /** 합성 이력 = {@code composite_jobs} 가 슬롯을 참조하는 상태 (§3.7.5 판정 근거). */
+    private void newCompositeJob(Integer challengeSeq, Integer challengeParticipantSeq) {
         inTransaction(() -> {
             execute("""
                     insert into motif_core.composite_jobs
-                        (job_uuid, job_type, user_seq, challenge_seq, edited_challenge_seq, raw_video_key)
+                        (job_uuid, job_type, user_seq, challenge_seq, challenge_participant_seq, raw_video_key)
                     values (?1, 'CHALLENGE', ?2, ?3, ?4, 'raw/x.mp4')
-                    """, UUID.randomUUID(), newUser("USER"), challengeSeq, editedChallengeSeq);
+                    """, UUID.randomUUID(), newUser("USER"), challengeSeq, challengeParticipantSeq);
             createdJobs.add(challengeSeq);
             return null;
         });
@@ -517,7 +544,7 @@ class AdminChallengeServiceLocalDbTest {
      * 참여 영상 한 건 (§3.7.7 확인 대화상자가 세는 대상) — 삭제가 이 행을 건드리면 안 된다.
      *
      * <p>{@code job_seq} 가 NOT NULL UNIQUE FK 라 잡을 먼저 만든다. 잡은 슬롯이 아니라
-     * 원본 위 합성이므로 {@code edited_challenge_seq} 는 NULL 이다.
+     * 원본 위 합성이므로 {@code challenge_participant_seq} 는 NULL 이다.
      */
     private void newParticipationVideo(Integer challengeSeq) {
         inTransaction(() -> {
@@ -593,7 +620,6 @@ class AdminChallengeServiceLocalDbTest {
             createdJobs.forEach(seq ->
                     execute("delete from motif_core.composite_jobs where challenge_seq = ?1", seq));
             createdChallenges.forEach(seq -> {
-                execute("delete from motif_core.edited_challenges where challenge_seq = ?1", seq);
                 execute("delete from motif_core.challenge_participants where challenge_seq = ?1", seq);
                 execute("delete from motif_core.challenges where challenge_seq = ?1", seq);
             });

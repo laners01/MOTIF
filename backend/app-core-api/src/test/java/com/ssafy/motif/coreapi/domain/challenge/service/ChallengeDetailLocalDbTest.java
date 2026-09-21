@@ -93,18 +93,24 @@ class ChallengeDetailLocalDbTest {
     }
 
     @Test
-    @DisplayName("슬롯은 마스크 오름차순 = 화면 좌→우 순서이고 anchor 가 함께 온다")
-    void participantsComeInMaskOrderWithAnchor() {
+    @DisplayName("슬롯은 slotOrder 오름차순 = 화면 좌→우 순서이고 anchor 가 함께 온다")
+    void participantsComeInSlotOrderWithAnchor() {
         Integer winter = newArtist("윈터");
         Integer ningning = newArtist("닝닝");
-        participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 2,
-                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995)));
-        participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 1,
-                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
+        // 일부러 뒤 슬롯을 먼저 넣는다 — 정렬이 삽입 순서가 아니라 slotOrder 라야 한다
+        participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 1,
+                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995),
+                "edited/1/n.mp4", "edited/1/n.jpg", "edited/1/np.jpg"));
+        participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 0,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
+                "edited/1/w.mp4", "edited/1/w.jpg", null));
         entityManager.flush();
 
         ChallengeDetailResponse detail = challengeQueryService.detail(fanSeq, challengeSeq);
 
+        assertThat(detail.participants())
+                .extracting(ChallengeDetailResponse.Participant::slotOrder)
+                .containsExactly(0, 1);
         assertThat(detail.participants())
                 .extracting(ChallengeDetailResponse.Participant::participantMask)
                 .containsExactly(1, 2);
@@ -113,6 +119,32 @@ class ChallengeDetailLocalDbTest {
                 .containsExactly("윈터", "닝닝");
         assertThat(detail.participants().getFirst().anchor())
                 .isEqualTo(new ChallengeDetailResponse.Anchor(0.22, 0.36, 0.0995));
+    }
+
+    /**
+     * 0019 — 편집본이 슬롯에 붙으면서 {@code editedChallenges[]} 배열이 없어졌다.
+     * 고를 수 있는지는 슬롯마다 {@code selectable} 이 답한다.
+     */
+    @Test
+    @DisplayName("편집본이 없는 슬롯은 selectable=false 다 — 화면이 미리 잠근다")
+    void slotWithoutEditedIsNotSelectable() {
+        Integer winter = newArtist("윈터");
+        Integer ningning = newArtist("닝닝");
+        participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 0,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
+                "edited/1/w.mp4", "edited/1/w.jpg", "edited/1/wp.jpg"));
+        participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 1,
+                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995), null, null, null));
+        entityManager.flush();
+
+        ChallengeDetailResponse detail = challengeQueryService.detail(fanSeq, challengeSeq);
+
+        assertThat(detail.participants())
+                .extracting(ChallengeDetailResponse.Participant::selectable)
+                .containsExactly(true, false);
+        // 선택 화면 이미지도 슬롯에 붙는다 — 키가 없으면 null 이고 클라이언트가 썸네일로
+        // 폴백한다. 키가 있는 쪽의 URL 은 CDN 설정에 달려 있어 여기서 값을 보지 않는다
+        assertThat(detail.participants().getLast().previewImageUrl()).isNull();
     }
 
     @Test

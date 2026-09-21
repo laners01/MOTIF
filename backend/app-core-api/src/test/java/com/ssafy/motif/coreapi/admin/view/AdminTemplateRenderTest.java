@@ -167,7 +167,7 @@ class AdminTemplateRenderTest {
     }
 
     @Test
-    @DisplayName("챌린지 등록 — 레이아웃 제목과 매트릭스 표 뼈대가 들어간다")
+    @DisplayName("챌린지 등록 — 레이아웃 제목과 슬롯 표 뼈대가 들어간다")
     void challengeNew() {
         String html = render("admin/challenge-new");
 
@@ -175,8 +175,12 @@ class AdminTemplateRenderTest {
                 .contains("<title>MOTIF 어드민 · 챌린지 등록</title>")
                 .contains("/admin/admin.js")
                 .contains("/admin/challenge-new.js")
-                .contains("id=\"matrix\"")
-                .contains("id=\"slot-row\"");
+                // 0019 — 2ⁿ−1 조합 매트릭스(id="matrix")가 없어지고 슬롯 표 한 개가 됐다.
+                // 편집본 칸이 슬롯 행 안으로 들어왔는지까지 본다
+                .contains("id=\"slots\"")
+                .contains("id=\"slot-row\"")
+                .contains("data-k=\"editedChallengeKey\"")
+                .doesNotContain("id=\"matrix\"");
         // 레이아웃이 끼워지지 않고 th:* 가 그대로 남는 실패를 잡는다
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }
@@ -331,7 +335,7 @@ class AdminTemplateRenderTest {
      * 템플릿에 인라인으로 쓰지 않는다.
      */
     @Test
-    @DisplayName("챌린지 상세 — 레이아웃·슬롯/편집본 행 템플릿")
+    @DisplayName("챌린지 상세 — 레이아웃·슬롯 행 템플릿(편집본 칸 포함)")
     void challengeDetail() {
         String html = render("admin/challenge-detail");
 
@@ -339,7 +343,9 @@ class AdminTemplateRenderTest {
                 .contains("챌린지 상세")
                 .contains("/admin/challenge-detail.js")
                 .contains("id=\"slot-row\"")
-                .contains("id=\"edited-row\"")
+                // 0019 — 편집본 표(id="edited-row")가 슬롯 행으로 합쳐졌다
+                .contains("data-for=\"editedChallengeKey\"")
+                .doesNotContain("id=\"edited-row\"")
                 // 곡·소개글 수정 통로(§3.7.4) — 불변인 메인 아티스트·길이는 입력이 없다
                 .contains("id=\"song\"")
                 .contains("id=\"save\"")

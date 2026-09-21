@@ -3,29 +3,30 @@ package com.ssafy.motif.coreapi.admin.challenge;
 import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
-import com.ssafy.motif.coreapi.admin.challenge.dto.EditedChallengeRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 챌린지 등록의 핵심 불변식 (S15P21D104-563 — 명세 §3.7.2 검증 2·3항).
+ * 챌린지 등록의 슬롯 불변식 (S15P21D104-563 — 명세 §3.7.2 검증 2항).
  *
  * <p>{@link SlotRules} 가 순수 계산이라 DB·S3 없이 돌릴 수 있다 — <b>CI 에서 매번 돈다</b>
  * ({@code :app-core-api:test} 는 {@code local-db} 태그를 제외한다). all-or-nothing 롤백처럼
  * 실제 DB 가 필요한 케이스는 {@code AdminChallengeServiceLocalDbTest} 가 맡는다.
+ *
+ * <p>0019 로 <b>조합 완결성 검사가 통째로 없어졌다</b> — 편집본이 슬롯 1개당 1개라 마스크
+ * 조합이라는 개념 자체가 사라졌다. 그 자리를 키 짝 검사와 단일 비트 판정이 대신한다.
  */
 class SlotRulesTest {
 
     @Test
-    @DisplayName("슬롯 마스크는 배열 순서대로 1·2·4 — 어드민이 비트를 입력하지 않는다")
+    @DisplayName("슬롯 마스크는 배열 순서대로 1·2·4·8 — 어드민이 비트를 입력하지 않는다")
     void 슬롯_마스크() {
         assertThat(List.of(SlotRules.participantMask(0), SlotRules.participantMask(1),
                 SlotRules.participantMask(2), SlotRules.participantMask(3)))
@@ -33,61 +34,27 @@ class SlotRulesTest {
     }
 
     @Test
-    @DisplayName("n=0(솔로) — 편집본 0개가 정답이다")
-    void 솔로는_편집본이_없다() {
-        assertThat(SlotRules.editedMasks(0, List.of())).isEmpty();
+    @DisplayName("마스크 ↔ 순서는 왕복한다 — §13.1 이 앱이 보낸 마스크를 슬롯으로 되돌린다")
+    void 마스크_왕복() {
+        for (int order = 0; order < SlotRules.MAX_SLOTS; order++) {
+            assertThat(SlotRules.slotOrderOf(SlotRules.participantMask(order))).isEqualTo(order);
+        }
     }
 
     @Test
-    @DisplayName("n=1 — 편집본 1개, 마스크 1")
-    void 슬롯_하나() {
-        assertThat(SlotRules.editedMasks(1, List.of(edited(0)))).containsExactly(1);
+    @DisplayName("단일 비트만 슬롯이다 — 0 과 조합 마스크는 §13.1 에서 400 이다")
+    void 단일_비트_판정() {
+        assertThat(SlotRules.isSingleSlotMask(1)).isTrue();
+        assertThat(SlotRules.isSingleSlotMask(8)).isTrue();
+        assertThat(SlotRules.isSingleSlotMask(0)).isFalse();
+        assertThat(SlotRules.isSingleSlotMask(-1)).isFalse();
+        // 3 = 슬롯 0·1 을 함께 고른 옛 조합 마스크. 이제 보낼 수 없는 값이다
+        assertThat(SlotRules.isSingleSlotMask(3)).isFalse();
+        assertThat(SlotRules.isSingleSlotMask(6)).isFalse();
     }
 
     @Test
-    @DisplayName("n=2 — removedSlots 가 마스크 1·2·3 으로 환산된다")
-    void 슬롯_둘_전조합() {
-        assertThat(SlotRules.editedMasks(2, List.of(edited(0), edited(1), edited(0, 1))))
-                .containsExactly(1, 2, 3);
-    }
-
-    @Test
-    @DisplayName("n=2 에 편집본 2개 — 누락은 허용한다. 있는 조합만 등록한다")
-    void 누락은_허용() {
-        assertThat(SlotRules.editedMasks(2, List.of(edited(0), edited(1))))
-                .containsExactly(1, 2);
-    }
-
-    @Test
-    @DisplayName("같은 조합을 두 번 — duplicateMasks 에 담긴다. 어느 편집본이 쓰일지 알 수 없다")
-    void 중복() {
-        assertThatThrownBy(() -> SlotRules.editedMasks(2, List.of(edited(0), edited(0), edited(1))))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(data((BusinessException) e))
-                        .containsEntry("duplicateMasks", List.of(1)));
-    }
-
-    @Test
-    @DisplayName("범위 밖 슬롯 인덱스는 unknownMasks — 기대 집합에 없는 값이다")
-    void 범위_초과() {
-        assertThatThrownBy(() -> SlotRules.editedMasks(2,
-                List.of(edited(0), edited(1), edited(0, 1), edited(5))))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(data((BusinessException) e))
-                        .containsEntry("unknownMasks", List.of(-1)));
-    }
-
-    @Test
-    @DisplayName("removedSlots 가 비면 마스크 0(원본) — 예약값이라 요청할 수 없다")
-    void 빈_조합은_예약값() {
-        assertThatThrownBy(() -> SlotRules.editedMasks(1, List.of(edited())))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.EDITED_SET_INCOMPLETE);
-    }
-
-    @Test
-    @DisplayName("슬롯끼리 아티스트가 겹치면 PARTICIPANT_INVALID — 마스크와 인물이 1:1 이어야 한다")
+    @DisplayName("슬롯끼리 아티스트가 겹치면 PARTICIPANT_INVALID — 자리와 인물이 1:1 이어야 한다")
     void 슬롯_아티스트_규칙() {
         assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(slot(7), slot(7))))
                 .isInstanceOf(BusinessException.class)
@@ -107,9 +74,9 @@ class SlotRulesTest {
     @Test
     @DisplayName("앵커는 0≤x,y≤1 · 0<r≤0.5 비율 — 위반을 한 번에 모아 던진다")
     void 앵커_규칙() {
-        ParticipantRequest 밖 = new ParticipantRequest(7, new AnchorRequest(1.2, 0.5, 0.1));
-        ParticipantRequest 반지름0 = new ParticipantRequest(9, new AnchorRequest(0.5, 0.5, 0.0));
-        ParticipantRequest 경계 = new ParticipantRequest(11, new AnchorRequest(0.0, 1.0, 0.5));
+        ParticipantRequest 밖 = participant(7, new AnchorRequest(1.2, 0.5, 0.1));
+        ParticipantRequest 반지름0 = participant(9, new AnchorRequest(0.5, 0.5, 0.0));
+        ParticipantRequest 경계 = participant(11, new AnchorRequest(0.0, 1.0, 0.5));
 
         assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(밖, 반지름0, 경계)))
                 .isInstanceOf(BusinessException.class)
@@ -118,7 +85,7 @@ class SlotRulesTest {
     }
 
     @Test
-    @DisplayName("슬롯 하드 상한은 4 — 편집본 15개가 한계다")
+    @DisplayName("슬롯 하드 상한은 4")
     void 슬롯_상한() {
         assertThatThrownBy(() -> SlotRules.checkParticipants(
                 List.of(slot(11), slot(12), slot(13), slot(14), slot(15))))
@@ -127,46 +94,78 @@ class SlotRulesTest {
                         .contains("SLOT_COUNT_EXCEEDED"));
     }
 
-    private static ParticipantRequest slot(int artistSeq) {
-        return new ParticipantRequest(artistSeq, new AnchorRequest(0.5, 0.4, 0.0995));
-    }
-
-    private static EditedChallengeRequest edited(Integer... removedSlots) {
-        return new EditedChallengeRequest(List.of(removedSlots),
-                "edited/1/v.mp4", "edited/1/s.jpg", "edited/1/p.jpg", null);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<String> reasons(BusinessException e) {
-        return (List<String>) e.getData();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> data(BusinessException e) {
-        return (Map<String, Object>) e.getData();
-    }
-
     /**
-     * 편집본 0개 허용 (2026-09-14 확정).
+     * 편집본 0개 허용 (2026-09-14 확정, 0019 에서도 유지).
      *
      * <p>AI 산출물(565~567)이 나오기 전에도 "같이 춘 사람"을 슬롯에 넣어 등록할 수 있어야
      * 한다 — 설명 시트의 참여자 아바타가 슬롯을 그대로 쓴다. 영상 재생에는 편집본이
      * 쓰이지 않고, 촬영 시도는 §13.1 의 EDITED_CHALLENGE_NOT_FOUND 가 막는다.
      */
     @Test
-    @DisplayName("슬롯이 있어도 편집본 0개면 통과한다 — 표시 전용 챌린지")
-    void emptyEditedIsAllowedEvenWithSlots() {
-        assertThat(SlotRules.editedMasks(3, List.of())).isEmpty();
+    @DisplayName("편집본 없는 슬롯은 통과한다 — 표시 전용 챌린지")
+    void 편집본_없는_슬롯() {
+        assertThatCode(() -> SlotRules.checkParticipants(List.of(slot(3), slot(7), slot(9))))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("일부 슬롯만 편집본이 있어도 된다 — 나머지는 앱에서 고를 수 없을 뿐이다")
+    void 일부만_편집본() {
+        assertThatCode(() -> SlotRules.checkParticipants(List.of(slot(3), edited(7))))
+                .doesNotThrowAnyException();
     }
 
     /**
-     * 메인 아티스트는 지워지지 않으므로(2026-09-21) 메인을 지운 조합은 만들 일이 없다.
-     * 3인 챌린지에서 슬롯 0 이 메인이면 그것을 뺀 조합만 올라온다.
+     * {@code ck_challenge_participants_edited} 와 같은 규칙이다 — 한쪽만 채운 행을 DB 가
+     * 거부하므로 여기서 먼저 400 으로 돌려준다. 통과시키면 500 으로 샌다.
      */
     @Test
-    @DisplayName("부분 집합을 허용한다 — 메인을 지운 조합은 애초에 만들지 않는다")
-    void partialEditedAllowed() {
-        assertThat(SlotRules.editedMasks(3, List.of(edited(1), edited(2), edited(1, 2))))
-                .containsExactly(2, 4, 6);
+    @DisplayName("영상만 있고 첫 장면이 없으면 EDITED_KEYS_INCOMPLETE — 둘은 짝이다")
+    void 편집본_키는_짝() {
+        ParticipantRequest 영상만 = new ParticipantRequest(7, anchor(),
+                "edited/1/v.mp4", null, null, null);
+        ParticipantRequest 장면만 = new ParticipantRequest(9, anchor(),
+                null, "edited/1/s.jpg", null, null);
+
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(영상만, 장면만)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(reasons((BusinessException) e))
+                        .containsExactly("EDITED_KEYS_INCOMPLETE[0]", "EDITED_KEYS_INCOMPLETE[1]"));
+    }
+
+    @Test
+    @DisplayName("편집본 없이 선택 화면만 올리면 막는다 — 고를 수 없는 그림이 남는다")
+    void 편집본_없는_선택화면() {
+        ParticipantRequest 프리뷰만 = new ParticipantRequest(7, anchor(),
+                null, null, "edited/1/p.jpg", null);
+
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(프리뷰만)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(reasons((BusinessException) e))
+                        .containsExactly("PREVIEW_WITHOUT_EDITED[0]"));
+    }
+
+    private static AnchorRequest anchor() {
+        return new AnchorRequest(0.5, 0.4, 0.0995);
+    }
+
+    private static ParticipantRequest participant(int artistSeq, AnchorRequest anchor) {
+        return new ParticipantRequest(artistSeq, anchor, null, null, null, null);
+    }
+
+    /** 편집본 없는 슬롯 — 0019 이후 정상 상태다. */
+    private static ParticipantRequest slot(int artistSeq) {
+        return participant(artistSeq, anchor());
+    }
+
+    /** 편집본이 붙은 슬롯. */
+    private static ParticipantRequest edited(int artistSeq) {
+        return new ParticipantRequest(artistSeq, anchor(),
+                "edited/1/v.mp4", "edited/1/s.jpg", "edited/1/p.jpg", null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> reasons(BusinessException e) {
+        return (List<String>) e.getData();
     }
 }

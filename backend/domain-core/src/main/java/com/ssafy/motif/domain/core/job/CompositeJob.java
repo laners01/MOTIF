@@ -60,8 +60,14 @@ public class CompositeJob extends BaseTimeEntity {
     @Column(name = "asset_seq")
     private Integer assetSeq;
 
-    @Column(name = "edited_challenge_seq")
-    private Integer editedChallengeSeq;
+    /**
+     * 교체 대상 슬롯 — 그 사람을 지운 편집본이 합성 베이스다 (0019).
+     *
+     * <p>{@code null} 이면 무교체이고 챌린지 원본 위에 합성한다. 예전에는 조합 편집본 행을
+     * 가리켰지만 편집본이 슬롯 1개당 1개로 바뀌면서 대상이 슬롯 행이 됐다.
+     */
+    @Column(name = "challenge_participant_seq")
+    private Integer challengeParticipantSeq;
 
     @Column(name = "raw_video_key", nullable = false, length = 255)
     private String rawVideoKey;
@@ -91,13 +97,13 @@ public class CompositeJob extends BaseTimeEntity {
     private Integer processingMs;
 
     private CompositeJob(UUID jobUuid, JobType jobType, Integer userSeq, Integer challengeSeq,
-                         Integer assetSeq, Integer editedChallengeSeq, String rawVideoKey) {
+                         Integer assetSeq, Integer challengeParticipantSeq, String rawVideoKey) {
         this.jobUuid = jobUuid;
         this.jobType = jobType;
         this.userSeq = userSeq;
         this.challengeSeq = challengeSeq;
         this.assetSeq = assetSeq;
-        this.editedChallengeSeq = editedChallengeSeq;
+        this.challengeParticipantSeq = challengeParticipantSeq;
         this.rawVideoKey = rawVideoKey;
         this.correctionEnabled = false;
         this.status = JobStatus.UPLOADED;
@@ -118,15 +124,15 @@ public class CompositeJob extends BaseTimeEntity {
      *
      * <p>타입별로 채우는 칸이 갈리는 것은 호출부가 정한다 —
      * {@code ck_composite_jobs_type_shape} 가 CHALLENGE 에 {@code challengeSeq},
-     * MOTIF 에 {@code assetSeq} 를 강제하고 MOTIF 의 {@code editedChallengeSeq} 를 막는다.
+     * MOTIF 에 {@code assetSeq} 를 강제하고 MOTIF 의 {@code challengeParticipantSeq} 를 막는다.
      *
-     * @param editedChallengeSeq 무교체({@code participantMask} 가 0·생략)면 {@code null}
+     * @param challengeParticipantSeq 무교체({@code participantMask} 가 0·생략)면 {@code null}
      */
     public static CompositeJob create(UUID jobUuid, JobType jobType, Integer userSeq,
                                       Integer challengeSeq, Integer assetSeq,
-                                      Integer editedChallengeSeq, String rawVideoKey) {
+                                      Integer challengeParticipantSeq, String rawVideoKey) {
         return new CompositeJob(jobUuid, jobType, userSeq, challengeSeq, assetSeq,
-                editedChallengeSeq, rawVideoKey);
+                challengeParticipantSeq, rawVideoKey);
     }
 
     /**

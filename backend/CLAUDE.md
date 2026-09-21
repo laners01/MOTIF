@@ -118,12 +118,13 @@ S15P21D104-181
 | `BusinessException` 의 `data` — 실패 상세를 응답 `data` 로 | `module-common/.../exception/` | 588 |
 | `AdminIpFilter`(404) · `AdminAuthFilter`(쿠키+Bearer) · `AdminJwtProvider` · `AdminSecurityConfig`(@Order(1)) | `app-core-api/.../admin/security/` | 588 |
 | `AdminPaths` — 어드민 경로 상수 | `app-core-api/.../admin/` | 588 |
-| **슬롯 앵커**(`ChallengeParticipant.Anchor` · `AnchorRequest` · §3.7.9 `updateAnchor`) — bbox 는 삭제됨. **편집본 선택 화면** `EditedChallenge.previewImageKey` · presign `EDITED_PREVIEW`. 앱 §7.2 `anchor`·`editedChallenges[]` | `domain-core/.../challenge/` · `app-core-api/.../admin/challenge/` | S15P21D104-618 |
+| **슬롯 앵커**(`ChallengeParticipant.Anchor` · `AnchorRequest` · §3.7.9 `updateAnchor`) — bbox 는 삭제됨. 앱 §7.2 `anchor` | `domain-core/.../challenge/` · `app-core-api/.../admin/challenge/` | S15P21D104-618 |
+| **편집본이 슬롯 행에 있다** — `ChallengeParticipant.editedChallengeKey`·`initialSceneKey`·`previewImageKey` · `slotOrder`(0-based) · 대리키 `challengeParticipantSeq`. `EditedChallenge` 엔티티·테이블은 **삭제됨**(0019) | `domain-core/.../challenge/ChallengeParticipant` | 0019 |
 | presign API `AdminMediaController`·`AdminMediaService`·`AdminMediaKind` | `app-core-api/.../admin/media/` | 588 |
 | 영상 검증 `VideoRules` (폼이 보낸 길이·해상도 대조) | `app-core-api/.../admin/media/` | 589 |
 | 감사 로그 `AdminAuditLogger` + logback `ADMIN_AUDIT` 어펜더 | `app-core-api/.../admin/audit/` · `logback-spring.xml` | 555 |
-| 챌린지 엔티티·리포지토리 `Challenge`·`ChallengeParticipant`·`EditedChallenge`·`Song` | `domain-core/.../challenge/` · `song/` | S15P21D104-559 |
-| 슬롯 마스크·2ⁿ−1 완결성 `SlotRules` (순수 계산) | `app-core-api/.../admin/challenge/` | 559 |
+| 챌린지 엔티티·리포지토리 `Challenge`·`ChallengeParticipant`·`Song` | `domain-core/.../challenge/` · `song/` | S15P21D104-559 |
+| 슬롯 규칙 `SlotRules` (순수 계산) — 마스크 파생·단일 비트 판정·키 짝 검사 | `app-core-api/.../admin/challenge/` | 559 · 0019 |
 | 챌린지 §3.7.2·3·4·5·6·8 전량 `AdminChallengeService` | `app-core-api/.../admin/challenge/` | 559·560·561 |
 | S3 HEAD `AdminMediaService.requireUploaded` (부재 키 모아 409) | `app-core-api/.../admin/media/` | 559 |
 | `CHALLENGE_NOT_FOUND`·`EDITED_CHALLENGE_NOT_FOUND` `ChallengeErrorCode` | `app-core-api/.../domain/challenge/` | 559 |
@@ -180,10 +181,18 @@ mediaJobPublisher.publish(
 ```
 
 ```java
-// 챌린지 슬롯을 다룰 때 — 마스크는 서버가 계산한다. 비트를 직접 쓰지 않는다
-SlotRules.checkParticipants(participants);                      // 중복·앵커 범위 (메인도 슬롯이 된다)
-List<Integer> masks = SlotRules.editedMasks(n, editedList);     // 2ⁿ−1 완결성 + 마스크
-adminMediaService.requireUploaded(keys);                        // HEAD, 부재 키를 data 에
+// 챌린지 슬롯을 다룰 때 — 순서·마스크는 서버가 정한다. 비트를 직접 쓰지 않는다
+SlotRules.checkParticipants(participants);   // 중복·앵커·편집본 키 짝 (메인도 슬롯이 된다)
+adminMediaService.requireUploaded(keys);     // HEAD, 부재 키를 data 에 (보낸 키만)
+// slotOrder 는 요청 배열의 인덱스 그대로, 마스크는 1 << slotOrder 로 파생한다
+SlotRules.participantMask(slotOrder);        // 슬롯 → 마스크 (AI 페이로드)
+SlotRules.slotOrderOf(mask);                 // 마스크 → 슬롯 (§13.1)
+SlotRules.isSingleSlotMask(mask);            // 조합 마스크를 400 으로 거른다
+//
+// 조합 편집본을 되살리지 마라 (0019) — 편집본은 슬롯 1개당 1개이고 사용자는 한 명만
+// 고른다. 2ⁿ−1 완결성 검증(editedMasks·EDITED_SET_INCOMPLETE)은 그래서 삭제됐다.
+// slot_order 를 display_order 처럼 "옮겨도 되는 순서" 로 다루지 마라 — 앵커·편집본과
+// 짝이고 AI 마스크가 여기서 나오므로, 바꾸면 합성이 교체하는 인물이 바뀐다.
 ```
 
 ```java

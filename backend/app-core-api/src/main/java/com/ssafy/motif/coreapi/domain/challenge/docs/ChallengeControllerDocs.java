@@ -107,20 +107,23 @@ public interface ChallengeControllerDocs {
                       곡명(`song.title`)과 아티스트로 한다.
                     - `participantCount` 는 게시 참여 수이며 **PUBLIC·PRIVATE 를 모두 포함**한다.
                       PRIVATE 영상의 조회 비노출(§1.8)과 카운트 집계는 분리된 규칙이다.
-                    - `participants` 는 교체 가능한 인물 슬롯이다. `participantMask` 는 **단일 비트**
-                      (1·2·4·8)이며 배열은 마스크 오름차순 = 화면 좌→우 순서다.
+                    - `participants` 는 교체 가능한 인물 슬롯이다. 배열은 `slotOrder` 오름차순
+                      = 화면 좌→우 순서이고, `participantMask` 는 **단일 비트**(`1 << slotOrder`
+                      = 1·2·4·8)로 §13.1 에 그대로 실어 보낸다.
                       `anchor` 는 촬영 전 선택 화면에서 프로필 원이 앉는 자리로 **썸네일 대비 0~1 비율**
                       (`x`·`r` 가로, `y` 세로)이다 — 어드민이 아직 찍지 않은 옛 슬롯은 `null`.
-                    - `editedChallenges` 는 조합(`participantMask`, 비트 OR 합)별 선택 화면 이미지다.
-                      고른 슬롯 마스크를 OR 한 항목의 `previewImageUrl` 을 썸네일 자리에 띄우고,
-                      무선택(0)·`null`·항목 없음은 `thumbnailUrl` 로 폴백한다.
                       `profileImageUrl` 은 설명 시트의 참여자 아바타용이며 미등록이면 `null` 이다.
-                    - **편집본이 0개인 챌린지가 있다.** 슬롯은 등록됐지만 AI 편집본이 아직 없는
-                      상태로, 재생·표시는 정상이고 촬영만 §13.1 의 `EDITED_CHALLENGE_NOT_FOUND` 로
-                      막힌다. 어드민 등록이 **0개 또는 정확히 2ⁿ−1개**만 허용하므로 부분 집합은
-                      존재하지 않는다 — 조합 하나만 비는 경우는 없다.
-                    - **`availableMasks` 는 없다** (회의 확정 R4). 조합 유효성은 §13.1 의
-                      `EDITED_CHALLENGE_NOT_FOUND` 로만 사후 판별된다.
+                    - **사용자는 슬롯을 하나만 고른다.** 여러 명을 한 번에 교체하는 조합은 없다 —
+                      편집본이 슬롯 1개당 1개이기 때문이다. 조합 마스크를 §13.1 에 보내면 400 이다.
+                    - `selectable` 이 `false` 면 그 슬롯을 지운 편집본이 아직 없다는 뜻이다.
+                      그대로 §13.1 에 보내면 `EDITED_CHALLENGE_NOT_FOUND` 이므로 화면에서 잠근다.
+                    - `previewImageUrl` 은 그 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지다.
+                      `null` 이면 `thumbnailUrl` 로 폴백한다. 무선택(아무 슬롯도 안 고름)도 `thumbnailUrl` 이다.
+                    - **슬롯이 전부 `selectable: false` 인 챌린지가 있다.** 슬롯은 등록됐지만 AI
+                      편집본이 아직 없는 상태로, 재생·표시는 정상이고 촬영만 막힌다.
+                    - **`availableMasks` 는 없다** (회의 확정 R4). 고를 수 있는지는 항목마다
+                      `selectable` 로 내려가고, 그래도 없는 슬롯을 보내면 §13.1 의
+                      `EDITED_CHALLENGE_NOT_FOUND` 가 사후 판별한다.
                     - 삭제된 챌린지는 **없는 것으로 답한다**(404) — §1.8 공통 비노출.
 
                     댓글은 §9 공통 댓글(`type=challenge`)을 쓴다.
@@ -152,9 +155,12 @@ public interface ChallengeControllerDocs {
                                           {
                                             "artistSeq": 7,
                                             "name": "윈터",
+                                            "slotOrder": 0,
                                             "participantMask": 1,
                                             "profileImageUrl": "https://cdn.../profiles/7.jpg",
-                                            "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 }
+                                            "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
+                                            "selectable": true,
+                                            "previewImageUrl": "https://cdn.../challenges/{uuid}/preview-1.jpg"
                                           }
                                         ]
                                       },

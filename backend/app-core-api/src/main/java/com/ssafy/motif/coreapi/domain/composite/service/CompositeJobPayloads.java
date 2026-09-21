@@ -5,7 +5,6 @@ import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
-import com.ssafy.motif.domain.core.challenge.EditedChallenge;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 
 import java.util.Comparator;
@@ -30,19 +29,22 @@ public final class CompositeJobPayloads {
     /**
      * CHALLENGE — 베이스는 <b>슬롯 인물이 지워진 편집본</b>, 무교체면 원본이다.
      *
-     * <p>{@code participantMask} 는 잡 행에 없다. 편집본이 그 조합 자체이므로
-     * {@code edited.participantMask} 가 곧 합산값이고, 무교체({@code edited == null})면
-     * {@code 0} 이다 — §13.1 이 그 둘을 이미 갈라 놓았다.
+     * <p>{@code participantMask} 는 잡 행에 없다. 교체 대상 슬롯이 곧 그 값이므로
+     * {@code edited.participantMask()}(= {@code 1 << slotOrder})가 실리고, 무교체
+     * ({@code edited == null})면 {@code 0} 이다 — §13.1 이 그 둘을 이미 갈라 놓았다.
      *
-     * @param edited       무교체면 {@code null}
+     * <p>0019 이후 <b>마스크는 언제나 단일 비트</b>다. 조합 편집본이 없어져 {@code slots} 도
+     * 0개 또는 1개이지만, 배열 계약은 그대로 둔다(AI 서버 명세 §3.2 는 additive-only).
+     *
+     * @param edited       교체 대상 슬롯. 무교체면 {@code null}
      * @param participants 그 챌린지의 <b>전체</b> 슬롯. 교체 대상 걸러내기는 여기서 한다
      */
     public static CompositeJobPayload from(CompositeJob job, Challenge challenge,
-                                           EditedChallenge edited,
+                                           ChallengeParticipant edited,
                                            List<ChallengeParticipant> participants) {
-        int mask = edited == null ? 0 : edited.getParticipantMask();
+        int mask = edited == null ? 0 : edited.participantMask();
         String baseVideoKey = MediaKeys.sourceMp4Of(
-                edited == null ? challenge.getVideoKey() : edited.getVideoKey());
+                edited == null ? challenge.getVideoKey() : edited.getEditedChallengeKey());
         return payload(job, baseVideoKey, mask, slots(participants, mask), challenge.getDurationMs());
     }
 
@@ -75,10 +77,13 @@ public final class CompositeJobPayloads {
     }
 
     /**
-     * 교체 대상 슬롯만, 마스크 오름차순(= 화면 좌→우).
+     * 교체 대상 슬롯만, 순서 오름차순(= 화면 좌→우).
      *
-     * <p>{@code mask} 는 비트 합이라 {@code &} 로 고른다 — 슬롯의 {@code participantMask} 는
-     * 단일 비트다. 앵커는 <b>그대로</b> 넘긴다. 0017 이전 행은 {@code null} 이고, AI 에는
+     * <p>{@code &} 로 고르는 것을 유지한다 — 0019 이후 {@code mask} 는 단일 비트라 언제나
+     * 한 건이 걸리지만, 비트 연산이 "이 마스크에 포함된 슬롯" 이라는 뜻을 그대로 지키므로
+     * 나중에 조합이 되살아나도 여기는 손댈 것이 없다.
+     *
+     * <p>앵커는 <b>그대로</b> 넘긴다. 0017 이전 행은 {@code null} 이고, AI 에는
      * 위치 힌트라 없어도 합성 자체는 돈다.
      */
     private static List<CompositeJobPayload.Slot> slots(List<ChallengeParticipant> participants,
@@ -87,9 +92,9 @@ public final class CompositeJobPayloads {
             return List.of();
         }
         return participants.stream()
-                .filter(p -> (p.getParticipantMask() & mask) != 0)
-                .sorted(Comparator.comparingInt(ChallengeParticipant::getParticipantMask))
-                .map(p -> new CompositeJobPayload.Slot(p.getParticipantMask(), anchor(p)))
+                .filter(p -> (p.participantMask() & mask) != 0)
+                .sorted(Comparator.comparingInt(ChallengeParticipant::getSlotOrder))
+                .map(p -> new CompositeJobPayload.Slot(p.participantMask(), anchor(p)))
                 .toList();
     }
 

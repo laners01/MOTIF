@@ -16,7 +16,6 @@ import com.ssafy.motif.domain.core.challenge.Challenge;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
 import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
-import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.song.Song;
 import com.ssafy.motif.domain.core.song.SongRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +45,6 @@ public class ChallengeQueryService {
 
     private final ChallengeRepository challengeRepository;
     private final ChallengeParticipantRepository participantRepository;
-    private final EditedChallengeRepository editedChallengeRepository;
     private final ArtistRepository artistRepository;
     private final SongRepository songRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -165,23 +163,15 @@ public class ChallengeQueryService {
                 challengeRepository.isLikedBy(challengeSeq, userSeq),
                 subscriptionRepository.existsByIdUserSeqAndIdArtistSeq(userSeq, challenge.getArtistSeq()),
                 challenge.getDescription(),
-                participants(challengeSeq),
-                editedPreviews(challengeSeq));
+                participants(challengeSeq));
     }
 
     /**
-     * 조합별 선택 화면 이미지 — 편집본 행마다 한 장이다(0017). 마스크 오름차순.
-     * 안드로이드는 고른 슬롯 마스크를 OR 해 같은 항목의 이미지를 띄우고, 없거나 null 이면 썸네일.
-     */
-    private List<ChallengeDetailResponse.EditedPreview> editedPreviews(Integer challengeSeq) {
-        return editedChallengeRepository.findByChallengeSeqOrderByParticipantMask(challengeSeq).stream()
-                .map(e -> new ChallengeDetailResponse.EditedPreview(
-                        e.getParticipantMask(), mediaUrlResolver.resolve(e.getPreviewImageKey())))
-                .toList();
-    }
-
-    /**
-     * 슬롯 목록 — 마스크 오름차순이 곧 화면 좌→우 순서다.
+     * 슬롯 목록 — {@code slotOrder} 오름차순이 곧 화면 좌→우 순서다.
+     *
+     * <p><b>선택 화면 이미지가 여기 실린다</b>(0019). 예전에는 조합별 {@code editedChallenges[]}
+     * 배열을 따로 내려 안드로이드가 마스크를 OR 해 맞춰 봤지만, 편집본이 슬롯 1개당 1개가
+     * 되면서 그 대조가 필요 없어졌다 — 고른 슬롯 항목의 이미지를 그대로 쓴다.
      *
      * <p>이름과 프로필 키를 {@code ArtistRepository.findNames} 로 <b>한 번에</b> 가져온다.
      * 슬롯은 최대 4개지만 하나씩 조회하면 그대로 N+1 이고, 그 메서드가 이 용도로 이미 있다.
@@ -191,25 +181,28 @@ public class ChallengeQueryService {
      */
     private List<ChallengeDetailResponse.Participant> participants(Integer challengeSeq) {
         List<ChallengeParticipant> slots =
-                participantRepository.findByIdChallengeSeqOrderByParticipantMask(challengeSeq);
+                participantRepository.findByChallengeSeqOrderBySlotOrderAsc(challengeSeq);
         if (slots.isEmpty()) {
             return List.of();
         }
 
         Map<Integer, ArtistName> artists = artistRepository
-                .findNames(slots.stream().map(ChallengeParticipant::artistSeq).toList())
+                .findNames(slots.stream().map(ChallengeParticipant::getArtistSeq).toList())
                 .stream()
                 .collect(Collectors.toMap(ArtistName::artistSeq, a -> a));
 
         return slots.stream()
                 .map(slot -> {
-                    ArtistName artist = artists.get(slot.artistSeq());
+                    ArtistName artist = artists.get(slot.getArtistSeq());
                     return new ChallengeDetailResponse.Participant(
-                            slot.artistSeq(),
+                            slot.getArtistSeq(),
                             artist == null ? null : artist.name(),
-                            slot.getParticipantMask(),
+                            slot.getSlotOrder(),
+                            slot.participantMask(),
                             artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey()),
-                            toAnchor(slot.anchorOrNull()));
+                            toAnchor(slot.anchorOrNull()),
+                            slot.hasEdited(),
+                            mediaUrlResolver.resolve(slot.getPreviewImageKey()));
                 })
                 .toList();
     }

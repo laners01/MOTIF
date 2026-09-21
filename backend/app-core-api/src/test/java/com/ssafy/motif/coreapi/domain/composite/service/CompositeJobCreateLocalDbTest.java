@@ -14,9 +14,9 @@ import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
-import com.ssafy.motif.domain.core.challenge.EditedChallenge;
-import com.ssafy.motif.domain.core.challenge.EditedChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
 import com.ssafy.motif.domain.core.job.JobStatus;
@@ -54,9 +54,9 @@ import static org.mockito.Mockito.verify;
  * §13.1 합성 잡 생성을 실제 DB 에 대고 검증한다 (S15P21D104-186 · 246).
  *
  * <p><b>DB 없이는 확인되지 않는 것이 둘이다.</b> 하나는 {@code ck_composite_jobs_type_shape}
- * — CHALLENGE 와 MOTIF 가 서로 다른 칸을 채워야 하고 MOTIF 는 {@code edited_challenge_seq}
- * 가 NULL 이어야 한다. 다른 하나는 MOTIF 권한 판정으로, 구매·패스·에셋 타입이 전부
- * 쿼리와 {@code MyAccess} 규칙에 걸쳐 있다.
+ * — CHALLENGE 와 MOTIF 가 서로 다른 칸을 채워야 하고 MOTIF 는
+ * {@code challenge_participant_seq} 가 NULL 이어야 한다. 다른 하나는 MOTIF 권한 판정으로,
+ * 구매·패스·에셋 타입이 전부 쿼리와 {@code MyAccess} 규칙에 걸쳐 있다.
  *
  * <p><b>S3 는 목이다.</b> presign 은 로컬 서명 계산이라 자격증명이 없으면 터지고, 이
  * 테스트가 볼 것은 "어떤 키·타입·만료로 서명을 요청했나" 지 서명 문자열이 아니다.
@@ -83,7 +83,7 @@ class CompositeJobCreateLocalDbTest {
     @Autowired
     private ChallengeRepository challengeRepository;
     @Autowired
-    private EditedChallengeRepository editedChallengeRepository;
+    private ChallengeParticipantRepository participantRepository;
     @Autowired
     private MotifAssetRepository motifAssetRepository;
     @Autowired
@@ -114,12 +114,12 @@ class CompositeJobCreateLocalDbTest {
     // --- CHALLENGE (186) ---------------------------------------------------------
 
     @Test
-    @DisplayName("mask > 0 — 그 조합의 편집본이 잡에 박히고 UPLOADED 행이 생긴다")
-    void challengeWithMaskRecordsEditedChallenge() {
+    @DisplayName("mask > 0 — 그 슬롯이 잡에 박히고 UPLOADED 행이 생긴다")
+    void challengeWithMaskRecordsTheSlot() {
         Integer challengeSeq = newChallenge();
-        Integer editedSeq = newEdited(challengeSeq, 3);
+        Integer slotSeq = newSlot(challengeSeq, 1, true);
 
-        CompositeJobCreateResponse response = create(challengeRequest(challengeSeq, 3));
+        CompositeJobCreateResponse response = create(challengeRequest(challengeSeq, 2));
 
         CompositeJob job = job(response.jobUuid());
         assertThat(job.getJobType()).isEqualTo(JobType.CHALLENGE);
@@ -127,37 +127,65 @@ class CompositeJobCreateLocalDbTest {
         assertThat(job.getUserSeq()).isEqualTo(fanSeq);
         assertThat(job.getChallengeSeq()).isEqualTo(challengeSeq);
         assertThat(job.getAssetSeq()).isNull();
-        assertThat(job.getEditedChallengeSeq()).isEqualTo(editedSeq);
+        assertThat(job.getChallengeParticipantSeq()).isEqualTo(slotSeq);
         assertThat(job.getAttempt()).isEqualTo((short) 1);
         assertThat(job.getRawVideoKey()).isEqualTo("raw/" + response.jobUuid() + ".mp4");
     }
 
     @Test
-    @DisplayName("mask 0·생략 — 무교체다. edited_challenge_seq 가 NULL 로 남는다")
-    void challengeWithoutMaskLeavesEditedNull() {
+    @DisplayName("mask 0·생략 — 무교체다. challenge_participant_seq 가 NULL 로 남는다")
+    void challengeWithoutMaskLeavesSlotNull() {
         Integer challengeSeq = newChallenge();
 
-        assertThat(job(create(challengeRequest(challengeSeq, 0)).jobUuid()).getEditedChallengeSeq())
+        assertThat(job(create(challengeRequest(challengeSeq, 0)).jobUuid()).getChallengeParticipantSeq())
                 .isNull();
-        assertThat(job(create(challengeRequest(challengeSeq, null)).jobUuid()).getEditedChallengeSeq())
+        assertThat(job(create(challengeRequest(challengeSeq, null)).jobUuid()).getChallengeParticipantSeq())
                 .isNull();
     }
 
     @Test
-    @DisplayName("편집본이 없는 조합은 404 — 어드민 등록 전제가 깨진 것이다")
-    void unknownMaskIsNotFound() {
+    @DisplayName("그 자리에 슬롯이 없으면 404")
+    void unknownSlotIsNotFound() {
         Integer challengeSeq = newChallenge();
-        newEdited(challengeSeq, 1);
+        newSlot(challengeSeq, 0, true);
 
         assertFails(challengeRequest(challengeSeq, 2),
                 ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND);
     }
 
+    /**
+     * 0019 — 전조합 완결성 강제가 없어져 "슬롯은 있는데 편집본이 없는" 상태가 정상이 됐다.
+     * 그 슬롯을 고르면 합성 베이스가 없으므로 여기서 막는다.
+     */
     @Test
-    @DisplayName("삭제된 챌린지는 편집본을 보기 전에 404 다")
+    @DisplayName("슬롯은 있는데 편집본이 없으면 404 — §7.2 selectable=false 인 자리다")
+    void slotWithoutEditedIsNotFound() {
+        Integer challengeSeq = newChallenge();
+        newSlot(challengeSeq, 0, false);
+
+        assertFails(challengeRequest(challengeSeq, 1),
+                ChallengeErrorCode.EDITED_CHALLENGE_NOT_FOUND);
+    }
+
+    /**
+     * 조합 마스크는 "없는 편집본" 이 아니라 <b>보낼 수 없는 값</b>이라 400 이다 —
+     * 404 로 주면 클라이언트가 "어드민이 안 올렸구나" 로 잘못 읽는다.
+     */
+    @Test
+    @DisplayName("비트가 둘 이상인 조합 마스크는 400 — 슬롯은 하나만 고른다")
+    void combinationMaskIsRejected() {
+        Integer challengeSeq = newChallenge();
+        newSlot(challengeSeq, 0, true);
+        newSlot(challengeSeq, 1, true);
+
+        assertFails(challengeRequest(challengeSeq, 3), CommonErrorCode.INVALID_PARAMETER);
+    }
+
+    @Test
+    @DisplayName("삭제된 챌린지는 슬롯을 보기 전에 404 다")
     void deletedChallengeIsNotFound() {
         Integer challengeSeq = newChallenge();
-        newEdited(challengeSeq, 1);
+        newSlot(challengeSeq, 0, true);
         challengeRepository.findById(challengeSeq).orElseThrow().softDelete();
         entityManager.flush();
 
@@ -231,7 +259,7 @@ class CompositeJobCreateLocalDbTest {
         assertThat(job.getStatus()).isEqualTo(JobStatus.UPLOADED);
         assertThat(job.getAssetSeq()).isEqualTo(asset.getAssetSeq());
         assertThat(job.getChallengeSeq()).isNull();
-        assertThat(job.getEditedChallengeSeq()).isNull();
+        assertThat(job.getChallengeParticipantSeq()).isNull();
     }
 
     @Test
@@ -322,14 +350,21 @@ class CompositeJobCreateLocalDbTest {
                 .getChallengeSeq();
     }
 
-    private Integer newEdited(Integer challengeSeq, int mask) {
+    /**
+     * 슬롯 하나. {@code withEdited=false} 면 편집본이 없는 슬롯이다 — 0019 이후 정상 상태다.
+     *
+     * <p>아티스트는 매번 새로 만든다. {@code uq_challenge_participants_artist} 가 한 챌린지
+     * 안에서 같은 사람이 두 자리를 차지하는 것을 막는다.
+     */
+    private Integer newSlot(Integer challengeSeq, int slotOrder, boolean withEdited) {
         String uuid = UUID.randomUUID().toString();
-        return editedChallengeRepository.saveAndFlush(EditedChallenge.of(
-                        challengeSeq, mask,
-                        "challenges/" + uuid + "/edited-" + mask + ".mp4",
-                        "challenges/" + uuid + "/scene-" + mask + ".jpg",
-                        "challenges/" + uuid + "/preview-" + mask + ".jpg"))
-                .getEditedChallengeSeq();
+        return participantRepository.saveAndFlush(ChallengeParticipant.of(
+                        challengeSeq, newArtist(), slotOrder,
+                        new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
+                        withEdited ? "challenges/" + uuid + "/edited-" + slotOrder + ".mp4" : null,
+                        withEdited ? "challenges/" + uuid + "/scene-" + slotOrder + ".jpg" : null,
+                        withEdited ? "challenges/" + uuid + "/preview-" + slotOrder + ".jpg" : null))
+                .getChallengeParticipantSeq();
     }
 
     private MotifAsset newAsset(AssetType type, boolean active) {
