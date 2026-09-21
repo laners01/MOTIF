@@ -6,6 +6,7 @@ import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
+import com.ssafy.motif.coreapi.domain.video.dto.VideoViewRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 참여 영상 API 문서 계약 (명세 §8.2 · §8.6 · §8.7 · §8.9 · §8.10).
+ * 참여 영상 API 문서 계약 (명세 §8.2 · §8.5 · §8.6 · §8.7 · §8.9 · §8.10).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -37,7 +38,8 @@ public interface VideoControllerDocs {
                       참여 영상은 `visibility` 와 무관하게 보호 등급이라 CDN 절대 주소에
                       **프리픽스 서명**(`Policy`·`Signature`·`Key-Pair-Id`)이 붙는다(ADR-0012·0013).
                     - `isMine=true` 면 클라이언트가 Bottom Sheet 에 수정·삭제를 노출한다(§8.9·§8.10).
-                    - **조회수는 올라가지 않는다.** 조회 이벤트는 §8.5 `POST /videos/{videoSeq}/view` 다.
+                    - **조회수는 올라가지 않는다.** 조회 이벤트는 §8.5 `POST /videos/view` 다.
+                      읽기 API 가 쓰기를 겸하면 재시도·프리페치가 그대로 조회수가 된다.
 
                     ### 안 보이는 것은 전부 404 다
 
@@ -98,6 +100,74 @@ public interface VideoControllerDocs {
     ApiResponse<VideoItem> detail(
             @Parameter(hidden = true) AuthenticatedUser user,
             @Parameter(description = "참여 영상 seq", example = "88") Long videoSeq);
+
+    @Operation(
+            summary = "조회 이벤트 (§8.5)",
+            description = """
+                    영상이 재생되면 호출한다 (명세 §8.5). **여러 영상의 조회수를 묶어 보낸다** —
+                    경로에 `{videoSeq}` 가 없다(2026-09-21 재정의 — ADR-0015).
+
+                    ```json
+                    { "views": { "101": 3, "102": 1, "115": 2 } }
+                    ```
+
+                    - **인증 필요.**
+                    - **202 Accepted.** 집계는 비동기다 — "접수했다"는 뜻이고 `viewCount` 가 즉시
+                      오르지 않는다. DB 반영은 **20분 주기 배치**가 한다.
+                    - 클라이언트는 조회를 모아 두었다가 화면을 뜰 때나 일정 간격으로 한 번 보낸다.
+                      건마다 왕복하면 재생 중에 네트워크를 계속 쓴다.
+
+                    ### 제약 — 하나라도 어기면 요청 전체가 400 이다
+
+                    | 항목 | 값 |
+                    |---|---|
+                    | `views` 항목 수 | 1 ~ 50 |
+                    | 영상당 `count` | 1 ~ 100 |
+
+                    **부분 수용하지 않는다.** 어긋난 항목만 조용히 버리면 클라이언트 버그가 응답에도
+                    로그에도 남지 않는다. 어느 항목이 문제인지는 `data` 에 실린다.
+
+                    ### 404 가 없다
+
+                    존재하지 않는 `videoSeq` 를 보내도 **202** 다. 조회 이벤트마다 DB 를 확인하면
+                    집계를 Redis 로 뺀 의미가 없다 — 없는 키는 배치의 `UPDATE` 가 0행으로 버리고,
+                    랭킹 모집단은 DB 에서 나오므로 순위에도 오르지 않는다.
+
+                    **Redis 장애도 202 다**(fail-open). 영상은 정상 재생되는데 조회수 집계 실패로
+                    에러를 받는 것이 더 나쁘다. 서버는 로그만 남긴다.
+
+                    ### 1회 인정 기준은 미결이다
+
+                    같은 사용자의 중복 조회 · 최소 시청 시간 · 본인 영상 포함 여부(원본 §16 #3)가
+                    정해지지 않아 **서버는 보낸 `count` 를 믿는다.** 정책이 정해져도 서버 내부에서만
+                    반영하며 이 계약은 바뀌지 않는다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "202", description = "접수 (집계는 비동기)",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": null,
+                              "timestamp": "2026-09-21T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "views 가 비었음 · 항목 수 초과 · count 범위 위반 · 본문 형식 오류",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": { "videoSeq": 101, "maxCountPerVideo": 100 },
+                                      "timestamp": "2026-09-21T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<Void> view(VideoViewRequest request);
 
     @Operation(
             summary = "관심 없음 (§8.6)",
