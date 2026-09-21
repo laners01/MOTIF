@@ -8,11 +8,16 @@ import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
 import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeLikeService;
 import com.ssafy.motif.coreapi.domain.challenge.service.ChallengeQueryService;
+import com.ssafy.motif.coreapi.domain.view.ViewService;
+import com.ssafy.motif.coreapi.domain.view.ViewTarget;
+import com.ssafy.motif.coreapi.domain.view.dto.ViewRequest;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.http.HttpStatus;
@@ -22,12 +27,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 팬 앱 챌린지 조회 API (명세 §7.1·§7.2). Base URL 은 {@code /api/v1}.
+ * 팬 앱 챌린지 API (명세 §7.1·§7.2·§7.3·§7.4). Base URL 은 {@code /api/v1}.
  *
  * <p><b>인증이 필요하다</b>(🔓 아님) — 응답의 {@code isLiked}·{@code isSubscribed} 가
- * 호출자 기준이다.
- *
- * <p>§7.3 좋아요·§7.4 조회 이벤트는 아직 매핑이 없다.
+ * 호출자 기준이다. §7.4 조회 이벤트는 호출자를 쓰지 않지만 {@code SecurityConfig} 의
+ * {@code anyRequest().authenticated()} 로 함께 막힌다.
  *
  * <p>경로가 {@code /api/v1/**} 이고 {@code /api/v1/admin/**} 이 아니므로 springdoc
  * {@code user} 그룹 문서에 자동으로 잡힌다({@code OpenApiConfig}).
@@ -42,6 +46,25 @@ public class ChallengeController implements ChallengeControllerDocs {
 
     private final ChallengeQueryService challengeQueryService;
     private final ChallengeLikeService challengeLikeService;
+    private final ViewService viewService;
+
+    /**
+     * §7.4 조회 이벤트 — <b>202 Accepted</b>. 챌린지별 조회수를 묶어 받는다.
+     *
+     * <p>경로에 {@code {challengeSeq}} 가 없다(2026-09-21 재정의 — ADR-0016). §8.5 와
+     * <b>같은 요청 DTO·같은 서비스</b>를 쓰고 대상 종류만 다르다. 리터럴 세그먼트라
+     * {@code /{challengeSeq}} 계열 매핑과 겹치지 않는다.
+     *
+     * <p><b>호출자를 받지 않는다.</b> 1회 인정 기준이 미결이라(원본 §16 #3) 지금은
+     * 사용자별로 가르는 것이 없다 — 쓰지도 않을 파라미터를 미리 두지 않는다.
+     */
+    @Override
+    @PostMapping("/view")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ApiResponse<Void> view(@Valid @RequestBody ViewRequest request) {
+        viewService.accumulate(ViewTarget.CHALLENGE, request.views());
+        return ApiResponse.success();
+    }
 
     /**
      * §7.1 숏폼 피드 — 커서.

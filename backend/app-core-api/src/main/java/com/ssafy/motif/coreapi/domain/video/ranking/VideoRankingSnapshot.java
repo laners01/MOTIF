@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewProperties;
+import com.ssafy.motif.coreapi.domain.view.ViewProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
@@ -59,7 +59,7 @@ public class VideoRankingSnapshot {
     private static final String DELTA_SUFFIX = ":delta";
 
     private final StringRedisTemplate redis;
-    private final VideoViewProperties properties;
+    private final ViewProperties properties;
 
     /**
      * 확정된 순서를 새 버전으로 적재하고 포인터를 옮긴다.
@@ -111,11 +111,11 @@ public class VideoRankingSnapshot {
 
         redis.opsForZSet().add(key, tuples);
         redis.opsForHash().putAll(deltaKey, deltas);
-        redis.expire(key, properties.ranking().retain());
-        redis.expire(deltaKey, properties.ranking().retain());
+        redis.expire(key, properties.videoRanking().retain());
+        redis.expire(deltaKey, properties.videoRanking().retain());
 
         redis.opsForList().leftPush(VERSIONS, String.valueOf(version));
-        redis.opsForList().trim(VERSIONS, 0, properties.ranking().rankDeltaBuckets() + 1L);
+        redis.opsForList().trim(VERSIONS, 0, properties.videoRanking().rankDeltaBuckets() + 1L);
 
         // 포인터를 마지막에 옮긴다 — 그 전까지 이 버전은 아무도 모른다
         redis.opsForValue().set(POINTER, String.valueOf(version));
@@ -209,7 +209,7 @@ public class VideoRankingSnapshot {
      * 깜빡이기 때문이다(§5.1 이 {@code prev-interval} 을 따로 둔 것과 같은 사정).
      */
     private Map<Long, Integer> baseRanks() {
-        String raw = redis.opsForList().index(VERSIONS, properties.ranking().rankDeltaBuckets() - 1L);
+        String raw = redis.opsForList().index(VERSIONS, properties.videoRanking().rankDeltaBuckets() - 1L);
         Long version = parseVersion(raw);
         if (version == null) {
             return Map.of();

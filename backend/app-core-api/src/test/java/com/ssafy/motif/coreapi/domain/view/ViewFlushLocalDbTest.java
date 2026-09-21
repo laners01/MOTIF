@@ -1,4 +1,4 @@
-package com.ssafy.motif.coreapi.domain.video.view;
+package com.ssafy.motif.coreapi.domain.view;
 
 import com.ssafy.motif.coreapi.domain.video.VideoTestData;
 import jakarta.persistence.EntityManager;
@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *
  * <p>단위 테스트가 닿지 못하는 곳만 본다 — <b>RENAMENX 가 정말 얼리는지</b>,
  * <b>배열 {@code unnest} UPDATE 가 실제로 도는지</b>, <b>재처리가 두 번 더하지
- * 않는지</b>. 단계 순서는 {@code VideoViewFlushJobTest} 가 이미 고정한다.
+ * 않는지</b>. 단계 순서는 {@code ViewFlushJobTest} 가 이미 고정한다.
  *
  * <p>실행 전 {@code backend/local-infra && docker compose up -d --wait}.
  *
@@ -35,15 +36,16 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 @Tag("local-db")
 @SpringBootTest
 @Transactional
-class VideoViewFlushLocalDbTest {
+class ViewFlushLocalDbTest {
 
     private static final Instant NOW = Instant.parse("2026-09-21T09:40:12Z");
     private static final String TS = "20260921094012";
 
     @Autowired
-    private VideoViewBuffer buffer;
+    @Qualifier("videoViewBuffer")
+    private ViewBuffer buffer;
     @Autowired
-    private VideoViewFlushJob job;
+    private ViewFlushJob job;
     @Autowired
     private StringRedisTemplate redis;
     @PersistenceContext
@@ -70,12 +72,12 @@ class VideoViewFlushLocalDbTest {
 
     private void clearKeys() {
         redis.delete(List.of(
-                VideoViewBuffer.PENDING,
-                VideoViewBuffer.PROCESSING_INDEX,
-                VideoViewBuffer.BUCKET_INDEX,
-                VideoViewBuffer.PROCESSING_PREFIX + TS,
-                VideoViewBuffer.BUCKET_PREFIX + TS,
-                VideoViewBuffer.FLUSH_MARKER_PREFIX + TS));
+                buffer.pendingKey(),
+                buffer.processingIndexKey(),
+                buffer.bucketIndexKey(),
+                buffer.processingKey(TS),
+                buffer.bucketKey(TS),
+                buffer.flushMarkerKey(TS)));
     }
 
     @Test
@@ -86,15 +88,15 @@ class VideoViewFlushLocalDbTest {
         job.flush(NOW);
 
         assertThat(viewCount()).isEqualTo(5L);
-        assertThat(redis.opsForHash().get(VideoViewBuffer.BUCKET_PREFIX + TS, String.valueOf(videoSeq)))
+        assertThat(redis.opsForHash().get(buffer.bucketKey(TS), String.valueOf(videoSeq)))
                 .isEqualTo("5");
-        assertThat(redis.opsForList().range(VideoViewBuffer.BUCKET_INDEX, 0, -1)).containsExactly(TS);
+        assertThat(redis.opsForList().range(buffer.bucketIndexKey(), 0, -1)).containsExactly(TS);
 
         // 얼린 스냅샷과 미완료 인덱스가 함께 비어야 끝난 것이다
-        assertThat(redis.hasKey(VideoViewBuffer.PROCESSING_PREFIX + TS)).isFalse();
-        assertThat(redis.opsForList().size(VideoViewBuffer.PROCESSING_INDEX)).isZero();
+        assertThat(redis.hasKey(buffer.processingKey(TS))).isFalse();
+        assertThat(redis.opsForList().size(buffer.processingIndexKey())).isZero();
         // rotate 가 가져갔으므로 pending 은 사라진다 — 다음 조회는 새 키에 쌓인다
-        assertThat(redis.hasKey(VideoViewBuffer.PENDING)).isFalse();
+        assertThat(redis.hasKey(buffer.pendingKey())).isFalse();
     }
 
     @Test
@@ -104,7 +106,7 @@ class VideoViewFlushLocalDbTest {
 
         job.flush(NOW);
 
-        assertThat(redis.getExpire(VideoViewBuffer.BUCKET_PREFIX + TS)).isPositive();
+        assertThat(redis.getExpire(buffer.bucketKey(TS))).isPositive();
     }
 
     @Test
@@ -116,13 +118,13 @@ class VideoViewFlushLocalDbTest {
 
         // "DB 는 넣었는데 processing 을 못 지우고 죽었다" 를 그대로 재현한다 —
         // 마커는 살아 있고 얼린 스냅샷도 남아 있는 상태
-        redis.opsForHash().put(VideoViewBuffer.PROCESSING_PREFIX + TS, String.valueOf(videoSeq), "5");
-        redis.opsForList().leftPush(VideoViewBuffer.PROCESSING_INDEX, TS);
+        redis.opsForHash().put(buffer.processingKey(TS), String.valueOf(videoSeq), "5");
+        redis.opsForList().leftPush(buffer.processingIndexKey(), TS);
 
         job.flush(NOW.plusSeconds(1200));
 
         assertThat(viewCount()).isEqualTo(5L);
-        assertThat(redis.hasKey(VideoViewBuffer.PROCESSING_PREFIX + TS)).isFalse();
+        assertThat(redis.hasKey(buffer.processingKey(TS))).isFalse();
     }
 
     @Test
@@ -134,7 +136,7 @@ class VideoViewFlushLocalDbTest {
         buffer.add(Map.of(videoSeq, 2));
 
         assertThat(viewCount()).isEqualTo(3L);
-        assertThat(redis.opsForHash().get(VideoViewBuffer.PENDING, String.valueOf(videoSeq)))
+        assertThat(redis.opsForHash().get(buffer.pendingKey(), String.valueOf(videoSeq)))
                 .isEqualTo("2");
     }
 
@@ -147,7 +149,7 @@ class VideoViewFlushLocalDbTest {
 
         assertThat(viewCount()).isEqualTo(2L);
         // 버킷에는 남는다 — 랭킹 모집단이 DB 에서 나오므로 순위에 오르지는 않는다
-        assertThat(redis.opsForHash().get(VideoViewBuffer.BUCKET_PREFIX + TS, "999999999"))
+        assertThat(redis.opsForHash().get(buffer.bucketKey(TS), "999999999"))
                 .isEqualTo("7");
     }
 
@@ -156,8 +158,8 @@ class VideoViewFlushLocalDbTest {
     void skipsIntervalWithoutViews() {
         assertThatCode(() -> job.flush(NOW)).doesNotThrowAnyException();
 
-        assertThat(redis.hasKey(VideoViewBuffer.BUCKET_PREFIX + TS)).isFalse();
-        assertThat(redis.opsForList().size(VideoViewBuffer.BUCKET_INDEX)).isZero();
+        assertThat(redis.hasKey(buffer.bucketKey(TS))).isFalse();
+        assertThat(redis.opsForList().size(buffer.bucketIndexKey())).isZero();
     }
 
     private long viewCount() {

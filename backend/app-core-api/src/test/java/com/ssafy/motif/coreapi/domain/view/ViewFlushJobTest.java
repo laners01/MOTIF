@@ -1,5 +1,6 @@
-package com.ssafy.motif.coreapi.domain.video.view;
+package com.ssafy.motif.coreapi.domain.view;
 
+import com.ssafy.motif.coreapi.domain.artist.ranking.ArtistRankingSnapshotJob;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,27 +26,73 @@ import static org.mockito.Mockito.verify;
  * 조회수 집계 배치 (S15P21D104-130 · ADR-0015).
  *
  * <p><b>Redis·DB 없이 돈다.</b> 여기서 고정하는 것은 <b>단계 순서와 실패 시 남기는
- * 것</b>이고, Redis 명령의 실제 동작과 DB 반영은 {@code VideoViewFlushLocalDbTest} 가 본다.
+ * 것</b>이고, Redis 명령의 실제 동작과 DB 반영은 {@code ViewFlushLocalDbTest} 가 본다.
  */
-class VideoViewFlushJobTest {
+class ViewFlushJobTest {
 
     /** {@code yyyyMMddHHmmss} · UTC — 배치가 만드는 이름표와 같아야 한다. */
     private static final Instant NOW = Instant.parse("2026-09-21T09:40:12Z");
     private static final String TS = "20260921094012";
 
-    private VideoViewBuffer buffer;
-    private VideoViewCounterStore counterStore;
+    private ViewBuffer buffer;
+    private ViewCounterStore counterStore;
     private VideoRankingSnapshotJob rankingJob;
-    private VideoViewFlushJob job;
+    private ArtistRankingSnapshotJob artistRankingJob;
+    private ViewFlushJob job;
 
     @BeforeEach
     void setUp() {
-        buffer = mock(VideoViewBuffer.class);
-        counterStore = mock(VideoViewCounterStore.class);
+        buffer = mock(ViewBuffer.class);
+        counterStore = mock(ViewCounterStore.class);
         rankingJob = mock(VideoRankingSnapshotJob.class);
-        job = new VideoViewFlushJob(buffer, counterStore, rankingJob);
+        artistRankingJob = mock(ArtistRankingSnapshotJob.class);
+        given(buffer.getTarget()).willReturn(ViewTarget.VIDEO);
+        // 챌린지 버퍼에는 아무것도 없는 mock 을 넘긴다 — 여기서 보는 것은 단계 순서다
+        job = new ViewFlushJob(buffer, mock(ViewBuffer.class), counterStore, rankingJob, artistRankingJob);
 
         given(buffer.unfinished()).willReturn(List.of());
+    }
+
+    /**
+     * 대상마다 같은 흐름을 한 번씩 돌린다. 한쪽만 도는 회귀가 나면 그 대상의 조회수가
+     * <b>Redis 에 쌓이기만 하고 DB 로 내려가지 않는데</b>, 응답은 계속 202 라 눈에
+     * 띄지 않는다.
+     */
+    @Test
+    @DisplayName("두 대상을 모두 집계한다 — 같은 이름표로 각자의 키를 돈다")
+    void aggregatesBothTargets() {
+        ViewBuffer challengeBuffer = mock(ViewBuffer.class);
+        given(challengeBuffer.getTarget()).willReturn(ViewTarget.CHALLENGE);
+        given(challengeBuffer.unfinished()).willReturn(List.of());
+        given(challengeBuffer.rotate(TS)).willReturn(true);
+        given(challengeBuffer.readProcessing(TS)).willReturn(Map.of(11L, 5L));
+        given(challengeBuffer.claimFlush(TS)).willReturn(true);
+        given(buffer.rotate(TS)).willReturn(true);
+        given(buffer.readProcessing(TS)).willReturn(Map.of(101L, 3L));
+        given(buffer.claimFlush(TS)).willReturn(true);
+
+        new ViewFlushJob(buffer, challengeBuffer, counterStore, rankingJob, artistRankingJob).flush(NOW);
+
+        verify(counterStore).add(ViewTarget.VIDEO, Map.of(101L, 3L));
+        verify(counterStore).add(ViewTarget.CHALLENGE, Map.of(11L, 5L));
+        verify(challengeBuffer).discardProcessing(TS);
+    }
+
+    @Test
+    @DisplayName("한 대상이 실패해도 다른 대상은 계속 집계된다")
+    void oneTargetFailureDoesNotStopTheOther() {
+        ViewBuffer challengeBuffer = mock(ViewBuffer.class);
+        given(challengeBuffer.getTarget()).willReturn(ViewTarget.CHALLENGE);
+        given(challengeBuffer.unfinished()).willReturn(List.of());
+        given(challengeBuffer.rotate(TS)).willReturn(true);
+        given(challengeBuffer.readProcessing(TS)).willReturn(Map.of(11L, 5L));
+        given(challengeBuffer.claimFlush(TS)).willReturn(true);
+        willThrow(new IllegalStateException("redis down")).given(buffer).unfinished();
+
+        new ViewFlushJob(buffer, challengeBuffer, counterStore, rankingJob, artistRankingJob).flush(NOW);
+
+        verify(counterStore).add(ViewTarget.CHALLENGE, Map.of(11L, 5L));
+        verify(rankingJob).refresh();
     }
 
     @Test
@@ -61,7 +108,7 @@ class VideoViewFlushJobTest {
         InOrder order = inOrder(buffer, counterStore);
         order.verify(buffer).rotate(TS);
         order.verify(buffer).claimFlush(TS);
-        order.verify(counterStore).add(counts);
+        order.verify(counterStore).add(ViewTarget.VIDEO, counts);
         order.verify(buffer).saveBucket(TS, counts);
         // 삭제가 마지막이다 — 앞에서 죽으면 그 구간이 Redis 에 남아 다시 처리된다
         order.verify(buffer).discardProcessing(TS);
@@ -75,7 +122,7 @@ class VideoViewFlushJobTest {
         job.flush(NOW);
 
         verify(buffer, never()).claimFlush(anyString());
-        verify(counterStore, never()).add(any());
+        verify(counterStore, never()).add(any(), any());
         verify(buffer, never()).saveBucket(anyString(), any());
     }
 
@@ -89,7 +136,7 @@ class VideoViewFlushJobTest {
 
         job.flush(NOW);
 
-        verify(counterStore, never()).add(any());
+        verify(counterStore, never()).add(any(), any());
         // 버킷은 건너뛰지 않는다 — DB 는 됐는데 버킷 전에 죽은 재처리가 여기로 온다.
         // 건너뛰면 그 구간이 랭킹에서 통째로 빠진다
         verify(buffer).saveBucket(TS, counts);
@@ -103,7 +150,7 @@ class VideoViewFlushJobTest {
         given(buffer.rotate(TS)).willReturn(true);
         given(buffer.readProcessing(TS)).willReturn(counts);
         given(buffer.claimFlush(TS)).willReturn(true);
-        willThrow(new IllegalStateException("db down")).given(counterStore).add(counts);
+        willThrow(new IllegalStateException("db down")).given(counterStore).add(ViewTarget.VIDEO, counts);
 
         job.flush(NOW);
 
@@ -143,7 +190,7 @@ class VideoViewFlushJobTest {
         job.flush(NOW);
 
         verify(buffer, never()).claimFlush(orphan);
-        verify(counterStore, never()).add(any());
+        verify(counterStore, never()).add(any(), any());
         verify(buffer).discardProcessing(orphan);
     }
 

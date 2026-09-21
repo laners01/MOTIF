@@ -8,12 +8,13 @@ import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
-import com.ssafy.motif.coreapi.domain.video.dto.VideoViewRequest;
+import com.ssafy.motif.coreapi.domain.view.dto.ViewRequest;
 import com.ssafy.motif.coreapi.domain.video.service.VideoCommandService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoLikeService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.service.VideoReportService;
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewService;
+import com.ssafy.motif.coreapi.domain.view.ViewService;
+import com.ssafy.motif.coreapi.domain.view.ViewTarget;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,7 @@ public class VideoController implements VideoControllerDocs {
     private final VideoLikeService videoLikeService;
     private final VideoCommandService videoCommandService;
     private final VideoReportService videoReportService;
-    private final VideoViewService videoViewService;
+    private final ViewService viewService;
 
     /**
      * §8.8 게시 — <b>201 Created</b>. 합성이 끝난 잡을 참여 영상으로 만든다.
@@ -85,8 +86,8 @@ public class VideoController implements VideoControllerDocs {
     @Override
     @PostMapping("/view")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public ApiResponse<Void> view(@Valid @RequestBody VideoViewRequest request) {
-        videoViewService.accumulate(request.views());
+    public ApiResponse<Void> view(@Valid @RequestBody ViewRequest request) {
+        viewService.accumulate(ViewTarget.VIDEO, request.views());
         return ApiResponse.success();
     }
 

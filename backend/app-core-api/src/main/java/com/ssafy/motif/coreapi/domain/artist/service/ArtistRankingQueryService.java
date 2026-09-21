@@ -57,17 +57,19 @@ public class ArtistRankingQueryService {
      */
     public PageResponse<ArtistRankingResponse> ranking(Integer userSeq, RankingFilter filter,
                                                        int page, int size) {
-        List<Integer> ranking = snapshot.current();
-        if (ranking.isEmpty()) {
+        // 순위와 변동을 같은 버전에서 함께 읽는다 — 따로 읽으면 배치가 그 사이에
+        // 포인터를 옮겼을 때 서로 다른 버전의 값이 섞인다
+        ArtistRankingSnapshot.Snapshot current = snapshot.read();
+        if (current.isEmpty()) {
             return PageResponses.of(new PageImpl<>(List.of(), PageResponses.pageable(page, size), 0));
         }
+        List<Integer> ranking = current.ranking();
 
-        Map<Integer, Integer> previousRanks = snapshot.previousRanks();
         Set<Integer> subscribed = Set.copyOf(
                 subscriptionRepository.findSubscribedArtistSeqs(userSeq, ranking));
 
         // rank 는 거르기 전에 매긴다 — 필터를 걸어도 "전체 3위" 가 그대로 보여야 한다
-        List<Ranked> filtered = withRanks(ranking, previousRanks)
+        List<Ranked> filtered = withRanks(ranking, current.deltas())
                 .stream()
                 .filter(ranked -> filter.matches(subscribed.contains(ranked.artistSeq())))
                 .toList();
@@ -84,16 +86,20 @@ public class ArtistRankingQueryService {
         return PageResponses.of(new PageImpl<>(list, pageable, filtered.size()));
     }
 
-    /** 스냅샷 순서에 1-base 순위와 {@code rankDelta} 를 붙인다. */
-    private List<Ranked> withRanks(List<Integer> ranking, Map<Integer, Integer> previousRanks) {
+    /**
+     * 스냅샷 순서에 1-base 순위와 {@code rankDelta} 를 붙인다.
+     *
+     * <p><b>변동을 여기서 계산하지 않는다</b> *(2026-09-21 — ADR-0016)*. 배치가 적재
+     * 시점에 3틱 전 버전과 견줘 적어 둔 값을 그대로 쓴다 — 조회 시점에 이전 버전을
+     * 읽으면 요청마다 스냅샷 전량을 한 번 더 읽게 된다.
+     *
+     * <p>{@code deltas} 에 없으면 <b>신규 진입</b>이다 — 0(변동 없음)과 구분해 {@code null}.
+     */
+    private List<Ranked> withRanks(List<Integer> ranking, Map<Integer, Integer> deltas) {
         return IntStream.range(0, ranking.size())
                 .mapToObj(index -> {
                     Integer artistSeq = ranking.get(index);
-                    int rank = index + 1;
-                    Integer previous = previousRanks.get(artistSeq);
-                    // 직전 스냅샷에 없으면 신규 진입 — 0(변동 없음)과 구분해 null 이다
-                    Integer delta = previous == null ? null : previous - rank;
-                    return new Ranked(artistSeq, rank, delta);
+                    return new Ranked(artistSeq, index + 1, deltas.get(artistSeq));
                 })
                 .toList();
     }

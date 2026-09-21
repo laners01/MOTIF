@@ -11,7 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import com.ssafy.motif.coreapi.domain.view.ViewBuffer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +53,9 @@ class ArtistRankingLocalDbTest {
     @Autowired
     private ArtistRankingQueryService rankingQueryService;
     @Autowired
+    @Qualifier("challengeViewBuffer")
+    private ViewBuffer challengeViewBuffer;
+    @Autowired
     private StringRedisTemplate redis;
     @PersistenceContext
     private EntityManager entityManager;
@@ -67,9 +73,13 @@ class ArtistRankingLocalDbTest {
         clearSnapshots();
     }
 
+    /** 버전 키가 갱신마다 새 이름이라 패턴으로 지운다. 챌린지 버킷도 함께 치운다. */
     private void clearSnapshots() {
-        redis.delete(List.of("rank:artist:current", "rank:artist:prev",
-                "rank:artist:current:building", "rank:artist:prev:building"));
+        Set<String> keys = redis.keys("rank:artist:*");
+        keys.addAll(redis.keys("view:challenge:bucket*"));
+        if (!keys.isEmpty()) {
+            redis.delete(keys);
+        }
     }
 
     @Test
@@ -85,22 +95,35 @@ class ArtistRankingLocalDbTest {
         assertThat(scores.get(artistSeq)).isGreaterThan(0.0);
     }
 
+    /**
+     * <b>바닥 점수가 0 이 아니다.</b> 모멘텀의 "변동 없음" 이 0.5 라 반응이 전무한
+     * 아티스트도 {@code Wd × 0.5} 를 받는다 — 그래서 값을 박지 않고 "반응이 없는
+     * 아티스트끼리 같다" 로 고정한다.
+     */
     @Test
-    @DisplayName("삭제된 챌린지는 점수에 들어가지 않는다")
+    @DisplayName("삭제된 챌린지는 점수에 들어가지 않는다 — 신인과 같은 바닥 점수다")
     void 삭제_챌린지_제외() {
         Integer artistSeq = newArtist();
+        Integer rookie = newArtist();
         Integer songSeq = newSong();
         newChallenge(artistSeq, songSeq, 50_000, 0, Instant.now(), true);
 
-        assertThat(job.computeScores()).containsEntry(artistSeq, 0.0);
+        Map<Integer, Double> scores = job.computeScores();
+
+        assertThat(scores.get(artistSeq)).isEqualTo(scores.get(rookie));
     }
 
     @Test
-    @DisplayName("챌린지가 없는 아티스트도 0점으로 스냅샷에 들어간다")
+    @DisplayName("챌린지가 없는 아티스트도 스냅샷에 들어간다 — 빼면 온보딩에서 신인이 사라진다")
     void 신인_포함() {
         Integer rookie = newArtist();
+        Integer 반응_있는 = newArtist();
+        newChallenge(반응_있는, newSong(), 1_000, 0, Instant.now(), false);
 
-        assertThat(job.computeScores()).containsEntry(rookie, 0.0);
+        Map<Integer, Double> scores = job.computeScores();
+
+        assertThat(scores).containsKey(rookie);
+        assertThat(scores.get(반응_있는)).isGreaterThan(scores.get(rookie));
     }
 
     @Test
@@ -115,38 +138,27 @@ class ArtistRankingLocalDbTest {
     }
 
     @Test
-    @DisplayName("진짜 Redis 에 적재·RENAME 되고 다시 읽힌다")
+    @DisplayName("진짜 Redis 에 적재되고 순서대로 다시 읽힌다")
     void 스냅샷_왕복() {
         Integer 낮은_점수 = newArtist();
         Integer 높은_점수 = newArtist();
 
-        snapshot.replaceCurrent(Map.of(낮은_점수, 10.0, 높은_점수, 500.0));
+        snapshot.replace(Map.of(낮은_점수, 10.0, 높은_점수, 500.0));
 
-        assertThat(snapshot.current()).startsWith(높은_점수, 낮은_점수);
-        assertThat(redis.hasKey("rank:artist:current:building")).isFalse();
+        assertThat(snapshot.read().ranking()).startsWith(높은_점수, 낮은_점수);
     }
 
     @Test
-    @DisplayName("최초 실행이면 prev 도 함께 심는다 — 전원이 '신규 진입' 으로 보이지 않게")
-    void 최초_실행() {
-        newArtist();
-
-        assertThat(snapshot.hasPrevious()).isFalse();
-        job.refreshCurrent();
-
-        assertThat(snapshot.hasPrevious()).isTrue();
-        assertThat(snapshot.previousRanks()).isNotEmpty();
-    }
-
-    @Test
-    @DisplayName("이미 prev 가 있으면 current 갱신이 덮지 않는다 — rankDelta 기준이 유지된다")
-    void 기존_prev_유지() {
+    @DisplayName("배치가 한 번 돌면 스냅샷이 선다 — 전원 '변동 없음' 이고 신규 진입이 아니다")
+    void 배치_최초_실행() {
         Integer artistSeq = newArtist();
-        snapshot.replacePrevious(Map.of(artistSeq, 999.0));
 
-        job.refreshCurrent();
+        job.refresh();
 
-        assertThat(snapshot.previousRanks()).containsKey(artistSeq);
+        ArtistRankingSnapshot.Snapshot current = snapshot.read();
+        assertThat(current.ranking()).contains(artistSeq);
+        // null 은 진짜 신규 아티스트 전용이다 — 배포 직후 전원이 "신규" 로 보이면 안 된다
+        assertThat(current.deltas()).containsEntry(artistSeq, 0);
     }
 
     @Test
@@ -154,9 +166,13 @@ class ArtistRankingLocalDbTest {
     void 조회_통합() {
         Integer 일위 = newArtist();
         Integer 이위 = newArtist();
-        snapshot.replaceCurrent(Map.of(일위, 500.0, 이위, 10.0));
-        // 직전에는 순서가 반대였다 — 일위는 2→1(+1), 이위는 1→2(-1)
-        snapshot.replacePrevious(Map.of(이위, 500.0, 일위, 10.0));
+        // 대비가 3틱 전이라 기준을 세 번 깔고 네 번째에 순서를 뒤집는다 —
+        // 일위는 2→1(+1), 이위는 1→2(-1)
+        Map<Integer, Double> 직전 = Map.of(이위, 500.0, 일위, 10.0);
+        snapshot.replace(직전);
+        snapshot.replace(직전);
+        snapshot.replace(직전);
+        snapshot.replace(Map.of(일위, 500.0, 이위, 10.0));
 
         PageResponse<ArtistRankingResponse> page =
                 rankingQueryService.ranking(me, RankingFilter.ALL, 0, 100);
@@ -177,7 +193,7 @@ class ArtistRankingLocalDbTest {
         Integer 구독_안한 = newArtist();
         execute("insert into motif_core.subscriptions (user_seq, artist_seq) values (?1, ?2)",
                 me, 구독한);
-        snapshot.replaceCurrent(Map.of(구독한, 500.0, 구독_안한, 10.0));
+        snapshot.replace(Map.of(구독한, 500.0, 구독_안한, 10.0));
 
         assertThat(rankingQueryService.ranking(me, RankingFilter.SUBSCRIBED, 0, 100).list())
                 .extracting(ArtistRankingResponse::artistSeq)
@@ -226,19 +242,23 @@ class ArtistRankingLocalDbTest {
         return scalar("select song_seq from motif_core.songs where title = ?1", title);
     }
 
-    private void newChallenge(Integer artistSeq, Integer songSeq, long viewCount,
-                              int participantCount, Instant regDttm, boolean deleted) {
+    /** @return 만든 {@code challengeSeq} — 최근 조회수 버킷의 field 가 이 값이다. */
+    private Integer newChallenge(Integer artistSeq, Integer songSeq, long viewCount,
+                                 int participantCount, Instant regDttm, boolean deleted) {
         String uuid = UUID.randomUUID().toString();
+        String videoKey = "challenges/" + uuid + ".mp4";
         execute("""
                 insert into motif_core.challenges
                     (artist_seq, song_seq, description, video_key, thumbnail_key, duration_ms,
                      view_count, participant_count, reg_dttm, is_deleted)
                 values (?1, ?2, '소개글', ?3, ?4, 15000, ?5, ?6, ?7, ?8)
                 """, artistSeq, songSeq,
-                "challenges/" + uuid + ".mp4", "challenges/" + uuid + "/thumb.jpg",
+                videoKey, "challenges/" + uuid + "/thumb.jpg",
                 viewCount, participantCount, regDttm, deleted);
         entityManager.flush();
         entityManager.clear();
+        return scalar("select challenge_seq from motif_core.challenges where video_key = ?1",
+                videoKey);
     }
 
     private void execute(String sql, Object... params) {
@@ -257,8 +277,26 @@ class ArtistRankingLocalDbTest {
 
     /** 감쇠 검증용 — 나이 차가 순위를 뒤집는지 본다. */
     @Test
-    @DisplayName("조회수가 많아도 오래된 챌린지가 최근 챌린지에 밀린다 — 실제 쿼리 경로로")
-    void 감쇠_역전() {
+    @DisplayName("참여 영상 수가 누적 반응량을 끌어올린다 — 실제 쿼리 경로로")
+    void 참여_반영() {
+        Integer 참여_많은 = newArtist();
+        Integer 조회만 = newArtist();
+        Integer songSeq = newSong();
+        newChallenge(참여_많은, songSeq, 1_000, 50, Instant.now(), false);
+        newChallenge(조회만, songSeq, 1_000, 0, Instant.now(), false);
+
+        Map<Integer, Double> scores = job.computeScores();
+
+        assertThat(scores.get(참여_많은)).isGreaterThan(scores.get(조회만));
+    }
+
+    /**
+     * 게시 시각을 반대로 준다 — 시간 감쇠를 걷어냈으므로(ADR-0016) 순서에 영향이 없어야
+     * 한다. 구 공식이었다면 30일 된 챌린지가 계수 0.2264 에 눌려 뒤집혔다.
+     */
+    @Test
+    @DisplayName("오래된 챌린지라고 밀리지 않는다 — 감쇠가 되살아나면 깨진다")
+    void 감쇠_없음() {
         Integer 옛날 = newArtist();
         Integer 최근 = newArtist();
         Integer songSeq = newSong();
@@ -267,6 +305,21 @@ class ArtistRankingLocalDbTest {
 
         Map<Integer, Double> scores = job.computeScores();
 
-        assertThat(scores.get(최근)).isGreaterThan(scores.get(옛날));
+        assertThat(scores.get(옛날)).isGreaterThan(scores.get(최근));
+    }
+
+    @Test
+    @DisplayName("최근 조회수가 챌린지 버킷에서 아티스트로 합산된다 — 실제 Redis 왕복")
+    void 버킷_합산() {
+        Integer 지금_도는 = newArtist();
+        Integer 조용한 = newArtist();
+        Integer songSeq = newSong();
+        Integer 도는_챌린지 = newChallenge(지금_도는, songSeq, 3_000, 0, Instant.now(), false);
+        newChallenge(조용한, songSeq, 3_000, 0, Instant.now(), false);
+        challengeViewBuffer.saveBucket("t1", Map.of(도는_챌린지.longValue(), 900L));
+
+        Map<Integer, Double> scores = job.computeScores();
+
+        assertThat(scores.get(지금_도는)).isGreaterThan(scores.get(조용한));
     }
 }

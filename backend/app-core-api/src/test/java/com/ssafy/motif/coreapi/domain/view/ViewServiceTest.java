@@ -1,4 +1,4 @@
-package com.ssafy.motif.coreapi.domain.video.view;
+package com.ssafy.motif.coreapi.domain.view;
 
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
@@ -24,26 +24,27 @@ import static org.mockito.Mockito.verify;
  * 조회 이벤트 접수 (S15P21D104-130 · 명세 §8.5 · ADR-0015).
  *
  * <p><b>Redis 없이 돈다.</b> 여기서 고정하는 것은 검증 규칙과 fail-open 이고, Redis
- * 자체의 동작은 {@code VideoViewBufferLocalDbTest} 가 본다.
+ * 자체의 동작은 {@code ViewBufferLocalDbTest} 가 본다.
  */
-class VideoViewServiceTest {
+class ViewServiceTest {
 
-    private static final int MAX_VIDEOS = 3;
+    private static final int MAX_TARGETS = 3;
     private static final int MAX_COUNT = 100;
 
-    private VideoViewBuffer buffer;
-    private VideoViewService service;
+    private ViewBuffer buffer;
+    private ViewService service;
 
     @BeforeEach
     void setUp() {
-        buffer = mock(VideoViewBuffer.class);
-        // 집계·랭킹 설정은 이 테스트가 쓰지 않는다 — 검증 규칙만 본다
-        service = new VideoViewService(buffer, new VideoViewProperties(
-                MAX_VIDEOS, MAX_COUNT,
+        buffer = mock(ViewBuffer.class);
+        // 집계·랭킹 설정은 이 테스트가 쓰지 않는다 — 검증 규칙만 본다.
+        // 챌린지 버퍼는 이 테스트가 대상을 VIDEO 로만 부르므로 같은 mock 을 넘긴다
+        service = new ViewService(buffer, buffer, new ViewProperties(
+                MAX_TARGETS, MAX_COUNT,
                 Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24), 3,
-                new VideoViewProperties.Ranking(500, Duration.ofHours(2), 3, 10,
-                        new VideoViewProperties.Weight(0.3, 0.5, 0.2),
-                        new VideoViewProperties.Scale(10_000, 300, 3.0))));
+                new ViewProperties.Ranking(500, Duration.ofHours(2), 3, 10,
+                        new ViewProperties.Weight(0.3, 0.5, 0.2),
+                        new ViewProperties.Scale(10_000, 300, 3.0))));
     }
 
     @Test
@@ -51,7 +52,7 @@ class VideoViewServiceTest {
     void delegatesToBuffer() {
         Map<Long, Integer> views = Map.of(101L, 3, 102L, 1);
 
-        service.accumulate(views);
+        service.accumulate(ViewTarget.VIDEO, views);
 
         verify(buffer).add(views);
     }
@@ -60,7 +61,7 @@ class VideoViewServiceTest {
     @DisplayName("영상 수가 상한을 넘으면 요청 전체를 거절한다 — 유효한 항목도 적재하지 않는다")
     void rejectsWholeRequestWhenTooManyVideos() {
         Map<Long, Integer> views = new LinkedHashMap<>();
-        for (long seq = 1; seq <= MAX_VIDEOS + 1; seq++) {
+        for (long seq = 1; seq <= MAX_TARGETS + 1; seq++) {
             views.put(seq, 1);
         }
 
@@ -72,11 +73,11 @@ class VideoViewServiceTest {
     @DisplayName("상한과 같은 개수는 통과한다 — 경계는 포함이다")
     void acceptsExactlyMaxVideos() {
         Map<Long, Integer> views = new LinkedHashMap<>();
-        for (long seq = 1; seq <= MAX_VIDEOS; seq++) {
+        for (long seq = 1; seq <= MAX_TARGETS; seq++) {
             views.put(seq, 1);
         }
 
-        assertThatCode(() -> service.accumulate(views)).doesNotThrowAnyException();
+        assertThatCode(() -> service.accumulate(ViewTarget.VIDEO, views)).doesNotThrowAnyException();
     }
 
     @Test
@@ -96,7 +97,7 @@ class VideoViewServiceTest {
     void rejectsCountAboveMax() {
         assertInvalid(Map.of(101L, MAX_COUNT + 1));
 
-        assertThatCode(() -> service.accumulate(Map.of(101L, MAX_COUNT)))
+        assertThatCode(() -> service.accumulate(ViewTarget.VIDEO, Map.of(101L, MAX_COUNT)))
                 .doesNotThrowAnyException();
     }
 
@@ -141,7 +142,7 @@ class VideoViewServiceTest {
     void swallowsRedisFailure() {
         willThrow(new IllegalStateException("redis down")).given(buffer).add(any());
 
-        assertThatCode(() -> service.accumulate(Map.of(101L, 1)))
+        assertThatCode(() -> service.accumulate(ViewTarget.VIDEO, Map.of(101L, 1)))
                 .doesNotThrowAnyException();
     }
 
@@ -154,7 +155,7 @@ class VideoViewServiceTest {
     }
 
     private void assertInvalid(Map<Long, Integer> views) {
-        assertThatThrownBy(() -> service.accumulate(views))
+        assertThatThrownBy(() -> service.accumulate(ViewTarget.VIDEO, views))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_PARAMETER));

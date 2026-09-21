@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewProperties;
+import com.ssafy.motif.coreapi.domain.view.ViewProperties;
 import com.ssafy.motif.domain.core.video.VideoScoreRow;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,12 +28,12 @@ class VideoRankingScoreTest {
 
     private final VideoRankingScore score = new VideoRankingScore(properties());
 
-    private static VideoViewProperties properties() {
-        return new VideoViewProperties(50, 100,
+    private static ViewProperties properties() {
+        return new ViewProperties(50, 100,
                 Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24), 3,
-                new VideoViewProperties.Ranking(500, Duration.ofHours(2), 3, K,
-                        new VideoViewProperties.Weight(0.3, 0.5, 0.2),
-                        new VideoViewProperties.Scale(T0, R0, D0)));
+                new ViewProperties.Ranking(500, Duration.ofHours(2), 3, K,
+                        new ViewProperties.Weight(0.3, 0.5, 0.2),
+                        new ViewProperties.Scale(T0, R0, D0)));
     }
 
     @Nested

@@ -1,11 +1,11 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewBuffer;
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewProperties;
+import com.ssafy.motif.coreapi.domain.view.ViewBuffer;
+import com.ssafy.motif.coreapi.domain.view.ViewProperties;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import com.ssafy.motif.domain.core.video.VideoScoreRow;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.Map;
  * 읽기만 한다.
  *
  * <p><b>스스로 스케줄되지 않는다</b> *(2026-09-21 — ADR-0015)*. 조회수 집계
- * ({@code VideoViewFlushJob})의 마지막 단계로 불린다. 주기를 따로 두면 <b>버킷이
+ * ({@code ViewFlushJob})의 마지막 단계로 불린다. 주기를 따로 두면 <b>버킷이
  * 저장되기 전에 랭킹이 돌아</b> 한 틱 낡은 최근 조회수로 순위를 매기는 구간이 생긴다.
  *
  * <p><b>집계가 실패해도 돈다.</b> 버킷이 그대로여도 구간이 한 칸씩 밀리면 점수가
@@ -36,14 +36,34 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class VideoRankingSnapshotJob {
 
     private final ParticipationVideoRepository participationVideoRepository;
-    private final VideoViewBuffer buffer;
+    private final ViewBuffer buffer;
     private final VideoRankingScore rankingScore;
     private final VideoRankingSnapshot snapshot;
-    private final VideoViewProperties properties;
+    private final ViewProperties properties;
+
+    /**
+     * <b>생성자를 직접 쓴다.</b> 대상마다 {@link ViewBuffer} 빈이 하나씩이라(ADR-0016)
+     * 한정자가 필요한데, {@code lombok.config} 가 없어 {@code @RequiredArgsConstructor}
+     * 는 필드의 {@code @Qualifier} 를 생성자로 복사하지 않는다 — 그대로 두면 기동이
+     * "{@code ViewBuffer} 가 둘" 로 실패한다.
+     *
+     * <p><b>참여 영상 버퍼를 받아야 한다.</b> 챌린지 버퍼를 꽂으면 §6.1 랭킹이 엉뚱한
+     * 최근 조회수를 보는데, 타입이 같아 컴파일도 기동도 통과한다.
+     */
+    public VideoRankingSnapshotJob(ParticipationVideoRepository participationVideoRepository,
+                                   @Qualifier("videoViewBuffer") ViewBuffer buffer,
+                                   VideoRankingScore rankingScore,
+                                   VideoRankingSnapshot snapshot,
+                                   ViewProperties properties) {
+        this.participationVideoRepository = participationVideoRepository;
+        this.buffer = buffer;
+        this.rankingScore = rankingScore;
+        this.snapshot = snapshot;
+        this.properties = properties;
+    }
 
     /**
      * 스냅샷 갱신.
@@ -75,7 +95,7 @@ public class VideoRankingSnapshotJob {
                     .sorted(Map.Entry.<Long, Double>comparingByValue().reversed()
                             .thenComparing(Map.Entry::getKey))
                     .map(Map.Entry::getKey)
-                    .limit(properties.ranking().keep())
+                    .limit(properties.videoRanking().keep())
                     .toList();
 
             long version = snapshot.replace(ordered);

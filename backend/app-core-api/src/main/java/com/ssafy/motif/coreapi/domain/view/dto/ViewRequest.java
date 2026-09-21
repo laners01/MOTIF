@@ -1,4 +1,4 @@
-package com.ssafy.motif.coreapi.domain.video.dto;
+package com.ssafy.motif.coreapi.domain.view.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
@@ -17,12 +17,12 @@ import java.util.Map;
  *
  * <p><b>상한 검증이 여기 없다.</b> 항목 수와 건당 조회수 상한이 설정값이라
  * {@code @Size}·{@code @Max} 같은 컴파일 상수 애너테이션으로 표현할 수 없다.
- * {@code VideoViewService} 가 {@code VideoViewProperties} 를 보고 판정한다 — 두 곳에
+ * {@code ViewService} 가 {@code ViewProperties} 를 보고 판정한다 — 두 곳에
  * 나눠 두면 한쪽만 고쳤을 때 상한이 조용히 갈린다.
  *
  * @param views {@code videoSeq → 증가 조회수}
  */
-public record VideoViewRequest(
+public record ViewRequest(
 
         @NotEmpty(message = "views 는 비어 있을 수 없다")
         @Schema(description = "videoSeq → 증가 조회수", example = "{\"101\": 3, \"102\": 1}")
