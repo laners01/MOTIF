@@ -136,6 +136,36 @@ class SlotRulesTest {
                         .containsExactly("EDITED_DURATION_REQUIRED[0]"));
     }
 
+    /**
+     * 0020 — 앱에 나가는 편집본은 보호 프리픽스여야 한다. S3 HEAD 는 "그 자리에 파일이
+     * 있나" 만 보므로 옛 경로({@code edited/…})를 걸러내지 못하는데, 그대로 저장되면
+     * {@code isProtected} 가 false 라 §7.5·§7.6 이 <b>서명 없이</b> 내보낸다 —
+     * 404 가 아니라 예외도 로그도 없이 보호가 풀린다.
+     */
+    @Test
+    @DisplayName("옛 edited/ 경로는 EDITED_KEY_NOT_PROTECTED — 서명이 안 붙는 자리다")
+    void 편집본_키는_보호_프리픽스() {
+        ParticipantRequest 옛경로 = new ParticipantRequest(7, anchor(),
+                "edited/1/v.mp4", "edited/1/s.jpg", null, 15_000L);
+
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(옛경로)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(reasons((BusinessException) e))
+                        .containsExactly("EDITED_KEY_NOT_PROTECTED[0]"));
+    }
+
+    @Test
+    @DisplayName("선택 화면 이미지만 옛 경로여도 막는다 — 세 키를 다 본다")
+    void 선택화면만_옛경로여도_막는다() {
+        ParticipantRequest 프리뷰만_옛경로 = new ParticipantRequest(7, anchor(),
+                "private/edited/1/v.mp4", "private/edited/1/s.jpg", "edited/1/p.jpg", 15_000L);
+
+        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(프리뷰만_옛경로)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(reasons((BusinessException) e))
+                        .containsExactly("EDITED_KEY_NOT_PROTECTED[0]"));
+    }
+
     private static AnchorRequest anchor() {
         return new AnchorRequest(0.5, 0.4, 0.0995);
     }

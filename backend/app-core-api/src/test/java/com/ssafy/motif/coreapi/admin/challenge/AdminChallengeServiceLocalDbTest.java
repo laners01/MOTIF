@@ -183,7 +183,7 @@ class AdminChallengeServiceLocalDbTest {
     void 키_짝이_깨지면_전체_롤백() {
         long before = challengeCount();
         ParticipantRequest 영상만 = new ParticipantRequest(newArtist(), anchor(),
-                newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4"), null, null, null);
+                newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".mp4"), null, null, null);
 
         assertThatThrownBy(() -> create(List.of(영상만)))
                 .isInstanceOf(BusinessException.class)
@@ -311,7 +311,7 @@ class AdminChallengeServiceLocalDbTest {
         ChallengeSlotsResponse created = create(List.of(edited(newArtist())));
         Integer slotSeq = created.participants().getFirst().challengeParticipantSeq();
         newCompositeJob(created.challengeSeq(), slotSeq);
-        String newKey = newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4");
+        String newKey = newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".mp4");
 
         ParticipantEditedResponse response = adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
                 new ParticipantEditedUpdateRequest(newKey, null, null, (long) ORIGIN_DURATION_MS));
@@ -350,7 +350,7 @@ class AdminChallengeServiceLocalDbTest {
     void 빈_슬롯은_키_둘을_함께() {
         ChallengeSlotsResponse created = create(List.of(slot(newArtist())));
         Integer slotSeq = created.participants().getFirst().challengeParticipantSeq();
-        String newKey = newUploadedKey("edited/pending/" + UUID.randomUUID() + ".mp4");
+        String newKey = newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".mp4");
 
         assertThatThrownBy(() -> adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
                 new ParticipantEditedUpdateRequest(newKey, null, null, null)))
@@ -360,7 +360,7 @@ class AdminChallengeServiceLocalDbTest {
         // 저장된 키를 본다
         ParticipantEditedResponse filled = adminChallengeService.replaceEditedKeys(ADMIN, slotSeq,
                 new ParticipantEditedUpdateRequest(newKey,
-                        newUploadedKey("edited/pending/" + UUID.randomUUID() + ".jpg"), null,
+                        newUploadedKey("private/edited/pending/" + UUID.randomUUID() + ".jpg"), null,
                         (long) ORIGIN_DURATION_MS));
 
         assertThat(filled.slotOrder()).isZero();
