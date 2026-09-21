@@ -9,7 +9,7 @@
 | 7.1 | GET | `/api/v1/challenges/feed` | 필요 | 원본 챌린지 숏폼 피드 |
 | 7.2 | GET | `/api/v1/challenges/{challengeSeq}` | 필요 | 상세 Bottom Sheet |
 | 7.3 | POST · DELETE | `/api/v1/challenges/{challengeSeq}/like` | 필요 | **204 No Content** |
-| 7.4 | POST | `/api/v1/challenges/{challengeSeq}/view` | 필요 | 조회 이벤트 |
+| 7.4 | POST | `/api/v1/challenges/view` | 필요 | 조회 이벤트 — **챌린지별 묶음 수신** |
 | 7.5 | — | 댓글 | 필요 | §9 공통 댓글(`type=challenge`) — [`09-comment.md`](09-comment.md) 참조 |
 
 **`title` 이 없다.** `challenges.title` 컬럼이 삭제됐다(R3). 화면 식별은 **곡명(`song.title`)·아티스트·썸네일**로 한다.
@@ -208,9 +208,36 @@ HTTP/1.1 204 No Content
 
 ---
 
-## 7.4 POST /api/v1/challenges/{challengeSeq}/view — 조회 이벤트
+## 7.4 POST /api/v1/challenges/view — 조회 이벤트
 
-영상이 재생되면 호출한다. Redis 조회수 버퍼에 가산하고 **1분 주기로 DB 에 플러시**한다.
+**경로에서 `{challengeSeq}` 가 빠졌다** *(2026-09-21 재정의 — [ADR-0016](../../adr/0016-challenge-view-and-artist-ranking.md))*.
+§8.5 와 **같은 구조·같은 계약**이다 — 챌린지별 조회수를 묶어 보내고, Redis 에 쌓아
+**20분 주기 배치**가 DB·버킷·랭킹에 반영한다.
+
+### 요청
+
+```http
+POST /api/v1/challenges/view
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+
+{
+  "views": {
+    "11": 3,
+    "12": 1
+  }
+}
+```
+
+`challengeSeq → 증가 조회수` 의 맵이다. JSON 객체 키라 `challengeSeq` 는 문자열로 온다.
+
+| 제약 | 값 | 위반 시 |
+|---|---|---|
+| `views` 항목 수 | 1 ~ **50** | 400 `INVALID_PARAMETER` |
+| 대상당 `count` | 1 ~ **100** | 400 `INVALID_PARAMETER` |
+
+**부분 수용하지 않는다** — 항목 하나가 어긋나면 요청 전체를 400 으로 거절한다(§8.5 와
+같은 근거).
 
 ### 성공 응답 (202)
 
@@ -224,18 +251,28 @@ HTTP/1.1 204 No Content
 }
 ```
 
-**202 Accepted** — 집계는 비동기이므로 이 응답은 "접수했다"는 뜻이다. `viewCount` 가 즉시 반영되지 않는다.
+**202 Accepted** — 집계는 비동기이므로 이 응답은 "접수했다"는 뜻이다. `viewCount` 가 즉시 반영되지 않는다. DB 반영은 **20분 주기 배치**가 한다.
 
 ### 실패 응답
 
 | HTTP | code | 조건 |
 |---|---|---|
-| 404 | `CHALLENGE_NOT_FOUND` | 미존재·삭제 챌린지 |
+| 400 | `INVALID_PARAMETER` | 위 제약 위반 · 본문 형식 오류 |
 
-존재 검증은 Redis 적재 전 **경량 캐시**로 한다(기본안) — 조회 이벤트마다 DB 를 때리면 집계를 Redis 로 뺀 의미가 없다.
+**`CHALLENGE_NOT_FOUND` 가 없어졌다** — 존재하지 않는 `challengeSeq` 를 보내도 202 다.
+조회 이벤트마다 DB 를 확인하면 집계를 Redis 로 뺀 의미가 없다. 없는 키는 배치의
+`UPDATE` 가 0행으로 버리고, 랭킹 모집단은 DB 에서 나오므로 순위에도 영향이 없다.
+구 명세의 *"존재 검증은 Redis 적재 전 경량 캐시로"* 라는 기본안은 이 결정으로 폐기한다.
+
+**Redis 장애도 202 다(fail-open)** — §8.5 와 같다.
 
 ### 미결
 
 **1회 인정 기준이 정해지지 않았다**(원본 §16 #3) — 같은 사용자의 중복 조회, 최소 시청 시간, 본인 영상 조회 포함 여부. 정책이 확정되면 **서버 내부에서만 반영**하며 이 API 계약은 바뀌지 않는다.
 
-**§8.5(참여 영상 조회 이벤트)는 더 이상 같은 규약이 아니다** *(2026-09-21 — [ADR-0015](../../adr/0015-redis-view-aggregation.md))*. 영상 쪽은 경로에서 `{seq}` 가 빠진 **묶음 수신**으로 바뀌었고, 존재 검증과 `404` 가 없어졌으며, 플러시 주기가 20분이다. 챌린지 조회 이벤트를 같은 구조로 옮기는 것은 **후속 티켓**이고 그때까지 이 절은 구 규약 그대로다 — 즉 지금은 **양쪽이 다르다**. §7.4 를 구현할 때 이 문서가 아니라 §8.5 를 보고 맞춘다.
+§5.1 아티스트 랭킹이 이 조회수를 먹으므로 이 미결의 무게가 전보다 무겁다 — 조작하면
+순위가 움직인다. 지금 막는 것은 대상당 `count` 상한 하나뿐이다.
+
+**§8.5(참여 영상 조회 이벤트)와 다시 같은 규약이다** *(2026-09-21 — [ADR-0016](../../adr/0016-challenge-view-and-artist-ranking.md))*.
+ADR-0015 가 영상 쪽만 먼저 바꿔 한동안 양쪽이 갈려 있었는데, 이 티켓에서 맞췄다.
+버퍼·집계 배치·재처리 로직은 **한 벌을 공유**하고 Redis 키만 대상 종류로 갈린다.
