@@ -830,13 +830,17 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 
 ```json
 { "list": [ {
-  "rank": 1, "videoSeq": 88, "videoUrl": "https://cdn.../results/challenge/{jobUuid}/master.m3u8",
+  "rank": 1, "rankDelta": 2, "videoSeq": 88, "videoUrl": "https://cdn.../private/challenge/{jobUuid}/master.m3u8",
   "thumbnailUrl": "...", "durationMs": 15000,
   "song": { "title": "bailar toda la noche", "singerName": "mochico" },
   "author": { "userSeq": 5, "nickname": "팬123" },
   "viewCount": 3400
 } ], "prevCursor": null, "nextCursor": "...", "hasPrevious": false, "hasNext": true }
 ```
+
+- **`rankDelta`** *(2026-09-21 신설 — ADR-0015)*: 직전 순위 − 현재 순위. 상승이 양수, **신규 진입은 `null`**(§5.1 과 같은 규약). 대비 구간은 1시간이다.
+
+- **랭킹 점수** *(2026-09-21 재정의 — ADR-0015)*: 구 기본안 `view_count × 0.5^(age/H)` 를 폐기하고 **누적·최근 1시간·증감** 세 항의 가중합으로 바꿨다. 시간 감쇠가 빠져서 오래된 영상도 지금 뜨면 1위에 오른다. 조회수는 §8.5 가 Redis 에 모아 20분 배치가 집계한다. 공식·모집단·상한은 [`detail/06-home.md`](detail/06-home.md) §6.1.
 
 - 카드 하단 표기("mochico · bailar toda la noche")용 `song`, 작성자 `author` 요약 포함 **(기본안 — 표기가 가수·곡명이면 author 제거 가능)**. 클릭 즉시 `videoUrl` 재생, 좋아요·댓글 등 상세 오버레이는 뷰어 진입 시 §8.2 단건 1회 조회.
 
@@ -846,7 +850,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 
   2. n번째 카드 클릭: 이미 받은 목록·`nextCursor`·클릭 인덱스를 뷰어에 전달(공유 ViewModel) — 뷰어는 n번째부터 시작해 스와이프로 목록을 순회하고, 소진 시 같은 커서로 이어 받는다. 재조회·중복 로드 없음.
 
-  3. 순서 일관성: 커서에 스냅샷 버전이 박혀 있어(§1.9 구현 노트) 5분 배치로 랭킹이 갈려도 진행 중인 시퀀스는 같은 스냅샷을 계속 페이지한다. 홈 재진입(당겨서 새로고침) 시에만 새 스냅샷 시작.
+  3. 순서 일관성: 커서에 스냅샷 버전이 박혀 있어(§1.9 구현 노트) 배치가 랭킹을 갈아도 진행 중인 시퀀스는 같은 스냅샷을 계속 페이지한다. 홈 재진입(당겨서 새로고침) 시에만 새 스냅샷 시작.
 
 **실패 분기** — 공통 외 없음.
 
@@ -957,6 +961,8 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 
 **성공 응답 (202)** — `data: null`. **실패**: 404 `CHALLENGE_NOT_FOUND` **(기본안 — 존재 검증은 Redis 적재 전 경량 캐시로)**.
 
+**§8.5 와 더 이상 같은 규약이 아니다** *(2026-09-21 — ADR-0015)*. 영상 쪽은 묶음 수신 + 20분 집계로 바뀌었고 존재 검증·`404` 가 없어졌다. 챌린지 조회 이벤트를 같은 구조로 옮기는 것은 후속 티켓이며, 그때까지 이 절은 구 규약 그대로다.
+
 ---
 
 ## 8. 참여 영상 (VIDEO)
@@ -966,7 +972,7 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 | 8.1 | GET | `/challenges/{seq}/videos` | 챌린지별 참여 영상 피드 | CHALLENGE-03 |
 | 8.2 | GET | `/videos/{videoSeq}` | 참여 영상 단건 | 공통 뷰어 |
 | 8.3 | POST / DELETE | `/videos/{seq}/like` | 좋아요 토글 | CHALLENGE-05 |
-| 8.5 | POST | `/videos/{seq}/view` | 조회 이벤트 | 7.4와 동일 규약 |
+| 8.5 | POST | `/videos/view` | 조회 이벤트 | **영상별 묶음 수신** (2026-09-21 재정의) |
 | 8.6 | POST | `/videos/{seq}/hide` | 관심 없음 | CHALLENGE-09 |
 | 8.7 | POST | `/videos/{seq}/report` | 영상 신고 | CHALLENGE-08 |
 | 8.8 | POST | `/videos` | 참여 영상 게시(업로드 완료) | CHALLENGE-UPLOAD-01/02 |
@@ -1014,7 +1020,13 @@ Redis 조회수 버퍼 가산(1분 플러시). **1회 인정 기준(중복·최�
 
 `GET /videos/{seq}/likes` 기능은 제거한다.
 
-### 8.5 POST /videos/{seq}/view → **202** (`data: null`) — 7.4와 동일 규약.
+### 8.5 POST /videos/view → **202** (`data: null`)
+
+*2026-09-21 재정의 — ADR-0015.* 경로에서 `{seq}` 가 빠지고 **여러 영상의 조회수를 묶어** 받는다: `{ "views": { "101": 3, "102": 1 } }`. 한 요청 최대 50개 영상 · 영상당 최대 count 100 이며 하나라도 어기면 **전체 400** 이다(부분 수용 없음).
+
+**`VIDEO_NOT_FOUND` 가 없어졌다** — 존재 검증을 하지 않는다(집계를 Redis 로 뺀 의미가 사라진다). 없는 키는 20분 배치의 `UPDATE` 가 0행으로 버린다. Redis 장애도 202 다(fail-open). 상세는 [`detail/08-video.md`](detail/08-video.md) §8.5.
+
+**§7.4 는 아직 구 규약이다** — 같은 구조로 바꾸는 것은 후속 티켓이다.
 
 ### 8.6 POST /videos/{seq}/hide
 
@@ -1659,7 +1671,7 @@ module-common 의 에러 enum 은 이 표와 1:1 로 구현한다(`code`, `httpS
 |---|---|---|---|
 | 1 | ~~커서 역방향~~ — **종결(R7)**: `prevCursor`/`hasPrevious` 채택, 요청은 `?cursor=` 단일 | §1.9 | 확정 |
 | 2 | ~~signed URL 만료~~ — **종결(R7)**: 10분 확정 | §1.7 | 확정 |
-| 3 | 조회수 1회 인정 기준(중복·최소 시청 시간·본인 조회 포함 여부) | §7.4, 8.5 | **미결(계약 불변)** |
+| 3 | 조회수 1회 인정 기준(중복·최소 시청 시간·본인 조회 포함 여부) | §7.4, 8.5 | **미결(계약 불변)** — 2026-09-21 이후 §6.1 랭킹이 조회수로 굴러가므로 무게가 올라갔다. 현재 방어는 영상당 count 상한뿐이다(ADR-0015) |
 | 4 | `reports.reason_code` / `composite_jobs.fail_code` 코드표 | §8.7, 9.6, 13.3 | **추후 결정** |
 | 5 | ~~재시도 모델~~ — **종결(R7)**: 동일 잡 재큐 + `attempt` 증가, `fail_code` 는 재큐 시 소거(이력은 로그). 수동 상한 없음 *(기본안)* | §13.4 | 확정 |
 | 6 | 카드 카운트 `purchasedAssetCount > totalAssetCount` 경계 표시 — 판매 중단 구매 에셋 때문에 발생 가능 | §4.7 | 클라 협의 |
