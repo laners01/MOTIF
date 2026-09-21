@@ -1,6 +1,6 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewProperties;
+import com.ssafy.motif.coreapi.domain.view.ViewProperties;
 import com.ssafy.motif.domain.core.video.VideoScoreRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -50,7 +50,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class VideoRankingScore {
 
-    private final VideoViewProperties properties;
+    private final ViewProperties properties;
 
     /**
      * 영상별 점수를 낸다.
@@ -77,9 +77,9 @@ public class VideoRankingScore {
 
     /** 영상 한 건의 점수 — 세 항의 가중합. */
     public double of(long totalViews, long recentViews, long previousViews) {
-        VideoViewProperties.Weight weight = properties.ranking().weight();
-        return weight.total() * normalized(totalViews, properties.ranking().scale().total())
-                + weight.recent() * normalized(recentViews, properties.ranking().scale().recent())
+        ViewProperties.Weight weight = properties.videoRanking().weight();
+        return weight.total() * normalized(totalViews, properties.videoRanking().scale().total())
+                + weight.recent() * normalized(recentViews, properties.videoRanking().scale().recent())
                 + weight.delta() * momentum(recentViews, previousViews);
     }
 
@@ -116,13 +116,13 @@ public class VideoRankingScore {
      * 전체 점수로는 {@code recentViews} 가 규모 항에도 들어가 분리되지 않는다.
      */
     double momentum(long recentViews, long previousViews) {
-        double scale = properties.ranking().scale().delta();
+        double scale = properties.videoRanking().scale().delta();
         if (scale <= 0) {
             return 0.5;
         }
         // K 를 0 으로 설정하면 조회가 없던 영상에서 0/0 = NaN 이 나와 정렬이 통째로
         // 무너진다 — 설정 실수를 여기서 닫는다
-        double denominator = previousViews + properties.ranking().deltaFloor();
+        double denominator = previousViews + properties.videoRanking().deltaFloor();
         if (denominator <= 0) {
             return 0.5;
         }

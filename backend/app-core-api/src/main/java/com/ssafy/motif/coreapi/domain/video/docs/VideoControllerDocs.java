@@ -6,7 +6,7 @@ import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoPublishResponse;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoReportRequest;
 import com.ssafy.motif.coreapi.domain.video.dto.VideoUpdateRequest;
-import com.ssafy.motif.coreapi.domain.video.dto.VideoViewRequest;
+import com.ssafy.motif.coreapi.domain.view.dto.ViewRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -167,7 +167,7 @@ public interface VideoControllerDocs {
                                       "timestamp": "2026-09-21T00:00:00.000Z"
                                     }""")))
     })
-    ApiResponse<Void> view(VideoViewRequest request);
+    ApiResponse<Void> view(ViewRequest request);
 
     @Operation(
             summary = "관심 없음 (§8.6)",

@@ -4,6 +4,7 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.CursorResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.domain.challenge.dto.ChallengeFeedItem;
+import com.ssafy.motif.coreapi.domain.view.dto.ViewRequest;
 import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
 import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 팬 앱 챌린지 조회 API 문서 계약 (명세 §7.1·§7.2).
+ * 팬 앱 챌린지 API 문서 계약 (명세 §7.1·§7.2·§7.3·§7.4).
  *
  * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
  * (팀 표준, {@code backend/README.md}).
@@ -236,5 +237,47 @@ public interface ChallengeControllerDocs {
     })
     void unlike(@Parameter(hidden = true) AuthenticatedUser user,
                 @Parameter(description = "챌린지 식별자", example = "12") Integer challengeSeq);
+
+    @Operation(
+            summary = "조회 이벤트 (§7.4)",
+            description = """
+                    챌린지 영상이 재생되면 호출한다 (명세 §7.4). **여러 챌린지의 조회수를 묶어
+                    보낸다** — 경로에 `{challengeSeq}` 가 없다(2026-09-21 재정의 — ADR-0016).
+
+                    ```json
+                    { "views": { "11": 3, "12": 1 } }
+                    ```
+
+                    **§8.5(참여 영상 조회 이벤트)와 같은 계약이다** — 요청 형태·상한·실패 코드가
+                    모두 같다. 안드로이드가 두 API 를 같은 코드로 다룰 수 있다.
+
+                    - **인증 필요.**
+                    - **202 Accepted.** 집계는 비동기다 — `viewCount` 가 즉시 오르지 않는다.
+                      DB 반영은 **20분 주기 배치**가 하고, 그 결과가 §5.1 아티스트 랭킹의 재료다.
+                    - 하나라도 어기면 **요청 전체가 400** 이다: `views` 항목 수 1~50,
+                      대상당 `count` 1~100.
+                    - **404 가 없다.** 존재하지 않는 `challengeSeq` 를 보내도 202 다 — 조회
+                      이벤트마다 DB 를 확인하면 집계를 Redis 로 뺀 의미가 없다. Redis 장애도
+                      202 다(fail-open).
+                    - **1회 인정 기준은 미결**(원본 §16 #3)이라 서버는 보낸 `count` 를 믿는다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "202", description = "접수 (집계는 비동기)",
+                    content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                            {
+                              "result": "SUCCESS",
+                              "code": "SUCCESS",
+                              "message": "요청이 성공했습니다.",
+                              "data": null,
+                              "timestamp": "2026-09-21T00:00:00.000Z"
+                            }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "views 가 비었음 · 항목 수 초과 · count 범위 위반 · 본문 형식 오류",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<Void> view(ViewRequest request);
 
 }

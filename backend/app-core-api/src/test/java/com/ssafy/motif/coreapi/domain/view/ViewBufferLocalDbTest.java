@@ -1,4 +1,4 @@
-package com.ssafy.motif.coreapi.domain.video.view;
+package com.ssafy.motif.coreapi.domain.view;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -6,10 +6,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -19,11 +21,11 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 조회수 버퍼 — 실제 Redis 통합 (S15P21D104-130 · 명세 §8.5 · ADR-0015).
+ * 조회수 버퍼 — 실제 Redis 통합 (명세 §7.4·§8.5 · ADR-0015 · ADR-0016).
  *
  * <p>단위 테스트가 닿지 못하는 곳만 본다 — <b>HINCRBY 가 정말 누적되는지</b>와
  * <b>파이프라인이 여러 field 를 한 번에 올리는지</b>. 검증 규칙은
- * {@code VideoViewServiceTest} 가 이미 고정한다.
+ * {@code ViewServiceTest} 가 이미 고정한다.
  *
  * <p>실행 전 {@code backend/local-infra && docker compose up -d --wait}.
  *
@@ -34,21 +36,55 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Tag("local-db")
 @SpringBootTest
-class VideoViewBufferLocalDbTest {
+class ViewBufferLocalDbTest {
 
     @Autowired
-    private VideoViewBuffer buffer;
+    @Qualifier("videoViewBuffer")
+    private ViewBuffer buffer;
+    @Autowired
+    @Qualifier("challengeViewBuffer")
+    private ViewBuffer challengeBuffer;
     @Autowired
     private StringRedisTemplate redis;
 
     @BeforeEach
     void setUp() {
-        redis.delete(VideoViewBuffer.PENDING);
+        clearKeys();
     }
 
     @AfterEach
     void tearDown() {
-        redis.delete(VideoViewBuffer.PENDING);
+        clearKeys();
+    }
+
+    private void clearKeys() {
+        redis.delete(List.of(buffer.pendingKey(), challengeBuffer.pendingKey(),
+                buffer.flushMarkerKey("t1"), challengeBuffer.flushMarkerKey("t1")));
+    }
+
+    @Test
+    @DisplayName("대상이 다르면 키가 갈린다 — 같은 seq 를 올려도 섞이지 않는다")
+    void targetsDoNotShareKeys() {
+        buffer.add(Map.of(11L, 3));
+        challengeBuffer.add(Map.of(11L, 7));
+
+        assertThat(buffer.pendingKey()).isNotEqualTo(challengeBuffer.pendingKey());
+        assertThat(pending(buffer, 11L)).isEqualTo(3);
+        assertThat(pending(challengeBuffer, 11L)).isEqualTo(7);
+    }
+
+    /**
+     * ADR-0015 의 마커에는 대상이 없었다. 두 대상이 같은 틱에 같은 {@code ts} 로 도는데
+     * 마커를 공유하면 <b>먼저 선점한 쪽만 DB 에 반영되고 나머지는 조용히 건너뛰어진다</b>
+     * — 예외도 로그도 없이 한쪽 조회수가 통째로 사라진다(ADR-0016).
+     */
+    @Test
+    @DisplayName("멱등 마커가 대상별로 따로다 — 한쪽 선점이 다른 쪽을 막지 않는다")
+    void flushMarkersAreIndependentPerTarget() {
+        assertThat(buffer.claimFlush("t1")).isTrue();
+
+        assertThat(challengeBuffer.claimFlush("t1")).isTrue();
+        assertThat(buffer.claimFlush("t1")).isFalse();
     }
 
     @Test
@@ -72,7 +108,7 @@ class VideoViewBufferLocalDbTest {
         assertThat(pending(101L)).isEqualTo(3);
         assertThat(pending(102L)).isEqualTo(1);
         assertThat(pending(115L)).isEqualTo(2);
-        assertThat(redis.opsForHash().size(VideoViewBuffer.PENDING)).isEqualTo(3);
+        assertThat(redis.opsForHash().size(buffer.pendingKey())).isEqualTo(3);
     }
 
     @Test
@@ -115,8 +151,12 @@ class VideoViewBufferLocalDbTest {
         assertThat(pending(101L)).isEqualTo(threads * perThread);
     }
 
-    private long pending(long videoSeq) {
-        Object value = redis.opsForHash().get(VideoViewBuffer.PENDING, String.valueOf(videoSeq));
+    private long pending(long seq) {
+        return pending(buffer, seq);
+    }
+
+    private long pending(ViewBuffer target, long seq) {
+        Object value = redis.opsForHash().get(target.pendingKey(), String.valueOf(seq));
         return value == null ? 0L : Long.parseLong(value.toString());
     }
 }

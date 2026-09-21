@@ -5,7 +5,7 @@ import com.ssafy.motif.coreapi.domain.home.dto.HotVideoItem;
 import com.ssafy.motif.coreapi.domain.home.service.HotVideoQueryService;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshot;
 import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewBuffer;
+import com.ssafy.motif.coreapi.domain.view.ViewBuffer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +53,8 @@ class HotVideoLocalDbTest {
     @Autowired
     private VideoRankingSnapshot snapshot;
     @Autowired
-    private VideoViewBuffer buffer;
+    @Qualifier("videoViewBuffer")
+    private ViewBuffer buffer;
     @Autowired
     private HotVideoQueryService hotVideoQueryService;
     @Autowired

@@ -1,7 +1,7 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewBuffer;
-import com.ssafy.motif.coreapi.domain.video.view.VideoViewProperties;
+import com.ssafy.motif.coreapi.domain.view.ViewBuffer;
+import com.ssafy.motif.coreapi.domain.view.ViewProperties;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import com.ssafy.motif.domain.core.video.VideoScoreRow;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,30 +35,30 @@ class VideoRankingSnapshotJobTest {
     private static final int KEEP = 500;
 
     private ParticipationVideoRepository participationVideoRepository;
-    private VideoViewBuffer buffer;
+    private ViewBuffer buffer;
     private VideoRankingSnapshot snapshot;
     private VideoRankingSnapshotJob job;
 
     @BeforeEach
     void setUp() {
         participationVideoRepository = mock(ParticipationVideoRepository.class);
-        buffer = mock(VideoViewBuffer.class);
+        buffer = mock(ViewBuffer.class);
         snapshot = mock(VideoRankingSnapshot.class);
 
-        VideoViewProperties properties = properties(KEEP);
+        ViewProperties properties = properties(KEEP);
         given(buffer.sumBuckets(anyInt(), anyInt())).willReturn(Map.of());
 
         job = new VideoRankingSnapshotJob(participationVideoRepository, buffer,
                 new VideoRankingScore(properties), snapshot, properties);
     }
 
-    private static VideoViewProperties properties(int keep) {
-        return new VideoViewProperties(50, 100,
+    private static ViewProperties properties(int keep) {
+        return new ViewProperties(50, 100,
                 Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24),
                 RECENT_BUCKETS,
-                new VideoViewProperties.Ranking(keep, Duration.ofHours(2), 3, 10,
-                        new VideoViewProperties.Weight(0.3, 0.5, 0.2),
-                        new VideoViewProperties.Scale(10_000, 300, 3.0)));
+                new ViewProperties.Ranking(keep, Duration.ofHours(2), 3, 10,
+                        new ViewProperties.Weight(0.3, 0.5, 0.2),
+                        new ViewProperties.Scale(10_000, 300, 3.0)));
     }
 
     private static VideoScoreRow row(long videoSeq, long viewCount) {
@@ -122,7 +122,7 @@ class VideoRankingSnapshotJobTest {
     @Test
     @DisplayName("상위 keep 개만 담는다 — 점수 임계로 자르지 않는다")
     void keepsOnlyTopN() {
-        VideoViewProperties small = properties(2);
+        ViewProperties small = properties(2);
         job = new VideoRankingSnapshotJob(participationVideoRepository, buffer,
                 new VideoRankingScore(small), snapshot, small);
         given(participationVideoRepository.findRankingInputs()).willReturn(
