@@ -52,7 +52,7 @@ class CompositeJobPayloadsTest {
               "job_type": "CHALLENGE",
               "attempt": 1,
               "raw_video_key": "raw/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
-              "base_video_key": "edited/11/7d2f…e1.mp4",
+              "base_video_key": "private/edited/11/7d2f…e1.mp4",
               "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
               "correction_enabled": true,
               "participant_mask": 2,
@@ -212,8 +212,8 @@ class CompositeJobPayloadsTest {
     /** 편집본이 붙은 슬롯 — 베이스 키는 명세 예시의 값 그대로다. */
     private static ChallengeParticipant participant(int artistSeq, int slotOrder, Anchor anchor) {
         return ChallengeParticipant.of(11, artistSeq, slotOrder, anchor,
-                "edited/11/7d2f…e1.mp4", "edited/11/scene.jpg", "edited/11/preview.jpg",
-                15_000);
+                "private/edited/11/7d2f…e1.mp4", "private/edited/11/scene.jpg",
+                "private/edited/11/preview.jpg", 15_000);
     }
 
     private static Map<String, Object> asMap(CompositeJobPayload payload) {

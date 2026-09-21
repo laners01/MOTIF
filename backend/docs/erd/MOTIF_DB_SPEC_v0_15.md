@@ -2,6 +2,18 @@
 
 본 문서는 `MOTIF 데이터베이스 명세서 v0.14`에 2026-09-09 DDL 검증(R9) 회신 — 명세 결함 2건 수정과 운영 기준 보강 — 을 반영한 최신 스키마 계약이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
 
+## v0.19 반영 내용 (2026-09-21 · changeSet 0020)
+
+앱이 편집본 영상을 직접 받는 API 가 생겼다(§7.6). 지금까지 편집본은 AI 워커만 S3 에서 내려받았고 앱에는 주소가 나간 적이 없어 공개 프리픽스로 충분했는데, 앱에 주는 순간 무기명 CDN 링크가 된다.
+
+| 대상 | 변경 |
+|---|---|
+| 편집본 3키를 `private/edited/…` 로 | **서명은 프리픽스가 정한다.** `MediaKeys.isProtected` 는 `private/` 하나만 보고, CloudFront 의 "Restrict viewer access" 도 캐시 동작(`private/*`) 단위다. 키를 옮기지 않고 코드에서 등급만 올리면 서버는 서명을 붙이는데 **CloudFront 가 검증하지 않아 무서명 요청이 그대로 통과한다** — 서명이 장식이 된다. 어드민 presign(`EDITED_VIDEO`·`EDITED_SCENE`·`EDITED_PREVIEW`) 발급 경로와 AI 팀 업로드 위치가 함께 바뀐다 |
+| `edited_duration_ms` 신설 | `INTEGER NULL`, CHECK `> 0`. 등록 폼이 이미 보내던 값을 저장만 한다(원본 ±500ms 대조에만 쓰고 버렸다). 앱 촬영 타이머가 편집본 길이에 맞아야 하는데 **챌린지 원본으로 갈음하면 최대 0.5초가 어긋나 녹화 끝이 잘린다**. 통짜 MP4 라 필요한 값이기도 하다 — HLS 면 재생목록의 `#EXTINF` 합으로 플레이어가 알아내지만 MP4 는 `moov` 를 읽기 전까지 모른다 |
+| 편집본에 길이 필수 | 어드민 §3.7.2·§3.7.6 이 편집본 키를 받을 때 `durationMs` 를 함께 요구한다(`EDITED_DURATION_REQUIRED`). 없으면 §7.6 이 `null` 을 내보내 촬영 타이머를 그릴 수 없다 |
+| `private/` 정의 확장 | ADR-0013 은 `private/` 를 "사용자 생성 콘텐츠"로 적었는데 편집본은 어드민·AI 카탈로그다. **`private/` = 서명 필요**이지 `= 사용자 생성`이 아니다 — 코드는 프리픽스만 보므로 동작은 같고, 정의만 넓힌다 |
+| 앱 계약에서 마스크 소멸 | 슬롯을 가리키는 값이 `challenge_participant_seq` 로 통일됐다(§7.5·§7.6·§13.1). `participant_mask` 는 **AI 접수 페이로드 안에만** 남고 `1 << slot_order` 로 파생한다 — 스키마에는 0019 부터 이미 없다 |
+
 ## v0.18 반영 내용 (2026-09-21 · changeSet 0019)
 
 **스키마 정리가 아니라 모델 변경이다** — 편집본이 "지운 슬롯 조합" 단위에서 **참가자 1명당 1개**로 바뀐다. 사용자가 고르는 것은 함께할 아티스트 한 명이고, 2명 이상을 한 번에 지운 편집본은 만들지 않는다.
@@ -485,9 +497,10 @@ WHERE is_deleted = FALSE;
 | `anchor_x` | `DOUBLE PRECISION` | N | CHECK | 선택 화면 프로필 원 중심 x — **썸네일 가로 대비 0~1 비율** *(v0.16 · changeSet 0017)* |
 | `anchor_y` | `DOUBLE PRECISION` | N | CHECK | 원 중심 y — 썸네일 세로 대비 0~1 비율 |
 | `anchor_r` | `DOUBLE PRECISION` | N | CHECK | 원 반지름 — 썸네일 가로 대비 비율, `0 < r ≤ 0.5`. 시안(402 폭·지름 80) 기본값 `0.0995` |
-| `edited_challenge_key` | `VARCHAR(255)` | N | CHECK | **이 아티스트를 지운** 편집본 영상 S3 키 — CHALLENGE 합성의 베이스. `NULL` 이면 편집본이 아직 없는 슬롯이다 *(v0.18 — 구 `edited_challenges.video_key`)* |
-| `initial_scene_key` | `VARCHAR(255)` | N | CHECK | 촬영 가이드용 첫 장면 이미지 키. `edited_challenge_key` 와 **짝** *(v0.18)* |
-| `preview_image_key` | `VARCHAR(255)` | N | - | 촬영 전 선택 화면에서 이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지 키(AI팀 산출). 편집본이 있어도 `NULL` 일 수 있다 — 클라이언트가 챌린지 썸네일로 폴백한다 *(v0.16 · v0.18 이관)* |
+| `edited_challenge_key` | `VARCHAR(255)` | N | CHECK | **이 아티스트를 지운** 편집본 영상 S3 키 — CHALLENGE 합성의 베이스이자 §7.6 이 앱에 내주는 영상. **`private/edited/…`** *(v0.19 — 앱에 나가므로 서명 등급)*. `NULL` 이면 편집본이 아직 없는 슬롯이다 *(v0.18 — 구 `edited_challenges.video_key`)* |
+| `initial_scene_key` | `VARCHAR(255)` | N | CHECK | 촬영 가이드용 첫 장면 이미지 키. `edited_challenge_key` 와 **짝** *(v0.18)*. `private/edited/…` *(v0.19)* |
+| `preview_image_key` | `VARCHAR(255)` | N | - | 촬영 전 선택 화면에서 이 슬롯을 골랐을 때 썸네일 자리에 보이는 이미지 키(AI팀 산출). 편집본이 있어도 `NULL` 일 수 있다 — 클라이언트가 챌린지 썸네일로 폴백한다 *(v0.16 · v0.18 이관 · v0.19 `private/`)* |
+| `edited_duration_ms` | `INTEGER` | N | CHECK (`> 0`) | 편집본 길이. **앱 촬영 타이머가 쓴다**(§7.6) — 원본 길이로 갈음하면 ±500ms 만큼 녹화 끝이 잘린다. 편집본이 있으면 서비스가 필수로 받는다 *(v0.19 · changeSet 0020)* |
 | `reg_dttm` | `TIMESTAMPTZ` | Y | 기본값 CURRENT_TIMESTAMP | 등록 일시 *(v0.18 신설 — 편집본 키를 갖게 되어 이력이 의미를 얻었다)* |
 | `mod_dttm` | `TIMESTAMPTZ` | N | 기본값 없음 | 수정 일시 |
 | ~~`participant_mask`~~ | — | — | — | **v0.18 삭제** — 조합이 없어져 `slot_order` 가 대신한다 |
@@ -515,13 +528,19 @@ OR (anchor_x BETWEEN 0 AND 1 AND anchor_y BETWEEN 0 AND 1 AND anchor_r > 0 AND a
 OR (edited_challenge_key IS NOT NULL AND initial_scene_key IS NOT NULL)
 ```
 
+```sql
+-- ck_challenge_participants_edited_duration (0020)
+edited_duration_ms IS NULL OR edited_duration_ms > 0
+```
+
 서비스 규칙:
 
 - **메인 아티스트도 슬롯이 될 수 있다** — `artist_seq = challenges.artist_seq` 를 막지 않는다. 메인은 "이 챌린지가 누구 것인가"(귀속)이고 슬롯은 "영상 속 어느 자리를 가져갈 수 있는가"라 층이 다르다. 슬롯끼리의 중복만 UNIQUE 가 막는다.
 - `slot_order` 는 **요청 배열 순서대로 서버가 부여한다**(어드민 §3.7.2). 어드민이 직접 입력하지 않으므로 인물과 자리가 어긋날 수 없다.
 - **`slot_order` 는 재정렬용 숫자가 아니다.** `notice_images.display_order` 와 이름이 비슷하지만 성질이 다르다 — 앵커·편집본과 짝이고 AI 페이로드의 마스크가 여기서 파생되므로, 순서를 바꾸면 **합성이 교체하는 인물이 바뀐다**. 슬롯 구성은 개별 이동이 아니라 통째로 지웠다 다시 만든다(어드민 §3.7.5).
 - 앵커는 **비율**이라 좌표계가 따로 없다 — 클라이언트는 썸네일을 그린 뷰 크기 `W×H` 를 곱해 중심 `(x·W, y·H)`, 반지름 `r·W` 로 원을 그린다. **`NULL` 은 0017 이전 행**이며 어드민 §3.7.9 로 채운다(그때까지 앱은 원을 숨긴다). 신규 등록은 서비스가 필수로 받는다.
-- **편집본이 없는 슬롯은 정상 상태다** *(v0.18 — 전 조합 등록 전제 폐기)*. 앱 §7.2 가 `participants[].selectable = false` 로 내려 화면에서 잠그고, 그래도 §13.1 로 오면 `EDITED_CHALLENGE_NOT_FOUND` 가 막는다.
+- **편집본이 없는 슬롯은 정상 상태다** *(v0.18 — 전 조합 등록 전제 폐기)*. 앱 §7.5 가 `initialSceneUrl = null` 로 내려 화면에서 잠그고, 그래도 §7.6·§13.1 로 오면 `EDITED_CHALLENGE_NOT_FOUND` 가 막는다. **DB CHECK 가 영상 ↔ 첫 장면 짝을 강제하므로 그 값의 유무가 곧 판정이다** — 앱이 따로 플래그를 받지 않는 근거다 *(v0.19)*.
+- **편집본 키는 `private/` 아래다** *(v0.19)*. §7.6 이 앱에 영상을 내주면서 서명이 필요해졌고, 서명 여부는 프리픽스가 가른다 — CloudFront 캐시 동작이 `private/*` 하나라 키를 옮기지 않으면 서명이 검증되지 않는다. AI 워커는 S3 로 직접 받으므로 영향이 없지만 **읽기 권한 프리픽스는 함께 옮겨야 한다**.
 - 편집본 영상/첫 장면 교체는 같은 행의 키 갱신으로 처리한다(`mod_dttm` 기록, 어드민 §3.7.6). 인물·순서가 그대로라 `composite_jobs` 가 참조 중이어도 허용된다 — 결과물은 별도 오브젝트다.
 - 슬롯 구성 교체는 하드 삭제/재생성이다. `composite_jobs` 가 참조하는 행은 FK RESTRICT 라 지울 수 없고, 어드민 API 가 먼저 409 `EDITED_IN_USE` 로 거른다.
 - 자체 `is_deleted`를 두지 않는다. 노출·참여 가능 여부는 원본 `challenges.is_deleted`를 따른다.

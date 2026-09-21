@@ -88,7 +88,7 @@ Content-Type: application/json
   "job_type": "CHALLENGE",
   "attempt": 1,
   "raw_video_key": "raw/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
-  "base_video_key": "edited/11/7d2f…e1.mp4",
+  "base_video_key": "private/edited/11/7d2f…e1.mp4",
   "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
   "correction_enabled": true,
   "participant_mask": 2,
@@ -122,7 +122,7 @@ Content-Type: application/json
 | `job_type` | `CHALLENGE` \| `MOTIF` | 합성 종류 |
 | `attempt` | int | 몇 번째 시도인지. 로그용 |
 | `raw_video_key` | string | 사용자 촬영본. MP4, 세로. 회전 메타데이터가 붙어 있을 수 있다 |
-| `base_video_key` | string | 합성 베이스. **항상 MP4** |
+| `base_video_key` | string | 합성 베이스. **항상 MP4**. 챌린지 편집본은 **2026-09-21 부터 `private/edited/…`** — 앱이 이 영상을 직접 받게 되면서 CloudFront 서명이 필요해져 프리픽스를 옮겼다. 워커는 S3 로 직접 받으므로 서명과 무관하지만 **읽기 권한 프리픽스를 함께 옮겨야 한다**(옛 `edited/*` 로 한정돼 있으면 403) |
 | `output_video_key` | string | 결과를 올릴 키. **이 키에 그대로 PUT.** 재시도면 덮어쓴다 |
 | `correction_enabled` | bool | 사용자가 고른 보정 여부. MOTIF 는 항상 `false`. 뜻은 AI 팀 정의(§9 #1) |
 | `participant_mask` | int | 교체 슬롯 비트. `0` = 무교체(`slots` 빈 배열). **2026-09-21 이후 언제나 단일 비트**(1·2·4·8)다 — 편집본이 슬롯 1개당 1개로 정리돼 2명 이상을 한 번에 교체하는 조합이 없어졌다. 필드·타입은 그대로이므로 파싱은 바뀌지 않는다 |
