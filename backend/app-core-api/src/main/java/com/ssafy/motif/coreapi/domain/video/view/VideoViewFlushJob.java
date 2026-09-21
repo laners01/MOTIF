@@ -1,5 +1,6 @@
 package com.ssafy.motif.coreapi.domain.video.view;
 
+import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ import java.util.Map;
  * 3) DB 일괄 반영 (문장 하나)
  * 4) 버킷 저장 + 인덱스 갱신
  * 5) processing 삭제
+ * 6) §6.1 랭킹 재계산 — 집계 성공 여부와 무관하게 돈다
  * </pre>
  *
  * <p><b>{@code processing} 을 마지막에 지운다.</b> 3~4 중 어디서 죽어도 그 구간이 Redis 에
@@ -56,6 +58,7 @@ public class VideoViewFlushJob {
 
     private final VideoViewBuffer buffer;
     private final VideoViewCounterStore counterStore;
+    private final VideoRankingSnapshotJob rankingJob;
 
     /** 스케줄러가 부르는 자리. */
     public void flush() {
@@ -65,8 +68,20 @@ public class VideoViewFlushJob {
     /**
      * 기준 시각을 파라미터로 받는다 — 안에서 {@code Instant.now()} 를 부르면 테스트가
      * 구간 이름을 고정할 수 없다({@code VideoRankingScore} 와 같은 방식).
+     *
+     * <p><b>랭킹은 집계가 실패해도 돈다.</b> 버킷이 그대로여도 구간이 한 칸 밀리면 점수가
+     * 달라지고, 조회가 0건인 주기에도 순위는 갱신돼야 한다. 그래서 두 단계를 각각 감싼다
+     * — 랭킹 쪽 예외는 {@link VideoRankingSnapshotJob#refresh()} 가 직접 삼킨다.
+     *
+     * <p><b>랭킹이 같은 틱의 뒤에 붙는 이유.</b> 주기를 따로 두면 버킷이 저장되기 전에
+     * 랭킹이 돌아 한 틱 낡은 최근 조회수로 순위를 매기는 구간이 생긴다(ADR-0015).
      */
     public void flush(Instant now) {
+        aggregate(now);
+        rankingJob.refresh();
+    }
+
+    private void aggregate(Instant now) {
         try {
             // 남은 것을 먼저 비운다 — rotate 가 앞 구간과 같은 이름을 쓸 일은 없지만,
             // 밀린 구간을 쌓아 두면 "최근 3개 버킷" 이 실제 최근을 못 가리킨다

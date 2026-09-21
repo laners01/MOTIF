@@ -96,6 +96,11 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      * <p><b>{@code PRIVATE} 은 후보가 아니다.</b> 인기 목록은 남의 영상을 보여 주는
      * 자리고 {@code PRIVATE} 은 본인 외에 존재 자체를 숨긴다(§1.8).
      *
+     * <p><b>{@code view_count > 0} 이다</b> *(2026-09-21 — ADR-0015)*. 조회가 한 번이라도
+     * 발생한 뒤부터 랭킹에 든다. 한 번 들어온 영상은 조용해져도 남고, 최근·증감 항이
+     * 떨어지면서 자연히 뒤로 밀린다 — <b>최근 버킷에 있는 영상만 후보로 좁히면</b> 한
+     * 주기 조용했다는 이유로 목록에서 사라졌다 다시 나타나 순위가 매 틱 요동친다.
+     *
      * <p><b>키 프리픽스는 조건이 아니다.</b> 한때 배치가 "공개 사본이 준비된 것만"
      * 을 걸렀으나 공개 사본 트리가 폐기되면서 그 구간이 사라졌다(ADR-0013). 참여
      * 영상은 전부 보호 등급이므로 프리픽스로 거르면 후보가 전멸한다.
@@ -106,10 +111,11 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      */
     @Query("""
             select new com.ssafy.motif.domain.core.video.VideoScoreRow(
-                       v.videoSeq, v.viewCount, v.regDttm)
+                       v.videoSeq, v.viewCount)
             from ParticipationVideo v
             where v.deleted = false
               and v.visibility = com.ssafy.motif.domain.core.video.Visibility.PUBLIC
+              and v.viewCount > 0
               and exists (select 1 from Challenge c
                            where c.challengeSeq = v.challengeSeq and c.deleted = false)
               and exists (select 1 from User u

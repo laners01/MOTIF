@@ -37,10 +37,13 @@ class VideoViewServiceTest {
     @BeforeEach
     void setUp() {
         buffer = mock(VideoViewBuffer.class);
-        // 집계 쪽 설정은 이 테스트가 쓰지 않는다 — 검증 규칙만 본다
+        // 집계·랭킹 설정은 이 테스트가 쓰지 않는다 — 검증 규칙만 본다
         service = new VideoViewService(buffer, new VideoViewProperties(
                 MAX_VIDEOS, MAX_COUNT,
-                Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24)));
+                Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24), 3,
+                new VideoViewProperties.Ranking(500, Duration.ofHours(2), 3, 10,
+                        new VideoViewProperties.Weight(0.3, 0.5, 0.2),
+                        new VideoViewProperties.Scale(10_000, 300, 3.0))));
     }
 
     @Test

@@ -193,6 +193,37 @@ public class VideoViewBuffer {
         redis.opsForList().trim(BUCKET_INDEX, 0, properties.bucketKeep() - 1L);
     }
 
+    /**
+     * 버킷 구간의 조회수 합 — 랭킹의 "최근 1시간 / 이전 1시간" 재료다.
+     *
+     * <p><b>구간을 시각으로 계산하지 않는다.</b> 인덱스 LIST 의 앞에서 {@code skip} 개를
+     * 건너뛰고 {@code count} 개를 합한다 — 스케줄 드리프트도, 조회가 0건이라 건너뛴
+     * 구간도 여기에 영향을 주지 않는다(ADR-0015). 대가로 조회가 전무한 시간대가 있으면
+     * "최근 3개" 가 시간상 더 긴 구간을 덮는다.
+     *
+     * <p>버킷이 아직 {@code skip + count} 개만큼 쌓이지 않았으면 있는 것만 합한다 —
+     * 서비스 초기 1시간은 "이전 1시간" 이 전부 0 이고, 그 구간에는 모든 영상의 증감이
+     * 같은 규칙으로 양수라 순서가 깨지지 않는다.
+     *
+     * @param skip  건너뛸 최신 버킷 수 (최근 구간이면 0)
+     * @param count 합할 버킷 수
+     */
+    public Map<Long, Long> sumBuckets(int skip, int count) {
+        List<String> timestamps =
+                redis.opsForList().range(BUCKET_INDEX, skip, (long) skip + count - 1);
+        Map<Long, Long> totals = new LinkedHashMap<>();
+        if (timestamps == null) {
+            return totals;
+        }
+
+        for (String ts : timestamps) {
+            redis.opsForHash().entries(BUCKET_PREFIX + ts).forEach((field, value) ->
+                    totals.merge(Long.valueOf(field.toString()),
+                            Long.valueOf(value.toString()), Long::sum));
+        }
+        return totals;
+    }
+
     /** 끝난 구간을 치운다 — 스냅샷 키와 미완료 인덱스에서 함께 뺀다. */
     public void discardProcessing(String ts) {
         redis.delete(PROCESSING_PREFIX + ts);

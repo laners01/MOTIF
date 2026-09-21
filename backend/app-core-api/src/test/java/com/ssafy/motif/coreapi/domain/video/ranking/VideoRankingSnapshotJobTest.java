@@ -1,5 +1,7 @@
 package com.ssafy.motif.coreapi.domain.video.ranking;
 
+import com.ssafy.motif.coreapi.domain.video.view.VideoViewBuffer;
+import com.ssafy.motif.coreapi.domain.video.view.VideoViewProperties;
 import com.ssafy.motif.domain.core.video.ParticipationVideoRepository;
 import com.ssafy.motif.domain.core.video.VideoScoreRow;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,42 +10,59 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * HOT 랭킹 배치 (명세 §6.1 · S15P21D104-113).
+ * HOT 랭킹 배치 (명세 §6.1 · S15P21D104-130).
  *
- * <p>여기서 고정하는 것은 <b>모집단 필터와 순서 확정</b>이다. 점수 공식 자체는
- * {@link VideoRankingScoreTest} 가 본다.
+ * <p>여기서 고정하는 것은 <b>재료를 어디서 가져오는가·순서 확정·상한</b>이다. 점수 공식
+ * 자체는 {@link VideoRankingScoreTest} 가 본다.
  */
 class VideoRankingSnapshotJobTest {
 
-    private static final Instant NOW = Instant.now();
+    private static final int RECENT_BUCKETS = 3;
+    private static final int KEEP = 500;
 
     private ParticipationVideoRepository participationVideoRepository;
+    private VideoViewBuffer buffer;
     private VideoRankingSnapshot snapshot;
     private VideoRankingSnapshotJob job;
 
     @BeforeEach
     void setUp() {
         participationVideoRepository = mock(ParticipationVideoRepository.class);
+        buffer = mock(VideoViewBuffer.class);
         snapshot = mock(VideoRankingSnapshot.class);
-        job = new VideoRankingSnapshotJob(participationVideoRepository,
-                new VideoRankingScore(new VideoRankingProperties(
-                        Duration.ofDays(2), Duration.ofMinutes(5), Duration.ofMinutes(15))),
-                snapshot);
+
+        VideoViewProperties properties = properties(KEEP);
+        given(buffer.sumBuckets(anyInt(), anyInt())).willReturn(Map.of());
+
+        job = new VideoRankingSnapshotJob(participationVideoRepository, buffer,
+                new VideoRankingScore(properties), snapshot, properties);
+    }
+
+    private static VideoViewProperties properties(int keep) {
+        return new VideoViewProperties(50, 100,
+                Duration.ofMinutes(20), Duration.ofHours(6), 12, Duration.ofHours(24),
+                RECENT_BUCKETS,
+                new VideoViewProperties.Ranking(keep, Duration.ofHours(2), 3, 10,
+                        new VideoViewProperties.Weight(0.3, 0.5, 0.2),
+                        new VideoViewProperties.Scale(10_000, 300, 3.0)));
     }
 
     private static VideoScoreRow row(long videoSeq, long viewCount) {
-        return new VideoScoreRow(videoSeq, viewCount, NOW);
+        return new VideoScoreRow(videoSeq, viewCount);
     }
 
     @SuppressWarnings("unchecked")
@@ -51,6 +70,18 @@ class VideoRankingSnapshotJobTest {
         ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
         verify(snapshot).replace(captor.capture());
         return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("최근 구간과 그 이전 구간을 버킷 인덱스에서 연달아 읽는다")
+    void readsRecentAndPreviousWindows() {
+        given(participationVideoRepository.findRankingInputs()).willReturn(List.of(row(7L, 10L)));
+
+        job.refresh();
+
+        // 0~2 가 최근 1시간, 3~5 가 이전 1시간이다 — 겹치거나 비면 증감이 통째로 틀린다
+        verify(buffer).sumBuckets(eq(0), eq(RECENT_BUCKETS));
+        verify(buffer).sumBuckets(eq(RECENT_BUCKETS), eq(RECENT_BUCKETS));
     }
 
     @Test
@@ -65,15 +96,41 @@ class VideoRankingSnapshotJobTest {
     }
 
     @Test
+    @DisplayName("최근 조회수가 순위를 뒤집는다 — 누적만으로 결정되지 않는다")
+    void recentViewsOutweighTotals() {
+        given(participationVideoRepository.findRankingInputs()).willReturn(List.of(
+                row(7L, 100_000L), row(88L, 500L)));
+        given(buffer.sumBuckets(0, RECENT_BUCKETS)).willReturn(Map.of(88L, 800L));
+        given(buffer.sumBuckets(RECENT_BUCKETS, RECENT_BUCKETS)).willReturn(Map.of(88L, 50L));
+
+        job.refresh();
+
+        assertThat(capturedOrder()).containsExactly(88L, 7L);
+    }
+
+    @Test
     @DisplayName("동점이면 videoSeq 오름차순이다 — 먼저 게시된 것이 앞이다")
     void breaksTiesByVideoSeqAscending() {
-        // 조회수가 전부 0인 시연 초기 상태가 정확히 이 모양이다
         given(participationVideoRepository.findRankingInputs()).willReturn(List.of(
-                row(88L, 0L), row(7L, 0L), row(12L, 0L)));
+                row(88L, 30L), row(7L, 30L), row(12L, 30L)));
 
         job.refresh();
 
         assertThat(capturedOrder()).containsExactly(7L, 12L, 88L);
+    }
+
+    @Test
+    @DisplayName("상위 keep 개만 담는다 — 점수 임계로 자르지 않는다")
+    void keepsOnlyTopN() {
+        VideoViewProperties small = properties(2);
+        job = new VideoRankingSnapshotJob(participationVideoRepository, buffer,
+                new VideoRankingScore(small), snapshot, small);
+        given(participationVideoRepository.findRankingInputs()).willReturn(
+                LongStream.rangeClosed(1, 5).mapToObj(seq -> row(seq, seq * 100)).toList());
+
+        job.refresh();
+
+        assertThat(capturedOrder()).containsExactly(5L, 4L);
     }
 
     @Test

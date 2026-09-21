@@ -1,5 +1,6 @@
 package com.ssafy.motif.coreapi.domain.video.view;
 
+import com.ssafy.motif.coreapi.domain.video.ranking.VideoRankingSnapshotJob;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,13 +35,15 @@ class VideoViewFlushJobTest {
 
     private VideoViewBuffer buffer;
     private VideoViewCounterStore counterStore;
+    private VideoRankingSnapshotJob rankingJob;
     private VideoViewFlushJob job;
 
     @BeforeEach
     void setUp() {
         buffer = mock(VideoViewBuffer.class);
         counterStore = mock(VideoViewCounterStore.class);
-        job = new VideoViewFlushJob(buffer, counterStore);
+        rankingJob = mock(VideoRankingSnapshotJob.class);
+        job = new VideoViewFlushJob(buffer, counterStore, rankingJob);
 
         given(buffer.unfinished()).willReturn(List.of());
     }
@@ -152,5 +155,40 @@ class VideoViewFlushJobTest {
         assertThatCode(() -> job.flush(NOW)).doesNotThrowAnyException();
 
         verify(buffer, never()).rotate(eq(TS));
+    }
+
+    @Test
+    @DisplayName("랭킹은 조회가 0건인 주기에도 돈다 — 구간이 밀리면 점수가 달라진다")
+    void refreshesRankingEvenWithoutViews() {
+        given(buffer.rotate(TS)).willReturn(false);
+
+        job.flush(NOW);
+
+        verify(rankingJob).refresh();
+    }
+
+    @Test
+    @DisplayName("집계가 실패해도 랭킹은 돈다 — 두 단계를 따로 감싼다")
+    void refreshesRankingAfterAggregationFailure() {
+        willThrow(new IllegalStateException("redis down")).given(buffer).unfinished();
+
+        job.flush(NOW);
+
+        verify(rankingJob).refresh();
+    }
+
+    @Test
+    @DisplayName("랭킹은 버킷을 저장한 뒤에 돈다 — 앞서면 한 틱 낡은 최근 조회수를 쓴다")
+    void refreshesRankingAfterBucketIsSaved() {
+        Map<Long, Long> counts = Map.of(101L, 3L);
+        given(buffer.rotate(TS)).willReturn(true);
+        given(buffer.readProcessing(TS)).willReturn(counts);
+        given(buffer.claimFlush(TS)).willReturn(true);
+
+        job.flush(NOW);
+
+        InOrder order = inOrder(buffer, rankingJob);
+        order.verify(buffer).saveBucket(TS, counts);
+        order.verify(rankingJob).refresh();
     }
 }

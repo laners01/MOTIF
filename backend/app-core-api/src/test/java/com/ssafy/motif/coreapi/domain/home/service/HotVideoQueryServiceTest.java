@@ -83,7 +83,7 @@ class HotVideoQueryServiceTest {
     @DisplayName("커서가 없으면 현재 버전의 1위부터 읽는다")
     void firstPageStartsAtRankOne() {
         given(snapshot.currentVersion()).willReturn(VERSION);
-        given(snapshot.page(VERSION, 0, 3)).willReturn(List.of(new Ranked(1, 88L)));
+        given(snapshot.page(VERSION, 0, 3)).willReturn(List.of(new Ranked(1, 88L, null)));
         given(participationVideoRepository.findHotCards(List.of(88L))).willReturn(List.of(row(88L)));
 
         CursorResponse<HotVideoItem> response = service.hotVideos(null, 2);
@@ -108,7 +108,7 @@ class HotVideoQueryServiceTest {
     void trimsOverflowAndReportsHasNext() {
         given(snapshot.currentVersion()).willReturn(VERSION);
         given(snapshot.page(VERSION, 0, 3)).willReturn(
-                List.of(new Ranked(1, 88L), new Ranked(2, 12L), new Ranked(3, 7L)));
+                List.of(new Ranked(1, 88L, null), new Ranked(2, 12L, null), new Ranked(3, 7L, null)));
         given(participationVideoRepository.findHotCards(List.of(88L, 12L)))
                 .willReturn(List.of(row(88L), row(12L)));
 
@@ -123,7 +123,7 @@ class HotVideoQueryServiceTest {
     @Test
     @DisplayName("커서를 그대로 넣으면 같은 버전을 이어 읽는다 — 배치가 갈려도 순서가 유지된다")
     void followsCursorVersionNotCurrent() {
-        given(snapshot.page(VERSION, 2, 3)).willReturn(List.of(new Ranked(3, 7L)));
+        given(snapshot.page(VERSION, 2, 3)).willReturn(List.of(new Ranked(3, 7L, null)));
         given(participationVideoRepository.findHotCards(List.of(7L))).willReturn(List.of(row(7L)));
 
         CursorResponse<HotVideoItem> response =
@@ -153,7 +153,7 @@ class HotVideoQueryServiceTest {
     void keepsSnapshotOrderRegardlessOfDbOrder() {
         given(snapshot.currentVersion()).willReturn(VERSION);
         given(snapshot.page(VERSION, 0, 4)).willReturn(
-                List.of(new Ranked(1, 88L), new Ranked(2, 12L), new Ranked(3, 7L)));
+                List.of(new Ranked(1, 88L, null), new Ranked(2, 12L, null), new Ranked(3, 7L, null)));
         // in 조회는 입력 순서를 보장하지 않는다
         given(participationVideoRepository.findHotCards(any()))
                 .willReturn(List.of(row(7L), row(88L), row(12L)));
@@ -169,7 +169,7 @@ class HotVideoQueryServiceTest {
     void skipsHiddenVideoAndKeepsRankNumbers() {
         given(snapshot.currentVersion()).willReturn(VERSION);
         given(snapshot.page(VERSION, 0, 4)).willReturn(
-                List.of(new Ranked(1, 88L), new Ranked(2, 12L), new Ranked(3, 7L)));
+                List.of(new Ranked(1, 88L, null), new Ranked(2, 12L, null), new Ranked(3, 7L, null)));
         // 12번은 §1.8 로 조회에서 빠졌다 (삭제·비공개 전환)
         given(participationVideoRepository.findHotCards(any()))
                 .willReturn(List.of(row(88L), row(7L)));
@@ -184,7 +184,7 @@ class HotVideoQueryServiceTest {
     void nextCursorUsesSnapshotRankNotListSize() {
         given(snapshot.currentVersion()).willReturn(VERSION);
         given(snapshot.page(VERSION, 0, 3)).willReturn(
-                List.of(new Ranked(1, 88L), new Ranked(2, 12L), new Ranked(3, 7L)));
+                List.of(new Ranked(1, 88L, null), new Ranked(2, 12L, null), new Ranked(3, 7L, null)));
         // 1·2위가 모두 비노출이라 목록은 비지만, 다음 페이지는 2위 다음부터여야 한다
         given(participationVideoRepository.findHotCards(any())).willReturn(List.of());
 
