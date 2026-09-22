@@ -25,6 +25,8 @@ import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 
@@ -268,15 +270,28 @@ class ChallengeRepositoryImpl @Inject constructor(
     override fun uploadChallengeCompositeVideo(
         uploadUrl: String,
         videoFile: File,
-    ): Flow<Unit> =
-        flow {
-            compositeJobClient.uploadVideo(
-                uploadUrl = uploadUrl,
-                videoFile = videoFile,
+    ): Flow<Int> =
+        channelFlow {
+            trySend(
+                INITIAL_UPLOAD_PROGRESS,
             )
 
-            emit(Unit)
-        }.flowOn(ioDispatcher)
+            compositeJobClient.uploadVideo(
+                uploadUrl =
+                    uploadUrl,
+                videoFile =
+                    videoFile,
+                onProgress = { progress ->
+                    trySend(
+                        progress,
+                    )
+                },
+            )
+        }
+            .distinctUntilChanged()
+            .flowOn(
+                ioDispatcher,
+            )
 
     override fun requestChallengeCompositeJob(
         jobUuid: String,
@@ -321,4 +336,8 @@ class ChallengeRepositoryImpl @Inject constructor(
 
             emit(response.toModel())
         }.flowOn(ioDispatcher)
+
+    private companion object {
+        const val INITIAL_UPLOAD_PROGRESS = 0
+    }
 }

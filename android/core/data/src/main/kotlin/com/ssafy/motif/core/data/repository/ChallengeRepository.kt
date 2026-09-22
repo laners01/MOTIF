@@ -95,7 +95,7 @@ interface ChallengeRepository {
     fun uploadChallengeCompositeVideo(
         uploadUrl: String,
         videoFile: File,
-    ): Flow<Unit>
+    ): Flow<Int>
 
     fun requestChallengeCompositeJob(
         jobUuid: String,
