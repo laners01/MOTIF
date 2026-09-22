@@ -1,6 +1,10 @@
 package com.ssafy.motif.feature.challenges.impl.artist
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -12,11 +16,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ssafy.motif.core.designsystem.component.LoadingWheel
+import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.artist.Artist
@@ -34,6 +44,140 @@ import com.ssafy.motif.feature.challenges.impl.component.ChallengeShortFormLayou
 import com.ssafy.motif.feature.challenges.impl.component.KeyboardBackgroundScrim
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
+@Composable
+internal fun ArtistChallengeScreen(
+    myProfileImageUrl: String,
+    onArtistClick: (Long) -> Unit,
+    onCaptureClick: (Long) -> Unit,
+    onHomeClick: () -> Unit,
+    onMyClick: () -> Unit,
+    onMotifClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: ArtistChallengeViewModel = hiltViewModel(),
+) {
+    val uiState by
+    viewModel.uiState
+        .collectAsStateWithLifecycle()
+
+    val commentUiState by
+    viewModel.commentUiState
+        .collectAsStateWithLifecycle()
+
+    when (val state = uiState) {
+        ArtistChallengeUiState.Loading -> {
+            ArtistChallengeLoadingScreen(
+                modifier = modifier,
+            )
+        }
+
+        is ArtistChallengeUiState.Success -> {
+            ArtistChallengeScreen(
+                challenges =
+                    state.challenges,
+                myProfileImageUrl =
+                    myProfileImageUrl,
+                commentUiState =
+                    commentUiState,
+                onArtistClick =
+                    onArtistClick,
+                onSubscribeClick =
+                    viewModel::toggleArtistSubscription,
+                onLikeClick =
+                    viewModel::toggleChallengeLike,
+                onCommentClick =
+                    viewModel::loadChallengeComments,
+                onCommentLikeClick =
+                    viewModel::toggleCommentLike,
+                onReplyClick =
+                    viewModel::loadReplies,
+                onCommentBackClick =
+                    viewModel::backToComments,
+                onCommentDismiss =
+                    viewModel::dismissComments,
+                onCommentSendClick =
+                    viewModel::sendComment,
+                onCaptureClick =
+                    onCaptureClick,
+                onHomeClick =
+                    onHomeClick,
+                onMyClick =
+                    onMyClick,
+                onMotifClick =
+                    onMotifClick,
+                onLoadMore =
+                    viewModel::loadMoreChallenges,
+                modifier =
+                    modifier,
+            )
+        }
+
+        is ArtistChallengeUiState.Error -> {
+            ArtistChallengeErrorScreen(
+                onRetry =
+                    viewModel::retryChallenges,
+                modifier =
+                    modifier,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistChallengeLoadingScreen(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Color.Black,
+            ),
+        contentAlignment =
+            Alignment.Center,
+    ) {
+        LoadingWheel()
+    }
+}
+
+@Composable
+private fun ArtistChallengeErrorScreen(
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Color.Black,
+            ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+        verticalArrangement =
+            Arrangement.Center,
+    ) {
+        Text(
+            text =
+                "챌린지를 불러오지 못했습니다.",
+            color =
+                MotifTheme.colors.white,
+            style =
+                MotifTheme.typography.bodyR14,
+        )
+
+        Text(
+            text = "다시 시도",
+            color =
+                MotifTheme.colors.white,
+            style =
+                MotifTheme.typography.bodySB14,
+            modifier = Modifier
+                .clickable(
+                    onClick = onRetry,
+                ),
+        )
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ArtistChallengeScreen(
@@ -47,139 +191,234 @@ internal fun ArtistChallengeScreen(
     onCommentLikeClick: (Long) -> Unit,
     onReplyClick: (Long) -> Unit,
     onCommentBackClick: () -> Unit,
+    onCommentDismiss: () -> Unit,
     onCommentSendClick: (String) -> Unit,
     onCaptureClick: (Long) -> Unit,
     onHomeClick: () -> Unit,
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val focusManager = LocalFocusManager.current
+    val focusManager =
+        LocalFocusManager.current
 
-    val descriptionSheetState = rememberBottomSheetState(
-        skipPartiallyExpanded = false,
-        partiallyExpandedFraction = DESCRIPTION_SHEET_FRACTION,
-    )
+    val descriptionSheetState =
+        rememberBottomSheetState(
+            skipPartiallyExpanded = false,
+            partiallyExpandedFraction =
+                DESCRIPTION_SHEET_FRACTION,
+        )
 
-    val commentSheetState = rememberBottomSheetState(
-        skipPartiallyExpanded = false,
-        partiallyExpandedFraction = COMMENT_SHEET_FRACTION,
-    )
+    val commentSheetState =
+        rememberBottomSheetState(
+            skipPartiallyExpanded = false,
+            partiallyExpandedFraction =
+                COMMENT_SHEET_FRACTION,
+        )
 
-    var descriptionChallenge by remember {
-        mutableStateOf<Challenge?>(null)
+    var descriptionChallengeId by
+    remember {
+        mutableStateOf<Long?>(
+            null,
+        )
     }
 
-    var commentChallenge by remember {
-        mutableStateOf<Challenge?>(null)
+    var commentChallengeId by
+    remember {
+        mutableStateOf<Long?>(
+            null,
+        )
     }
 
-    val activeSheetState = when {
-        descriptionChallenge != null -> descriptionSheetState
-        commentChallenge != null -> commentSheetState
-        else -> null
-    }
+    val descriptionChallenge =
+        descriptionChallengeId
+            ?.let { challengeId ->
+                challenges
+                    .firstOrNull { challenge ->
+                        challenge.id ==
+                                challengeId
+                    }
+            }
+
+    val commentChallenge =
+        commentChallengeId
+            ?.let { challengeId ->
+                challenges
+                    .firstOrNull { challenge ->
+                        challenge.id ==
+                                challengeId
+                    }
+            }
+
+    val activeSheetState =
+        when {
+            descriptionChallenge != null ->
+                descriptionSheetState
+
+            commentChallenge != null ->
+                commentSheetState
+
+            else ->
+                null
+        }
 
     val isCommentKeyboardVisible =
-        commentChallenge != null && WindowInsets.isImeVisible
+        commentChallenge != null &&
+                WindowInsets.isImeVisible
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     ) {
         ChallengeShortFormLayout(
-            itemCount = challenges.size,
+            itemCount =
+                challenges.size,
             videoId = { index ->
-                challenges[index].id.toString()
+                challenges[index]
+                    .id
+                    .toString()
             },
             videoUrl = { index ->
-                challenges[index].videoUrl
+                challenges[index]
+                    .videoUrl
             },
             thumbnailUrl = { index ->
-                challenges[index].thumbnailUrl
+                challenges[index]
+                    .thumbnailUrl
             },
-            myProfileImageUrl = myProfileImageUrl,
-            activeSheetState = activeSheetState,
-            onHomeClick = onHomeClick,
-            onMyClick = onMyClick,
-            onMotifClick = onMotifClick,
-            modifier = Modifier.fillMaxSize(),
+            myProfileImageUrl =
+                myProfileImageUrl,
+            activeSheetState =
+                activeSheetState,
+            onHomeClick =
+                onHomeClick,
+            onMyClick =
+                onMyClick,
+            onMotifClick =
+                onMotifClick,
+            onLoadMore =
+                onLoadMore,
+            modifier =
+                Modifier.fillMaxSize(),
         ) { index, backdropState ->
-            val challenge = challenges[index]
+            val challenge =
+                challenges[index]
 
             ArtistChallengeOverlay(
-                challenge = challenge,
-                backdropState = backdropState,
+                challenge =
+                    challenge,
+                backdropState =
+                    backdropState,
                 onArtistClick = {
-                    onArtistClick(challenge.artist.id)
+                    onArtistClick(
+                        challenge.artist.id,
+                    )
                 },
                 onSubscribeClick = {
-                    onSubscribeClick(challenge.artist.id)
+                    onSubscribeClick(
+                        challenge.artist.id,
+                    )
                 },
                 onDescriptionClick = {
-                    descriptionChallenge = challenge
+                    descriptionChallengeId =
+                        challenge.id
                 },
                 onLikeClick = {
-                    onLikeClick(challenge.id)
+                    onLikeClick(
+                        challenge.id,
+                    )
                 },
                 onCommentClick = {
-                    commentChallenge = challenge
-                    onCommentClick(challenge.id)
+                    commentChallengeId =
+                        challenge.id
+
+                    onCommentClick(
+                        challenge.id,
+                    )
                 },
                 onCaptureClick = {
-                    onCaptureClick(challenge.id)
+                    onCaptureClick(
+                        challenge.id,
+                    )
                 },
             )
         }
 
         if (isCommentKeyboardVisible) {
             KeyboardBackgroundScrim(
-                onClick = focusManager::clearFocus,
+                onClick =
+                    focusManager::clearFocus,
             )
         }
 
-        descriptionChallenge?.let { challenge ->
-            ChallengeDetailBottomSheet(
-                description = challenge.description,
-                viewCount = challenge.viewCount,
-                likeCount = challenge.likeCount,
-                createdAt = challenge.createdAt,
-                sheetState = descriptionSheetState,
-                onDismissRequest = {
-                    descriptionChallenge = null
-                },
-                additionalContent = {
-                    if (challenge.challengeArtists.isNotEmpty()) {
-                        Spacer(
-                            modifier = Modifier.height(20.dp),
-                        )
+        descriptionChallenge
+            ?.let { challenge ->
+                ChallengeDetailBottomSheet(
+                    description =
+                        challenge.description,
+                    viewCount =
+                        challenge.viewCount,
+                    likeCount =
+                        challenge.likeCount,
+                    createdAt =
+                        challenge.createdAt,
+                    sheetState =
+                        descriptionSheetState,
+                    onDismissRequest = {
+                        descriptionChallengeId =
+                            null
+                    },
+                    additionalContent = {
+                        if (
+                            challenge
+                                .challengeArtists
+                                .isNotEmpty()
+                        ) {
+                            Spacer(
+                                modifier =
+                                    Modifier.height(
+                                        20.dp,
+                                    ),
+                            )
 
-                        ChallengeCollaboratorList(
-                            artists = challenge.challengeArtists,
-                            onArtistClick = onArtistClick,
-                        )
-                    }
-                },
-            )
-        }
+                            ChallengeCollaboratorList(
+                                artists =
+                                    challenge
+                                        .challengeArtists,
+                                onArtistClick =
+                                    onArtistClick,
+                            )
+                        }
+                    },
+                )
+            }
 
-        commentChallenge?.let { challenge ->
-            CommentBottomSheet(
-                commentCount = challenge.commentCount,
-                state = commentUiState,
-                sheetState = commentSheetState,
-                onDismissRequest = {
-                    commentChallenge = null
+        commentChallenge
+            ?.let { challenge ->
+                CommentBottomSheet(
+                    commentCount =
+                        challenge.commentCount,
+                    state =
+                        commentUiState,
+                    sheetState =
+                        commentSheetState,
+                    onDismissRequest = {
+                        commentChallengeId =
+                            null
 
-                    if (commentUiState.page is CommentPage.Replies) {
-                        onCommentBackClick()
-                    }
-                },
-                onLikeClick = onCommentLikeClick,
-                onReplyClick = onReplyClick,
-                onBackClick = onCommentBackClick,
-                onCommentSendClick = onCommentSendClick,
-            )
-        }
+                        onCommentDismiss()
+                    },
+                    onLikeClick =
+                        onCommentLikeClick,
+                    onReplyClick =
+                        onReplyClick,
+                    onBackClick =
+                        onCommentBackClick,
+                    onCommentSendClick =
+                        onCommentSendClick,
+                )
+            }
     }
 }
 
@@ -250,6 +489,11 @@ private fun ArtistChallengeScreenPreview() {
             onHomeClick = {},
             onMyClick = {},
             onMotifClick = {},
+            onCommentDismiss = {
+                commentUiState =
+                    CommentUiState()
+            },
+            onLoadMore = {},
         )
     }
 }
