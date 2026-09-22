@@ -238,8 +238,8 @@ Content-Type: application/json
         "slotOrder": 0,
         "profileImageUrl": "https://cdn.motif.io/profiles/7a1b.jpg",
         "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-        "initialSceneUrl": "https://cdn.motif.io/private/edited/11/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
-        "previewImageUrl": "https://cdn.motif.io/private/edited/11/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
+        "initialSceneUrl": "https://cdn.motif.io/private/edited/11/31/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
+        "previewImageUrl": "https://cdn.motif.io/private/edited/11/31/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
       },
       {
         "challengeParticipantSeq": 32,
@@ -322,7 +322,7 @@ DB 가 **편집본 영상 ↔ 첫 장면을 짝으로 강제**하므로(CHECK), 
     "challengeParticipantSeq": 31,
     "challengeSeq": 11,
     "artistSeq": 7,
-    "videoUrl": "https://cdn.motif.io/private/edited/11/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
+    "videoUrl": "https://cdn.motif.io/private/edited/11/31/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
     "durationMs": 15020,
     "expiresIn": 600
   },
