@@ -329,14 +329,14 @@ Authorization: Bearer {accessToken}
     "list": [
       {
         "resultSeq": 10,
-        "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
+        "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1790000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
         "artist": { "artistSeq": 3, "name": "카리나", "groupName": "aespa", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
         "regDttm": "2026-09-01T10:00:00.000Z",
         "isRep": true
       }
     ],
     "prevCursor": null,
-    "nextCursor": "eyJyIjoxMH0",
+    "nextCursor": "MTA",
     "hasPrevious": false,
     "hasNext": true
   },
@@ -483,8 +483,8 @@ Authorization: Bearer {accessToken}
   "message": "요청이 성공했습니다.",
   "data": {
     "resultSeq": 10,
-    "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
-    "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
+    "videoUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+    "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1790000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
     "description": "새 문구",
     "durationMs": 9800,
     "asset": { "assetSeq": 21, "title": "9월 신규 에셋" },

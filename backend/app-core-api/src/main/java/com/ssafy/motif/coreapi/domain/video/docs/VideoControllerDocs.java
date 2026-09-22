@@ -62,8 +62,8 @@ public interface VideoControllerDocs {
                                 "videoSeq": 88,
                                 "challengeSeq": 11,
                                 "description": "재밌었다!",
-                                "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-                                "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                 "durationMs": 15000,
                                 "author": {
                                   "userSeq": 5,
@@ -163,7 +163,7 @@ public interface VideoControllerDocs {
                                       "result": "FAIL",
                                       "code": "INVALID_PARAMETER",
                                       "message": "요청 값이 올바르지 않습니다.",
-                                      "data": { "videoSeq": 101, "maxCountPerVideo": 100 },
+                                      "data": { "seq": 101, "maxCountPerTarget": 100 },
                                       "timestamp": "2026-09-21T00:00:00.000Z"
                                     }""")))
     })
@@ -258,8 +258,8 @@ public interface VideoControllerDocs {
                                 "videoSeq": 88,
                                 "challengeSeq": 11,
                                 "description": "수정한 문구",
-                                "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=...&Signature=...&Key-Pair-Id=...",
-                                "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=…",
+                                "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                 "durationMs": 15000,
                                 "author": {
                                   "userSeq": 5,
@@ -287,7 +287,7 @@ public interface VideoControllerDocs {
                                     {
                                       "result": "FAIL",
                                       "code": "INVALID_PARAMETER",
-                                      "message": "잘못된 요청 값입니다.",
+                                      "message": "요청 값이 올바르지 않습니다.",
                                       "data": null,
                                       "timestamp": "2026-09-17T00:00:00.000Z"
                                     }"""))),
@@ -421,7 +421,7 @@ public interface VideoControllerDocs {
                                     {
                                       "result": "FAIL",
                                       "code": "INVALID_PARAMETER",
-                                      "message": "잘못된 요청 값입니다.",
+                                      "message": "요청 값이 올바르지 않습니다.",
                                       "data": [
                                         { "field": "reasonCode", "message": "공백일 수 없습니다" }
                                       ],

@@ -45,8 +45,8 @@ Authorization: Bearer {accessToken}
         "rank": 1,
         "rankDelta": 2,
         "videoSeq": 88,
-        "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-        "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+        "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+        "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
         "durationMs": 15000,
         "song": { "title": "bailar toda la noche", "singerName": "mochico" },
         "author": { "userSeq": 5, "nickname": "팬123" },
@@ -288,4 +288,4 @@ offset 페이지네이션이다(커서 대상이 아니다). 홈에는 상위 �
 1. **§6.3 의 `artist` 를 두 타입 모두 공통 아티스트 요약으로 통일했다** — 원본 예시는 `MOTIF_ASSET` 에만 `groupName` 이 있고 `NOTICE` 에는 없었다. 같은 화면의 같은 위치에 쓰이는 값이라 응답 타입을 나눌 이유가 없어 맞췄다(README §3.5).
 2. **§6.1 영상 랭킹의 점수·모집단·스냅샷 규약을 구현에서 정했다** — 원본은 `rank:video:current` 라는 키 이름과 "순서 고정" 만 적고 무엇으로 점수를 내는지, 무엇이 모집단인지, 버전을 얼마나 보존하는지를 정하지 않았다. 위 "랭킹" 절이 그 지점이다. §5.1 아티스트 랭킹의 공식도 같은 사정으로 구현에서 정한 기본안이다.
    **2026-09-21 에 점수 공식과 응답이 한 번 더 바뀌었다**(ADR-0015) — 시간 감쇠를 걷어내고 최근 1시간·증감 항을 넣었으며 `rankDelta` 칸이 생겼다. 안드로이드가 이 칸을 읽어야 한다.
-3. **§6.1 의 URL 예시 프리픽스를 `results/challenge/` → `public/challenge/` 로 고쳤다** — 원본 예시가 README §5 산출물 키 규약(2026-09-15 확정)보다 앞서 쓰였다. §4.1 그리드 예시는 이미 새 규약을 따르고 있다. **같은 낡은 프리픽스가 §8.1·§8.2·§11.5·§11.6·§13 예시에 남아 있다** — 각 API 티켓에서 같이 고쳐야 한다.
+3. **보호 등급 URL 예시를 `private/{kind}/{jobUuid}/` + 서명 파라미터로 통일했다** *(2026-09-22 정리)*. 원본 예시가 README §5 산출물 키 규약보다 앞서 쓰여 `results/challenge/` 를 가리키고 있었고, 그 뒤 잠깐 쓰였던 `public/` 공개 사본 트리는 [ADR-0013](../../adr/0013-signed-only-media.md) 이 폐기했다. 같은 낡은 프리픽스가 §4.9·§5.3·§8.1·§8.2·§8.9·§11.5·§11.8·§13.3 예시에 남아 있던 것을 **이번에 전부 고쳤고, Swagger `@ExampleObject` 도 같은 값으로 맞췄다**(README 머리말 — 문서와 Swagger 가 다른 값을 보여주면 둘 다 신뢰를 잃는다).

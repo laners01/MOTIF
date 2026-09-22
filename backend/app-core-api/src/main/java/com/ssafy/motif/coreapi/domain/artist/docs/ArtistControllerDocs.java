@@ -53,27 +53,49 @@ public interface ArtistControllerDocs {
                     - `name` 은 `users.nickname`, `groupName` 은 솔로면 `null` 이다.
                     - 스냅샷이 비어 있으면 **빈 목록 200** 이다(에러가 아니다).
 
-                    ### 점수 공식
+                    ### 점수 공식 *(2026-09-21 재정의 — ADR-0016)*
                     ```
-                    score = Σ_c ( view_count_c × 1 + participant_count_c × 100 ) × 0.5 ^ (age_c / 14일)
-                    ```
-                    해당 아티스트의 **비삭제 챌린지**가 받은 반응을, 그 챌린지의 **등록 시각 기준으로
-                    감쇠**시켜 더한다. 챌린지를 올리는 행위 자체에는 점수를 주지 않는다 — 주면 반응
-                    없는 챌린지를 여러 개 올리는 것만으로 순위가 올라 인기 랭킹이 아니게 된다.
-                    가중치·반감기는 `motif.ranking.*` 설정이다.
+                    reaction_total  = Σ_c ( view_count_c + Wp × participant_count_c )
+                    reaction_recent = Σ_c ( 최근 3버킷 조회수_c )
+                    reaction_prev   = Σ_c ( 그 이전 3버킷 조회수_c )
 
-                    ### 지금은 전 아티스트가 0점 동점이다 — 버그가 아니다
-                    점수의 두 입력을 올리는 경로가 아직 없다 — `view_count` 는 §7.4 조회 이벤트,
-                    `participant_count` 는 참여 영상 업로드가 선행 티켓이다. 그 전까지 랭킹은
-                    **`artistSeq` ASC 고정 목록**이고 `rankDelta` 는 전원 `null` 이다.
-                    두 티켓이 머지되면 **코드 변경 없이** 순위가 갈리기 시작한다.
+                    tScore = log10(1 + reaction_total)  / log10(1 + T0)
+                    rScore = log10(1 + reaction_recent) / log10(1 + R0)
+                    dRel   = (reaction_recent − reaction_prev) / (reaction_prev + K)
+                    dScore = 0.5 + 0.5 × clamp(dRel / D0, −1, +1)
+
+                    score  = Wt·tScore + Wr·rScore + Wd·dScore      (기본 0.5 / 0.35 / 0.15)
+                    ```
+                    대상은 해당 아티스트의 **비삭제 챌린지**뿐이다. 챌린지를 올리는 행위 자체에는
+                    점수를 주지 않는다 — 주면 반응 없는 챌린지를 여러 개 올리는 것만으로 순위가
+                    올라 인기 랭킹이 아니게 된다.
+
+                    - **시간 감쇠가 없다.** 감쇠 기준이 챌린지 등록 시각이라 오래된 챌린지는 지금
+                      아무리 돌아도 올라올 수 없었다. 20분 버킷이 "지금 얼마나 보고 있는가" 를
+                      직접 준다.
+                    - **참여 영상 수(`Wp`=100)는 누적 항에만 들어간다.** 1시간 창에서는 0~2건이라
+                      환산비가 아니라 on/off 스위치가 되어 순위가 동전 던지기가 된다.
+                    - **정규화 기준은 그 틱의 최대값이 아니라 고정 상수**(`T0`·`R0`·`D0`)다. 최대값으로
+                      나누면 다른 아티스트의 등락이 내 순위를 바꿔 `rankDelta` 에 거짓 변동이 뜬다.
+                    - 가중치가 §6.1 영상 HOT(0.3/0.5/0.2)보다 **누적 쪽으로 기울어 있다** — 이
+                      스냅샷을 §3.1 온보딩 인기 목록이 함께 쓰므로 무명이 1위로 뜨면 곤란하다.
+                    - **비삭제 아티스트는 챌린지가 0개여도 0점으로 넣는다.** §6.1 의
+                      `view_count > 0` 모집단 필터를 여기에 복사하면 온보딩 목록에서 신인이 사라진다.
+
+                    값은 전부 `motif.ranking.*` 설정이다. 실트래픽 없이 자릿수만 맞춘 추정값이라,
+                    배치가 상위 10건의 항별 점수를 로그에 남긴다.
 
                     ### 갱신과 캐싱 (§1.6)
-                    스냅샷은 **5분**마다(`rank:artist:current`), `rankDelta` 의 기준은 **10분**마다
-                    (`rank:artist:prev`) 갱신된다. **서버는 갱신을 push 하지 않는다** — SSE·WebSocket 을
-                    쓰지 않고 FCM 은 §14 전용이다. 클라이언트는 **화면 진입·포그라운드 복귀·당겨서
-                    새로고침** 시점에만 호출하고, 마지막 응답이 **5분** 안이면 요청하지 않는다
-                    (stale-while-revalidate). **타이머 폴링 금지.**
+                    스냅샷 갱신은 **20분**이다 — 조회수 집계 배치의 마지막 단계로 돈다(ADR-0016).
+                    `rankDelta` 의 대비 대상은 **3틱 전(=1시간)** 버전이며, 구 `rank:artist:prev` 와
+                    `prev-interval` 설정은 폐기됐다. 랭킹이 처음 만들어진 틱은 전원 `0` 이라
+                    `null` 은 **진짜 신규 진입** 전용이다.
+
+                    **서버는 갱신을 push 하지 않는다** — SSE·WebSocket 을 쓰지 않고 FCM 은 §14
+                    전용이다. 클라이언트는 **화면 진입·포그라운드 복귀·당겨서 새로고침** 시점에만
+                    호출하고, 마지막 응답이 **5분** 안이면 요청하지 않는다
+                    (stale-while-revalidate). 클라 TTL 5분은 배치 주기와 더 이상 같지 않다 — 20분으로
+                    올리면 최대 지연이 배치 20분 + 캐시 20분 = 40분이 된다. **타이머 폴링 금지.**
                     """)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -147,8 +169,8 @@ public interface ArtistControllerDocs {
                     ### §5.1 랭킹과 다른 API 다
                     | | §5.1 랭킹 | §5.10 목록 |
                     |---|---|---|
-                    | 1차 출처 | Redis 스냅샷(배치가 5분마다) | **DB 직조회** |
-                    | 정렬 | 챌린지 조회·참여 점수(시간 감쇠) | **구독자 수** |
+                    | 1차 출처 | Redis 스냅샷(배치가 20분마다) | **DB 직조회** |
+                    | 정렬 | 챌린지 반응 점수(누적·최근1h·증감) | **구독자 수** |
                     | 페이지 | offset | **없음 — 전량** |
 
                     §5.1 을 `size` 만 키워 재사용하면 **구독자 수순이 되지 않는다** — 랭킹 점수는
@@ -292,11 +314,14 @@ public interface ArtistControllerDocs {
                     - 삭제된 아티스트는 **없는 것으로 답한다**(404) — §1.8 공통 비노출.
 
                     ### `myMotifVideos` 는 현재 항상 빈 배열이다
-                    이 필드는 §1.7 **보호 등급**(모티프 결과물)이라 CloudFront **signed URL**(재생목록은 core-api 가 다시 써서 내린다)로만
-                    접근할 수 있는데, 쿠키 발급이 아직 구현되지 않았다. 공개 URL 로 대신 내보내면
-                    유료·비공개 결과물이 무기명 링크로 새므로 빈 배열로 둔다 —
-                    명세대로 **빈 배열이면 클라이언트는 상단 자동재생 영역을 노출하지 않는다.**
-                    개수·만료 정책은 명세 §16 #23 미결 안건이다.
+                    이 필드는 §1.7 **보호 등급**(모티프 결과물)이라 CloudFront **프리픽스 서명**이
+                    붙어야 하는데(ADR-0012 — signed 쿠키는 쓰지 않는다), 이 API 에서 채우는 것은
+                    후속 티켓이다. 공개 URL 로 대신 내보내면 유료·비공개 결과물이 무기명 링크로
+                    새므로 빈 배열로 둔다 — 명세대로 **빈 배열이면 클라이언트는 상단 자동재생
+                    영역을 노출하지 않는다.** 개수·만료 정책은 명세 §16 #23 미결 안건이다.
+
+                    지금 보관함 결과물을 재생해야 하면 **§11.5 목록 · §11.6 상세**를 쓴다 —
+                    그쪽은 서명된 `videoUrl` 을 내려준다.
 
                     전체 목록·더보기는 §5.8(`GET /users/me/motif-results?artistSeq=`)을 재사용한다.
                     """)
@@ -313,7 +338,7 @@ public interface ArtistControllerDocs {
                                         "artistSeq": 3,
                                         "name": "카리나",
                                         "groupName": "aespa",
-                                        "profileImageUrl": "https://cdn.../profiles/3.jpg",
+                                        "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
                                         "bio": "aespa의 카리나입니다.",
                                         "subscriberCount": 15230,
                                         "challengeCount": 121,
@@ -364,7 +389,7 @@ public interface ArtistControllerDocs {
                                       "message": "요청이 성공했습니다.",
                                       "data": {
                                         "list": [
-                                          { "challengeSeq": 11, "thumbnailUrl": "https://cdn.../challenges/uuid/thumb.jpg", "viewCount": 120000 }
+                                          { "challengeSeq": 11, "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg", "viewCount": 120000 }
                                         ]
                                       },
                                       "timestamp": "2026-09-14T00:00:00.000Z"
@@ -408,11 +433,11 @@ public interface ArtistControllerDocs {
                                         "list": [
                                           {
                                             "noticeSeq": 5,
-                                            "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.../profiles/3.jpg" },
+                                            "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
                                             "content": "전체 본문...",
                                             "images": [
-                                              { "imageUrl": "https://cdn.../notices/1.jpg", "displayOrder": 0 },
-                                              { "imageUrl": "https://cdn.../notices/2.jpg", "displayOrder": 1 }
+                                              { "imageUrl": "https://cdn.motif.io/notices/9f3b2a71.jpg", "displayOrder": 0 },
+                                              { "imageUrl": "https://cdn.motif.io/notices/4c8d5e02.jpg", "displayOrder": 1 }
                                             ],
                                             "likeCount": 200,
                                             "commentCount": 14,

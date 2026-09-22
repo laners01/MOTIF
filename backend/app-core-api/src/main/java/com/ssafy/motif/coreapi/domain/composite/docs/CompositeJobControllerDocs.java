@@ -51,10 +51,10 @@ public interface CompositeJobControllerDocs {
 
             ### 두 형태 — `jobType` 이 정한다
 
-            | jobType | 필수 | 보내지 않는다 | participantMask |
+            | jobType | 필수 | 보내지 않는다 | 보내도 무시된다 |
             |---|---|---|---|
-            | `CHALLENGE` | `challengeSeq` | `assetSeq` | 선택 |
-            | `MOTIF` | `assetSeq` | `challengeSeq` | **무시된다** |
+            | `CHALLENGE` | `challengeSeq` · `challengeParticipantSeq` | `assetSeq` | — |
+            | `MOTIF` | `assetSeq` | `challengeSeq` | `challengeParticipantSeq` |
 
             `challengeSeq`·`assetSeq` 가 어긋나면 400 `INVALID_PARAMETER` 이고 `data` 에 필드
             오류 배열이 실린다 — 무시하지 않고 거절한다. DB 도 두 칸이 함께 차는 것을 막는다.
@@ -108,7 +108,7 @@ public interface CompositeJobControllerDocs {
             """;
 
     String REQUEST_CHALLENGE_EXAMPLE = """
-            { "jobType": "CHALLENGE", "challengeSeq": 11, "participantMask": 1, "contentLength": 20971520 }""";
+            { "jobType": "CHALLENGE", "challengeSeq": 11, "challengeParticipantSeq": 31, "contentLength": 20971520 }""";
 
     String REQUEST_MOTIF_EXAMPLE = """
             { "jobType": "MOTIF", "assetSeq": 21, "contentLength": 20971520 }""";
@@ -160,7 +160,7 @@ public interface CompositeJobControllerDocs {
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = CompositeJobCreateRequest.class),
                     examples = {
-                            @ExampleObject(name = "CHALLENGE — 슬롯 0·1 교체",
+                            @ExampleObject(name = "CHALLENGE — §7.5 가 준 슬롯 하나를 교체",
                                     value = REQUEST_CHALLENGE_EXAMPLE),
                             @ExampleObject(name = "MOTIF — 에셋 합성", value = REQUEST_MOTIF_EXAMPLE)
                     }))
@@ -172,7 +172,7 @@ public interface CompositeJobControllerDocs {
                             examples = @ExampleObject(value = CREATE_EXAMPLE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "jobType 없음 · 형태 불일치 · participantMask 가 음수이거나 단일 비트가 아님 · contentLength 가 0 이하이거나 상한 초과 (`INVALID_PARAMETER`)",
+                    description = "jobType 없음 · 형태 불일치(CHALLENGE 에 `challengeParticipantSeq` 누락 포함) · contentLength 가 0 이하이거나 상한 초과 (`INVALID_PARAMETER`)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = FailResponseSchema.class),
                             examples = @ExampleObject(value = SHAPE_FAIL_EXAMPLE))),
@@ -319,9 +319,11 @@ public interface CompositeJobControllerDocs {
 
             ### CHALLENGE 결과는 보호 등급이다
 
-            게시 전 프리뷰라 서명이 붙는다(§1.7). `resultVideoUrl` 은 core-api 가 서명해 다시
-            쓴 **HLS 마스터 재생목록**이고, 조각 요청에 같은 파라미터를 붙이는 것은 앱의
-            인터셉터 몫이다(ADR-0012). 이 화면에서 확인한 뒤 **§8.8 로 게시**한다.
+            게시 전 프리뷰라 서명이 붙는다(§1.7). `resultVideoUrl` 은 **CDN 절대 주소의 HLS
+            마스터 재생목록 + 프리픽스 서명**(`Policy`·`Signature`·`Key-Pair-Id`)이고, 조각·자식
+            재생목록 요청에 같은 파라미터를 붙이는 것은 앱의 인터셉터 몫이다(ADR-0012).
+            산출물은 게시 여부와 무관하게 `private/challenge/{jobUuid}/` 에 있다(ADR-0013).
+            이 화면에서 확인한 뒤 **§8.8 로 게시**한다.
 
             ### MOTIF 의 resultSeq 는 DONE 이면 항상 있다
 
@@ -345,8 +347,8 @@ public interface CompositeJobControllerDocs {
                 "status": "DONE",
                 "attempt": 1,
                 "failCode": null,
-                "resultVideoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-                "resultThumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg"
+                "resultVideoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                "resultThumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
               },
               "timestamp": "2026-09-10T00:00:00.000Z"
             }""";
@@ -449,7 +451,7 @@ public interface CompositeJobControllerDocs {
             3. `attempt + 1`
             4. 디스패처가 다음 틱에 같은 조립기로 재접수한다
 
-            결과 프리픽스가 `results/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져
+            결과 프리픽스가 `private/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져
             있어, 재합성은 같은 경로를 덮어쓴다.
 
             ### 시도 상한이 없다 *(기본안)*

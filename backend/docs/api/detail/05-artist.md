@@ -351,8 +351,8 @@ Authorization: Bearer {accessToken}
     "myMotifVideos": [
       {
         "resultSeq": 10,
-        "videoUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8",
-        "thumbnailUrl": "https://cdn.motif.io/results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg",
+        "videoUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+        "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1790000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
         "durationMs": 9800
       }
     ]
@@ -368,14 +368,14 @@ Authorization: Bearer {accessToken}
 | `subscribedDays` | 구독 경과일 — 화면의 "WITH n days". **미구독이면 `null`** |
 | `pass.active` | `motif_passes.status='ACTIVE' AND expires_dttm > now` |
 | `pass.expiresDttm` | 위가 참일 때만 값. 아니면 `null` |
-| `myMotifVideos` | **내가 이 아티스트와 만든 모티프 결과물 최신 5개**. `videoUrl` 은 HLS 마스터 재생목록이고 보호 등급이라 core-api 가 서명해 다시 쓴 재생목록을 가리킨다. 없으면 **빈 배열**(상단 영역 미노출) |
+| `myMotifVideos` | **내가 이 아티스트와 만든 모티프 결과물 최신 5개**. `videoUrl` 은 HLS 마스터 재생목록이고 보호 등급이라 **CDN 절대 주소 + 프리픽스 서명**이다(ADR-0012). 없으면 **빈 배열**(상단 영역 미노출) |
 
 - `myMotifVideos` 는 화면 상단 **자동재생**용이다. 구 `hasMyMotifResults` 를 대체했다. 전체 목록·더보기는 §5.8(= §11.5 의 `artistSeq` 필터).
 - `pass.active=false` 면 클라이언트는 "모티프 패스 알아보기"를 노출한다(→ §11.4).
 
 ### 연속 재생 (클라이언트 제안)
 
-배열 순서대로 플레이어 재생목록(ExoPlayer `ConcatenatingMediaSource`)에 넣어 하나가 끝나면 다음으로 넘어간다. 보호 등급이라 각 `videoUrl` 은 core-api 가 서명해 다시 쓴 재생목록을 가리킨다. 서명이 만료(10분)돼 조각 로드가 403 이면 **그 재생목록을 다시 받으면 된다** — core-api 가 새 서명으로 내려주므로 서버에 추가 API 가 필요 없다.
+배열 순서대로 플레이어 재생목록(ExoPlayer `ConcatenatingMediaSource`)에 넣어 하나가 끝나면 다음으로 넘어간다. 보호 등급이라 각 `videoUrl` 에 **프리픽스 서명 파라미터**가 붙어 있고, 조각·자식 재생목록 요청에 같은 값을 붙이는 것은 클라이언트(OkHttp 인터셉터) 몫이다. 서명이 만료(10분)돼 조각 로드가 403 이면 **`POST /api/v1/media/{jobUuid}/signature`** 로 새 파라미터를 받아 재시도한다 — 재생목록을 다시 받는 것은 복구가 되지 않는다. 재생목록도 CDN 에서 오고 같은 만료가 걸려 있기 때문이다(ADR-0012).
 
 ### 실패 응답
 
@@ -474,7 +474,7 @@ Authorization: Bearer {accessToken}
       }
     ],
     "prevCursor": null,
-    "nextCursor": "eyJ0IjoiMjAyNi0wOS0wMVQwOTowMDowMFoiLCJuIjo1fQ",
+    "nextCursor": "NQ",
     "hasPrevious": false,
     "hasNext": true
   },

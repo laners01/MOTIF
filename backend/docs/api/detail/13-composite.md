@@ -200,14 +200,14 @@ FCM 을 받고 결과 화면에 진입할 때 **1회** 호출한다. **폴링 �
     "status": "DONE",
     "attempt": 1,
     "failCode": null,
-    "resultVideoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-    "resultThumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg"
+    "resultVideoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+    "resultThumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
 ```
 
-**게시 전 프리뷰라 보호 등급**이다(§1.7) — `resultVideoUrl` 은 core-api 가 서명해 다시 쓴 HLS 마스터 재생목록이다. 이 화면에서 확인 후 **§8.8 로 게시**한다.
+**게시 전 프리뷰라 보호 등급**이다(§1.7) — `resultVideoUrl` 은 **CDN 절대 주소의 HLS 마스터 재생목록 + 프리픽스 서명**(`Policy`·`Signature`·`Key-Pair-Id`)이고, 조각·자식 재생목록 요청에 같은 파라미터를 붙이는 것은 클라이언트 몫이다(ADR-0012). 산출물은 게시 여부와 무관하게 `private/challenge/{jobUuid}/` 에 있다(ADR-0013). 이 화면에서 확인 후 **§8.8 로 게시**한다.
 
 ### 성공 응답 (200) — `jobType=MOTIF`
 
@@ -313,7 +313,7 @@ FCM 을 받고 결과 화면에 진입할 때 **1회** 호출한다. **폴링 �
 3. `attempt + 1`
 4. 잡 행에서 큐 메시지를 재구성해 `job.composite` 재발행
 
-결과 프리픽스가 `results/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져 있어, 재합성은 같은 경로를 덮어쓴다.
+결과 프리픽스가 `private/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져 있어, 재합성은 같은 경로를 덮어쓴다(워커가 올리는 중간 산출물 `results/{kind}/{jobUuid}.mp4` 도 같은 이름이라 함께 덮인다).
 
 ### 성공 응답 (202)
 

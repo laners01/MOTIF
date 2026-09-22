@@ -37,15 +37,34 @@ public interface HomeControllerDocs {
                       400 `INVALID_PARAMETER` 다.
                     - `size` 기본 10, 최대 100.
 
-                    ### 순서는 5분마다 만들어지는 스냅샷이다
+                    ### 순서는 20분마다 만들어지는 스냅샷이다 *(2026-09-21 재정의 — ADR-0015)*
 
-                    `score = view_count × 0.5 ^ (age / 반감기)` 로 매긴 순위를 서버가 미리 확정해 둔다
-                    (§6.1 랭킹 기본안 — 좋아요는 점수에 넣지 않는다). `sort` 파라미터가 없는 이유다.
+                    ```
+                    tScore = log10(1 + totalViews)    / log10(1 + T0)
+                    rScore = log10(1 + recentViews1h) / log10(1 + R0)
+                    dRel   = (recentViews1h − previousViews1h) / (previousViews1h + K)
+                    dScore = 0.5 + 0.5 × clamp(dRel / D0, −1, +1)
+
+                    score  = Wt·tScore + Wr·rScore + Wd·dScore      (기본 0.3 / 0.5 / 0.2)
+                    ```
+
+                    누적 규모 · 최근 1시간 규모 · 모멘텀 세 항이며 순위는 배치가
+                    `score DESC → videoSeq ASC` 로 **확정해 저장**한다. `sort` 파라미터가 없는 이유다.
+
+                    - **시간 감쇠가 없다.** 게시가 오래됐다는 이유만으로 영원히 감점되던 것을
+                      걷어냈다 — 오래된 영상도 지금 뜨면 1위에 오른다.
+                    - **좋아요·댓글 수는 점수에 넣지 않는다.** 응답에도 싣지 않는다(경량 항목).
+                    - 정규화 기준은 그 틱의 최대값이 아니라 **고정 상수**(`T0`·`R0`·`D0`)다.
+                      최대값으로 나누면 다른 영상의 등락이 내 순위를 바꿔 `rankDelta` 에 거짓
+                      변동이 뜬다. 값은 `motif.view.video-ranking.*` 설정이다.
+                    - 스냅샷에는 점수 상위 **500건**(`keep`)만 담는다.
 
                     **커서에 스냅샷 버전이 박혀 있다.** 진행 중인 스크롤은 배치가 순위를 갈아도 같은
                     순서를 계속 본다. 새 순위는 **커서 없이 다시 호출**할 때(당겨서 새로고침) 시작된다.
-                    지난 버전은 **15분**간만 보존하므로, 그보다 오래 방치된 커서로 요청하면
-                    **빈 목록 + `hasNext:false`** 다(오류가 아니다).
+                    지난 버전은 **2시간**간 보존하므로, 그보다 오래 방치된 커서로 요청하면
+                    **빈 목록 + `hasNext:false`** 다(오류가 아니다). 보존이 15분에서 늘어난 것은
+                    커서 사정이 아니라 `rankDelta` 때문이다 — 대비 대상이 3틱(=1시간) 전 버전이라
+                    그 키가 살아 있어야 하고, 짧으면 변동값이 조용히 전원 `null` 이 된다.
 
                     ### 캐러셀 → 뷰어 (R4)
 
@@ -85,8 +104,8 @@ public interface HomeControllerDocs {
                                     "rank": 1,
                                     "rankDelta": 2,
                                     "videoSeq": 88,
-                                    "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                    "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                     "durationMs": 15000,
                                     "song": { "title": "bailar toda la noche", "singerName": "mochico" },
                                     "author": { "userSeq": 5, "nickname": "팬123" },

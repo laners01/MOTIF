@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "미디어 (MEDIA)", description = "명세 §1.7 — 보호 등급 재생 서명·재생목록")
 public interface MediaControllerDocs {
 
-    @Operation(summary = "재생 서명 재발급 (ADR-0012)", description = """
+    @Operation(summary = "재생 서명 재발급 (§1.7 · ADR-0012)", description = """
             보호 등급 영상의 **프리픽스 서명**을 새로 발급한다.
 
             조회 API 가 주는 `videoUrl` 에는 이미 같은 파라미터가 붙어 있다. 이 엔드포인트는
@@ -78,7 +78,13 @@ public interface MediaControllerDocs {
 
     @Operation(
             summary = "마스터 재생목록 (§1.7) — deprecated (ADR-0012)",
+            deprecated = true,
             description = """
+                    > **더 이상 조회 API 가 이 주소를 가리키지 않는다.** 재생은 CDN 직통 +
+                    > 프리픽스 서명이고(ADR-0012), 이 엔드포인트는 안드로이드 전환 기간의
+                    > 안전망으로만 남아 있다. 새로 붙이지 마라 — 서명 재발급은 위의
+                    > `POST /media/{jobUuid}/signature` 다.
+
                     보호 등급 영상의 **HLS 마스터 재생목록**을 내려준다. 조회 API 가 주는
                     `videoUrl` 이 이 주소이고, **앱 코드가 아니라 플레이어가 직접 GET 한다.**
 
@@ -134,8 +140,11 @@ public interface MediaControllerDocs {
                     example = "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f") String jobUuid);
 
     @Operation(
-            summary = "화질별 재생목록 (§1.7)",
+            summary = "화질별 재생목록 (§1.7) — deprecated (ADR-0012)",
+            deprecated = true,
             description = """
+                    > 위 마스터와 한 벌이라 함께 남아 있는 전환 기간용 엔드포인트다.
+
                     마스터가 가리키는 **자식 재생목록**이다. 플레이어가 화질을 고르면
                     이어서 요청한다 — 조각(`data.m4s`) 주소가 **서명된 CDN 절대 URL** 로
                     바뀌어 있어, 영상 바이트는 core-api 를 거치지 않고 CDN 이 낸다.
