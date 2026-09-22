@@ -5,7 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * 명세 §7.2 성공 응답의 {@code data} — 챌린지 상세 Bottom Sheet.
  *
- * <p>§7.1 피드 항목 + {@code description} 이다.
+ * <p>§7.1 피드 항목과 <b>같은 칸</b>이다 — {@code description} 이 §7.1 에도 실리면서
+ * 상세만 갖는 칸이 없어졌다. 그래도 record 는 따로 둔다({@code ChallengeFeedItem} 주석).
  *
  * <p><b>{@code title} 이 없다</b> — R3 에서 {@code challenges.title} 컬럼이 삭제됐고,
  * 화면 식별은 곡명({@code song.title})과 아티스트로 한다.

@@ -159,6 +159,7 @@ class ChallengeFeedLocalDbTest {
         assertThat(item.song().title()).isEqualTo("Supernova");
         assertThat(item.song().singerName()).isEqualTo("aespa");
         assertThat(item.durationMs()).isEqualTo(15000);
+        assertThat(item.description()).isEqualTo("같이 춰요!");
         assertThat(item.viewCount()).isZero();
         assertThat(item.participantCount()).isZero();
     }
