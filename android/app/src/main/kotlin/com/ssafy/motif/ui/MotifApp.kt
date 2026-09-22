@@ -21,6 +21,8 @@ import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
 import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
+import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
+import com.ssafy.motif.feature.challenges.impl.navigation.challengeEntry
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
 import com.ssafy.motif.feature.motif.api.navigation.MotifNavKey
@@ -37,7 +39,6 @@ fun MotifApp(
     appState: MotifAppState,
     modifier: Modifier = Modifier,
     myProfileImageUrl: String = "",
-    onChallengeClick: () -> Unit = {},
 ) {
     val navigator = remember(
         appState.navigationState,
@@ -52,6 +53,31 @@ fun MotifApp(
     val entryProvider = entryProvider {
         homeEntry(
             navigator = navigator,
+        )
+
+        challengeEntry(
+            myProfileImageUrl = myProfileImageUrl,
+            onHomeClick = {
+                navigator.navigate(
+                    HomeNavKey,
+                )
+            },
+            onMyClick = {
+                navigator.navigate(
+                    MyPageNavKey,
+                )
+            },
+            onMotifClick = {
+                navigator.navigate(
+                    MotifNavKey,
+                )
+            },
+            onArtistClick = { artistId ->
+                // ArtistDetail NavKey 연결
+            },
+            onCaptureClick = { challengeId ->
+                // Capture NavKey 연결
+            },
         )
 
         onboardingEntry(
@@ -133,7 +159,7 @@ fun MotifApp(
                         HomeNavKey,
                     )
                 },
-                onChallengeClick = onChallengeClick,
+                onChallengeClick = { navigator.navigate(ChallengeNavKey) },
                 onMyClick = {
                     navigator.navigate(
                         MyPageNavKey,
