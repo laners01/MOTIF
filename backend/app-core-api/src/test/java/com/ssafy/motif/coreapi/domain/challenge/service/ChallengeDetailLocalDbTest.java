@@ -81,7 +81,7 @@ class ChallengeDetailLocalDbTest {
     }
 
     @Test
-    @DisplayName("아티스트·곡·소개글이 §7.1 항목 + description 형태로 나온다")
+    @DisplayName("아티스트·곡·소개글이 §7.1 항목과 같은 칸으로 나온다")
     void detailCarriesFeedItemPlusDescription() {
         ChallengeDetailResponse detail = challengeQueryService.detail(fanSeq, challengeSeq);
 

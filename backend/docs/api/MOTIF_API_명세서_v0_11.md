@@ -912,9 +912,12 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
   "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "..." },
   "song": { "title": "Supernova", "singerName": "aespa" },
   "viewCount": 120000, "participantCount": 340, "likeCount": 5600, "commentCount": 210,
-  "isLiked": false, "isSubscribed": true
+  "isLiked": false, "isSubscribed": true,
+  "description": "같이 춰요!"
 }
 ```
+
+- `description` **추가 (2026-09-22)** — 피드 오버레이가 소개글을 바로 그린다. 스와이프 중에 §7.2 를 부르지 않는다. 이 칸이 들어오면서 §7.2 는 §7.1 과 **같은 칸**이 됐다.
 
 - `thumbnailUrl` **부활**(첫 프레임 로딩 전 플레이스홀더 **(회의 확정 R2)**), `artist.groupName` 제거 유지, `isSubscribed`(피드 오버레이 구독 버튼용)는 7.1 항목 소속. **`title` 삭제** **(R3 — challenges.title 컬럼 삭제)**: 화면 식별은 곡명(`song.title`)·아티스트로.
 
@@ -926,7 +929,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 
 ### 7.2 GET /challenges/{challengeSeq}
 
-**성공 응답 (200)** — `data` = 7.1 항목(이미 `isSubscribed` 포함) + `description`.
+**성공 응답 (200)** — `data` = 7.1 항목(이미 `isSubscribed`·`description` 포함). **2026-09-22 부터 칸이 같다** — `description` 이 §7.1 로 올라갔다.
 
 - **`participants[]` 가 §7.5 로 떨어져 나갔다 (2026-09-21 · DB v0.19)** — 촬영 선택 화면이 쓰는 데이터라 이 시트와 **수명이 다르고**, 편집본 이미지가 서명 URL 이 되면서 만료가 붙었다(상세를 열어 둔 채 오래 머물면 죽는 값이다). 설명 시트(화면 3-2)의 참여자 아바타가 필요한 화면도 §7.5 를 부른다.
 - **`editedChallenges[]` 배열도 없다 (2026-09-21 · DB v0.18)** — 편집본이 슬롯 1개당 1개가 되면서 슬롯 항목 안으로 들어갔고, 그 슬롯 항목이 §7.5 로 갔다. 상세는 [`detail/07-challenge.md`](detail/07-challenge.md).

@@ -140,7 +140,8 @@ public class ChallengeQueryService {
                 c.getLikeCount(),
                 c.getCommentCount(),
                 liked,
-                subscribed);
+                subscribed,
+                c.getDescription());
     }
 
     /** §7.2 챌린지 상세. */

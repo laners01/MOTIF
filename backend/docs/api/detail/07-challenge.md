@@ -46,7 +46,6 @@ Authorization: Bearer {accessToken}
         "artist": {
           "artistSeq": 3,
           "name": "카리나",
-          "groupName": "aespa",
           "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
         },
         "song": { "title": "Supernova", "singerName": "aespa" },
@@ -55,7 +54,8 @@ Authorization: Bearer {accessToken}
         "likeCount": 5600,
         "commentCount": 210,
         "isLiked": false,
-        "isSubscribed": true
+        "isSubscribed": true,
+        "description": "같이 춰요!"
       }
     ],
     "prevCursor": null,
@@ -71,8 +71,9 @@ Authorization: Bearer {accessToken}
 |---|---|
 | `videoUrl` | 챌린지 원본은 **공개 등급** — 일반 CDN URL |
 | `thumbnailUrl` | 첫 프레임이 로드되기 전 **플레이스홀더**용(R2 부활) |
-| `artist` | **공통 아티스트 요약**(README §3.5) |
+| `artist` | **공통 아티스트 요약**(README §3.5)에서 **`groupName` 을 뺀 모양** — §7 은 원본의 제거 결정(회의 확정)을 따른다. §7.2 도 같다 |
 | `isSubscribed` | 피드 오버레이의 구독 버튼 상태 — 이 항목에 속한다 |
+| `description` | 챌린지 소개글 *(2026-09-22 추가)* — 피드 오버레이가 바로 쓴다. 소개글 때문에 §7.2 를 부르지 않는다 |
 | `participantCount` | **PUBLIC·PRIVATE 를 모두 포함**한 게시 참여 수 |
 
 `participantCount` 가 PRIVATE 를 포함하는 것은 의도된 결정이다 — **PRIVATE 영상의 조회 비노출(§1.8)과 카운트 집계는 분리**한다. 그래서 참여 수가 340 인데 목록에는 그보다 적게 보일 수 있다.
@@ -85,7 +86,7 @@ Authorization: Bearer {accessToken}
 
 ## 7.2 GET /api/v1/challenges/{challengeSeq} — 챌린지 상세
 
-피드에서 정보를 눌렀을 때 뜨는 Bottom Sheet 데이터다. **§7.1 항목 + `description` + 슬롯 정보**로 구성된다.
+피드에서 정보를 눌렀을 때 뜨는 Bottom Sheet 데이터다. **§7.1 항목과 같은 칸**이다 — `description` 이 §7.1 로 올라가면서(2026-09-22) 상세만 갖는 칸이 없어졌다. 슬롯은 §7.5 로 떨어져 나갔다.
 
 ### 성공 응답 (200)
 
@@ -99,11 +100,9 @@ Authorization: Bearer {accessToken}
     "videoUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/master.m3u8",
     "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg",
     "durationMs": 15000,
-    "description": "이번 주 챌린지입니다. 같이 춰요!",
     "artist": {
       "artistSeq": 3,
       "name": "카리나",
-      "groupName": "aespa",
       "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
     },
     "song": { "title": "Supernova", "singerName": "aespa" },

@@ -40,6 +40,7 @@ public interface ChallengeControllerDocs {
                     - `videoUrl` 은 **마스터 재생목록(`master.m3u8`)** 이다 (§1.7, ADR-0010 D2).
                       화질 3종(1080p/720p/480p) 자동 전환(ABR). 후처리 전이면 원본 MP4 일 수 있다.
                     - `thumbnailUrl` 은 첫 프레임 로딩 전 플레이스홀더다 (회의 확정 R2).
+                    - `description` 은 챌린지 소개글이다. 피드 오버레이가 바로 쓴다 — 소개글 때문에 §7.2 를 부르지 않는다.
                     - **`title` 이 없다**(R3 컬럼 삭제). 화면 식별은 곡명(`song.title`)·아티스트·썸네일이다.
                     - `artist.groupName` 은 없다 (회의 확정).
                     - `participantCount` 는 **PUBLIC·PRIVATE 를 모두 포함**한다.
@@ -73,7 +74,8 @@ public interface ChallengeControllerDocs {
                                     "likeCount": 5600,
                                     "commentCount": 210,
                                     "isLiked": false,
-                                    "isSubscribed": true
+                                    "isSubscribed": true,
+                                    "description": "같이 춰요!"
                                   }
                                 ],
                                 "prevCursor": null,
@@ -97,7 +99,7 @@ public interface ChallengeControllerDocs {
     @Operation(
             summary = "챌린지 상세 (§7.2)",
             description = """
-                    챌린지 상세 Bottom Sheet 의 데이터다 — §7.1 피드 항목 + `description` + 슬롯 정보 (명세 §7.2).
+                    챌린지 상세 Bottom Sheet 의 데이터다 — **§7.1 피드 항목과 같은 칸**이다 (명세 §7.2).
 
                     - **인증 필요.** `isLiked`·`isSubscribed` 가 호출자 기준이다.
                     - `videoUrl` 은 **단일 MP4 가 아니라 마스터 재생목록(`master.m3u8`)** 이다 (§1.7, ADR-0010 D2).

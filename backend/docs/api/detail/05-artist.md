@@ -341,7 +341,6 @@ Authorization: Bearer {accessToken}
     "artistSeq": 3,
     "name": "카리나",
     "groupName": "aespa",
-    "groupName": "aespa",
     "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
     "bio": "aespa의 카리나입니다.",
     "subscriberCount": 15230,
@@ -461,7 +460,6 @@ Authorization: Bearer {accessToken}
         "artist": {
           "artistSeq": 3,
           "name": "카리나",
-          "groupName": "aespa",
           "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
         },
         "content": "전체 본문...",
