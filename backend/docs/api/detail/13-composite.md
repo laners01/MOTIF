@@ -53,7 +53,7 @@
 | `jobType` | Y | `CHALLENGE` \| `MOTIF` |
 | `challengeSeq` | CHALLENGE | 대상 챌린지 |
 | `assetSeq` | MOTIF | 대상 에셋 |
-| `challengeParticipantSeq` | N (CHALLENGE) | 교체할 슬롯 — §7.5 가 준 값. **생략 = 무교체**(원본 위 합성) *(2026-09-21 — 구 `participantMask`)* |
+| `challengeParticipantSeq` | **Y (CHALLENGE)** | 교체할 슬롯 — §7.5 가 준 값 *(2026-09-21 — 구 `participantMask`)*. **필수다** *(2026-09-22 — 무교체 폐기)* |
 | `contentLength` | Y | 올릴 촬영본의 **바이트 수** |
 
 ### `contentLength` 를 왜 보내나 (2026-09-19 추가)
@@ -74,10 +74,12 @@
 
 **비트 마스크를 받지 않는다.** 앱이 `1 << slotOrder` 같은 연산을 하게 두지 않으려는 것이고, 조합 교체가 없어져(편집본이 슬롯 1개당 1개) 마스크가 표현할 것도 없다. 마스크는 AI 접수 페이로드 안에만 남고 서버가 파생한다.
 
+**합성은 언제나 슬롯 한 자리를 대체한다** *(2026-09-22)*. 무교체(원본 위 합성)는 폐기됐다 — 편집본이 슬롯 1개당 1개이고 사용자가 고르는 것도 한 명이라, 아무도 지워지지 않은 영상을 베이스로 쓸 자리가 없다. API 명세 §16 잔여 3번이 이걸로 닫혔다.
+
 | 값 | 서버 동작 |
 |---|---|
-| 생략 | 무교체 — `challenge_participant_seq = NULL` 로 원본 위에 합성. `0` 이라는 예약값도 없어졌다 |
 | 슬롯 seq | 그 슬롯을 조회해 잡에 기록. 슬롯이 없거나 **다른 챌린지의 슬롯**이거나 편집본이 없으면 **404** |
+| 생략 | **400** `INVALID_PARAMETER` — `data` 에 `challengeParticipantSeq`. `ck_composite_jobs_type_shape`(0021)가 DB 에서도 막는다 |
 
 ### 검증
 

@@ -1,8 +1,20 @@
-# MOTIF 데이터베이스 명세서 (PostgreSQL) — v0.19
+# MOTIF 데이터베이스 명세서 (PostgreSQL) — v0.20
 
-본 문서는 changeSet 0020 까지를 반영한 **현행 스키마 계약**이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
+본 문서는 changeSet 0021 까지를 반영한 **현행 스키마 계약**이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
 
 **파일명의 `v0_15` 는 버전이 아니다.** v0.13·v0.14 는 그 시점에 얼어붙은 스냅샷이지만 이 파일은 v0.15 이후 제자리에서 갱신돼 현행 명세 노릇을 하고 있다. changelog 파일 21개(SQL 19 · master 2)와 `docs/DDL_*.md` 가 이 경로를 `명세:` 로 가리키므로 파일을 옮기지 않는다 — 버전은 제목과 아래 개정 이력 절이 갖는다.
+
+## v0.20 반영 내용 (2026-09-22 · changeSet 0021)
+
+**CHALLENGE 합성은 언제나 슬롯 한 자리를 대체한다.** 무교체(원본 위 합성)를 폐기했다 — 0019 로 편집본이 슬롯 1개당 1개가 되면서 사용자가 고르는 것은 "함께할 아티스트 한 명"으로 정리됐는데, `challenge_participant_seq` 가 `NULL` 인 잡이 그 아래에 남아 있었다. 그 경로는 편집본이 아니라 챌린지 원본을 베이스로 써서 **아무도 지워지지 않은 영상 위에** 합성이 얹힌다.
+
+| 대상 | 변경 |
+|---|---|
+| `ck_composite_jobs_type_shape` 강화 | `CHALLENGE` 분기에 `challenge_participant_seq IS NOT NULL` 추가. MOTIF 분기는 그대로 `IS NULL` 이다 — 교체할 인물이라는 개념 자체가 챌린지의 것이다 |
+| 칼럼은 NULL 허용 유지 | MOTIF 행이 `NULL` 을 쓰므로 `NOT NULL` 로 올릴 수 없다. 타입별 요구는 CHECK 가 표현한다 |
+| 기존 무교체 잡 삭제 | 폐기된 경로의 행이라 남겨 두면 CHECK 가 붙지 않는다 |
+| 미결 #8 종결 | "무교체 허용 여부 팀 논의 예정" → **불허**. API 명세 §13.1 이 `challengeParticipantSeq` 를 필수로 받고 §16 잔여 3번도 함께 닫혔다 |
+| AI 계약 파급 | 접수 페이로드의 `slots[]` 배열과 바깥 `participant_mask` 가 `slot` 하나로 합쳐졌다(AI 서버 명세 v0.5 §4) — 둘 다 슬롯 하나에서 유도되던 값이다. 스키마 변경은 아니다 |
 
 ## v0.19 반영 내용 (2026-09-21 · changeSet 0020)
 
@@ -1242,7 +1254,7 @@ AND (canceled_dttm IS NULL OR canceled_dttm >= started_dttm)
 | `user_seq` | `INTEGER` | Y | FK → users | 요청 사용자 |
 | `challenge_seq` | `INTEGER` | N | FK → challenges | CHALLENGE 잡 대상 |
 | `asset_seq` | `INTEGER` | N | FK → motif_assets | MOTIF 잡 대상 |
-| `challenge_participant_seq` | `INTEGER` | N | FK → challenge_participants | CHALLENGE 잡의 **교체 대상 슬롯** — 그 사람을 지운 편집본이 합성 베이스다. `NULL`이면 원본 영상 위 합성 *(v0.18 · changeSet 0019 — 구 `edited_challenge_seq`)* |
+| `challenge_participant_seq` | `INTEGER` | N | FK → challenge_participants, CHECK | CHALLENGE 잡의 **교체 대상 슬롯** — 그 사람을 지운 편집본이 합성 베이스다. **CHALLENGE 면 필수, MOTIF 면 `NULL`** *(v0.20 · changeSet 0021 — 무교체 폐기)*. 칼럼 자체는 MOTIF 때문에 NULL 허용이고 타입별 요구는 `ck_composite_jobs_type_shape` 가 표현한다 *(v0.18 · changeSet 0019 — 구 `edited_challenge_seq`)* |
 | `raw_video_key` | `VARCHAR(255)` | Y | - | 사용자 원본 영상 |
 | `correction_enabled` | `BOOLEAN` | Y | 기본값 TRUE | 보정 사용 여부 |
 | `status` | `VARCHAR(12)` | Y | 기본값 UPLOADED, CHECK | `UPLOADED`, `QUEUED`, `PROCESSING`, `DONE`, `FAILED` |
@@ -1261,6 +1273,7 @@ AND (canceled_dttm IS NULL OR canceled_dttm >= started_dttm)
   job_type = 'CHALLENGE'
   AND challenge_seq IS NOT NULL
   AND asset_seq IS NULL
+  AND challenge_participant_seq IS NOT NULL   -- v0.20 · changeSet 0021
 )
 OR
 (
@@ -1316,10 +1329,10 @@ CHALLENGE 잡:
 
 - 결과 최종화 직전 `challenges.is_deleted=FALSE`를 다시 확인한다.
 - 챌린지가 삭제된 경우 참여 영상은 생성하지 않고 잡을 `FAILED` 처리한다. 이때 최종 FAILED CHECK를 만족하도록 결과키를 저장하지 않는다.
-- 잡 생성 시 `challenge_participant_seq`가 지정되면 그 행의 `challenge_seq`가 잡의 `challenge_seq`와 일치하는지 검증한다(반정규화 정합 — 서비스 불변식).
-- 합성 베이스 키는 슬롯의 `edited_challenge_key`(`challenge_participant_seq`가 `NULL`이면 원본 `challenges.video_key`)이며, 큐 메시지는 최초 발행과 스윕 재큐 모두 잡 행에서 재구성한다.
+- 잡 생성 시 `challenge_participant_seq` 행의 `challenge_seq`가 잡의 `challenge_seq`와 일치하는지 검증한다(반정규화 정합 — 서비스 불변식).
+- 합성 베이스 키는 슬롯의 `edited_challenge_key` 다 *(v0.20 — 무교체가 없어져 원본 `challenges.video_key` 가 베이스로 쓰이는 경로는 사라졌다)*. 큐 메시지는 최초 발행과 스윕 재큐 모두 잡 행에서 재구성한다.
 - **편집본이 없는 슬롯은 잡에 실리지 않는다** *(v0.18)*. `edited_challenge_key IS NULL` 인 슬롯을 고르면 §13.1 이 `EDITED_CHALLENGE_NOT_FOUND` 로 막으므로, 이 칼럼이 가리키는 행에는 언제나 베이스가 있다.
-- `NULL` 허용(무교체 원본 합성)은 기본안이다. 편집본 필수로 확정되면 `job_type='CHALLENGE'` 분기에 `challenge_participant_seq IS NOT NULL`을 추가한다 *(기본안 — 확인 필요)*.
+- ~~`NULL` 허용(무교체 원본 합성)은 기본안이다~~ → **확정: 불허** *(v0.20 · changeSet 0021)*. `job_type='CHALLENGE'` 분기에 `challenge_participant_seq IS NOT NULL` 이 들어갔다.
 
 MOTIF 잡:
 
@@ -1647,10 +1660,10 @@ WHERE status = 'ACTIVE';
 5. 사용자 차단 기능 도입 시점
 6. ~~SECRET 판정 규칙~~ — **종결(R5/R6)**: 별도 판정 없음, NORMAL 과 동일 취급(PASS 커버 포함·카드 집계 포함)
 7. 향후 회원 탈퇴 구현 시 `user_accounts.account_status`에 `WITHDRAWN`을 추가할지 여부
-8. CHALLENGE 잡의 `challenge_participant_seq` `NULL` 허용(무교체 원본 합성 모드) 유지 여부 — **팀 논의 예정(R8)**. 편집본 필수로 확정되면 CHECK 강화 + 앱 참여 흐름에서 "원본 그대로 참여" 제거
+8. ~~CHALLENGE 잡의 `challenge_participant_seq` `NULL` 허용(무교체 원본 합성 모드) 유지 여부~~ — **종결: 불허 (2026-09-22 · changeSet 0021)**. CHECK 를 강화했고 앱 §13.1 이 `challengeParticipantSeq` 를 필수로 받는다. AI 접수 페이로드의 `slot` 이 배열에서 단일 객체가 된 것도 같은 결정의 파급이다
 9. 앵커·슬롯 순서 산출 주체와 등록 흐름(AI 파이프라인 산출 vs 어드민 수기 입력) — 어드민 명세서 반영 필요
 10. ~~편집본 미존재 조합 처리~~ — **재종결(v0.18)**: 조합 자체가 없어졌다. 편집본이 비어 있는 슬롯은 정상 상태이고, §7.2 `selectable` 이 화면에서 걸러 §13.1 의 404 가 예외가 아닌 정상 방어선이 된다. 구 종결(R8 "전 조합 등록 전제")은 폐기
-11. ~~participant_mask 0 의미~~ — **종결(v0.18)**: 컬럼이 `slot_order` 로 대체돼 질문이 사라졌다. 순서는 `>= 0` 이고 0 은 맨 왼쪽 슬롯이라 예약값이 아니다. 무교체 참여는 종전대로 `challenge_participant_seq NULL` 경로
+11. ~~participant_mask 0 의미~~ — **종결(v0.18)**: 컬럼이 `slot_order` 로 대체돼 질문이 사라졌다. 순서는 `>= 0` 이고 0 은 맨 왼쪽 슬롯이라 예약값이 아니다. *(v0.20 — 그 뒤 무교체 경로 자체가 폐기됐다. #8 참조)*
 12. ~~recent_search_terms 존치~~ — **종결(R7)**: 컬럼·CHECK·백업 플러시 규칙 삭제(신규 changeSet `DROP COLUMN`)
 13. ~~모티프 에셋 표시명~~ — **종결(R6)**: `motif_assets.title` 컬럼 신설
 

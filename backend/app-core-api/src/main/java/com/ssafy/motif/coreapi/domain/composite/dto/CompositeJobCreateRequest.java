@@ -25,10 +25,12 @@ import java.util.List;
  * @param jobType                 {@code CHALLENGE} | {@code MOTIF}
  * @param challengeSeq            CHALLENGE 일 때 필수 — 대상 챌린지
  * @param assetSeq                MOTIF 일 때 필수 — 대상 에셋
- * @param challengeParticipantSeq CHALLENGE 의 교체 슬롯. <b>생략이면 무교체</b>(원본 위 합성).
- *                                0020 이전에는 {@code participantMask} 비트값이었는데,
- *                                앱이 비트 연산을 하게 두지 않으려고 §7.5 가 준 seq 를
- *                                그대로 받는 형태로 바꿨다 — {@code 0} 이라는 예약값도 사라졌다
+ * @param challengeParticipantSeq CHALLENGE 의 교체 슬롯. <b>필수다</b>(2026-09-22) —
+ *                                합성은 언제나 슬롯 한 자리를 대체하는 것이고, 원본 위에
+ *                                얹는 무교체 합성은 없어졌다. 0020 이전에는
+ *                                {@code participantMask} 비트값이었는데, 앱이 비트 연산을
+ *                                하게 두지 않으려고 §7.5 가 준 seq 를 그대로 받는 형태로
+ *                                바꿨다 — {@code 0} 이라는 예약값도 그때 사라졌다
  * @param contentLength   올릴 촬영본의 바이트 수. <b>이 값이 presigned URL 서명에 박힌다</b> —
  *                        SigV4 의 서명된 {@code Content-Length} 는 상한이 아니라 <b>정확히
  *                        일치</b>해야 하므로, 서버가 상한값을 대신 넣으면 그 크기 파일만
@@ -52,7 +54,7 @@ public record CompositeJobCreateRequest(
 
         @Schema(description = """
                 교체할 슬롯 — §7.5 가 준 challengeParticipantSeq 를 그대로 보낸다.
-                생략하면 무교체(원본 위 합성)다. MOTIF 에서는 무시된다""",
+                CHALLENGE 에 필수다. MOTIF 에서는 무시된다""",
                 example = "31")
         @Positive
         Integer challengeParticipantSeq,
@@ -64,11 +66,6 @@ public record CompositeJobCreateRequest(
         @Positive
         long contentLength
 ) {
-
-    /** 무교체 — {@code challenge_participant_seq = NULL} 로 원본 위에 합성한다 (§13.1). */
-    public boolean isNoReplacement() {
-        return challengeParticipantSeq == null;
-    }
 
     /**
      * 잡 형태 검증 — DB CHECK {@code ck_composite_jobs_type_shape} 와 같은 모양이다.
@@ -88,6 +85,9 @@ public record CompositeJobCreateRequest(
         switch (jobType) {
             case CHALLENGE -> {
                 required(errors, "challengeSeq", challengeSeq);
+                // 2026-09-22 — 합성은 언제나 슬롯 한 자리를 대체한다. 무교체가 없어지면서
+                // 이 칸이 필수가 됐다. 생략을 허용하던 시절에는 원본 위 합성으로 읽혔다
+                required(errors, "challengeParticipantSeq", challengeParticipantSeq);
                 forbidden(errors, "assetSeq", assetSeq);
             }
             case MOTIF -> {

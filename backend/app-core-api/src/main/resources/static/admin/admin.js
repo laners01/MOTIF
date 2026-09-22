@@ -46,11 +46,17 @@ async function api(path, {method = 'GET', body} = {}) {
  *
  * 바이트는 브라우저에서 S3 로 직행하고 서버는 키만 받는다(§1.4 Claim-Check).
  * Content-Type·크기는 presign 서명에 박혀 있어 다른 값으로 PUT 하면 S3 가 거부한다.
+ *
+ * EDITED_* 는 키가 슬롯에 매여 있어 두 seq 를 함께 보낸다 — 서버가 실재·소속을
+ * 대조하고 안 맞으면 400 PARTICIPANT_INVALID 다. 그 밖의 kind 에서는 무시된다.
  */
-async function upload(file, kind, challengeSeq) {
+async function upload(file, kind, challengeSeq, challengeParticipantSeq) {
     const {uploadUrl, objectKey} = await api('/media/presign', {
         method: 'POST',
-        body: {kind, contentType: file.type, contentLength: file.size, challengeSeq},
+        body: {
+            kind, contentType: file.type, contentLength: file.size,
+            challengeSeq, challengeParticipantSeq,
+        },
     });
     let put;
     try {

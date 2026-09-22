@@ -216,8 +216,9 @@ public class CompositeJobCommandService {
     /**
      * CHALLENGE — 챌린지가 살아 있는지 + 고른 슬롯에 편집본이 있는지.
      *
-     * <p>{@code challengeParticipantSeq} 가 생략이면 무교체라 슬롯을 찾지 않고
-     * {@code null} 이다 (§13.1 — 원본 위 합성).
+     * <p><b>슬롯은 필수다</b>(2026-09-22). 합성은 언제나 슬롯 한 자리를 대체하는 것이고,
+     * 원본 위에 얹는 무교체 합성은 없어졌다 — 그래서 여기서 {@code null} 이 나오는 길이
+     * 없다. 칸이 비었으면 {@code shapeErrors} 가 이미 400 으로 걸렀다.
      *
      * <p><b>슬롯이 그 챌린지 것인지 대조한다</b>(DB SPEC §37 반정규화 정합). 잡 행이
      * {@code challenge_seq} 와 {@code challenge_participant_seq} 를 함께 들고 있어
@@ -227,16 +228,13 @@ public class CompositeJobCommandService {
      * 슬롯이거나, 슬롯은 맞는데 어드민이 편집본을 아직 안 올렸거나. 셋 다 같은 코드인
      * 이유는 §1.8 이다: 남의 챌린지 슬롯 seq 를 넣어 보고 존재를 읽을 수 없어야 한다.
      *
-     * @return 슬롯 seq. 무교체면 {@code null}
+     * @return 슬롯 seq — 언제나 값이 있다
      */
     private Integer challengeParticipantSeq(CompositeJobCreateRequest request) {
         Integer challengeSeq = request.challengeSeq();
         if (!challengeRepository.existsByChallengeSeqAndDeletedFalse(challengeSeq)) {
             throw new BusinessException(ChallengeErrorCode.CHALLENGE_NOT_FOUND,
                     "challengeSeq: " + challengeSeq);
-        }
-        if (request.isNoReplacement()) {
-            return null;
         }
         Integer participantSeq = request.challengeParticipantSeq();
         return participantRepository.findById(participantSeq)

@@ -12,6 +12,8 @@ import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
 import com.ssafy.motif.domain.core.artist.Artist;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
@@ -77,6 +79,8 @@ class VideoPublishLocalDbTest {
     private ParticipationVideoRepository participationVideoRepository;
     @Autowired
     private ChallengeRepository challengeRepository;
+    @Autowired
+    private ChallengeParticipantRepository participantRepository;
     @Autowired
     private ArtistRepository artistRepository;
     @Autowired
@@ -195,7 +199,7 @@ class VideoPublishLocalDbTest {
     @DisplayName("DONE 이 아니면 409")
     void notDoneJobIsConflict() {
         CompositeJob job = compositeJobRepository.saveAndFlush(CompositeJob.create(
-                UUID.randomUUID(), JobType.CHALLENGE, fanSeq, challengeSeq, null, null,
+                UUID.randomUUID(), JobType.CHALLENGE, fanSeq, challengeSeq, null, newSlot(),
                 "raw/" + UUID.randomUUID() + ".mp4"));
 
         assertFails(job, VideoErrorCode.JOB_NOT_DONE);
@@ -260,7 +264,7 @@ class VideoPublishLocalDbTest {
     private CompositeJob doneJob() {
         UUID uuid = UUID.randomUUID();
         CompositeJob job = CompositeJob.create(uuid, JobType.CHALLENGE, fanSeq, challengeSeq,
-                null, null, "raw/" + uuid + ".mp4");
+                null, newSlot(), "raw/" + uuid + ".mp4");
         job.queue(true);
         job.markSubmitted();
         job.complete("private/challenge/" + uuid + "/master.m3u8",
@@ -301,5 +305,22 @@ class VideoPublishLocalDbTest {
                         artistSeq, songSeq, "소개", "challenges/" + uuid + "/master.m3u8",
                         "challenges/" + uuid + "/thumb.jpg", 15_000))
                 .getChallengeSeq();
+    }
+
+    /**
+     * 그 챌린지의 슬롯 하나 — 없으면 만든다.
+     *
+     * <p>CHALLENGE 잡은 언제나 슬롯을 가리킨다({@code ck_composite_jobs_type_shape},
+     * changeSet 0021). 한 테스트가 잡을 둘 만들 수 있어 매번 새로 만들면
+     * {@code uq_challenge_participants_slot_order} 에 걸린다.
+     */
+    private Integer newSlot() {
+        return participantRepository.findByChallengeSeqOrderBySlotOrderAsc(challengeSeq).stream()
+                .findFirst()
+                .map(ChallengeParticipant::getChallengeParticipantSeq)
+                .orElseGet(() -> participantRepository.saveAndFlush(ChallengeParticipant.of(
+                                challengeSeq, artistSeq, 0,
+                                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)))
+                        .getChallengeParticipantSeq());
     }
 }

@@ -14,6 +14,8 @@ import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
@@ -72,6 +74,8 @@ class CompositeJobRequestStatusLocalDbTest {
     private CompositeJobRepository compositeJobRepository;
     @Autowired
     private ChallengeRepository challengeRepository;
+    @Autowired
+    private ChallengeParticipantRepository participantRepository;
     @Autowired
     private MotifAssetRepository motifAssetRepository;
     @Autowired
@@ -396,9 +400,25 @@ class CompositeJobRequestStatusLocalDbTest {
 
     private CompositeJob challengeJob() {
         UUID uuid = UUID.randomUUID();
+        Integer challengeSeq = newChallenge();
         return compositeJobRepository.saveAndFlush(CompositeJob.create(
-                uuid, JobType.CHALLENGE, fanSeq, newChallenge(), null, null,
+                uuid, JobType.CHALLENGE, fanSeq, challengeSeq, null, newSlot(challengeSeq),
                 "raw/" + uuid + ".mp4"));
+    }
+
+    /**
+     * 슬롯 하나 — CHALLENGE 잡은 언제나 슬롯을 가리킨다
+     * ({@code ck_composite_jobs_type_shape}, 0021).
+     */
+    private Integer newSlot(Integer challengeSeq) {
+        ChallengeParticipant slot = participantRepository.saveAndFlush(ChallengeParticipant.of(
+                challengeSeq, artistSeq, 0,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
+        String prefix = "private/edited/" + challengeSeq + "/"
+                + slot.getChallengeParticipantSeq() + "/";
+        slot.replaceEditedKeys(prefix + UUID.randomUUID() + ".mp4",
+                prefix + UUID.randomUUID() + ".jpg", null, 15_000);
+        return participantRepository.saveAndFlush(slot).getChallengeParticipantSeq();
     }
 
     private CompositeJob motifJob() {

@@ -962,8 +962,8 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
     { "challengeParticipantSeq": 31, "artistSeq": 7, "name": "윈터", "slotOrder": 0,
       "profileImageUrl": "https://cdn.example/profiles/uuid.jpg",
       "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-      "initialSceneUrl": "https://cdn.example/private/edited/11/e1.jpg?Expires=…&Signature=…&Key-Pair-Id=…",
-      "previewImageUrl": "https://cdn.example/private/edited/11/p1.jpg?Expires=…&Signature=…&Key-Pair-Id=…" },
+      "initialSceneUrl": "https://cdn.example/private/edited/11/31/e1.jpg?Expires=…&Signature=…&Key-Pair-Id=…",
+      "previewImageUrl": "https://cdn.example/private/edited/11/31/p1.jpg?Expires=…&Signature=…&Key-Pair-Id=…" },
     { "challengeParticipantSeq": 32, "artistSeq": 9, "name": "닝닝", "slotOrder": 1,
       "profileImageUrl": "https://cdn.example/profiles/uuid2.jpg",
       "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 },
@@ -981,6 +981,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 - `profileImageUrl` = 설명 시트(화면 3-2)의 참여자 아바타용. `users.profile_image_key` 를 응답 조립 시점에 CDN URL 로 바꾼 값이며 저장 컬럼이 아니다. 미등록이면 `null`.
 - **이미지 두 장은 서명 URL 이다** — 키가 `private/edited/…` 라 만료가 있고, 만료되면 이 API 를 다시 부른다.
 - **슬롯이 전부 잠긴 챌린지가 있을 수 있다.** 슬롯은 등록됐지만 AI 편집본이 아직 없는 상태로, 재생·표시는 정상이고 촬영만 막힌다. 일부만 비는 것도 **정상**이다.
+- **이 상태는 이제 모든 챌린지가 거쳐 간다** *(2026-09-22)*. 어드민 등록이 두 단계로 갈리면서(슬롯 먼저, 편집본은 §3.7.6 으로 뒤에) **등록 직후에는 예외 없이 전부 `null`** 이다. 계약이 바뀐 것은 아니고 — 위 두 줄이 이미 그 상태를 정상으로 적고 있다 — 지금까지 드물던 값이 흔해진다. 앱은 `initialSceneUrl` 유무로만 잠그면 된다.
 
 **실패 분기**
 
@@ -1557,8 +1558,8 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 **요청** `{ "jobType": "MOTIF", "assetSeq": 21 }` 또는 `{ "jobType": "CHALLENGE", "challengeSeq": 11, "challengeParticipantSeq": 31 }`
 
 - CHALLENGE 의 `challengeParticipantSeq` **(2026-09-21 개정 — DB v0.19, 구 `participantMask`)**: 사용자가 고른 교체 슬롯. §7.5 가 준 값을 **그대로** 보낸다.
-  - **생략 = 무교체**(원본 위 합성, `challenge_participant_seq=NULL`). `participantMask: 0` 이라는 예약값이 사라졌다.
-  - 지정하면 서버가 그 슬롯을 조회해 잡에 기록한다. 슬롯이 없거나 **다른 챌린지의 슬롯**이거나 그 슬롯에 편집본이 없으면 404 `EDITED_CHALLENGE_NOT_FOUND`(§1.8 — 셋을 가르지 않는다).
+  - **필수다 (2026-09-22)** — 합성은 언제나 슬롯 한 자리를 대체한다. 편집본이 슬롯 1개당 1개이고 사용자가 고르는 것도 함께할 아티스트 한 명이라, 아무도 지워지지 않은 영상을 베이스로 쓸 자리가 없다. 생략하면 400 `INVALID_PARAMETER`(`data` 에 `challengeParticipantSeq`). **무교체(원본 위 합성)는 폐기됐다** — §16 잔여 3번을 불허로 닫았고 `ck_composite_jobs_type_shape`(changeSet 0021)가 DB 에서도 막는다.
+  - 서버가 그 슬롯을 조회해 잡에 기록한다. 슬롯이 없거나 **다른 챌린지의 슬롯**이거나 그 슬롯에 편집본이 없으면 404 `EDITED_CHALLENGE_NOT_FOUND`(§1.8 — 셋을 가르지 않는다).
   - **비트 마스크를 받지 않는다.** 앱이 `1 << slotOrder` 같은 비트 연산을 하게 두지 않으려는 것이고, 조합 교체가 없어져 마스크가 표현할 것도 없다. 마스크는 AI 접수 페이로드 안에만 남고 서버가 파생한다.
 
 - 검증: CHALLENGE — 챌린지 비삭제 + 슬롯이 그 챌린지 것인지 대조(반정규화 정합 — 잡 행이 `challenge_seq` 와 슬롯 seq 를 함께 들고 있어 어긋나면 베이스와 챌린지가 다른 잡이 된다). MOTIF — **이용 권한(개별 구매 ACTIVE ∪ 유효 PASS) 필수(C3 선결제 — 회의 확정)**, `challengeParticipantSeq` 미사용.
@@ -1885,6 +1886,6 @@ module-common 의 에러 enum 은 이 표와 1:1 로 구현한다(`code`, `httpS
 |---|---|---|
 | 1 | 13.3 응답 jobType 분기 확정 — CHALLENGE: 프리뷰 URL / MOTIF: `resultSeq`(URL 미포함, §11.6 재생 담당). 공통부에 `attempt` 추가 | §13.3 |
 | 2 | 편집본 **전 조합 등록** 운영 전제 확정 — 어드민 필수 등록 + 서버 완결성 검증(어드민 명세 반영 대기), DB 미결 #10 종결 | §7.2, 13.1 |
-| 3 | CHALLENGE 잡 `edited_challenge_seq NULL`(무교체 원본 합성) 허용 여부는 **팀 논의 예정**으로 유지 | DB #8 |
+| ~~3~~ | ~~CHALLENGE 잡 `edited_challenge_seq NULL`(무교체 원본 합성) 허용 여부~~ → **종결: 불허** *(2026-09-22)*. 합성은 언제나 슬롯 한 자리를 대체한다. `challengeParticipantSeq` 가 §13.1 필수가 되고 `ck_composite_jobs_type_shape`(changeSet 0021)가 DB 에서 강제한다 | DB #8 |
 
 — 끝 (v0.11) —

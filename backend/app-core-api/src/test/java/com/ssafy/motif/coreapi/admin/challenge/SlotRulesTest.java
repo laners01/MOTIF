@@ -23,7 +23,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>0019 로 <b>조합 완결성 검사가 통째로 없어졌다</b> — 편집본이 슬롯 1개당 1개라 마스크
  * 조합이라는 개념 자체가 사라졌다. 0020 에서는 <b>마스크 헬퍼까지 없어졌다</b> — 앱·어드민이
  * 슬롯을 {@code challengeParticipantSeq} 로 가리키게 되면서 마스크가 남은 곳은 AI 접수
- * 페이로드 하나뿐이고, 그 파생은 엔티티가 맡는다. 남은 검사는 인물·앵커·편집본 짝이다.
+ * 페이로드 하나뿐이고, 그 파생은 엔티티가 맡는다.
+ *
+ * <p>2026-09-22 로 <b>편집본 검사도 여기서 빠졌다</b> — 편집본 키가 슬롯 seq 를 품게 되면서
+ * 등록 요청에 실을 수 없게 됐고(§3.7.6 이 유일한 입구), 키 짝·길이·프리픽스 검사가 전부
+ * 그쪽으로 갔다. 그 케이스는 {@code AdminChallengeServiceLocalDbTest} 가 본다 — 슬롯 행을
+ * 읽어 경로를 대조하므로 DB 가 필요하다. 여기 남은 것은 인물·앵커·개수다.
  */
 class SlotRulesTest {
 
@@ -71,99 +76,15 @@ class SlotRulesTest {
     /**
      * 편집본 0개 허용 (2026-09-14 확정, 0019 에서도 유지).
      *
-     * <p>AI 산출물(565~567)이 나오기 전에도 "같이 춘 사람"을 슬롯에 넣어 등록할 수 있어야
-     * 한다 — 설명 시트의 참여자 아바타가 슬롯을 그대로 쓴다. 영상 재생에는 편집본이
-     * 쓰이지 않고, 촬영 시도는 §13.1 의 EDITED_CHALLENGE_NOT_FOUND 가 막는다.
+     * <p>2026-09-22 이후로는 <b>등록 직후 모든 슬롯이 이 상태</b>다 — 편집본은 슬롯이 난
+     * 뒤 §3.7.6 으로 채운다. 영상 재생에는 편집본이 쓰이지 않고, 촬영 시도는 §13.1 의
+     * {@code EDITED_CHALLENGE_NOT_FOUND} 가 막는다.
      */
     @Test
-    @DisplayName("편집본 없는 슬롯은 통과한다 — 표시 전용 챌린지")
+    @DisplayName("편집본 없는 슬롯은 통과한다 — 등록 직후의 정상 상태다")
     void 편집본_없는_슬롯() {
         assertThatCode(() -> SlotRules.checkParticipants(List.of(slot(3), slot(7), slot(9))))
                 .doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("일부 슬롯만 편집본이 있어도 된다 — 나머지는 앱에서 고를 수 없을 뿐이다")
-    void 일부만_편집본() {
-        assertThatCode(() -> SlotRules.checkParticipants(List.of(slot(3), edited(7))))
-                .doesNotThrowAnyException();
-    }
-
-    /**
-     * {@code ck_challenge_participants_edited} 와 같은 규칙이다 — 한쪽만 채운 행을 DB 가
-     * 거부하므로 여기서 먼저 400 으로 돌려준다. 통과시키면 500 으로 샌다.
-     */
-    @Test
-    @DisplayName("영상만 있고 첫 장면이 없으면 EDITED_KEYS_INCOMPLETE — 둘은 짝이다")
-    void 편집본_키는_짝() {
-        // 길이는 채워 둔다 — 안 그러면 EDITED_DURATION_REQUIRED 까지 섞여 무엇을 보는지 흐려진다
-        ParticipantRequest 영상만 = new ParticipantRequest(7, anchor(),
-                "private/edited/1/v.mp4", null, null, 15_000L);
-        ParticipantRequest 장면만 = new ParticipantRequest(9, anchor(),
-                null, "private/edited/1/s.jpg", null, null);
-
-        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(영상만, 장면만)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(reasons((BusinessException) e))
-                        .containsExactly("EDITED_KEYS_INCOMPLETE[0]", "EDITED_KEYS_INCOMPLETE[1]"));
-    }
-
-    @Test
-    @DisplayName("편집본 없이 선택 화면만 올리면 막는다 — 고를 수 없는 그림이 남는다")
-    void 편집본_없는_선택화면() {
-        ParticipantRequest 프리뷰만 = new ParticipantRequest(7, anchor(),
-                null, null, "private/edited/1/p.jpg", null);
-
-        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(프리뷰만)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(reasons((BusinessException) e))
-                        .containsExactly("PREVIEW_WITHOUT_EDITED[0]"));
-    }
-
-    /**
-     * 0020 — §7.6 이 앱에 길이를 내보내므로 편집본에는 길이가 따라와야 한다. 없으면
-     * 촬영 타이머를 그릴 수 없고, 챌린지 원본 길이로 갈음하면 ±500ms 만큼 끝이 잘린다.
-     */
-    @Test
-    @DisplayName("편집본에 길이가 없으면 EDITED_DURATION_REQUIRED")
-    void 편집본에는_길이가_따라온다() {
-        ParticipantRequest 길이없음 = new ParticipantRequest(7, anchor(),
-                "private/edited/1/v.mp4", "private/edited/1/s.jpg", null, null);
-
-        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(길이없음)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(reasons((BusinessException) e))
-                        .containsExactly("EDITED_DURATION_REQUIRED[0]"));
-    }
-
-    /**
-     * 0020 — 앱에 나가는 편집본은 보호 프리픽스여야 한다. S3 HEAD 는 "그 자리에 파일이
-     * 있나" 만 보므로 옛 경로({@code edited/…})를 걸러내지 못하는데, 그대로 저장되면
-     * {@code isProtected} 가 false 라 §7.5·§7.6 이 <b>서명 없이</b> 내보낸다 —
-     * 404 가 아니라 예외도 로그도 없이 보호가 풀린다.
-     */
-    @Test
-    @DisplayName("옛 edited/ 경로는 EDITED_KEY_NOT_PROTECTED — 서명이 안 붙는 자리다")
-    void 편집본_키는_보호_프리픽스() {
-        ParticipantRequest 옛경로 = new ParticipantRequest(7, anchor(),
-                "edited/1/v.mp4", "edited/1/s.jpg", null, 15_000L);
-
-        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(옛경로)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(reasons((BusinessException) e))
-                        .containsExactly("EDITED_KEY_NOT_PROTECTED[0]"));
-    }
-
-    @Test
-    @DisplayName("선택 화면 이미지만 옛 경로여도 막는다 — 세 키를 다 본다")
-    void 선택화면만_옛경로여도_막는다() {
-        ParticipantRequest 프리뷰만_옛경로 = new ParticipantRequest(7, anchor(),
-                "private/edited/1/v.mp4", "private/edited/1/s.jpg", "edited/1/p.jpg", 15_000L);
-
-        assertThatThrownBy(() -> SlotRules.checkParticipants(List.of(프리뷰만_옛경로)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(reasons((BusinessException) e))
-                        .containsExactly("EDITED_KEY_NOT_PROTECTED[0]"));
     }
 
     private static AnchorRequest anchor() {
@@ -171,19 +92,11 @@ class SlotRulesTest {
     }
 
     private static ParticipantRequest participant(int artistSeq, AnchorRequest anchor) {
-        return new ParticipantRequest(artistSeq, anchor, null, null, null, null);
+        return new ParticipantRequest(artistSeq, anchor);
     }
 
-    /** 편집본 없는 슬롯 — 0019 이후 정상 상태다. */
     private static ParticipantRequest slot(int artistSeq) {
         return participant(artistSeq, anchor());
-    }
-
-    /** 편집본이 붙은 슬롯 — 길이까지 있어야 통과한다(0020). */
-    private static ParticipantRequest edited(int artistSeq) {
-        return new ParticipantRequest(artistSeq, anchor(),
-                "private/edited/1/v.mp4", "private/edited/1/s.jpg", "private/edited/1/p.jpg",
-                15_000L);
     }
 
     @SuppressWarnings("unchecked")

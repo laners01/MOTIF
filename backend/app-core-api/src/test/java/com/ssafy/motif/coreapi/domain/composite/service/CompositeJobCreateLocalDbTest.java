@@ -132,13 +132,20 @@ class CompositeJobCreateLocalDbTest {
         assertThat(job.getRawVideoKey()).isEqualTo("raw/" + response.jobUuid() + ".mp4");
     }
 
+    /**
+     * 2026-09-22 — 무교체(원본 위 합성)를 폐기했다. 그 경로는 편집본이 아니라 챌린지
+     * 원본을 베이스로 써서 <b>아무도 지워지지 않은 영상 위에</b> 합성이 얹혔다.
+     * {@code ck_composite_jobs_type_shape}(0021)가 DB 에서도 같은 것을 막는다.
+     */
     @Test
-    @DisplayName("슬롯 생략 — 무교체다. challenge_participant_seq 가 NULL 로 남는다")
-    void challengeWithoutSlotLeavesItNull() {
+    @DisplayName("슬롯을 생략하면 400 — 합성은 언제나 한 자리를 대체한다")
+    void challengeWithoutSlotIsRejected() {
         Integer challengeSeq = newChallenge();
 
-        assertThat(job(create(challengeRequest(challengeSeq, null)).jobUuid())
-                .getChallengeParticipantSeq()).isNull();
+        assertThatThrownBy(() -> create(challengeRequest(challengeSeq, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_PARAMETER);
     }
 
     @Test
@@ -194,7 +201,9 @@ class CompositeJobCreateLocalDbTest {
     @Test
     @DisplayName("presign 은 잡의 raw 키에 video/mp4 · 600초로 요청한다 — 조건이 서명에 박힌다")
     void presignCarriesTheRawKeyAndItsConditions() {
-        CompositeJobCreateResponse response = create(challengeRequest(newChallenge(), null));
+        Integer challengeSeq = newChallenge();
+        CompositeJobCreateResponse response = create(
+                challengeRequest(challengeSeq, newSlot(challengeSeq, 0, true)));
 
         ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Long> size = ArgumentCaptor.forClass(Long.class);
@@ -224,9 +233,12 @@ class CompositeJobCreateLocalDbTest {
     @DisplayName("상한을 넘는 크기는 400 — data.maxBytes 로 한도를 알려주고 잡을 만들지 않는다")
     void oversizedUploadIsRejected() {
         long tooBig = 301L * 1024 * 1024;
+        // 슬롯을 채워야 형태 검증을 지나 크기 검증까지 간다(2026-09-22 — 슬롯 필수)
+        Integer challengeSeq = newChallenge();
+        Integer slotSeq = newSlot(challengeSeq, 0, true);
 
         assertThatThrownBy(() -> create(new CompositeJobCreateRequest(
-                JobType.CHALLENGE, newChallenge(), null, null, tooBig)))
+                JobType.CHALLENGE, challengeSeq, null, slotSeq, tooBig)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     BusinessException business = (BusinessException) e;
@@ -299,7 +311,7 @@ class CompositeJobCreateLocalDbTest {
                 .isEqualTo(expected);
     }
 
-    /** @param slotSeq 교체할 슬롯. {@code null} 이면 무교체(원본 위 합성) */
+    /** @param slotSeq 교체할 슬롯. CHALLENGE 에 필수이고, {@code null} 은 400 케이스용이다 */
     private static CompositeJobCreateRequest challengeRequest(Integer challengeSeq, Integer slotSeq) {
         return new CompositeJobCreateRequest(JobType.CHALLENGE, challengeSeq, null, slotSeq, UPLOAD_SIZE);
     }
@@ -357,15 +369,19 @@ class CompositeJobCreateLocalDbTest {
      * 안에서 같은 사람이 두 자리를 차지하는 것을 막는다.
      */
     private Integer newSlot(Integer challengeSeq, int slotOrder, boolean withEdited) {
-        String uuid = UUID.randomUUID().toString();
-        return participantRepository.saveAndFlush(ChallengeParticipant.of(
-                        challengeSeq, newArtist(), slotOrder,
-                        new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                        withEdited ? "private/edited/" + uuid + "/e-" + slotOrder + ".mp4" : null,
-                        withEdited ? "private/edited/" + uuid + "/s-" + slotOrder + ".jpg" : null,
-                        withEdited ? "private/edited/" + uuid + "/p-" + slotOrder + ".jpg" : null,
-                        withEdited ? 15_000 : null))
-                .getChallengeParticipantSeq();
+        ChallengeParticipant slot = participantRepository.saveAndFlush(ChallengeParticipant.of(
+                challengeSeq, newArtist(), slotOrder,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
+        if (withEdited) {
+            // 슬롯이 먼저 나고 편집본이 뒤에 붙는다(§3.7.2 → §3.7.6) — 키가 슬롯 seq 를 품는다
+            String prefix = "private/edited/" + challengeSeq + "/"
+                    + slot.getChallengeParticipantSeq() + "/";
+            slot.replaceEditedKeys(prefix + UUID.randomUUID() + ".mp4",
+                    prefix + UUID.randomUUID() + ".jpg",
+                    prefix + UUID.randomUUID() + ".jpg", 15_000);
+            participantRepository.saveAndFlush(slot);
+        }
+        return slot.getChallengeParticipantSeq();
     }
 
     private MotifAsset newAsset(AssetType type, boolean active) {

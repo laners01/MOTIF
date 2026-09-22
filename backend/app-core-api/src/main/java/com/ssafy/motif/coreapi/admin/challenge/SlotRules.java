@@ -4,7 +4,6 @@ import com.ssafy.motif.common.error.AdminErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
-import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -16,8 +15,10 @@ import java.util.Set;
  *
  * <p><b>편집본은 슬롯 1개당 1개다</b>(0019). 예전에는 "편집본은 0개이거나 정확히 2ⁿ−1 개"
  * 라는 조합 완결성 불변식이 여기 있었는데, 사용자가 고르는 것이 <b>함께할 아티스트 한 명</b>
- * 으로 정리되면서 조합 자체가 없어졌다. 편집본은 이제 슬롯 행에 같이 실린다
- * ({@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant}).
+ * 으로 정리되면서 조합 자체가 없어졌다. 편집본은 슬롯 행에 실리지만
+ * ({@link com.ssafy.motif.domain.core.challenge.ChallengeParticipant}) <b>등록 요청으로는
+ * 들어오지 않는다</b>(2026-09-22) — 키가 슬롯 seq 에 매여 있어 INSERT 전에는 정할 수
+ * 없다. §3.7.6 이 유일한 입구이고, 편집본 검증도 전부 그쪽에 있다.
  *
  * <p><b>순서는 서버가 정한다.</b> 슬롯은 요청 배열 순서(화면 좌→우)대로 {@code slotOrder = index}
  * 를 받는다. 어드민이 순서를 손으로 넣지 않으므로 인물과 자리가 어긋날 수 없다.
@@ -65,13 +66,9 @@ public final class SlotRules {
      * <p>중복({@code DUPLICATE_ARTIST})은 그대로 막는다 — 같은 사람이 슬롯 둘을
      * 차지하면 자리와 인물이 1:1 로 맞지 않는다.
      *
-     * <p><b>편집본 키는 짝이어야 한다</b>({@code EDITED_KEYS_INCOMPLETE}) — 영상만 있고 첫
-     * 장면이 없으면 DB CHECK({@code ck_challenge_participants_edited})가 거부한다. 둘 다
-     * 비어 있는 것은 정상이다: 편집본을 아직 안 만든 슬롯이고, 사용자가 그 슬롯을 고르면
-     * §13.1 이 막는다.
-     *
-     * <p><b>편집본에는 길이가 따라온다</b>({@code EDITED_DURATION_REQUIRED}, 0020) — §7.6 이
-     * 앱에 내보내는 값이라 없으면 촬영 타이머를 그릴 수 없다.
+     * <p><b>편집본 검증은 여기 없다</b>(2026-09-22). 편집본이 §3.7.6 으로만 들어오게
+     * 되면서 키 짝·길이·보호 프리픽스를 볼 자리가 그쪽 하나로 모였다 — 같은 검사를 두
+     * 곳에 두면 한쪽만 고쳐졌을 때 어느 쪽이 맞는지 알 수 없다.
      */
     public static void checkParticipants(List<ParticipantRequest> participants) {
         List<String> violations = new ArrayList<>();
@@ -87,51 +84,11 @@ public final class SlotRules {
             if (!validAnchor(p.anchor())) {
                 violations.add("ANCHOR_INVALID[" + i + "]");
             }
-            if (blank(p.editedChallengeKey()) != blank(p.initialSceneKey())) {
-                violations.add("EDITED_KEYS_INCOMPLETE[" + i + "]");
-            }
-            // 편집본 없이 선택 화면 이미지만 올리면 화면이 고를 수 없는 그림이 남는다
-            if (blank(p.editedChallengeKey()) && !blank(p.previewImageKey())) {
-                violations.add("PREVIEW_WITHOUT_EDITED[" + i + "]");
-            }
-            // 길이 없이 편집본만 받으면 §7.6 이 null 을 내보내고 앱 촬영 타이머가 멈춘다
-            if (!blank(p.editedChallengeKey()) && p.durationMs() == null) {
-                violations.add("EDITED_DURATION_REQUIRED[" + i + "]");
-            }
-            if (!protectedKeys(p)) {
-                violations.add("EDITED_KEY_NOT_PROTECTED[" + i + "]");
-            }
         }
         if (!violations.isEmpty()) {
             throw new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
                     "슬롯 규칙 위반: " + violations, violations);
         }
-    }
-
-    private static boolean blank(String key) {
-        return key == null || key.isBlank();
-    }
-
-    /**
-     * 편집본 3키가 전부 보호 프리픽스인가 ({@code EDITED_KEY_NOT_PROTECTED}, 0020).
-     *
-     * <p><b>HEAD 만으로는 부족하다.</b> {@code requireUploaded} 는 "그 자리에 파일이 있나"
-     * 만 보므로, AI 팀이 옛 경로({@code edited/…})에 올린 키를 그대로 등록하면 통과한다.
-     * 그 상태로 저장되면 {@link MediaKeys#isProtected} 가 {@code false} 라 §7.5·§7.6 이
-     * <b>서명 없이</b> 내보낸다 — 404 가 아니라 예외도 로그도 없이 보호가 풀린다.
-     *
-     * <p>어드민 presign 은 {@link com.ssafy.motif.coreapi.admin.media.AdminMediaKind} 가
-     * 이미 {@code private/edited/…} 로 발급하므로 화면 업로드 경로는 저절로 통과한다.
-     * 이 검사가 잡는 것은 <b>키를 손으로 붙여 넣는 경로</b>다.
-     */
-    private static boolean protectedKeys(ParticipantRequest p) {
-        return isProtectedOrAbsent(p.editedChallengeKey())
-                && isProtectedOrAbsent(p.initialSceneKey())
-                && isProtectedOrAbsent(p.previewImageKey());
-    }
-
-    private static boolean isProtectedOrAbsent(String key) {
-        return blank(key) || MediaKeys.isProtected(key);
     }
 
     /**

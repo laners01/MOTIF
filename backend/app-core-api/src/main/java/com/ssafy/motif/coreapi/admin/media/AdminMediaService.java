@@ -6,10 +6,12 @@ import com.ssafy.motif.coreapi.admin.media.dto.PresignRequest;
 import com.ssafy.motif.coreapi.admin.media.dto.PresignResponse;
 import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
 import com.ssafy.motif.coreapi.global.media.MediaUploadProperties;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +44,8 @@ public class AdminMediaService {
     private final MediaObjectStore objectStore;
     private final AdminMediaProperties properties;
     private final MediaUploadProperties uploadProperties;
+    /** {@code EDITED_*} 키가 실재하는 슬롯을 가리키는지 대조한다 ({@link #requireSlot}). */
+    private final ChallengeParticipantRepository participantRepository;
 
     /**
      * 키가 전부 S3 에 올라와 있는지 확인한다 (명세 §1.4 검증 1항 · §3.7.2 검증 4항).
@@ -78,13 +82,56 @@ public class AdminMediaService {
     public PresignResponse presign(PresignRequest request) {
         MediaUploadProperties.Upload limits = limitsFor(request.kind());
         verify(request, limits);
+        if (request.kind().isSlotScoped()) {
+            requireSlot(request);
+        }
 
-        String objectKey = request.kind().objectKey(UUID.randomUUID().toString(), request.challengeSeq());
+        String objectKey = request.kind().objectKey(UUID.randomUUID().toString(),
+                request.challengeSeq(), request.challengeParticipantSeq());
         String uploadUrl = objectStore.presignPut(
                 objectKey, request.contentType(), request.contentLength(), limits.presignTtl());
 
         log.info("presign 발급: kind={} key={} size={}", request.kind(), objectKey, request.contentLength());
         return new PresignResponse(uploadUrl, objectKey, limits.presignTtl().toSeconds());
+    }
+
+    /**
+     * {@code EDITED_*} 의 두 seq 를 확인한다 — <b>실재하는 슬롯이어야 키를 내준다</b>.
+     *
+     * <p>presign 은 원래 seq 를 검증 없이 경로에 박았다. 키가 슬롯까지 내려가면서 오타
+     * 하나에 <b>없는 슬롯 폴더로 파일이 올라가고</b>, 그 뒤 §3.7.6 이 404 를 주는데 파일은
+     * 이미 엉뚱한 자리에 남는다 — 아무도 참조하지 않는 오브젝트라 지워지지도 않는다.
+     * 조회 한 번으로 막는다.
+     *
+     * <p>챌린지 소속까지 보는 이유는 {@code AdminChallengeService} 가 §3.7.6 에서 하는
+     * 대조와 같다 — 두 seq 가 어긋나면 키는 A 챌린지 아래인데 슬롯은 B 것이 된다.
+     *
+     * <p>위반을 모아서 던진다({@code PARTICIPANT_INVALID} + {@code data}) — {@code SlotRules}
+     * 와 같은 봉투다. 어드민 화면이 어느 칸이 틀렸는지 그대로 표시한다.
+     */
+    private void requireSlot(PresignRequest request) {
+        List<String> violations = new ArrayList<>();
+        if (request.challengeSeq() == null) {
+            violations.add("CHALLENGE_SEQ_REQUIRED");
+        }
+        if (request.challengeParticipantSeq() == null) {
+            violations.add("PARTICIPANT_SEQ_REQUIRED");
+        }
+        if (violations.isEmpty()
+                && participantRepository.findById(request.challengeParticipantSeq())
+                        .filter(slot -> slot.getChallengeSeq().equals(request.challengeSeq()))
+                        .isEmpty()) {
+            // 없는 슬롯과 남의 챌린지 슬롯을 가르지 않는다 — 어드민 경로라 열거 위험은
+            // 없지만, 화면이 할 일이 "두 값을 다시 확인하라" 로 같다
+            violations.add("SLOT_NOT_FOUND");
+        }
+        if (!violations.isEmpty()) {
+            throw new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
+                    "편집본 presign 슬롯 정보가 올바르지 않다: kind=%s challengeSeq=%s challengeParticipantSeq=%s"
+                            .formatted(request.kind(), request.challengeSeq(),
+                                    request.challengeParticipantSeq()),
+                    violations);
+        }
     }
 
     private MediaUploadProperties.Upload limitsFor(AdminMediaKind kind) {

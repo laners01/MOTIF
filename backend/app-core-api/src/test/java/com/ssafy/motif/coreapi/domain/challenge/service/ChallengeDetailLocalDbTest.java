@@ -100,13 +100,14 @@ class ChallengeDetailLocalDbTest {
         Integer winter = newArtist("윈터");
         Integer ningning = newArtist("닝닝");
         // 일부러 뒤 슬롯을 먼저 넣는다 — 정렬이 삽입 순서가 아니라 slotOrder 라야 한다
-        participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 1,
-                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995),
-                "private/edited/1/n.mp4", "private/edited/1/n.jpg", "private/edited/1/np.jpg",
-                15_000));
-        participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 0,
-                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                "private/edited/1/w.mp4", "private/edited/1/w.jpg", null, 15_000));
+        participantRepository.save(edited(
+                ChallengeParticipant.of(challengeSeq, ningning, 1,
+                        new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995)),
+                "n.mp4", "n.jpg", "np.jpg"));
+        participantRepository.save(edited(
+                ChallengeParticipant.of(challengeSeq, winter, 0,
+                        new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)),
+                "w.mp4", "w.jpg", null));
         entityManager.flush();
 
         List<ChallengeParticipantItem> slots =
@@ -129,12 +130,13 @@ class ChallengeDetailLocalDbTest {
     void slotWithoutEditedHasNoSceneUrl() {
         Integer winter = newArtist("윈터");
         Integer ningning = newArtist("닝닝");
-        participantRepository.save(ChallengeParticipant.of(challengeSeq, winter, 0,
-                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                "private/edited/1/w.mp4", "private/edited/1/w.jpg", "private/edited/1/wp.jpg",
-                15_000));
+        participantRepository.save(edited(
+                ChallengeParticipant.of(challengeSeq, winter, 0,
+                        new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)),
+                "w.mp4", "w.jpg", "wp.jpg"));
+        // 편집본을 채우지 않은 슬롯 — 등록 직후의 정상 상태다(§3.7.2 → §3.7.6)
         participantRepository.save(ChallengeParticipant.of(challengeSeq, ningning, 1,
-                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995), null, null, null, null));
+                new ChallengeParticipant.Anchor(0.72, 0.36, 0.0995)));
         entityManager.flush();
 
         List<ChallengeParticipantItem> slots =
@@ -214,6 +216,22 @@ class ChallengeDetailLocalDbTest {
         User user = userRepository.saveAndFlush(User.signUp());
         user.applyInitialNickname();
         return user;
+    }
+
+    /**
+     * 슬롯에 편집본을 얹는다 — 등록(§3.7.2)과 편집본(§3.7.6)이 갈려 있어 두 단계다.
+     * 생성 인자로 넣을 수 없는 이유는 편집본 키가 슬롯 seq 를 품기 때문이다.
+     *
+     * <p>여기서는 아직 flush 전이라 슬롯 seq 가 없다. 이 테스트가 보는 것은 URL 로
+     * 바뀌는지·정렬 순서라 키의 슬롯 자리는 상관없고, 규약대로 생긴 문자열이면 된다
+     * (경로 대조는 §3.7.6 의 일이고 {@code AdminChallengeServiceLocalDbTest} 가 본다).
+     */
+    private static ChallengeParticipant edited(ChallengeParticipant slot, String video,
+                                               String scene, String preview) {
+        String prefix = "private/edited/1/" + slot.getSlotOrder() + "/";
+        slot.replaceEditedKeys(prefix + video, prefix + scene,
+                preview == null ? null : prefix + preview, 15_000);
+        return slot;
     }
 
     private Integer newArtist(String name) {
