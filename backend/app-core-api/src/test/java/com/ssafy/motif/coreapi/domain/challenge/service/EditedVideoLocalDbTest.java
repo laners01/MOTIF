@@ -129,17 +129,19 @@ class EditedVideoLocalDbTest {
 
     // --- 픽스처 -------------------------------------------------------------
 
+    /** 슬롯을 만들고, 편집본이 있으면 §3.7.6 처럼 뒤이어 채운다 — 실제 순서와 같다. */
     private Integer newSlot(int slotOrder, boolean withEdited) {
         String uuid = UUID.randomUUID().toString();
-        return participantRepository.saveAndFlush(ChallengeParticipant.of(
-                        challengeSeq, newArtist(), slotOrder,
-                        new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                        // private/ 프리픽스라야 서명 경로를 탄다(0020)
-                        withEdited ? "private/edited/" + uuid + "/e.mp4" : null,
-                        withEdited ? "private/edited/" + uuid + "/s.jpg" : null,
-                        withEdited ? "private/edited/" + uuid + "/p.jpg" : null,
-                        withEdited ? DURATION_MS : null))
-                .getChallengeParticipantSeq();
+        ChallengeParticipant slot = ChallengeParticipant.of(
+                challengeSeq, newArtist(), slotOrder,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995));
+        if (withEdited) {
+            // private/ 프리픽스라야 서명 경로를 탄다(0020)
+            slot.replaceEditedKeys("private/edited/" + uuid + "/e.mp4",
+                    "private/edited/" + uuid + "/s.jpg",
+                    "private/edited/" + uuid + "/p.jpg", DURATION_MS);
+        }
+        return participantRepository.saveAndFlush(slot).getChallengeParticipantSeq();
     }
 
     private Integer newArtist() {

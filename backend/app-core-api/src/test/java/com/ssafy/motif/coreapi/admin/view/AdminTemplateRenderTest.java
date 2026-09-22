@@ -175,12 +175,14 @@ class AdminTemplateRenderTest {
                 .contains("<title>MOTIF 어드민 · 챌린지 등록</title>")
                 .contains("/admin/admin.js")
                 .contains("/admin/challenge-new.js")
-                // 0019 — 2ⁿ−1 조합 매트릭스(id="matrix")가 없어지고 슬롯 표 한 개가 됐다.
-                // 편집본 칸이 슬롯 행 안으로 들어왔는지까지 본다
+                // 0019 — 2ⁿ−1 조합 매트릭스(id="matrix")가 없어지고 슬롯 표 한 개가 됐다
                 .contains("id=\"slots\"")
                 .contains("id=\"slot-row\"")
-                .contains("data-k=\"editedChallengeKey\"")
-                .doesNotContain("id=\"matrix\"");
+                .doesNotContain("id=\"matrix\"")
+                // 2026-09-22 — 편집본 칸이 이 화면에서 빠졌다. 키가 슬롯 seq 를 품고 있어
+                // 등록 시점에는 자리를 정할 수 없다. 되살리면 pending 경로가 함께 살아난다
+                .doesNotContain("editedChallengeKey")
+                .doesNotContain("EDITED_VIDEO");
         // 레이아웃이 끼워지지 않고 th:* 가 그대로 남는 실패를 잡는다
         assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
     }

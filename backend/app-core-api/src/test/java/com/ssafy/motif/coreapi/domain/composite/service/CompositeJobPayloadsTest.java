@@ -211,9 +211,10 @@ class CompositeJobPayloadsTest {
 
     /** 편집본이 붙은 슬롯 — 베이스 키는 명세 예시의 값 그대로다. */
     private static ChallengeParticipant participant(int artistSeq, int slotOrder, Anchor anchor) {
-        return ChallengeParticipant.of(11, artistSeq, slotOrder, anchor,
-                "private/edited/11/7d2f…e1.mp4", "private/edited/11/scene.jpg",
+        ChallengeParticipant slot = ChallengeParticipant.of(11, artistSeq, slotOrder, anchor);
+        slot.replaceEditedKeys("private/edited/11/7d2f…e1.mp4", "private/edited/11/scene.jpg",
                 "private/edited/11/preview.jpg", 15_000);
+        return slot;
     }
 
     private static Map<String, Object> asMap(CompositeJobPayload payload) {

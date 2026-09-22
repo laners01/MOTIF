@@ -962,8 +962,8 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
     { "challengeParticipantSeq": 31, "artistSeq": 7, "name": "윈터", "slotOrder": 0,
       "profileImageUrl": "https://cdn.example/profiles/uuid.jpg",
       "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-      "initialSceneUrl": "https://cdn.example/private/edited/11/e1.jpg?Expires=…&Signature=…&Key-Pair-Id=…",
-      "previewImageUrl": "https://cdn.example/private/edited/11/p1.jpg?Expires=…&Signature=…&Key-Pair-Id=…" },
+      "initialSceneUrl": "https://cdn.example/private/edited/11/31/e1.jpg?Expires=…&Signature=…&Key-Pair-Id=…",
+      "previewImageUrl": "https://cdn.example/private/edited/11/31/p1.jpg?Expires=…&Signature=…&Key-Pair-Id=…" },
     { "challengeParticipantSeq": 32, "artistSeq": 9, "name": "닝닝", "slotOrder": 1,
       "profileImageUrl": "https://cdn.example/profiles/uuid2.jpg",
       "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 },
@@ -981,6 +981,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 - `profileImageUrl` = 설명 시트(화면 3-2)의 참여자 아바타용. `users.profile_image_key` 를 응답 조립 시점에 CDN URL 로 바꾼 값이며 저장 컬럼이 아니다. 미등록이면 `null`.
 - **이미지 두 장은 서명 URL 이다** — 키가 `private/edited/…` 라 만료가 있고, 만료되면 이 API 를 다시 부른다.
 - **슬롯이 전부 잠긴 챌린지가 있을 수 있다.** 슬롯은 등록됐지만 AI 편집본이 아직 없는 상태로, 재생·표시는 정상이고 촬영만 막힌다. 일부만 비는 것도 **정상**이다.
+- **이 상태는 이제 모든 챌린지가 거쳐 간다** *(2026-09-22)*. 어드민 등록이 두 단계로 갈리면서(슬롯 먼저, 편집본은 §3.7.6 으로 뒤에) **등록 직후에는 예외 없이 전부 `null`** 이다. 계약이 바뀐 것은 아니고 — 위 두 줄이 이미 그 상태를 정상으로 적고 있다 — 지금까지 드물던 값이 흔해진다. 앱은 `initialSceneUrl` 유무로만 잠그면 된다.
 
 **실패 분기**
 

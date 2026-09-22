@@ -43,8 +43,9 @@ public class AdminChallengeController {
     private final AdminChallengeService adminChallengeService;
 
     @Operation(summary = "챌린지 등록",
-            description = "원본·슬롯·편집본을 한 트랜잭션에 all-or-nothing 으로 등록한다. "
-                    + "슬롯 n 개면 편집본 2ⁿ−1 개 전조합이 필수다.")
+            description = "원본과 슬롯을 한 트랜잭션에 all-or-nothing 으로 등록한다. "
+                    + "편집본은 여기로 들어오지 않는다 — 키가 슬롯 seq 를 품고 있어 "
+                    + "슬롯이 난 뒤 PATCH /challenge-participants/{seq}/edited 로 채운다.")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChallengeSlotsResponse> create(@AuthenticationPrincipal AuthenticatedAdmin admin,
@@ -76,7 +77,7 @@ public class AdminChallengeController {
     }
 
     @Operation(summary = "챌린지 상세",
-            description = "슬롯·편집본 매트릭스와 합성 잡 참조 수를 함께 준다.")
+            description = "슬롯과 그 편집본 키, 합성 잡 참조 수를 함께 준다.")
     @GetMapping("/{challengeSeq}")
     public ApiResponse<ChallengeDetailResponse> detail(@PathVariable Integer challengeSeq) {
         return ApiResponse.success(adminChallengeService.detail(challengeSeq));
@@ -93,8 +94,9 @@ public class AdminChallengeController {
     }
 
     @Operation(summary = "슬롯 구성 전체 교체",
-            description = "기존 슬롯·편집본을 하드 삭제하고 새 전조합으로 재생성한다. "
-                    + "합성 잡이 참조하는 편집본이 하나라도 있으면 409 EDITED_IN_USE 다.")
+            description = "기존 슬롯을 하드 삭제하고 재생성한다 — 슬롯 seq 가 새로 나므로 "
+                    + "편집본은 전부 비워지고 다시 올려야 한다. "
+                    + "합성 잡이 참조하는 슬롯이 하나라도 있으면 409 EDITED_IN_USE 다.")
     @PutMapping("/{challengeSeq}/participants")
     public ApiResponse<ChallengeSlotsResponse> replaceSlots(
             @AuthenticationPrincipal AuthenticatedAdmin admin,

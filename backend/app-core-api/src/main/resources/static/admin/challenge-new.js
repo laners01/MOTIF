@@ -1,10 +1,14 @@
 /*
  * 챌린지 등록 (어드민 명세 v0.5 §3.7, 부록 A) — S15P21D104-564 · 618.
  *
- * 부록 A 시퀀스: presign → S3 PUT → 슬롯 n개 입력(편집본 포함) → validate → 등록.
+ * 부록 A 시퀀스: presign → S3 PUT → 슬롯 n개 입력 → validate → 등록.
  * 길이·해상도는 <video> 가 읽어 폼에 싣는다(§1.4) — core-api 에 ffmpeg 가 없다.
  *
- * 2ⁿ−1 조합 표가 없어졌다(0019) — 편집본이 슬롯 1개당 1개라 슬롯 행이 곧 편집본 행이다.
+ * 2ⁿ−1 조합 표가 없어졌다(0019) — 편집본이 슬롯 1개당 1개다.
+ *
+ * 편집본 입력도 없어졌다(2026-09-22). 키가 private/edited/{challengeSeq}/{slotSeq}/…
+ * 라 슬롯 seq 를 품고 있어, 이 화면에서는 아직 자리를 정할 수 없다. 등록으로 슬롯을
+ * 만들고 나면 상세 화면이 슬롯별로 §3.7.6 을 부른다.
  *
  * 방향·길이 규칙(세로·≤60초 등)은 여기서 미리 막지 않는다. 수치는 서버 설정값
  * (motif.admin.media.rules)이고 VideoRules 가 소유한다 — 화면에 복사하면 한쪽만
@@ -12,7 +16,6 @@
  */
 
 const MAX_SLOTS = 4;        // §3.7.2 하드 상한 4 (기본안)
-const EDITED_KEYS = ['editedChallengeKey', 'initialSceneKey', 'previewImageKey', 'durationMs'];
 
 let artists = [];
 let videoKey = null;        // 업로드 완료된 원본 키
@@ -20,23 +23,16 @@ let meta = null;            // {durationMs, width, height}
 
 // ── 표 읽기 ────────────────────────────────────────────────────────────────
 
-/**
- * 슬롯 표 → participants. 배열 순서가 곧 화면 좌→우이자 {@code slotOrder} 다(§3.7.2).
- * 편집본 키도 같은 행에서 읽는다 — 그 사람을 지운 영상이 그 사람의 슬롯에 붙는다(0019).
- */
+/** 슬롯 표 → participants. 배열 순서가 곧 화면 좌→우이자 slotOrder 다(§3.7.2). */
 function readSlots() {
     const anchorOf = (tr) => Object.fromEntries(['x', 'y', 'r'].map((k) => {
         const v = tr.querySelector(`[data-k="${k}"]`).value;
         return [k, v === '' ? null : Number(v)];
     }));
-    return [...$('slots').rows].map((tr) => {
-        const val = (k) => tr.querySelector(`[data-k="${k}"]`).value.trim();
-        return {
-            artistSeq: Number(tr.querySelector('.slot-artist').value) || null,
-            anchor: anchorOf(tr),
-            ...Object.fromEntries(EDITED_KEYS.map((k) => [k, val(k)])),
-        };
-    });
+    return [...$('slots').rows].map((tr) => ({
+        artistSeq: Number(tr.querySelector('.slot-artist').value) || null,
+        anchor: anchorOf(tr),
+    }));
 }
 
 // ── 슬롯 ───────────────────────────────────────────────────────────────────
@@ -88,81 +84,20 @@ $('slots').addEventListener('input', (e) => {
     drawDots();
 });
 
-// ── 편집본 업로드 ──────────────────────────────────────────────────────────
-
-/**
- * 파일 → presign → S3 PUT → 옆 키 칸에 채운다(§3.2). AI팀이 키를 직접 주면
- * 텍스트 칸에 붙여도 된다 — 서버는 키만 받는다. 아직 challengeSeq 가 없어
- * edited/pending/ 아래로 발급된다. 영상은 <video> 로 길이를 읽어 durationMs 도 채운다 —
- * 서버가 원본 ±500ms 를 대조한다.
- */
-$('slots').addEventListener('change', async (e) => {
-    const input = e.target;
-    if (input.type !== 'file' || !input.files[0]) return;
-    const tr = input.closest('tr');
-    const keyInput = tr.querySelector(`[data-k="${input.dataset.for}"]`);
-    const file = input.files[0];
-    clearError($('err'));
-    input.disabled = true;
-    keyInput.value = '';
-    keyInput.placeholder = '업로드 중…';
-    try {
-        if (input.dataset.for === 'editedChallengeKey') {
-            const m = await videoMeta(file, document.createElement('video'));
-            tr.querySelector('[data-k="durationMs"]').value = m.durationMs;
-        }
-        keyInput.value = await upload(file, input.dataset.kind);
-    } catch (err) {
-        showError($('err'), err);
-    } finally {
-        input.disabled = false;
-        refresh();
-    }
-});
-
-/**
- * 슬롯별 편집본 입력 완료 표시 + 등록 버튼 잠금.
- *
- * **채운 슬롯만 편집본을 갖는다.** 비운 슬롯도 정상 등록된다 — 그 자리는 앱에서
- * 고를 수 없고(§7.2 `selectable: false`), 나중에 §3.7.6 으로 채운다.
- *
- * 막는 것은 **반쯤 채운 행**이다. 영상과 첫 장면은 짝이라 DB CHECK 가 한쪽만 있는 행을
- * 거부하고, 선택 화면만 올린 행은 고를 수 없는 그림이 남는다 — 서버 SlotRules 와 같은 규칙.
- */
-const rowDone = (r) => Boolean(r.editedChallengeKey && r.initialSceneKey);
-const rowEmpty = (r) => !r.editedChallengeKey && !r.initialSceneKey && !r.previewImageKey;
-
+/** 슬롯 입력 상태 표시 + 등록 버튼 잠금. 편집본은 여기서 다루지 않는다. */
 function refresh() {
     const rows = readSlots();
-    let filled = 0;
-    let half = 0;
-    rows.forEach((row, i) => {
-        const done = rowDone(row);
-        if (done) filled++;
-        else if (!rowEmpty(row)) half++;
-        const cell = $('slots').rows[i].querySelector('.done');
-        cell.textContent = done ? '✓' : '–';
-        cell.className = done ? 'done ok' : 'done muted';
-    });
-    // 편집본 없이 선택 화면만 올린 행 — 서버도 PREVIEW_WITHOUT_EDITED 로 막는다
-    const orphanPreview = rows.filter((r) => !r.editedChallengeKey && r.previewImageKey).length;
 
     const status = $('matrix-status');
-    if (rows.length === 0) {
-        status.textContent = '슬롯 0개(솔로) — 사용자가 교체해 들어갈 자리가 없다.';
-    } else if (filled === 0 && half === 0) {
-        status.textContent = `슬롯 ${rows.length}개 전부 편집본이 비어 있다 — 그대로 등록된다`
-            + '(촬영 불가, 표시 전용). 나중에 §3.7.6 으로 얹는다.';
-    } else {
-        status.textContent = `슬롯 ${rows.length}개 중 ${filled}개에 편집본이 있다 — 나머지는 앱에서 고를 수 없다`
-            + (half ? `. ${half}개 행은 덜 찼다 — 영상과 첫 장면을 함께 올리거나 셋 다 비워라` : '');
-    }
-    status.className = half ? 'err' : 'muted';
+    status.className = 'muted';
+    status.textContent = rows.length === 0
+        ? '슬롯 0개(솔로) — 사용자가 교체해 들어갈 자리가 없다.'
+        : `슬롯 ${rows.length}개. 등록하면 전부 편집본이 빈 상태로 나고`
+          + ' — 그때는 앱에서 고를 수 없다 — 상세 화면에서 슬롯별로 올린다(§3.7.6).';
 
     $('submit').disabled = !(videoKey && meta
         && $('artist').value && $('song').value && $('description').value.trim()
-        && rows.every((s) => s.artistSeq && Object.values(s.anchor).every((v) => v !== null))
-        && half === 0 && orphanPreview === 0);
+        && rows.every((s) => s.artistSeq && Object.values(s.anchor).every((v) => v !== null)));
 }
 
 function buildRequest() {
@@ -177,17 +112,7 @@ function buildRequest() {
         // 선택 — 없으면 워커가 1.5초를 쓴다. 서버가 durationMs 와 대조해
         // 영상 밖이면 THUMBNAIL_AT_OUT_OF_RANGE 로 막는다(§4.8)
         thumbnailAtMs: thumbnailAtMs(),
-        // 빈 키는 실어 보내지 않는다 — 빈 문자열이 가면 "편집본 있음" 으로 읽혀
-        // ck_challenge_participants_edited 에 걸린다
-        participants: readSlots().map((s) => ({
-            artistSeq: s.artistSeq,
-            anchor: s.anchor,
-            ...(s.editedChallengeKey ? {editedChallengeKey: s.editedChallengeKey} : {}),
-            ...(s.initialSceneKey ? {initialSceneKey: s.initialSceneKey} : {}),
-            ...(s.previewImageKey ? {previewImageKey: s.previewImageKey} : {}),
-            // 선택 — 넣으면 서버가 원본 ±500ms 를 대조한다(§3.7.2 검증 5)
-            ...(s.durationMs ? {durationMs: Number(s.durationMs)} : {}),
-        })),
+        participants: readSlots(),
     };
 }
 
@@ -305,10 +230,12 @@ $('submit').addEventListener('click', async () => {
         step('create', 'done');
         const detail = document.createElement('a');
         detail.href = `/admin/challenges/${created.challengeSeq}`;
-        detail.textContent = '상세 보기';
-        const withEdited = created.participants.filter((p) => p.hasEdited).length;
+        // 편집본은 여기서 못 올린다 — 상세 화면이 슬롯 seq 를 알아야 키 자리가 정해진다
+        detail.textContent = created.participants.length
+            ? '상세로 가서 편집본 올리기'
+            : '상세 보기';
         setResult(`등록 완료 — challengeSeq ${created.challengeSeq},`
-            + ` 슬롯 ${created.participants.length}개(편집본 ${withEdited}개). `, true, detail);
+            + ` 슬롯 ${created.participants.length}개(편집본은 아직 없다). `, true, detail);
     } catch (e) {
         step('create', 'fail');
         markSlots(e.data);

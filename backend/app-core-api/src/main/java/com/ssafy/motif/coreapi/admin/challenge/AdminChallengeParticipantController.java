@@ -35,7 +35,10 @@ public class AdminChallengeParticipantController {
     private final AdminChallengeService adminChallengeService;
 
     @Operation(summary = "슬롯 편집본 키 교체",
-            description = "같은 행의 편집본 키만 갱신한다(인물·순서 유지). 새 키 HEAD·길이 재검증을 하며, "
+            description = "같은 행의 편집본 키만 갱신한다(인물·순서 유지). "
+                    + "편집본이 들어오는 유일한 입구다 — 키가 private/edited/{challengeSeq}/"
+                    + "{challengeParticipantSeq}/ 아래여야 하고, 아니면 400 이다. "
+                    + "새 키 HEAD·길이 재검증을 하며, "
                     + "합성 잡이 참조 중이어도 허용된다 — 결과물은 별도 오브젝트다. "
                     + "편집본이 없던 슬롯을 채울 때는 editedChallengeKey·initialSceneKey 를 함께 보낸다.")
     @PatchMapping("/{challengeParticipantSeq}/edited")

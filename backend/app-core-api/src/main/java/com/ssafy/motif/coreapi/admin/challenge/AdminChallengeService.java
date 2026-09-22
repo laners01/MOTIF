@@ -331,18 +331,18 @@ public class AdminChallengeService {
     /**
      * 슬롯 INSERT — 등록(§3.7.2)과 슬롯 교체(§3.7.5)가 공유한다.
      *
-     * <p>편집본이 같은 행에 들어가므로 INSERT 가 한 종류다(0019). <b>배열 인덱스가 곧
-     * {@code slotOrder}</b> 이고, 그래서 어드민이 순서를 손으로 넣을 자리가 없다.
+     * <p><b>배열 인덱스가 곧 {@code slotOrder}</b> 이고, 그래서 어드민이 순서를 손으로
+     * 넣을 자리가 없다.
+     *
+     * <p><b>편집본은 비운 채로 만든다</b>(2026-09-22). 편집본 키가 이 행의 seq 를 품고
+     * 있어 INSERT 전에는 정할 수 없다 — 슬롯이 나고 나서 §3.7.6 으로 채운다.
      */
     void saveSlots(Integer challengeSeq, ChallengeSlotsRequest slots) {
         List<ParticipantRequest> participants = slots.participants();
         for (int i = 0; i < participants.size(); i++) {
             ParticipantRequest p = participants.get(i);
             participantRepository.save(ChallengeParticipant.of(
-                    challengeSeq, p.artistSeq(), i, toAnchor(p.anchor()),
-                    p.editedChallengeKey(), p.initialSceneKey(), p.previewImageKey(),
-                    // 편집본이 있으면 SlotRules 가 이미 필수로 확인했다
-                    p.durationMs() == null ? null : Math.toIntExact(p.durationMs())));
+                    challengeSeq, p.artistSeq(), i, toAnchor(p.anchor())));
         }
     }
 
@@ -399,7 +399,7 @@ public class AdminChallengeService {
                     "합성 잡이 참조 중인 슬롯: " + inUse, Map.of("challengeParticipantSeqs", inUse));
         }
 
-        verifySlots(challenge.getDurationMs(), slots, List.of());
+        verifySlots(slots, List.of());
 
         participantRepository.deleteByChallengeSeq(challengeSeq);
         // DELETE 를 INSERT 보다 먼저 DB 에 내보낸다 — 이유는 리포지토리 javadoc
@@ -440,12 +440,24 @@ public class AdminChallengeService {
                     "editedChallengeKey·initialSceneKey·previewImageKey 중 하나는 있어야 한다");
         }
         // HEAD 만으로는 옛 경로(edited/…)를 걸러내지 못한다 — 저장되면 §7.5·§7.6 이
-        // 서명 없이 내보낸다(0020). 등록(§3.7.2)은 SlotRules 가 같은 검사를 한다
+        // 서명 없이 내보낸다(0020). 여기가 편집본 키의 유일한 입구다(2026-09-22)
         List<String> unprotected = keys.stream().filter(k -> !MediaKeys.isProtected(k)).toList();
         if (!unprotected.isEmpty()) {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
                     "편집본 키는 보호 프리픽스여야 한다: " + unprotected,
                     List.of("EDITED_KEY_NOT_PROTECTED"));
+        }
+        // 그 슬롯 자리인지까지 본다 — presign 은 두 seq 로 키를 내주지만 이 API 는 키
+        // 문자열을 받으므로, 손으로 붙여 넣다 남의 슬롯 파일을 등록할 수 있다. 그러면
+        // 그 아티스트가 지워지지 않은 영상이 베이스가 되어 합성이 엉뚱한 사람을 교체한다
+        String expectedPrefix = AdminMediaKind.editedPrefix(
+                slot.getChallengeSeq(), challengeParticipantSeq);
+        List<String> misplaced = keys.stream().filter(k -> !k.startsWith(expectedPrefix)).toList();
+        if (!misplaced.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.INVALID_PARAMETER,
+                    "이 슬롯의 편집본 자리가 아니다 — expectedPrefix=" + expectedPrefix
+                            + " keys=" + misplaced,
+                    List.of("EDITED_KEY_NOT_IN_SLOT"));
         }
         // 편집본이 없던 슬롯은 영상·첫 장면을 함께 받아야 한다 — 한쪽만 채우면
         // ck_challenge_participants_edited 가 거부하고 500 으로 샌다
@@ -492,33 +504,22 @@ public class AdminChallengeService {
         videoRules.checkChallengeOrigin(new VideoRules.Meta(
                 request.durationMs(), request.width(), request.height()),
                 request.thumbnailAtMs());
-        verifySlots(request.durationMs(), request.slots(), List.of(request.videoKey()));
+        verifySlots(request.slots(), List.of(request.videoKey()));
     }
 
     /**
-     * 슬롯·편집본 검증 (§3.7.2 검증 2~5항) — 등록과 슬롯 교체(§3.7.5)가 공유한다.
+     * 슬롯 검증 (§3.7.2 검증 2~5항) — 등록과 슬롯 교체(§3.7.5)가 공유한다.
      *
-     * <p>0019 이후 편집본이 슬롯에 붙으므로 검증도 슬롯 배열 한 번을 훑는다. 조합 완결성
-     * ({@code EDITED_SET_INCOMPLETE})은 없어졌고, 키 짝 검사가 {@link SlotRules} 로 들어갔다.
+     * <p><b>편집본을 보지 않는다</b>(2026-09-22). 요청에 편집본 칸이 없어졌으므로 키
+     * HEAD 도 길이 대조도 §3.7.6 의 몫이다 — 같은 검사를 두 곳에 두면 한쪽만 고쳐졌을
+     * 때 어느 쪽이 맞는지 알 수 없다.
      *
-     * @param originDurationMs 편집본 길이를 대조할 원본 길이. 교체 시에는 기존 행의 값이다
-     * @param extraKeys        원본 키처럼 함께 HEAD 할 키 — 교체에서는 비어 있다(원본 재검증 없음)
+     * @param extraKeys 원본 키처럼 함께 HEAD 할 키 — 교체에서는 비어 있다(원본 재검증 없음)
      */
-    void verifySlots(long originDurationMs, ChallengeSlotsRequest slots, List<String> extraKeys) {
+    void verifySlots(ChallengeSlotsRequest slots, List<String> extraKeys) {
         SlotRules.checkParticipants(slots.participants());
         requireArtists(slots.participants().stream().map(ParticipantRequest::artistSeq).toList());
-
-        // 보내지 않은 키는 HEAD 목록에서 뺀다 — 편집본이 없는 슬롯은 정상이다
-        List<String> keys = new ArrayList<>(extraKeys);
-        slots.participants().forEach(p -> Stream.of(
-                        p.editedChallengeKey(), p.initialSceneKey(), p.previewImageKey())
-                .filter(Objects::nonNull)
-                .forEach(keys::add));
-        adminMediaService.requireUploaded(keys);
-
-        slots.participants().stream()
-                .filter(p -> p.durationMs() != null)
-                .forEach(p -> videoRules.checkEditedDuration(p.durationMs(), originDurationMs));
+        adminMediaService.requireUploaded(extraKeys);
     }
 
     /** 아티스트가 전부 존재하고 비삭제인지 — 개수 비교로 끝낸다(어느 것인지는 응답에 담지 않는다). */

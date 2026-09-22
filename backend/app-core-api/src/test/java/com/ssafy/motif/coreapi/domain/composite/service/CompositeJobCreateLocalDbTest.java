@@ -358,14 +358,16 @@ class CompositeJobCreateLocalDbTest {
      */
     private Integer newSlot(Integer challengeSeq, int slotOrder, boolean withEdited) {
         String uuid = UUID.randomUUID().toString();
-        return participantRepository.saveAndFlush(ChallengeParticipant.of(
-                        challengeSeq, newArtist(), slotOrder,
-                        new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995),
-                        withEdited ? "private/edited/" + uuid + "/e-" + slotOrder + ".mp4" : null,
-                        withEdited ? "private/edited/" + uuid + "/s-" + slotOrder + ".jpg" : null,
-                        withEdited ? "private/edited/" + uuid + "/p-" + slotOrder + ".jpg" : null,
-                        withEdited ? 15_000 : null))
-                .getChallengeParticipantSeq();
+        ChallengeParticipant slot = ChallengeParticipant.of(
+                challengeSeq, newArtist(), slotOrder,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995));
+        if (withEdited) {
+            // 슬롯이 먼저 나고 편집본이 뒤에 붙는다(§3.7.2 → §3.7.6)
+            slot.replaceEditedKeys("private/edited/" + uuid + "/e-" + slotOrder + ".mp4",
+                    "private/edited/" + uuid + "/s-" + slotOrder + ".jpg",
+                    "private/edited/" + uuid + "/p-" + slotOrder + ".jpg", 15_000);
+        }
+        return participantRepository.saveAndFlush(slot).getChallengeParticipantSeq();
     }
 
     private MotifAsset newAsset(AssetType type, boolean active) {

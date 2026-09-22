@@ -169,7 +169,8 @@ function refreshSlotSaveState() {
     $('slot-save-note').textContent = blank
         ? '아티스트를 고르지 않은 슬롯이 있다'
         : changed
-            ? '저장하면 슬롯 행이 다시 만들어진다 — 합성 잡이 슬롯을 쓰고 있으면 막힌다'
+            ? '저장하면 슬롯 행이 다시 만들어진다 — 편집본이 전부 비워지므로 다시 올려야 하고,'
+              + ' 합성 잡이 슬롯을 쓰고 있으면 막힌다'
             : '고친 곳이 없다';
 }
 
@@ -207,24 +208,18 @@ $('save-slots').addEventListener('click', async () => {
     clearError($('err'));
     $('save-slots').disabled = true;
     try {
+        // 편집본은 들고 가지 않는다(2026-09-22). §3.7.5 는 슬롯 행을 하드 삭제하고
+        // 다시 만들어 슬롯 seq 가 새로 나는데, 편집본 키가 그 seq 를 품고 있어 옛 키는
+        // 더 이상 제 자리를 가리키지 않는다 — 저장 뒤 §3.7.6 으로 다시 올린다
         const participants = [...$('slots').rows].map((tr) => {
             const now = tr.dataset.artistSeq && challenge.participants
                     .find((p) => String(p.artist.artistSeq) === tr.dataset.artistSeq);
-            // 아티스트를 바꾼 행은 편집본을 들고 가지 않는다 — 그 영상은 이전 사람을
-            // 지운 것이라 새 주인에게는 틀린 베이스다. 들고 가면 사용자가 A 를 골랐는데
-            // B 가 지워진 영상 위에 합성된다. 저장 뒤 §3.7.6 으로 다시 올린다
-            const keep = now && String(now.artist.artistSeq) === tr.querySelector('.artist').value;
             return {
                 artistSeq: Number(tr.querySelector('.artist').value),
                 // 앵커는 필수라 새 슬롯도 값을 실어야 한다. 한가운데를 임시로 두고
                 // 저장 뒤 썸네일 클릭으로 제자리를 찍는다(§3.7.9)
                 anchor: (now && now.anchor)
                     ?? {x: 0.5, y: 0.5, r: Number(tr.querySelector('.r').value)},
-                editedChallengeKey: keep ? now.editedChallengeKey : null,
-                initialSceneKey: keep ? now.initialSceneKey : null,
-                previewImageKey: keep ? now.previewImageKey : null,
-                // 편집본을 들고 가면 길이도 같이 가야 한다 — 서버가 짝으로 요구한다
-                durationMs: keep ? now.editedDurationMs : null,
             };
         });
         await api(`/challenges/${challengeSeq}/participants`,

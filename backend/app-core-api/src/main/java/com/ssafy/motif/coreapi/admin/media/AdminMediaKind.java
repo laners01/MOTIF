@@ -26,13 +26,13 @@ public enum AdminMediaKind {
      * {@code edited/} 로 되돌리면 서버는 서명을 붙이는데 CloudFront 가 검증하지 않아
      * 무서명 요청이 그대로 통과한다 — 예외도 로그도 없이 보호가 풀린다.
      */
-    EDITED_VIDEO(Category.VIDEO, "private/edited", ".mp4", true),
+    EDITED_VIDEO(Category.VIDEO, Prefixes.EDITED, ".mp4", true),
 
     /** {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.jpg} — 편집본 첫 장면. */
-    EDITED_SCENE(Category.IMAGE, "private/edited", ".jpg", true),
+    EDITED_SCENE(Category.IMAGE, Prefixes.EDITED, ".jpg", true),
 
     /** {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.jpg} — 슬롯 선택 화면 이미지(S15P21D104-618). 첫 장면과 같은 자리·다른 용도라 로그에서 구분되게 kind 만 나눈다. */
-    EDITED_PREVIEW(Category.IMAGE, "private/edited", ".jpg", true),
+    EDITED_PREVIEW(Category.IMAGE, Prefixes.EDITED, ".jpg", true),
 
     /** {@code assets/{uuid}.mp4} — 모티프 에셋 미리보기. */
     ASSET_VIDEO(Category.VIDEO, "assets", ".mp4", false),
@@ -51,6 +51,28 @@ public enum AdminMediaKind {
 
     /** 허용 Content-Type·크기 상한·만료가 갈리는 단위 (§1.4). */
     public enum Category { VIDEO, IMAGE }
+
+    /**
+     * 열거 상수가 쓰는 프리픽스 — <b>enum 은 자기 static 필드를 상수 인자로 못 쓴다</b>
+     * (상수가 static 초기화보다 먼저 만들어진다). 별도 클래스로 빼면 참조할 수 있다.
+     */
+    private static final class Prefixes {
+        static final String EDITED = "private/edited";
+
+        private Prefixes() {
+        }
+    }
+
+    /**
+     * 그 슬롯의 편집본이 놓이는 프리픽스 — {@code private/edited/{challengeSeq}/{slotSeq}/}.
+     *
+     * <p>{@link #objectKey} 와 <b>같은 규약을 쓴다</b>. §3.7.6 이 넘어온 키가 정말 그 슬롯
+     * 자리인지 대조하는 데 쓰는데, 조립과 검사가 각자 문자열을 만들면 한쪽만 고쳐졌을 때
+     * 검사가 통과하면서 키는 엉뚱한 자리를 가리킨다.
+     */
+    public static String editedPrefix(Integer challengeSeq, Integer challengeParticipantSeq) {
+        return Prefixes.EDITED + "/" + challengeSeq + "/" + challengeParticipantSeq + "/";
+    }
 
     private final Category category;
     private final String prefix;
@@ -104,6 +126,6 @@ public enum AdminMediaKind {
             throw new IllegalArgumentException(
                     "%s 는 challengeSeq·challengeParticipantSeq 가 필요하다".formatted(this));
         }
-        return prefix + "/" + challengeSeq + "/" + challengeParticipantSeq + "/" + uuid + extension;
+        return editedPrefix(challengeSeq, challengeParticipantSeq) + uuid + extension;
     }
 }

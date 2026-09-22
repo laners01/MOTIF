@@ -135,30 +135,26 @@ public class ChallengeParticipant extends BaseTimeEntity {
     }
 
     private ChallengeParticipant(Integer challengeSeq, Integer artistSeq, int slotOrder,
-                                 Anchor anchor, String editedChallengeKey,
-                                 String initialSceneKey, String previewImageKey,
-                                 Integer editedDurationMs) {
+                                 Anchor anchor) {
         this.challengeSeq = challengeSeq;
         this.artistSeq = artistSeq;
         this.slotOrder = slotOrder;
         this.anchor = anchor;
-        this.editedChallengeKey = editedChallengeKey;
-        this.initialSceneKey = initialSceneKey;
-        this.previewImageKey = previewImageKey;
-        this.editedDurationMs = editedDurationMs;
     }
 
     /**
-     * @param editedChallengeKey 편집본이 없으면 {@code null} — {@code initialSceneKey} 도 함께
-     *                           {@code null} 이어야 한다(DB CHECK)
-     * @param editedDurationMs   편집본 길이. 편집본이 있으면 서비스가 필수로 받는다(§3.7.2)
+     * 슬롯 하나 — <b>편집본은 비운 채로 난다</b> (§3.7.2 · 2026-09-22).
+     *
+     * <p>편집본 키가 {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/…} 라
+     * 이 행의 seq 에 매여 있다. 행이 생기기 전에는 키를 정할 수 없으므로 생성 시점에
+     * 채울 방법이 없다 — {@link #replaceEditedKeys}(§3.7.6)가 유일한 입구다.
+     *
+     * <p>편집본이 빈 슬롯은 정상이다. 사용자가 그 슬롯을 고르면 §13.1 이 404 로 막고,
+     * §7.5 는 {@code initialSceneUrl: null} 로 내보낸다.
      */
     public static ChallengeParticipant of(Integer challengeSeq, Integer artistSeq, int slotOrder,
-                                          Anchor anchor, String editedChallengeKey,
-                                          String initialSceneKey, String previewImageKey,
-                                          Integer editedDurationMs) {
-        return new ChallengeParticipant(challengeSeq, artistSeq, slotOrder, anchor,
-                editedChallengeKey, initialSceneKey, previewImageKey, editedDurationMs);
+                                          Anchor anchor) {
+        return new ChallengeParticipant(challengeSeq, artistSeq, slotOrder, anchor);
     }
 
     /** 앵커만 고친다(§3.7.9) — 슬롯 구성·순서는 그대로라 편집본·합성에 영향이 없다. */
