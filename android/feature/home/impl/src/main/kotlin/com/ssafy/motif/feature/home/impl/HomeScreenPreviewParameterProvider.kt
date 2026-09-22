@@ -6,7 +6,7 @@ import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.home.Notice
+import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.model.home.Onstage
 import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.ui.comment.CommentPage

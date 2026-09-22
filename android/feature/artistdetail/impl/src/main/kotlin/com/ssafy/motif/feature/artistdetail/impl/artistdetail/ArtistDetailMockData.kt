@@ -5,7 +5,7 @@ import com.ssafy.motif.core.model.artist.ArtistDetail
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.home.Notice
+import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.model.motif.Motif
 
 internal object ArtistDetailMockData {

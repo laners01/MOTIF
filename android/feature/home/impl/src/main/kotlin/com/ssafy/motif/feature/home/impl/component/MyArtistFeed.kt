@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.Motif
-import com.ssafy.motif.core.model.home.Notice
+import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.ui.motif.MotifCard
 import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedItem

@@ -1,4 +1,4 @@
-package com.ssafy.motif.core.model.home
+package com.ssafy.motif.core.model.notice
 
 import com.ssafy.motif.core.model.artist.Artist
 
