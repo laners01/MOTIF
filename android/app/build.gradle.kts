@@ -27,6 +27,8 @@ dependencies {
     implementation(projects.feature.mypage.impl)
     implementation(projects.feature.motif.api)
     implementation(projects.feature.motif.impl)
+    implementation(projects.feature.capture.api)
+    implementation(projects.feature.capture.impl)
 
     implementation(projects.core.data)
     implementation(projects.core.designsystem)

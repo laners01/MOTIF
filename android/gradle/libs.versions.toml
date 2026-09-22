@@ -60,6 +60,7 @@ media3 = "1.11.0"
 
 # Test
 junit = "4.13.2"
+segmentationSelfie = "16.0.0-beta6"
 turbine = "1.2.1"
 truth = "1.4.5"
 androidxTestCore = "1.5.0"
@@ -195,6 +196,7 @@ firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging
 
 # Unit Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+segmentation-selfie = { module = "com.google.mlkit:segmentation-selfie", version.ref = "segmentationSelfie" }
 truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }

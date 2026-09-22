@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_select_position">참여할 위치를 선택해주세요</string>
+    <string name="capture_start_challenge">Start Challenge</string>
+    <string name="capture_back">뒤로가기</string>
+    <string name="capture_here">Here!</string>
+    <string name="capture_retry">Retry</string>
+    <string name="capture_processing_title">AI가 영상을 만들고 있어요</string>
+    <string name="capture_processing_description">완성되는 동안 다른 챌린지를 둘러보세요\n영상이 완성되면 알림으로 알려드릴게요</string>
+    <string name="capture_browse_challenge">챌린지 둘러보기</string>
+</resources>
