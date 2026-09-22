@@ -2,6 +2,7 @@ package com.ssafy.motif.feature.home.impl
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.artist.RankedArtist
 import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
 import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSong
@@ -132,68 +133,53 @@ private val previewChallengeParticipationSummaryItems = listOf(
     ),
 )
 
-private val previewChallengeRanks = listOf(
-    ChallengeRank(
-        challengeId = 1L,
-        rank = 1L,
+private val previewRankedArtists = listOf(
+    RankedArtist(
         artist = Artist(
             id = 1L,
             name = "카리나",
             profileImageUrl = "https://picsum.photos/seed/karina/200",
             groupName = "aespa",
         ),
-        song = ChallengeSong(
-            title = "Supernova",
-            artistName = "aespa",
-        ),
-        rankDelta = 0L,
+        rank = 1,
+        rankDelta = 0,
+        isSubscribed = true,
     ),
-    ChallengeRank(
-        challengeId = 2L,
-        rank = 2L,
+    RankedArtist(
         artist = Artist(
             id = 2L,
             name = "지수",
             profileImageUrl = "https://picsum.photos/seed/jisoo/200",
             groupName = "BLACKPINK",
         ),
-        song = ChallengeSong(
-            title = "Flower",
-            artistName = "지수",
-        ),
-        rankDelta = 0L,
+        rank = 2,
+        rankDelta = 1,
+        isSubscribed = false,
     ),
-    ChallengeRank(
-        challengeId = 3L,
-        rank = 3L,
+    RankedArtist(
         artist = Artist(
             id = 3L,
             name = "이채영",
             profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
             groupName = "프로미스나인",
         ),
-        song = ChallengeSong(
-            title = "Supersonic",
-            artistName = "프로미스나인",
-        ),
-        rankDelta = 0L,
+        rank = 3,
+        rankDelta = -1,
+        isSubscribed = true,
     ),
-    ChallengeRank(
-        challengeId = 4L,
-        rank = 4L,
+    RankedArtist(
         artist = Artist(
             id = 4L,
             name = "오해원",
             profileImageUrl = "https://picsum.photos/seed/haewon/200",
             groupName = "NMIXX",
         ),
-        song = ChallengeSong(
-            title = "DASH",
-            artistName = "NMIXX",
-        ),
-        rankDelta = 0L,
+        rank = 4,
+        rankDelta = null,
+        isSubscribed = false,
     ),
 )
+
 
 private val previewNotices = listOf(
     Notice(
@@ -301,7 +287,7 @@ private val previewOnstageUiState =
 
 private val previewFanRadarUiState =
     FanRadarUiState.Success(
-        artists = previewChallengeRanks,
+        artists = previewRankedArtists,
     )
 
 private val previewMyArtistFeedUiState =

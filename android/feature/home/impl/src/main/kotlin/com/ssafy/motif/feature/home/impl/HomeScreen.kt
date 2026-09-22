@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.ClickableSurface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
@@ -48,6 +50,60 @@ import com.ssafy.motif.feature.home.impl.model.OnstageUiState
 
 @Composable
 internal fun HomeScreen(
+    onOnstageClick: (Long) -> Unit,
+    onFanRadarClick: () -> Unit,
+    onArtistClick: (Long) -> Unit,
+    onMotifClick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
+    val onstageUiState by
+    viewModel.onstageUiState.collectAsStateWithLifecycle()
+
+    val fanRadarUiState by
+    viewModel.fanRadarUiState.collectAsStateWithLifecycle()
+
+    val myArtistFeedUiState by
+    viewModel.myArtistFeedUiState.collectAsStateWithLifecycle()
+
+    val commentUiState by
+    viewModel.commentUiState.collectAsStateWithLifecycle()
+
+    HomeScreen(
+        onstageUiState = onstageUiState,
+        fanRadarUiState = fanRadarUiState,
+        myArtistFeedUiState = myArtistFeedUiState,
+        commentUiState = commentUiState,
+        onOnstageClick = onOnstageClick,
+        onFanRadarClick = onFanRadarClick,
+        onArtistClick = onArtistClick,
+        onMotifClick = onMotifClick,
+
+        // TODO NoticeRepository 연결 후 교체
+        onNoticeLikeClick = {},
+        onNoticeCommentClick = {},
+
+        // TODO CommentRepository 연결 후 교체
+        onCommentLikeClick = {},
+        onReplyClick = {},
+        onCommentBackClick = {},
+        onCommentSendClick = {},
+
+        // TODO My Artist Feed Repository 연결 후 교체
+        onLoadMoreMyArtistFeed = {},
+
+        onOnstageRetryClick = viewModel::retryOnstage,
+        onFanRadarRetryClick = viewModel::retryFanRadar,
+
+        // TODO My Artist Feed Repository 연결 후 교체
+        onMyArtistFeedRetryClick = {},
+        onMyArtistFeedLoadMoreRetryClick = {},
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun HomeScreen(
     onstageUiState: OnstageUiState,
     fanRadarUiState: FanRadarUiState,
     myArtistFeedUiState: MyArtistFeedUiState,
