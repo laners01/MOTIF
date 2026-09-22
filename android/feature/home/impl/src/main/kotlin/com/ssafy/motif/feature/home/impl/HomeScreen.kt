@@ -78,24 +78,21 @@ internal fun HomeScreen(
         onFanRadarClick = onFanRadarClick,
         onArtistClick = onArtistClick,
         onMotifClick = onMotifClick,
+        onNoticeLikeClick = viewModel::toggleNoticeLike,
+        onNoticeCommentClick = viewModel::loadNoticeComments,
+        onCommentLikeClick = viewModel::toggleCommentLike,
+        onReplyClick = viewModel::loadReplies,
+        onCommentBackClick = viewModel::backToComments,
+        onCommentSendClick = viewModel::sendComment,
+        onCommentDismiss = viewModel::dismissComments,
 
-        // TODO NoticeRepository 연결 후 교체
-        onNoticeLikeClick = {},
-        onNoticeCommentClick = {},
-
-        // TODO CommentRepository 연결 후 교체
-        onCommentLikeClick = {},
-        onReplyClick = {},
-        onCommentBackClick = {},
-        onCommentSendClick = {},
-
-        // TODO My Artist Feed Repository 연결 후 교체
+        // TODO My Artist Feed Repository 연결
         onLoadMoreMyArtistFeed = {},
 
         onOnstageRetryClick = viewModel::retryOnstage,
         onFanRadarRetryClick = viewModel::retryFanRadar,
 
-        // TODO My Artist Feed Repository 연결 후 교체
+        // TODO My Artist Feed Repository 연결
         onMyArtistFeedRetryClick = {},
         onMyArtistFeedLoadMoreRetryClick = {},
         modifier = modifier,
@@ -118,6 +115,7 @@ private fun HomeScreen(
     onReplyClick: (Long) -> Unit,
     onCommentBackClick: () -> Unit,
     onCommentSendClick: (String) -> Unit,
+    onCommentDismiss: () -> Unit,
     onLoadMoreMyArtistFeed: () -> Unit,
     onOnstageRetryClick: () -> Unit,
     onFanRadarRetryClick: () -> Unit,
@@ -141,10 +139,13 @@ private fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MotifTheme.colors.background)
+            .background(
+                MotifTheme.colors.background,
+            )
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(
-                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                    WindowInsetsSides.Top +
+                            WindowInsetsSides.Horizontal,
                 ),
             ),
     ) {
@@ -161,10 +162,14 @@ private fun HomeScreen(
                 selectedNoticeId = noticeId
                 onNoticeCommentClick(noticeId)
             },
-            onLoadMoreMyArtistFeed = onLoadMoreMyArtistFeed,
-            onOnstageRetryClick = onOnstageRetryClick,
-            onFanRadarRetryClick = onFanRadarRetryClick,
-            onMyArtistFeedRetryClick = onMyArtistFeedRetryClick,
+            onLoadMoreMyArtistFeed =
+                onLoadMoreMyArtistFeed,
+            onOnstageRetryClick =
+                onOnstageRetryClick,
+            onFanRadarRetryClick =
+                onFanRadarRetryClick,
+            onMyArtistFeedRetryClick =
+                onMyArtistFeedRetryClick,
             onMyArtistFeedLoadMoreRetryClick =
                 onMyArtistFeedLoadMoreRetryClick,
             modifier = Modifier.fillMaxSize(),
@@ -176,11 +181,13 @@ private fun HomeScreen(
                 state = commentUiState,
                 onDismissRequest = {
                     selectedNoticeId = null
+                    onCommentDismiss()
                 },
                 onLikeClick = onCommentLikeClick,
                 onReplyClick = onReplyClick,
                 onBackClick = onCommentBackClick,
-                onCommentSendClick = onCommentSendClick,
+                onCommentSendClick =
+                    onCommentSendClick,
             )
         }
     }
@@ -207,13 +214,13 @@ private fun HomeContent(
     val listState = rememberLazyListState()
 
     val feedSuccessState =
-        myArtistFeedUiState as? MyArtistFeedUiState.Success
+        myArtistFeedUiState as?
+                MyArtistFeedUiState.Success
 
     val canLoadMore =
-        feedSuccessState?.let { state ->
-            state.hasNext &&
-                    state.appendState is FeedAppendUiState.Idle
-        } == true
+        feedSuccessState?.run {
+            hasNext && appendState is FeedAppendUiState.Idle
+        } ?: false
 
     val shouldLoadMore by remember(
         listState,
@@ -224,7 +231,9 @@ private fun HomeContent(
                 return@derivedStateOf false
             }
 
-            val layoutInfo = listState.layoutInfo
+            val layoutInfo =
+                listState.layoutInfo
+
             val lastVisibleItemIndex =
                 layoutInfo.visibleItemsInfo
                     .lastOrNull()
@@ -233,11 +242,14 @@ private fun HomeContent(
 
             layoutInfo.totalItemsCount > 0 &&
                     lastVisibleItemIndex >=
-                    layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+                    layoutInfo.totalItemsCount -
+                    LOAD_MORE_THRESHOLD
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(
+        shouldLoadMore,
+    ) {
         if (shouldLoadMore) {
             onLoadMoreMyArtistFeed()
         }
@@ -249,7 +261,10 @@ private fun HomeContent(
         contentPadding = PaddingValues(
             bottom = 32.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                16.dp,
+            ),
     ) {
         item(
             key = "hot-title",
@@ -258,7 +273,8 @@ private fun HomeContent(
             Text(
                 text = "HOT 🔥",
                 color = MotifTheme.colors.typo,
-                style = MotifTheme.typography.titleB22,
+                style =
+                    MotifTheme.typography.titleB22,
                 modifier = Modifier.padding(
                     horizontal = 20.dp,
                 ),
@@ -276,17 +292,22 @@ private fun HomeContent(
 
                 is OnstageUiState.Success -> {
                     OnstageCarousel(
-                        items = onstageUiState.items,
-                        onVideoClick = onOnstageClick,
+                        items =
+                            onstageUiState.items,
+                        onVideoClick =
+                            onOnstageClick,
                     )
                 }
 
                 is OnstageUiState.Error -> {
                     SectionErrorContent(
-                        onRetryClick = onOnstageRetryClick,
+                        onRetryClick =
+                            onOnstageRetryClick,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(
+                                horizontal = 16.dp,
+                            ),
                     )
                 }
             }
@@ -307,8 +328,10 @@ private fun HomeContent(
 
                 is FanRadarUiState.Success -> {
                     FanRadar(
-                        artists = fanRadarUiState.artists,
-                        onClick = onFanRadarClick,
+                        artists =
+                            fanRadarUiState.artists,
+                        onClick =
+                            onFanRadarClick,
                         modifier = Modifier.padding(
                             horizontal = 16.dp,
                         ),
@@ -317,10 +340,13 @@ private fun HomeContent(
 
                 is FanRadarUiState.Error -> {
                     SectionErrorContent(
-                        onRetryClick = onFanRadarRetryClick,
+                        onRetryClick =
+                            onFanRadarRetryClick,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(
+                                horizontal = 16.dp,
+                            ),
                     )
                 }
             }
@@ -329,8 +355,10 @@ private fun HomeContent(
         when (myArtistFeedUiState) {
             MyArtistFeedUiState.Loading -> {
                 item(
-                    key = "my-artist-feed-loading",
-                    contentType = "my-artist-feed-loading",
+                    key =
+                        "my-artist-feed-loading",
+                    contentType =
+                        "my-artist-feed-loading",
                 ) {
                     FeedLoadingContent()
                 }
@@ -338,34 +366,49 @@ private fun HomeContent(
 
             is MyArtistFeedUiState.Error -> {
                 item(
-                    key = "my-artist-feed-error",
-                    contentType = "my-artist-feed-error",
+                    key =
+                        "my-artist-feed-error",
+                    contentType =
+                        "my-artist-feed-error",
                 ) {
                     SectionErrorContent(
-                        onRetryClick = onMyArtistFeedRetryClick,
+                        onRetryClick =
+                            onMyArtistFeedRetryClick,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(
+                                horizontal = 16.dp,
+                            ),
                     )
                 }
             }
 
             is MyArtistFeedUiState.Success -> {
                 myArtistFeed(
-                    items = myArtistFeedUiState.items,
-                    onArtistClick = onArtistClick,
-                    onMotifClick = onMotifClick,
-                    onNoticeLikeClick = onNoticeLikeClick,
-                    onNoticeCommentClick = onNoticeCommentClick,
+                    items =
+                        myArtistFeedUiState.items,
+                    onArtistClick =
+                        onArtistClick,
+                    onMotifClick =
+                        onMotifClick,
+                    onNoticeLikeClick =
+                        onNoticeLikeClick,
+                    onNoticeCommentClick =
+                        onNoticeCommentClick,
                 )
 
-                when (myArtistFeedUiState.appendState) {
+                when (
+                    myArtistFeedUiState
+                        .appendState
+                ) {
                     FeedAppendUiState.Idle -> Unit
 
                     FeedAppendUiState.Loading -> {
                         item(
-                            key = "my-artist-feed-loading-more",
-                            contentType = "my-artist-feed-loading-more",
+                            key =
+                                "my-artist-feed-loading-more",
+                            contentType =
+                                "my-artist-feed-loading-more",
                         ) {
                             FeedLoadingMoreContent()
                         }
@@ -373,8 +416,10 @@ private fun HomeContent(
 
                     is FeedAppendUiState.Error -> {
                         item(
-                            key = "my-artist-feed-load-more-error",
-                            contentType = "my-artist-feed-load-more-error",
+                            key =
+                                "my-artist-feed-load-more-error",
+                            contentType =
+                                "my-artist-feed-load-more-error",
                         ) {
                             FeedLoadMoreErrorContent(
                                 onRetryClick =
@@ -395,9 +440,14 @@ private fun OnstageLoadingContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 40.dp)
-            .aspectRatio(9f / 16f),
-        contentAlignment = Alignment.Center,
+            .padding(
+                horizontal = 40.dp,
+            )
+            .aspectRatio(
+                9f / 16f,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -410,8 +460,11 @@ private fun FanRadarLoadingContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(112.dp),
-        contentAlignment = Alignment.Center,
+            .height(
+                112.dp,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -424,8 +477,11 @@ private fun FeedLoadingContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(180.dp),
-        contentAlignment = Alignment.Center,
+            .height(
+                180.dp,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -438,8 +494,11 @@ private fun FeedLoadingMoreContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        contentAlignment = Alignment.Center,
+            .padding(
+                vertical = 24.dp,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -452,7 +511,8 @@ private fun LoadingText(
     Text(
         text = "불러오는 중...",
         color = MotifTheme.colors.typo,
-        style = MotifTheme.typography.bodyR16,
+        style =
+            MotifTheme.typography.bodyR16,
         modifier = modifier,
     )
 }
@@ -466,12 +526,15 @@ private fun SectionErrorContent(
         modifier = modifier.padding(
             vertical = 24.dp,
         ),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "데이터를 불러오지 못했어요.",
+            text =
+                "데이터를 불러오지 못했어요.",
             color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.bodyR16,
+            style =
+                MotifTheme.typography.bodyR16,
         )
 
         RetryButton(
@@ -491,13 +554,18 @@ private fun FeedLoadMoreErrorContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(
+                vertical = 20.dp,
+            ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "추가 콘텐츠를 불러오지 못했어요.",
+            text =
+                "추가 콘텐츠를 불러오지 못했어요.",
             color = MotifTheme.colors.typo,
-            style = MotifTheme.typography.bodyR16,
+            style =
+                MotifTheme.typography.bodyR16,
         )
 
         RetryButton(
@@ -517,13 +585,16 @@ private fun RetryButton(
     ClickableSurface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(
+            8.dp,
+        ),
         color = Color.Transparent,
     ) {
         Text(
             text = "다시 시도",
             color = MotifTheme.colors.white,
-            style = MotifTheme.typography.bodySB16,
+            style =
+                MotifTheme.typography.bodySB16,
             modifier = Modifier.padding(
                 horizontal = 16.dp,
                 vertical = 8.dp,
@@ -532,18 +603,26 @@ private fun RetryButton(
     }
 }
 
-@Preview(showBackground = true)
+@Preview(
+    showBackground = true,
+)
 @Composable
 private fun HomeScreenPreview(
-    @PreviewParameter(HomeScreenPreviewParameterProvider::class)
+    @PreviewParameter(
+        HomeScreenPreviewParameterProvider::class,
+    )
     previewData: HomeScreenPreviewData,
 ) {
     MotifTheme {
         HomeScreen(
-            onstageUiState = previewData.onstageUiState,
-            fanRadarUiState = previewData.fanRadarUiState,
-            myArtistFeedUiState = previewData.myArtistFeedUiState,
-            commentUiState = previewData.commentUiState,
+            onstageUiState =
+                previewData.onstageUiState,
+            fanRadarUiState =
+                previewData.fanRadarUiState,
+            myArtistFeedUiState =
+                previewData.myArtistFeedUiState,
+            commentUiState =
+                previewData.commentUiState,
             onOnstageClick = {},
             onFanRadarClick = {},
             onArtistClick = {},
@@ -554,6 +633,7 @@ private fun HomeScreenPreview(
             onReplyClick = {},
             onCommentBackClick = {},
             onCommentSendClick = {},
+            onCommentDismiss = {},
             onLoadMoreMyArtistFeed = {},
             onOnstageRetryClick = {},
             onFanRadarRetryClick = {},
