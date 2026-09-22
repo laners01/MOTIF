@@ -29,58 +29,86 @@ class CompositeJobClient @Inject constructor(
     ): CreateCompositeJobResponse =
         compositeJobService
             .createCompositeJob(
-                request = CreateCompositeJobRequest(
-                    jobType = CompositeJobType.CHALLENGE,
-                    challengeSeq = challengeId,
-                    challengeParticipantSeq =
-                        challengeParticipantId,
-                    contentLength = contentLength,
-                ),
+                request =
+                    CreateCompositeJobRequest(
+                        jobType =
+                            CompositeJobType.CHALLENGE,
+                        challengeSeq =
+                            challengeId,
+                        challengeParticipantSeq =
+                            challengeParticipantId,
+                        contentLength =
+                            contentLength,
+                    ),
             )
             .data
 
     suspend fun uploadVideo(
         uploadUrl: String,
         videoFile: File,
+        onProgress: (Int) -> Unit = {},
     ) {
-        require(videoFile.exists()) {
+        require(
+            videoFile.exists(),
+        ) {
             "Video file does not exist."
         }
 
-        require(videoFile.isFile) {
+        require(
+            videoFile.isFile,
+        ) {
             "Video path is not a file."
         }
 
-        require(videoFile.length() > 0L) {
+        require(
+            videoFile.length() > 0L,
+        ) {
             "Video file is empty."
         }
 
-        val requestBody =
+        val fileRequestBody =
             videoFile.asRequestBody(
                 VIDEO_MP4_MEDIA_TYPE,
+            )
+
+        val requestBody =
+            ProgressRequestBody(
+                delegate =
+                    fileRequestBody,
+                onProgress =
+                    onProgress,
             )
 
         val request =
             Request
                 .Builder()
-                .url(uploadUrl)
-                .put(requestBody)
+                .url(
+                    uploadUrl,
+                )
+                .put(
+                    requestBody,
+                )
                 .header(
                     CONTENT_TYPE_HEADER,
                     VIDEO_MP4,
                 )
                 .header(
                     CONTENT_LENGTH_HEADER,
-                    videoFile.length()
+                    videoFile
+                        .length()
                         .toString(),
                 )
                 .build()
 
         uploadHttpClient
-            .newCall(request)
+            .newCall(
+                request,
+            )
             .execute()
             .use { response ->
-                if (!response.isSuccessful) {
+                if (
+                    !response.isSuccessful
+                ) {
                     throw IOException(
                         "Video upload failed. " +
                                 "HTTP ${response.code}",
@@ -95,7 +123,8 @@ class CompositeJobClient @Inject constructor(
     ): RequestCompositeJobResponse =
         compositeJobService
             .requestCompositeJob(
-                jobUuid = jobUuid,
+                jobUuid =
+                    jobUuid,
                 request =
                     RequestCompositeJobRequest(
                         correctionEnabled =
@@ -109,7 +138,8 @@ class CompositeJobClient @Inject constructor(
     ): CompositeJobResponse =
         compositeJobService
             .getCompositeJob(
-                jobUuid = jobUuid,
+                jobUuid =
+                    jobUuid,
             )
             .data
 
@@ -118,12 +148,14 @@ class CompositeJobClient @Inject constructor(
     ): RetryCompositeJobResponse =
         compositeJobService
             .retryCompositeJob(
-                jobUuid = jobUuid,
+                jobUuid =
+                    jobUuid,
             )
             .data
 
     private companion object {
-        const val VIDEO_MP4 = "video/mp4"
+        const val VIDEO_MP4 =
+            "video/mp4"
 
         const val CONTENT_TYPE_HEADER =
             "Content-Type"
