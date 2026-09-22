@@ -6,6 +6,7 @@ import com.ssafy.motif.core.network.auth.AccessTokenInterceptor
 import com.ssafy.motif.core.network.service.artist.ArtistService
 import com.ssafy.motif.core.network.service.challenge.ChallengeService
 import com.ssafy.motif.core.network.service.comment.CommentService
+import com.ssafy.motif.core.network.service.composite.CompositeJobService
 import com.ssafy.motif.core.network.service.notice.NoticeService
 import dagger.Module
 import dagger.Provides
@@ -38,7 +39,9 @@ internal object NetworkModule {
     ): OkHttpClient =
         OkHttpClient
             .Builder()
-            .addInterceptor(accessTokenInterceptor)
+            .addInterceptor(
+                accessTokenInterceptor,
+            )
             .connectTimeout(
                 NETWORK_TIMEOUT_SECONDS,
                 TimeUnit.SECONDS,
@@ -54,16 +57,40 @@ internal object NetworkModule {
             .apply {
                 if (BuildConfig.DEBUG) {
                     addNetworkInterceptor(
-                        HttpLoggingInterceptor().apply {
-                            level = HttpLoggingInterceptor.Level.BODY
+                        HttpLoggingInterceptor()
+                            .apply {
+                                level =
+                                    HttpLoggingInterceptor
+                                        .Level
+                                        .BODY
 
-                            redactHeader(
-                                AUTHORIZATION_HEADER,
-                            )
-                        },
+                                redactHeader(
+                                    AUTHORIZATION_HEADER,
+                                )
+                            },
                     )
                 }
             }
+            .build()
+
+    @Provides
+    @Singleton
+    @UploadHttpClient
+    fun provideUploadHttpClient(): OkHttpClient =
+        OkHttpClient
+            .Builder()
+            .connectTimeout(
+                NETWORK_TIMEOUT_SECONDS,
+                TimeUnit.SECONDS,
+            )
+            .readTimeout(
+                UPLOAD_TIMEOUT_MINUTES,
+                TimeUnit.MINUTES,
+            )
+            .writeTimeout(
+                UPLOAD_TIMEOUT_MINUTES,
+                TimeUnit.MINUTES,
+            )
             .build()
 
     @Provides
@@ -74,11 +101,16 @@ internal object NetworkModule {
     ): Retrofit =
         Retrofit
             .Builder()
-            .baseUrl(NetworkConfig.BASE_URL)
-            .client(okHttpClient)
+            .baseUrl(
+                NetworkConfig.BASE_URL,
+            )
+            .client(
+                okHttpClient,
+            )
             .addConverterFactory(
                 json.asConverterFactory(
-                    CONTENT_TYPE_JSON.toMediaType(),
+                    CONTENT_TYPE_JSON
+                        .toMediaType(),
                 ),
             )
             .build()
@@ -88,30 +120,52 @@ internal object NetworkModule {
     fun provideNoticeService(
         retrofit: Retrofit,
     ): NoticeService =
-        retrofit.create(NoticeService::class.java)
+        retrofit.create(
+            NoticeService::class.java,
+        )
 
     @Provides
     @Singleton
     fun provideChallengeService(
         retrofit: Retrofit,
     ): ChallengeService =
-        retrofit.create(ChallengeService::class.java)
+        retrofit.create(
+            ChallengeService::class.java,
+        )
 
     @Provides
     @Singleton
     fun provideArtistService(
         retrofit: Retrofit,
     ): ArtistService =
-        retrofit.create(ArtistService::class.java)
+        retrofit.create(
+            ArtistService::class.java,
+        )
 
     @Provides
     @Singleton
     fun provideCommentService(
         retrofit: Retrofit,
     ): CommentService =
-        retrofit.create(CommentService::class.java)
+        retrofit.create(
+            CommentService::class.java,
+        )
+
+    @Provides
+    @Singleton
+    fun provideCompositeJobService(
+        retrofit: Retrofit,
+    ): CompositeJobService =
+        retrofit.create(
+            CompositeJobService::class.java,
+        )
 
     private const val NETWORK_TIMEOUT_SECONDS = 30L
-    private const val CONTENT_TYPE_JSON = "application/json"
-    private const val AUTHORIZATION_HEADER = "Authorization"
+    private const val UPLOAD_TIMEOUT_MINUTES = 5L
+
+    private const val CONTENT_TYPE_JSON =
+        "application/json"
+
+    private const val AUTHORIZATION_HEADER =
+        "Authorization"
 }

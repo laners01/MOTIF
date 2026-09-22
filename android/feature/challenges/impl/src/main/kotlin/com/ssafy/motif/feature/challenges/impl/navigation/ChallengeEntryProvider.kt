@@ -11,16 +11,25 @@ fun EntryProviderScope<NavKey>.challengeEntry(
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
     onArtistClick: (Long) -> Unit,
-    onCaptureClick: (Long) -> Unit,
+    onCaptureClick: (
+        challengeId: Long,
+        challengeThumbnailUrl: String,
+    ) -> Unit,
 ) {
     entry<ChallengeNavKey> {
         ArtistChallengeScreen(
-            myProfileImageUrl = myProfileImageUrl,
-            onArtistClick = onArtistClick,
-            onCaptureClick = onCaptureClick,
-            onHomeClick = onHomeClick,
-            onMyClick = onMyClick,
-            onMotifClick = onMotifClick,
+            myProfileImageUrl =
+                myProfileImageUrl,
+            onArtistClick =
+                onArtistClick,
+            onCaptureClick =
+                onCaptureClick,
+            onHomeClick =
+                onHomeClick,
+            onMyClick =
+                onMyClick,
+            onMotifClick =
+                onMotifClick,
         )
     }
 }

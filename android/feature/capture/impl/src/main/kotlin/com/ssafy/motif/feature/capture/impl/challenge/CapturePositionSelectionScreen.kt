@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -36,8 +37,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.ssafy.motif.core.model.challenge.CapturePosition
 import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.challenge.CapturePosition
 import com.ssafy.motif.feature.capture.impl.R
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiState
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
@@ -49,76 +50,96 @@ internal fun CapturePositionSelectionScreen(
     onStartChallengeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val previewImageUrl =
-        uiState.selectedPosition
-            ?.previewImageUrl
-            .orEmpty()
-
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     ) {
         CapturePreviewImage(
-            imageUrl = previewImageUrl,
-            modifier = Modifier.fillMaxSize(),
+            imageUrl =
+                uiState.previewImageUrl,
+            modifier =
+                Modifier.fillMaxSize(),
         )
 
         val maxProfileX =
-            (maxWidth - CaptureProfileSize)
-                .coerceAtLeast(0.dp)
+            (
+                    maxWidth -
+                            CaptureProfileSize
+                    )
+                .coerceAtLeast(
+                    0.dp,
+                )
 
         val maxProfileY =
-            (maxHeight - CaptureProfileSize)
-                .coerceAtLeast(0.dp)
-
-        uiState.positions.forEach { position ->
-            val artistId =
-                position.artist.id
-
-            val isOriginalArtist =
-                artistId ==
-                        uiState.originalArtistId
-
-            val isSelectedPosition =
-                artistId ==
-                        uiState.selectedPositionArtistId
-
-            CapturePositionMarker(
-                position = position,
-                selected = isSelectedPosition,
-                enabled = !isOriginalArtist,
-                onClick = {
-                    onPositionClick(
-                        artistId,
+            (
+                    maxHeight -
+                            CaptureProfileSize
                     )
-                },
-                modifier = Modifier.offset(
-                    x = (
-                            maxWidth *
-                                    position.x.coerceIn(
-                                        0f,
-                                        1f,
-                                    ) -
-                                    CaptureProfileSize / 2
-                            )
-                        .coerceIn(
-                            minimumValue = 0.dp,
-                            maximumValue = maxProfileX,
+                .coerceAtLeast(
+                    0.dp,
+                )
+
+        uiState.positions
+            .forEach { position ->
+                val x =
+                    position.x
+                        ?: return@forEach
+
+                val y =
+                    position.y
+                        ?: return@forEach
+
+                val isSelected =
+                    position.id ==
+                            uiState.selectedParticipantId
+
+                CapturePositionMarker(
+                    position =
+                        position,
+                    selected =
+                        isSelected,
+                    enabled =
+                        position.isAvailable,
+                    onClick = {
+                        onPositionClick(
+                            position.id,
+                        )
+                    },
+                    modifier =
+                        Modifier.offset(
+                            x = (
+                                    maxWidth *
+                                            x.coerceIn(
+                                                0f,
+                                                1f,
+                                            ) -
+                                            CaptureProfileSize /
+                                            2
+                                    )
+                                .coerceIn(
+                                    minimumValue =
+                                        0.dp,
+                                    maximumValue =
+                                        maxProfileX,
+                                ),
+                            y = (
+                                    maxHeight *
+                                            y.coerceIn(
+                                                0f,
+                                                1f,
+                                            ) -
+                                            CaptureProfileSize /
+                                            2
+                                    )
+                                .coerceIn(
+                                    minimumValue =
+                                        0.dp,
+                                    maximumValue =
+                                        maxProfileY,
+                                ),
                         ),
-                    y = (
-                            maxHeight *
-                                    position.y.coerceIn(
-                                        0f,
-                                        1f,
-                                    ) -
-                                    CaptureProfileSize / 2
-                            )
-                        .coerceIn(
-                            minimumValue = 0.dp,
-                            maximumValue = maxProfileY,
-                        ),
-                ),
-            )
-        }
+                )
+            }
 
         CapturePositionGuide(
             modifier = Modifier
@@ -137,7 +158,7 @@ internal fun CapturePositionSelectionScreen(
 
         StartChallengeButton(
             enabled =
-                uiState.selectedPosition != null,
+                uiState.canStartChallenge,
             onClick =
                 onStartChallengeClick,
             modifier = Modifier
@@ -173,10 +194,14 @@ private fun CapturePreviewImage(
     }
 
     AsyncImage(
-        model = imageUrl,
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier,
+        model =
+            imageUrl,
+        contentDescription =
+            null,
+        contentScale =
+            ContentScale.Crop,
+        modifier =
+            modifier,
     )
 }
 
@@ -194,9 +219,16 @@ private fun CapturePositionMarker(
         }
 
     Box(
-        modifier =
-            modifier.size(
+        modifier = modifier
+            .size(
                 CaptureProfileSize,
+            )
+            .alpha(
+                if (enabled) {
+                    1f
+                } else {
+                    DisabledAlpha
+                },
             ),
     ) {
         Box(
@@ -213,11 +245,14 @@ private fun CapturePositionMarker(
                     },
                 )
                 .clickable(
-                    enabled = enabled,
+                    enabled =
+                        enabled,
                     interactionSource =
                         interactionSource,
-                    indication = null,
-                    onClick = onClick,
+                    indication =
+                        null,
+                    onClick =
+                        onClick,
                 )
                 .padding(
                     if (selected) {
@@ -229,7 +264,9 @@ private fun CapturePositionMarker(
         ) {
             AsyncImage(
                 model =
-                    position.artist.profileImageUrl,
+                    position
+                        .artist
+                        .profileImageUrl,
                 contentDescription =
                     position.artist.name,
                 contentScale =
@@ -287,8 +324,10 @@ private fun CaptureHereBadge(
                 ),
             style =
                 TextStyle(
-                    color = Color.White,
-                    fontSize = 12.sp,
+                    color =
+                        Color.White,
+                    fontSize =
+                        12.sp,
                     fontWeight =
                         FontWeight.Bold,
                     textAlign =
@@ -377,11 +416,14 @@ private fun StartChallengeButton(
                 ),
             )
             .clickable(
-                enabled = enabled,
+                enabled =
+                    enabled,
                 interactionSource =
                     interactionSource,
-                indication = null,
-                onClick = onClick,
+                indication =
+                    null,
+                onClick =
+                    onClick,
             ),
         contentAlignment =
             Alignment.Center,
@@ -420,104 +462,92 @@ private val CaptureAccentColor =
         0xFFFF3B9D,
     )
 
+private const val DisabledAlpha =
+    0.45f
+
 @Preview(
     showBackground = true,
     widthDp = 393,
     heightDp = 852,
 )
 @Composable
-private fun CaptureThreePersonPositionSelectionPreview() {
-    val originalArtistId =
-        1L
-
-    var selectedArtistId
-            by remember {
-                mutableLongStateOf(
-                    2L,
-                )
-            }
-
+private fun CapturePositionSelectionPreview() {
     val context =
         LocalContext.current
 
-    val selectImageUrl =
+    val previewImageUrl =
         "android.resource://" +
                 "${context.packageName}/" +
                 "${R.drawable.img_test_capture_select}"
 
-    val artistProfileImageUrl =
+    val profileImageUrl =
         "android.resource://" +
                 "${context.packageName}/" +
                 "${DesignSystemR.drawable.img_profile}"
 
+    var selectedParticipantId by
+    remember {
+        mutableLongStateOf(
+            31L,
+        )
+    }
+
     val positions =
-        remember(
-            selectImageUrl,
-            artistProfileImageUrl,
-        ) {
-            listOf(
-                CapturePosition(
-                    artist = Artist(
-                        id = 1L,
-                        name = "Original Artist",
+        listOf(
+            CapturePosition(
+                id = 31L,
+                artist =
+                    Artist(
+                        id = 7L,
+                        name = "윈터",
                         profileImageUrl =
-                            artistProfileImageUrl,
-                        groupName = "MOTIF",
+                            profileImageUrl,
+                        groupName =
+                            "aespa",
                     ),
-                    x = 0.18f,
-                    y = 0.35f,
-                    previewImageUrl = "",
-                    videoUrl = "",
-                ),
-                CapturePosition(
-                    artist = Artist(
-                        id = 2L,
-                        name = "Position Artist 1",
+                slotOrder = 0,
+                x = 0.22f,
+                y = 0.36f,
+                initialSceneUrl =
+                    previewImageUrl,
+                previewImageUrl =
+                    previewImageUrl,
+            ),
+            CapturePosition(
+                id = 32L,
+                artist =
+                    Artist(
+                        id = 9L,
+                        name = "닝닝",
                         profileImageUrl =
-                            artistProfileImageUrl,
-                        groupName = "MOTIF",
+                            profileImageUrl,
+                        groupName =
+                            "aespa",
                     ),
-                    x = 0.50f,
-                    y = 0.30f,
-                    previewImageUrl =
-                        selectImageUrl,
-                    videoUrl = "",
-                ),
-                CapturePosition(
-                    artist = Artist(
-                        id = 3L,
-                        name = "Position Artist 2",
-                        profileImageUrl =
-                            artistProfileImageUrl,
-                        groupName = "MOTIF",
-                    ),
-                    x = 0.80f,
-                    y = 0.36f,
-                    previewImageUrl =
-                        selectImageUrl,
-                    videoUrl = "",
-                ),
-            )
-        }
+                slotOrder = 1,
+                x = 0.72f,
+                y = 0.34f,
+                initialSceneUrl =
+                    null,
+                previewImageUrl =
+                    null,
+            ),
+        )
 
     CapturePositionSelectionScreen(
         uiState =
             CaptureUiState(
-                originalArtistId =
-                    originalArtistId,
+                challengeId = 11L,
+                challengeThumbnailUrl =
+                    previewImageUrl,
                 positions =
                     positions,
-                selectedPositionArtistId =
-                    selectedArtistId,
+                selectedParticipantId =
+                    selectedParticipantId,
             ),
-        onPositionClick = { artistId ->
-            if (
-                artistId !=
-                originalArtistId
-            ) {
-                selectedArtistId =
-                    artistId
-            }
+        onPositionClick = { id ->
+            selectedParticipantId =
+                id
         },
         onStartChallengeClick = {},
     )

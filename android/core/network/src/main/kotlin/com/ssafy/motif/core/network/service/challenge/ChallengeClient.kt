@@ -1,5 +1,7 @@
 package com.ssafy.motif.core.network.service.challenge
 
+import com.ssafy.motif.core.network.model.challenge.ChallengeCapturePositionListResponse
+import com.ssafy.motif.core.network.model.challenge.ChallengeCaptureVideoResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeDetailResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeFeedResponse
 import com.ssafy.motif.core.network.model.challenge.HotChallengeParticipationFeedResponse
@@ -20,17 +22,21 @@ class ChallengeClient @Inject constructor(
         cursor: String? = null,
         size: Int = DEFAULT_FEED_SIZE,
     ): ChallengeFeedResponse =
-        challengeService.getChallengeFeed(
-            cursor = cursor,
-            size = size,
-        ).data
+        challengeService
+            .getChallengeFeed(
+                cursor = cursor,
+                size = size,
+            )
+            .data
 
     suspend fun getChallengeDetail(
         id: Long,
     ): ChallengeDetailResponse =
-        challengeService.getChallengeDetail(
-            challengeSeq = id,
-        ).data
+        challengeService
+            .getChallengeDetail(
+                challengeSeq = id,
+            )
+            .data
 
     suspend fun updateChallengeLike(
         id: Long,
@@ -47,23 +53,46 @@ class ChallengeClient @Inject constructor(
         }
     }
 
+    suspend fun getChallengeCapturePositions(
+        challengeId: Long,
+    ): ChallengeCapturePositionListResponse =
+        challengeService
+            .getChallengeCapturePositions(
+                challengeSeq = challengeId,
+            )
+            .data
+
+    suspend fun getChallengeCaptureVideo(
+        participantId: Long,
+    ): ChallengeCaptureVideoResponse =
+        challengeService
+            .getChallengeCaptureVideo(
+                challengeParticipantSeq =
+                    participantId,
+            )
+            .data
+
     suspend fun getParticipationVideoFeed(
         challengeId: Long,
         cursor: String? = null,
         size: Int = DEFAULT_FEED_SIZE,
     ): ParticipationVideoFeedResponse =
-        challengeService.getParticipationVideoFeed(
-            challengeSeq = challengeId,
-            cursor = cursor,
-            size = size,
-        ).data
+        challengeService
+            .getParticipationVideoFeed(
+                challengeSeq = challengeId,
+                cursor = cursor,
+                size = size,
+            )
+            .data
 
     suspend fun getParticipationVideo(
         id: Long,
     ): ParticipationVideoResponse =
-        challengeService.getParticipationVideo(
-            videoSeq = id,
-        ).data
+        challengeService
+            .getParticipationVideo(
+                videoSeq = id,
+            )
+            .data
 
     suspend fun publishParticipationVideo(
         jobUuid: String,
@@ -71,14 +100,18 @@ class ChallengeClient @Inject constructor(
         visibility: VideoVisibility,
         commentEnabled: Boolean,
     ): PublishParticipationVideoResponse =
-        challengeService.publishParticipationVideo(
-            request = PublishParticipationVideoRequest(
-                jobUuid = jobUuid,
-                description = description,
-                visibility = visibility,
-                commentEnabled = commentEnabled,
-            ),
-        ).data
+        challengeService
+            .publishParticipationVideo(
+                request =
+                    PublishParticipationVideoRequest(
+                        jobUuid = jobUuid,
+                        description = description,
+                        visibility = visibility,
+                        commentEnabled =
+                            commentEnabled,
+                    ),
+            )
+            .data
 
     suspend fun updateParticipationVideo(
         id: Long,
@@ -86,21 +119,26 @@ class ChallengeClient @Inject constructor(
         visibility: VideoVisibility? = null,
         commentEnabled: Boolean? = null,
     ): ParticipationVideoResponse =
-        challengeService.updateParticipationVideo(
-            videoSeq = id,
-            request = UpdateParticipationVideoRequest(
-                description = description,
-                visibility = visibility,
-                commentEnabled = commentEnabled,
-            ),
-        ).data
+        challengeService
+            .updateParticipationVideo(
+                videoSeq = id,
+                request =
+                    UpdateParticipationVideoRequest(
+                        description = description,
+                        visibility = visibility,
+                        commentEnabled =
+                            commentEnabled,
+                    ),
+            )
+            .data
 
     suspend fun deleteParticipationVideo(
         id: Long,
     ) {
-        challengeService.deleteParticipationVideo(
-            videoSeq = id,
-        )
+        challengeService
+            .deleteParticipationVideo(
+                videoSeq = id,
+            )
     }
 
     suspend fun updateParticipationVideoLike(
@@ -108,44 +146,51 @@ class ChallengeClient @Inject constructor(
         isLiked: Boolean,
     ) {
         if (isLiked) {
-            challengeService.postParticipationVideoLike(
-                videoSeq = id,
-            )
+            challengeService
+                .postParticipationVideoLike(
+                    videoSeq = id,
+                )
         } else {
-            challengeService.deleteParticipationVideoLike(
-                videoSeq = id,
-            )
+            challengeService
+                .deleteParticipationVideoLike(
+                    videoSeq = id,
+                )
         }
     }
 
     suspend fun hideParticipationVideo(
         id: Long,
     ) {
-        challengeService.hideParticipationVideo(
-            videoSeq = id,
-        )
+        challengeService
+            .hideParticipationVideo(
+                videoSeq = id,
+            )
     }
 
     suspend fun reportParticipationVideo(
         id: Long,
         reasonCode: String,
     ) {
-        challengeService.reportParticipationVideo(
-            videoSeq = id,
-            request = ReportParticipationVideoRequest(
-                reasonCode = reasonCode,
-            ),
-        )
+        challengeService
+            .reportParticipationVideo(
+                videoSeq = id,
+                request =
+                    ReportParticipationVideoRequest(
+                        reasonCode = reasonCode,
+                    ),
+            )
     }
 
     suspend fun getHotChallengeParticipations(
         cursor: String? = null,
         size: Int = DEFAULT_FEED_SIZE,
     ): HotChallengeParticipationFeedResponse =
-        challengeService.getHotChallengeParticipations(
-            cursor = cursor,
-            size = size,
-        ).data
+        challengeService
+            .getHotChallengeParticipations(
+                cursor = cursor,
+                size = size,
+            )
+            .data
 
     private companion object {
         const val DEFAULT_FEED_SIZE = 20

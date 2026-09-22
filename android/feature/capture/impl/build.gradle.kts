@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.motif.android.feature.impl)
     alias(libs.plugins.motif.android.library.compose)
+    alias(libs.plugins.motif.hilt)
 }
 
 android {
@@ -9,6 +10,7 @@ android {
 
 dependencies {
     implementation(projects.feature.capture.api)
+    implementation(projects.core.data)
 
     implementation(libs.coil.kt.compose)
 
@@ -25,4 +27,6 @@ dependencies {
 
     // ML Kit
     implementation(libs.segmentation.selfie)
+
+    implementation(libs.androidx.activity.compose)
 }

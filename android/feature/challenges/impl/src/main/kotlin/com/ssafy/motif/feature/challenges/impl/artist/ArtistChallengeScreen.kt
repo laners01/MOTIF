@@ -48,7 +48,10 @@ import com.ssafy.motif.core.designsystem.R as DesignSystemR
 internal fun ArtistChallengeScreen(
     myProfileImageUrl: String,
     onArtistClick: (Long) -> Unit,
-    onCaptureClick: (Long) -> Unit,
+    onCaptureClick: (
+        challengeId: Long,
+        challengeThumbnailUrl: String,
+    ) -> Unit,
     onHomeClick: () -> Unit,
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
@@ -193,7 +196,10 @@ internal fun ArtistChallengeScreen(
     onCommentBackClick: () -> Unit,
     onCommentDismiss: () -> Unit,
     onCommentSendClick: (String) -> Unit,
-    onCaptureClick: (Long) -> Unit,
+    onCaptureClick: (
+        challengeId: Long,
+        challengeThumbnailUrl: String,
+    ) -> Unit,
     onHomeClick: () -> Unit,
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
@@ -340,6 +346,7 @@ internal fun ArtistChallengeScreen(
                 onCaptureClick = {
                     onCaptureClick(
                         challenge.id,
+                        challenge.thumbnailUrl,
                     )
                 },
             )
@@ -485,7 +492,7 @@ private fun ArtistChallengeScreenPreview() {
                 )
             },
             onCommentSendClick = {},
-            onCaptureClick = {},
+            onCaptureClick = { _, _ -> },
             onHomeClick = {},
             onMyClick = {},
             onMotifClick = {},

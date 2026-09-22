@@ -21,6 +21,8 @@ import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
 import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
+import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
+import com.ssafy.motif.feature.capture.impl.navigation.captureEntry
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
 import com.ssafy.motif.feature.challenges.impl.navigation.challengeEntry
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
@@ -56,7 +58,8 @@ fun MotifApp(
         )
 
         challengeEntry(
-            myProfileImageUrl = myProfileImageUrl,
+            myProfileImageUrl =
+                myProfileImageUrl,
             onHomeClick = {
                 navigator.navigate(
                     HomeNavKey,
@@ -73,10 +76,21 @@ fun MotifApp(
                 )
             },
             onArtistClick = { artistId ->
-                // ArtistDetail NavKey 연결
+                // 기존 ArtistDetail 연결
             },
-            onCaptureClick = { challengeId ->
-                // Capture NavKey 연결
+            onCaptureClick = {
+                    challengeId,
+                    challengeThumbnailUrl,
+                ->
+
+                navigator.navigate(
+                    CaptureNavKey(
+                        challengeId =
+                            challengeId,
+                        challengeThumbnailUrl =
+                            challengeThumbnailUrl,
+                    ),
+                )
             },
         )
 
@@ -86,6 +100,19 @@ fun MotifApp(
 
         rankingEntry(
             navigator = navigator,
+        )
+
+        captureEntry(
+            onBackClick =
+                navigator::goBack,
+            onBrowseChallengeClick = {
+                navigator.navigate(
+                    ChallengeNavKey,
+                )
+            },
+            onError = { throwable ->
+                // TODO 공통 Snackbar/Error 처리 연결
+            },
         )
 
         artistDetailEntry(
