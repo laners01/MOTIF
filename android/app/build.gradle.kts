@@ -34,6 +34,7 @@ dependencies {
     implementation(projects.core.designsystem)
     implementation(projects.core.navigation)
 
+    implementation(libs.coil.kt.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.core.ktx)
