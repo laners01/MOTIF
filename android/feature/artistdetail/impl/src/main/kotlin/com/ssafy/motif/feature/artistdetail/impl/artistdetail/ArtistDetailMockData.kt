@@ -2,7 +2,7 @@ package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.artist.ArtistDetail
-import com.ssafy.motif.core.model.artist.ArtistMotif
+import com.ssafy.motif.core.model.motif.MotifSummary
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
@@ -183,14 +183,14 @@ internal object ArtistDetailMockData {
     private const val MOTIF_VIDEO =
         "android.resource://com.ssafy.motif/raw/test_video"
 
-    val motifs: List<ArtistMotif> = listOf(
-        ArtistMotif(
+    val motifs: List<MotifSummary> = listOf(
+        MotifSummary(
             id = 1L,
             videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME,
         ),
-        ArtistMotif(
+        MotifSummary(
             id = 2L,
             videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,

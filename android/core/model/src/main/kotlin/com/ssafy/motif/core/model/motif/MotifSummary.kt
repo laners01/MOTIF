@@ -1,6 +1,6 @@
-package com.ssafy.motif.core.model.artist
+package com.ssafy.motif.core.model.motif
 
-data class ArtistMotif(
+data class MotifSummary(
     val id: Long,
     val videoUrl: String,
     val thumbnailUrl: String,
