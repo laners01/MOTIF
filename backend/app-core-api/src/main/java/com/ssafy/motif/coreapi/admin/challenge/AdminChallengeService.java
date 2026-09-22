@@ -24,7 +24,7 @@ import com.ssafy.motif.coreapi.domain.media.MediaJobPublisher;
 import com.ssafy.motif.coreapi.domain.media.MediaKeys;
 import com.ssafy.motif.coreapi.domain.artist.ArtistErrorCode;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
-import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
+import com.ssafy.motif.coreapi.global.media.MediaUrlResolver;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.domain.core.artist.ArtistName;
@@ -86,7 +86,15 @@ public class AdminChallengeService {
     private final SongRepository songRepository;
     private final AdminMediaService adminMediaService;
     private final VideoRules videoRules;
-    private final PublicMediaUrlResolver mediaUrlResolver;
+    /**
+     * 등급 판정 지점 — <b>공개용을 직접 쓰지 않는다</b>(구 {@code PublicMediaUrlResolver}).
+     *
+     * <p>편집본 키가 {@code private/edited/…} 라(0020) 무서명으로 내면 어드민이 받은
+     * 주소가 CloudFront {@code private/*} 에서 403 이다. 앱 §7.5·§7.6 은 0020 에 함께
+     * 옮겨졌는데 어드민만 남아 있었다 — 저장은 되고 링크만 안 열리므로 화면에서는
+     * "업로드가 안 된다" 로 보인다. 원본·썸네일·프로필은 공개 프리픽스라 그대로다.
+     */
+    private final MediaUrlResolver mediaUrlResolver;
     private final AdminAuditLogger auditLogger;
     private final MediaJobPublisher mediaJobPublisher;
     private final ApplicationEventPublisher eventPublisher;
@@ -255,7 +263,9 @@ public class AdminChallengeService {
                         artistSummary(p.getArtistSeq(), artists),
                         p.getSlotOrder(),
                         anchorOf(p),
-                        mediaUrlResolver.resolve(p.getEditedChallengeKey()),
+                        // 편집본 영상은 통짜 MP4 단일 파일이라 resolveVideoFile 이다 —
+                        // 재생목록이 아니라 조각 서명이 필요 없고, 만료가 짧다(§7.6 과 같은 값)
+                        mediaUrlResolver.resolveVideoFile(p.getEditedChallengeKey()),
                         mediaUrlResolver.resolve(p.getInitialSceneKey()),
                         mediaUrlResolver.resolve(p.getPreviewImageKey()),
                         p.getEditedChallengeKey(), p.getInitialSceneKey(), p.getPreviewImageKey(),
@@ -487,7 +497,7 @@ public class AdminChallengeService {
                 challengeParticipantSeq, AdminAuditLogger.RESULT_OK);
         return new ParticipantEditedResponse(challengeParticipantSeq, slot.getArtistSeq(),
                 slot.getSlotOrder(),
-                mediaUrlResolver.resolve(slot.getEditedChallengeKey()),
+                mediaUrlResolver.resolveVideoFile(slot.getEditedChallengeKey()),
                 mediaUrlResolver.resolve(slot.getInitialSceneKey()),
                 mediaUrlResolver.resolve(slot.getPreviewImageKey()),
                 slot.getEditedDurationMs());
