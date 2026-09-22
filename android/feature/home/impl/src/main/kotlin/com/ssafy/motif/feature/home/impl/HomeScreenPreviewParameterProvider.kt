@@ -2,13 +2,13 @@ package com.ssafy.motif.feature.home.impl
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
 import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.notice.Notice
-import com.ssafy.motif.core.model.home.Onstage
 import com.ssafy.motif.core.model.motif.Motif
+import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.feature.home.impl.model.FanRadarUiState
@@ -89,38 +89,46 @@ private val previewArtist = Artist(
     groupName = "ITZY",
 )
 
-private val previewOnstageItems = listOf(
-    Onstage(
-        videoId = 4L,
+private val previewChallengeParticipationSummaryItems = listOf(
+    ChallengeParticipationSummary(
+        id = 4L,
         rank = 1,
         videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
         thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/thumb.jpg",
-        songArtistName = "JENNIE",
-        songTitle = "like JENNY",
+        song = ChallengeSong(
+            title = "like JENNY",
+            artistName = "JENNIE",
+        ),
     ),
-    Onstage(
-        videoId = 3L,
+    ChallengeParticipationSummary(
+        id = 3L,
         rank = 2,
         videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
         thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/thumb.jpg",
-        songArtistName = "뽀로로",
-        songTitle = "바라밤",
+        song = ChallengeSong(
+            title = "바라밤",
+            artistName = "뽀로로",
+        ),
     ),
-    Onstage(
-        videoId = 2L,
+    ChallengeParticipationSummary(
+        id = 2L,
         rank = 3,
         videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/a0006c4a-2746-4bf9-8bd1-bafa6e123b55/master.m3u8",
         thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/a0006c4a-2746-4bf9-8bd1-bafa6e123b55/thumb.jpg",
-        songArtistName = "See Tinh",
-        songTitle = "Hoang Thuy Linh",
+        song = ChallengeSong(
+            title = "See Tinh",
+            artistName = "Hoang Thuy Linh",
+        ),
     ),
-    Onstage(
-        videoId = 1L,
+    ChallengeParticipationSummary(
+        id = 1L,
         rank = 4,
         videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/7dfa4de1-792a-41ec-a438-f51c48c15b1e/master.m3u8",
         thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/7dfa4de1-792a-41ec-a438-f51c48c15b1e/thumb.jpg",
-        songArtistName = "Shams",
-        songTitle = "Break Your Legs",
+        song = ChallengeSong(
+            title = "Break Your Legs",
+            artistName = "Shams",
+        ),
     ),
 )
 
@@ -288,7 +296,7 @@ private val previewMyArtistFeedItems =
 
 private val previewOnstageUiState =
     OnstageUiState.Success(
-        items = previewOnstageItems,
+        items = previewChallengeParticipationSummaryItems,
     )
 
 private val previewFanRadarUiState =
