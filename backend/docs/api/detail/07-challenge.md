@@ -101,7 +101,6 @@ Authorization: Bearer {accessToken}
     "videoUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/master.m3u8",
     "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg",
     "durationMs": 15000,
-    "description": "이번 주 챌린지입니다. 같이 춰요!",
     "artist": {
       "artistSeq": 3,
       "name": "카리나",
