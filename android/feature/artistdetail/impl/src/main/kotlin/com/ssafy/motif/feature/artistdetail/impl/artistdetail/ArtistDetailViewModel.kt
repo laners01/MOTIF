@@ -47,7 +47,7 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
             state.copy(
                 artistDetail = detail.copy(
                     isSubscribed = !detail.isSubscribed,
-                    subscribeNum = detail.subscribeNum +
+                    subscriberCount = detail.subscriberCount +
                             if (detail.isSubscribed) -1 else 1,
                 ),
             )

@@ -1,12 +1,12 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
-import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
-import com.ssafy.motif.core.model.artistdetail.ArtistDetail
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.artist.ArtistDetail
+import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.home.Artist
-import com.ssafy.motif.core.model.home.Notice
-import com.ssafy.motif.core.model.artistdetail.ArtistMotif
+import com.ssafy.motif.core.model.notice.Notice
+import com.ssafy.motif.core.model.motif.Motif
 
 internal object ArtistDetailMockData {
 
@@ -24,8 +24,8 @@ internal object ArtistDetailMockData {
     private const val ONE_DAY_MILLIS = 86_400_000L
 
     // index가 커질수록 createdAt이 작아지므로 목록 자체가 최신 등록순.
-    val challenges: List<ArtistChallenge> = List(29) { index ->
-        ArtistChallenge(
+    val challenges: List<ChallengeSummary> = List(29) { index ->
+        ChallengeSummary(
             id = index + 1L,
             thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
             view = CHALLENGE_VIEWS[index % CHALLENGE_VIEWS.size],
@@ -34,12 +34,15 @@ internal object ArtistDetailMockData {
     }
 
     val artist: ArtistDetail = ArtistDetail(
-        name = "Yeji",
-        groupName = "ITZY",
-        profileImageUrl = YEJI,
-        introducing = "요즘 시간이 진짜 빨리 가는 것 같아요.\n그래도 곧 재밌는 거 보여줄 수 있을 것 같아요 :)",
-        subscribeNum = 2_100_000L,
-        challengeNum = 121L,
+        Artist(
+            id = 1L,
+            name = "Yeji",
+            groupName = "ITZY",
+            profileImageUrl = YEJI,
+        ),
+        introduction = "요즘 시간이 진짜 빨리 가는 것 같아요.\n그래도 곧 재밌는 거 보여줄 수 있을 것 같아요 :)",
+        subscriberCount = 2_100_000L,
+        challengeCount = 121L,
         isAlarmOn = true,
         isSubscribed = false,
         hasMotifPass = true
@@ -180,18 +183,34 @@ internal object ArtistDetailMockData {
     private const val MOTIF_VIDEO =
         "android.resource://com.ssafy.motif/raw/test_video"
 
-    val motifs: List<ArtistMotif> = listOf(
-        ArtistMotif(
+    val motifs: List<Motif> = listOf(
+        Motif(
             id = 1L,
             videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME,
+            title = "",
+            description = "",
+            artist = Artist(
+                id = 1L,
+                name = "YEJI",
+                profileImageUrl = YEJI,
+                groupName = "ITZY",
+            ),
         ),
-        ArtistMotif(
+        Motif(
             id = 2L,
             videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME - ONE_DAY_MILLIS,
+            title = "",
+            description = "",
+            artist = Artist(
+                id = 2L,
+                name = "YEJI",
+                profileImageUrl = YEJI,
+                groupName = "ITZY",
+            ),
         ),
     )
 }

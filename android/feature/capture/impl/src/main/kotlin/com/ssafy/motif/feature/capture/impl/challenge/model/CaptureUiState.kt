@@ -1,6 +1,6 @@
 package com.ssafy.motif.feature.capture.impl.challenge.model
 
-import com.ssafy.motif.core.model.capture.CapturePosition
+import com.ssafy.motif.core.model.challenge.CapturePosition
 
 data class CaptureUiState(
     val originalArtistId: Long = 0L,

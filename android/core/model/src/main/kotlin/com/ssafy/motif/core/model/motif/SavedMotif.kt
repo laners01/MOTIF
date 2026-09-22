@@ -1,6 +1,6 @@
 package com.ssafy.motif.core.model.motif
 
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 
 /**
  * 사용자가 최종 저장한 모티프 영상. 보관함에 표시된다.

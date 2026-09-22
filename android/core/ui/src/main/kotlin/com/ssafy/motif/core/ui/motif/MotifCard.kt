@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.home.Artist
-import com.ssafy.motif.core.model.home.Motif
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
@@ -138,6 +138,8 @@ private fun MotifCardPreview() {
                     groupName = "ITZY",
                 ),
                 createdAt = 0L,
+                description = "",
+                videoUrl = "",
             ),
             onMotifClick = {},
             onArtistClick = {},

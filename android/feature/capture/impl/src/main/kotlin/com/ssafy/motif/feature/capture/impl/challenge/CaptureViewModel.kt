@@ -2,7 +2,7 @@ package com.ssafy.motif.feature.capture.impl.challenge
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ssafy.motif.core.model.capture.CapturePosition
+import com.ssafy.motif.core.model.challenge.CapturePosition
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureStage
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiState
 import kotlinx.coroutines.Job

@@ -36,8 +36,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.ssafy.motif.core.model.capture.CapturePosition
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.challenge.CapturePosition
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.feature.capture.impl.R
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiState
 import com.ssafy.motif.core.designsystem.R as DesignSystemR

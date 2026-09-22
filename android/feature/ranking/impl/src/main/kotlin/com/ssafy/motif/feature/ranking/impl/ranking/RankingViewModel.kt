@@ -10,26 +10,30 @@ import javax.inject.Inject
 
 
 @HiltViewModel
-class RankingViewModel @Inject constructor(): ViewModel(){
+class RankingViewModel @Inject constructor() : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        RankingUiState(ranking = RankingMokData.ranking),
+        RankingUiState(ranking = RankingMockData.ranking),
     )
     val uiState: StateFlow<RankingUiState> = _uiState.asStateFlow()
 
-    fun playChallenge(chllengeId: Long){
+    fun playChallenge(chllengeId: Long) {
 
     }
-    fun showArtistDetail(chllengeId: Long){
+
+    fun showArtistDetail(chllengeId: Long) {
 
     }
-    fun goBackScreen(){
+
+    fun goBackScreen() {
 
     }
-    fun removeQuery(){
+
+    fun removeQuery() {
         _uiState.update { state -> state.copy(query = "") }
     }
-    fun updateQuery(query:String){
-        _uiState.update { state -> state.copy(query=query) }
+
+    fun updateQuery(query: String) {
+        _uiState.update { state -> state.copy(query = query) }
     }
 }

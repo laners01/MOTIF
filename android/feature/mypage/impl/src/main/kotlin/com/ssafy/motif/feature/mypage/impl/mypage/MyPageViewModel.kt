@@ -69,7 +69,7 @@ class MyPageViewModel @Inject constructor(): ViewModel() {
             _uiState.update {
                 it.copy(
                     artistState = MyArtistUiState.Success(
-                        artists = MyPageMockData.subscribedArtists,
+                        artists = MyPageMockData.artistSubscriptions,
                     ),
                 )
             }

@@ -1,6 +1,6 @@
 package com.ssafy.motif.feature.motif.impl.archive
 
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.SavedMotif
 
 internal object ArchiveMockData {

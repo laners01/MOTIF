@@ -34,8 +34,8 @@ import com.ssafy.motif.core.designsystem.component.HorizontalDivider
 import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.home.Artist
-import com.ssafy.motif.core.model.home.Notice
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable

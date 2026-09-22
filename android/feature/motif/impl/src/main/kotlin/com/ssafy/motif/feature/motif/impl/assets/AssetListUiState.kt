@@ -1,7 +1,7 @@
 package com.ssafy.motif.feature.motif.impl.assets
 
 import androidx.compose.runtime.Immutable
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.Asset
 
 internal sealed interface AssetListUiState {

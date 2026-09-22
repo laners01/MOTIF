@@ -1,7 +1,7 @@
 package com.ssafy.motif.feature.motif.impl.archive
 
 import androidx.compose.runtime.Immutable
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.SavedMotif
 
 internal sealed interface ArchiveUiState {

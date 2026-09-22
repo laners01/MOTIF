@@ -1,6 +1,6 @@
 package com.ssafy.motif.core.model.motif
 
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 
 data class Asset(
     val id: Long,

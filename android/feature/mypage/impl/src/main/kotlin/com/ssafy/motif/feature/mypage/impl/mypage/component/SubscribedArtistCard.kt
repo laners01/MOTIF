@@ -37,12 +37,12 @@ import com.ssafy.motif.core.designsystem.glass.glassBackdrop
 import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.mypage.SubscribedArtist
+import com.ssafy.motif.core.model.artist.ArtistSubscription
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
 internal fun SubscribedArtistCard(
-    artist: SubscribedArtist,
+    artist: ArtistSubscription,
     isFlipped: Boolean,
     onClick: () -> Unit,
     onSeeMoreClick: () -> Unit,
@@ -79,7 +79,7 @@ internal fun SubscribedArtistCard(
 
 @Composable
 private fun ArtistCardFront(
-    artist: SubscribedArtist,
+    artist: ArtistSubscription,
     modifier: Modifier = Modifier,
 ) {
     ArtistProfileImage(
@@ -90,7 +90,7 @@ private fun ArtistCardFront(
 
 @Composable
 private fun ArtistCardBack(
-    artist: SubscribedArtist,
+    artist: ArtistSubscription,
     onSeeMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -125,7 +125,7 @@ private fun ArtistCardBack(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = "WITH ${artist.name}",
+                    text = "WITH ${artist.artist.name}",
                     style = MotifTheme.typography.bodySB16,
                     color = MotifTheme.colors.typo,
                     maxLines = 1,
@@ -206,12 +206,12 @@ private fun ArtistStatRow(
 
 @Composable
 private fun ArtistProfileImage(
-    artist: SubscribedArtist,
+    artist: ArtistSubscription,
     modifier: Modifier = Modifier,
 ) {
     AsyncImage(
-        model = artist.profileImageUrl,
-        contentDescription = artist.name,
+        model = artist.artist.profileImageUrl,
+        contentDescription = artist.artist.name,
         contentScale = ContentScale.Crop,
         placeholder = painterResource(DesignSystemR.drawable.profile_square),
         error = painterResource(DesignSystemR.drawable.profile_square),

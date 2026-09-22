@@ -4,17 +4,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.dp
-import com.ssafy.motif.core.designsystem.component.Tab
-import com.ssafy.motif.core.designsystem.component.Text
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -22,38 +25,35 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ssafy.motif.core.designsystem.component.Button
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
+import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Surface
+import com.ssafy.motif.core.designsystem.component.Tab
 import com.ssafy.motif.core.designsystem.component.TabRow
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults.tabIndicatorOffset
+import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.feature.mypage.impl.mypage.component.MyProfileSection
-import com.ssafy.motif.feature.mypage.impl.mypage.component.SubscribedArtistCard
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.lazy.items
-import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import com.ssafy.motif.core.model.mypage.LikedChallenge
 import com.ssafy.motif.core.model.mypage.LikedChallengeCommentState
+import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeCarousel
 import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeInfo
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.text.style.TextAlign
-import com.ssafy.motif.core.designsystem.component.Button
-import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentCard
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentEmptyContent
+import com.ssafy.motif.feature.mypage.impl.mypage.component.MyProfileSection
+import com.ssafy.motif.feature.mypage.impl.mypage.component.SubscribedArtistCard
 
 @Composable
 fun MyPageScreen(
@@ -79,26 +79,27 @@ fun MyPageScreen(
         modifier = modifier,
     )
 }
+
 @Composable
 internal fun MyPageScreen(
     uiState: MyPageUiState,
-    onNotificationClick:() -> Unit,
-    onSettingsClick:() -> Unit,
-    onTabClick:(MyPageTab) -> Unit,
-    onLoadMoreChallenges:() -> Unit,
-    onCreateClick:() -> Unit,
-    onArtistCardClick:(Long) -> Unit,
-    onLikedFocusChange:(Int) -> Unit,
-    onNicknameEditStart:() -> Unit,
-    onNicknameChange:(String) -> Unit,
-    onNicknameEditDone:() -> Unit,
-    onNicknameEditCancel:() -> Unit,
-    onProfileImageSelected:(String?) -> Unit,
+    onNotificationClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onTabClick: (MyPageTab) -> Unit,
+    onLoadMoreChallenges: () -> Unit,
+    onCreateClick: () -> Unit,
+    onArtistCardClick: (Long) -> Unit,
+    onLikedFocusChange: (Int) -> Unit,
+    onNicknameEditStart: () -> Unit,
+    onNicknameChange: (String) -> Unit,
+    onNicknameEditDone: () -> Unit,
+    onNicknameEditCancel: () -> Unit,
+    onProfileImageSelected: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-    ) {uri ->
+    ) { uri ->
         onProfileImageSelected(uri?.toString())
     }
 
@@ -150,12 +151,13 @@ internal fun MyPageScreen(
         ) {
             when (val profileState = uiState.profileState) {
                 ProfileUiState.Loading -> {
-                    item{ProfileLoading()}
+                    item { ProfileLoading() }
                 }
 
                 is ProfileUiState.Success -> {
-                    item{
-                        MyProfileSection(profile = profileState.profile,
+                    item {
+                        MyProfileSection(
+                            profile = profileState.profile,
                             nicknameEdit = uiState.nicknameEdit,
                             onNicknameEditStart = onNicknameEditStart,
                             onNicknameChange = onNicknameChange,
@@ -167,12 +169,13 @@ internal fun MyPageScreen(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                                 )
                             },
-                            onSettingsClick = onSettingsClick,)
+                            onSettingsClick = onSettingsClick,
+                        )
                     }
                 }
 
                 is ProfileUiState.Error -> {
-                    item{}
+                    item {}
                 }
             }
             // 대표 모티프가 설정된 경우에만 프로필과 탭 사이에 노출한다.
@@ -188,7 +191,7 @@ internal fun MyPageScreen(
                 }
             }
 
-            stickyHeader{
+            stickyHeader {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -204,15 +207,16 @@ internal fun MyPageScreen(
                         containerColor = MotifTheme.colors.background,
                         divider = {},
                         indicator = { tabPositions ->
-                            if(uiState.selectedTab.ordinal < tabPositions.size){
+                            if (uiState.selectedTab.ordinal < tabPositions.size) {
                                 TabRowDefaults.Indicator(
                                     modifier = Modifier
-                                        .tabIndicatorOffset(tabPositions[uiState.selectedTab.ordinal],)
+                                        .tabIndicatorOffset(tabPositions[uiState.selectedTab.ordinal])
                                         .height(2.dp)
                                         .width(50.dp),
                                     color = MotifTheme.colors.pink
                                 )
-                            }  },
+                            }
+                        },
                     ) {
                         MyPageTab.entries.forEach { tab ->
                             Tab(
@@ -236,10 +240,12 @@ internal fun MyPageScreen(
             when (uiState.selectedTab) {
                 MyPageTab.Challenge -> {
                     when (val state = uiState.challengeState) {
-                        MyChallengeUiState.Loading -> { item { ChallengeLoadingContent() } }
+                        MyChallengeUiState.Loading -> {
+                            item { ChallengeLoadingContent() }
+                        }
 
                         is MyChallengeUiState.Success -> {
-                            if(state.challenges.isEmpty()){
+                            if (state.challenges.isEmpty()) {
                                 item {
                                     ChallengeEmptyContent(
                                         onCreateClick = onCreateClick,
@@ -253,7 +259,9 @@ internal fun MyPageScreen(
                                     key = { row -> row.first().id },
                                 ) { row ->
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 2.dp),
                                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                                     ) {
                                         row.forEach { challenge ->
@@ -275,18 +283,22 @@ internal fun MyPageScreen(
                         }
 
 
-
-                        is MyChallengeUiState.Error -> { item { } }
+                        is MyChallengeUiState.Error -> {
+                            item { }
+                        }
                     }
-                 }
+                }
+
                 MyPageTab.Artist -> {
                     when (val state = uiState.artistState) {
-                        MyArtistUiState.Loading -> { item { ChallengeLoadingContent() } }
+                        MyArtistUiState.Loading -> {
+                            item { ChallengeLoadingContent() }
+                        }
 
                         is MyArtistUiState.Success -> {
                             items(
                                 items = state.artists.chunked(2),
-                                key = { row -> row.first().id },
+                                key = { row -> row.first().artist.id },
                             ) { row ->
                                 Row(
                                     modifier = Modifier
@@ -295,11 +307,11 @@ internal fun MyPageScreen(
                                         .padding(bottom = 18.dp),
                                     horizontalArrangement = Arrangement.spacedBy(18.dp),
                                 ) {
-                                    row.forEach { artist ->
+                                    row.forEach { artistSubscription ->
                                         SubscribedArtistCard(
-                                            artist = artist,
-                                            isFlipped = uiState.flippedArtistId == artist.id,
-                                            onClick = { onArtistCardClick(artist.id) },
+                                            artist = artistSubscription,
+                                            isFlipped = uiState.flippedArtistId == artistSubscription.artist.id,
+                                            onClick = { onArtistCardClick(artistSubscription.artist.id) },
                                             onSeeMoreClick = { },
                                             modifier = Modifier.weight(1f),
                                         )
@@ -311,12 +323,17 @@ internal fun MyPageScreen(
                             }
                         }
 
-                        is MyArtistUiState.Error -> { item { } }
+                        is MyArtistUiState.Error -> {
+                            item { }
+                        }
                     }
                 }
+
                 MyPageTab.Liked -> {
                     when (val state = uiState.likedState) {
-                        MyLikedUiState.Loading -> { item { ChallengeLoadingContent() } }
+                        MyLikedUiState.Loading -> {
+                            item { ChallengeLoadingContent() }
+                        }
 
                         is MyLikedUiState.Success -> {
                             if (state.challenges.isNotEmpty()) {
@@ -327,7 +344,7 @@ internal fun MyPageScreen(
                                         onFocusChange = onLikedFocusChange,
                                     )
                                 }
-                            }else{
+                            } else {
                                 item {
                                     LikedChallengeEmptyContent(
                                         modifier = Modifier.height(contentAreaHeight),
@@ -336,7 +353,9 @@ internal fun MyPageScreen(
                             }
                         }
 
-                        is MyLikedUiState.Error -> { item { } }
+                        is MyLikedUiState.Error -> {
+                            item { }
+                        }
                     }
                 }
             }
@@ -344,10 +363,9 @@ internal fun MyPageScreen(
         }
 
 
-
-
     }
 }
+
 @Composable
 private fun LikedChallengeContent(
     challenges: List<LikedChallenge>,
@@ -407,6 +425,7 @@ private fun ProfileLoading(
         LoadingWheel()
     }
 }
+
 @Composable
 private fun ChallengeLoadingContent(
     modifier: Modifier = Modifier,
@@ -420,6 +439,7 @@ private fun ChallengeLoadingContent(
         LoadingWheel()
     }
 }
+
 @Composable
 private fun ChallengeLoadingMore(
     modifier: Modifier = Modifier,
@@ -437,15 +457,15 @@ private fun ChallengeLoadingMore(
 @Composable
 private fun ChallengeEmptyContent(
     onCreateClick: () -> Unit,
-    modifier: Modifier=Modifier,
-){
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterVertically),
-    ){
+    ) {
         Text(
-            text ="아직 참여한 챌린지가 없어요. \n 마음에 드는 챌린지를 찾아 참여해보세요!",
+            text = "아직 참여한 챌린지가 없어요. \n 마음에 드는 챌린지를 찾아 참여해보세요!",
             style = MotifTheme.typography.titleR20,
             color = MotifTheme.colors.gray400,
             textAlign = TextAlign.Center,
@@ -457,7 +477,7 @@ private fun ChallengeEmptyContent(
                 containerColor = MotifTheme.colors.pink,
                 contentColor = MotifTheme.colors.typo,
             ),
-        ){
+        ) {
             Text(
                 text = "챌린지 둘러보기",
                 style = MotifTheme.typography.bodySB16,
@@ -469,13 +489,13 @@ private fun ChallengeEmptyContent(
 @Composable
 private fun LikedChallengeEmptyContent(
     modifier: Modifier = Modifier,
-){
+) {
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
-    ){
+    ) {
         Text(
-            text="아직 좋아요한 영상이 없어요" ,
+            text = "아직 좋아요한 영상이 없어요",
             style = MotifTheme.typography.titleR20,
             color = MotifTheme.colors.gray400,
             textAlign = TextAlign.Center,
@@ -483,4 +503,5 @@ private fun LikedChallengeEmptyContent(
 
     }
 }
+
 private const val LOAD_MORE_THRESHOLD = 3

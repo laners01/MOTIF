@@ -19,9 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +27,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.Button
@@ -42,7 +38,7 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.onboarding.OnboardingArtist
+import com.ssafy.motif.core.model.artist.Artist
 
 @Composable
 internal fun ArtistSelectScreen(
@@ -74,15 +70,16 @@ internal fun ArtistSelectScreen(
 
         {
             items(items = uiState.filteredArtists, key = { it.id }) { artist ->
-                ArtistCard(artist = artist,
+                ArtistCard(
+                    artist = artist,
                     selected = artist.id in uiState.selectedArtists,
-                    onClick = {onArtistClick(artist.id)},
+                    onClick = { onArtistClick(artist.id) },
                 )
             }
 
         }
 
-        if(uiState.query.isNotBlank() && uiState.filteredArtists.isEmpty()){
+        if (uiState.query.isNotBlank() && uiState.filteredArtists.isEmpty()) {
             Text(
                 text = "검색 결과가 없습니다",
                 style = MotifTheme.typography.bodyR14,
@@ -148,12 +145,12 @@ internal object ArtistMokData {
         "채령" to "ITZY",
         "유나" to "ITZY",
     )
-    val artists: List<OnboardingArtist> = samples.mapIndexed { index, (name, groupName) ->
-        OnboardingArtist(
+    val artists: List<Artist> = samples.mapIndexed { index, (name, groupName) ->
+        Artist(
             id = index.toLong(),
             name = name,
             groupName = groupName,
-            profileImageUrl = null,
+            profileImageUrl = "",
         )
     }
 }
@@ -163,7 +160,7 @@ internal object ArtistMokData {
 private fun ArtistSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onRemoveClick:() -> Unit,
+    onRemoveClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -171,7 +168,7 @@ private fun ArtistSearchBar(
         color = MotifTheme.colors.gray700,
         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically){
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 painter = painterResource(MotifIcons.Search),
                 null,
@@ -191,7 +188,7 @@ private fun ArtistSearchBar(
                     .weight(1f)
                     .padding(start = 8.dp),
                 decorationBox = { innerTextField ->
-                    if(query.isEmpty()){
+                    if (query.isEmpty()) {
                         Text(
                             text = "함께하고 싶은 멤버나 그룹을 찾아보세요",
                             style = MotifTheme.typography.bodyR14,
@@ -218,7 +215,7 @@ private fun ArtistSearchBar(
 
 @Composable
 fun ArtistCard(
-    artist: OnboardingArtist,
+    artist: Artist,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -259,7 +256,7 @@ fun ArtistCard(
         )
 
         Text(
-            text = artist.groupName,
+            text = artist.groupName ?: "",
             style = MotifTheme.typography.captionSB12,
             color = MotifTheme.colors.typo,
             maxLines = 1,

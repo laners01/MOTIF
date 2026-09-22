@@ -28,24 +28,29 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.artistdetail.ArtistDetail
+import com.ssafy.motif.core.model.artist.ArtistDetail
 
 @Composable
 internal fun ArtistDetailCard(
     artistDetail: ArtistDetail,
     isAlarmOn: Boolean,
-    isSubscribed:Boolean,
+    isSubscribed: Boolean,
     onSubscribeClick: () -> Unit,    //구독버튼 클릭시
-    onAlarmClick:() -> Unit,        //알람버튼 클릭시
+    onAlarmClick: () -> Unit,        //알람버튼 클릭시
     modifier: Modifier = Modifier
-){
-    Column(modifier = modifier
-        .fillMaxWidth()
-        .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
-                .fillMaxWidth().aspectRatio(358f/168f)) {
+                .fillMaxWidth()
+                .aspectRatio(358f / 168f)
+        ) {
 
 
             Box(
@@ -54,8 +59,8 @@ internal fun ArtistDetailCard(
                     .fillMaxHeight(),
             ) {
                 AsyncImage(
-                    model = artistDetail.profileImageUrl,
-                    contentDescription = artistDetail.name,
+                    model = artistDetail.artist.profileImageUrl,
+                    contentDescription = artistDetail.artist.name,
                     contentScale = ContentScale.Crop,
                     placeholder =
                         painterResource(com.ssafy.motif.core.designsystem.R.drawable.profile_square),
@@ -78,7 +83,7 @@ internal fun ArtistDetailCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = artistDetail.name,
+                        text = artistDetail.artist.name,
                         style = MotifTheme.typography.titleSB20,
                         color = MotifTheme.colors.typo,
                         maxLines = 1,
@@ -87,12 +92,12 @@ internal fun ArtistDetailCard(
                     )
 
                     Text(
-                        text = artistDetail.groupName,
+                        text = artistDetail.artist.groupName ?: "",
                         style = MotifTheme.typography.bodySB16,
                         color = MotifTheme.colors.gray400,
                         maxLines = 1,
                     )
-                    if(artistDetail.hasMotifPass){
+                    if (artistDetail.hasMotifPass) {
                         Icon(
                             painter = painterResource(MotifIcons.MotifPass),
                             contentDescription = null,
@@ -110,7 +115,7 @@ internal fun ArtistDetailCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = "${artistDetail.challengeNum}",
+                            text = "${artistDetail.challengeCount}",
                             style = MotifTheme.typography.bodySB16.copy(lineHeight = 19.sp),
                             color = MotifTheme.colors.typo,
                             maxLines = 1,
@@ -128,7 +133,7 @@ internal fun ArtistDetailCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = formatSubscriberCount(artistDetail.subscribeNum),
+                            text = formatSubscriberCount(artistDetail.subscriberCount),
                             style = MotifTheme.typography.bodySB16.copy(lineHeight = 19.sp),
                             color = MotifTheme.colors.typo,
                             maxLines = 1,
@@ -153,12 +158,12 @@ internal fun ArtistDetailCard(
                     Button(
                         onClick = onAlarmClick,
                         shape = RoundedCornerShape(4.dp),
-                        colors = if (isAlarmOn){
+                        colors = if (isAlarmOn) {
                             MotifButtonDefaults.buttonColors(
                                 contentColor = MotifTheme.colors.typo,
                                 containerColor = MotifTheme.colors.pink
                             )
-                        }else {
+                        } else {
                             MotifButtonDefaults.buttonColors(
                                 contentColor = MotifTheme.colors.typo,
                                 containerColor = MotifTheme.colors.gray700
@@ -179,11 +184,12 @@ internal fun ArtistDetailCard(
                     Button(
                         onClick = onSubscribeClick,
                         shape = RoundedCornerShape(4.dp),
-                        colors = if(isSubscribed){
+                        colors = if (isSubscribed) {
                             MotifButtonDefaults.buttonColors(
                                 containerColor = MotifTheme.colors.gray700,
-                                contentColor = MotifTheme.colors.typo,)
-                        }else {
+                                contentColor = MotifTheme.colors.typo,
+                            )
+                        } else {
                             MotifButtonDefaults.buttonColors(
                                 containerColor = MotifTheme.colors.pink,
                                 contentColor = MotifTheme.colors.typo,
@@ -195,7 +201,7 @@ internal fun ArtistDetailCard(
                             .fillMaxHeight(),
                     ) {
                         Text(
-                            text = "WITH ${artistDetail.name}",
+                            text = "WITH ${artistDetail.artist.name}",
                             style = MotifTheme.typography.bodySB16,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -212,7 +218,7 @@ internal fun ArtistDetailCard(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Text(
-                text = artistDetail.introducing,
+                text = artistDetail.introduction,
                 style = MotifTheme.typography.captionR12.copy(lineHeight = 20.sp),
                 color = MotifTheme.colors.typo
             )
