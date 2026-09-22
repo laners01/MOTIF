@@ -2,8 +2,8 @@ package com.ssafy.motif.core.data.repository
 
 import com.ssafy.motif.core.data.model.OffsetPage
 import com.ssafy.motif.core.model.artist.ArtistDetail
+import com.ssafy.motif.core.model.artist.ArtistFeedItem
 import com.ssafy.motif.core.model.artist.ArtistFilter
-import com.ssafy.motif.core.model.artist.ArtistSubscription
 import com.ssafy.motif.core.model.artist.ArtistSubscriptionResult
 import com.ssafy.motif.core.model.artist.ArtistWithSubscription
 import com.ssafy.motif.core.model.artist.RankedArtist
@@ -32,6 +32,11 @@ interface ArtistRepository {
     ): Flow<ArtistSubscriptionResult>
 
     fun getArtists(): Flow<List<ArtistWithSubscription>>
+
+    fun getArtistFeed(
+        page: Int = DEFAULT_PAGE,
+        size: Int = DEFAULT_PAGE_SIZE,
+    ): Flow<OffsetPage<ArtistFeedItem>>
 
     private companion object {
         const val DEFAULT_PAGE = 0

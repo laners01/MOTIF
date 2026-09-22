@@ -6,18 +6,19 @@ import com.ssafy.motif.core.data.mapper.toModel
 import com.ssafy.motif.core.data.mapper.toNetwork
 import com.ssafy.motif.core.data.model.OffsetPage
 import com.ssafy.motif.core.model.artist.ArtistDetail
+import com.ssafy.motif.core.model.artist.ArtistFeedItem
 import com.ssafy.motif.core.model.artist.ArtistFilter
 import com.ssafy.motif.core.model.artist.ArtistSubscriptionResult
 import com.ssafy.motif.core.model.artist.ArtistWithSubscription
 import com.ssafy.motif.core.model.artist.RankedArtist
 import com.ssafy.motif.core.network.service.artist.ArtistClient
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import javax.inject.Inject
 
-class ArtistRepositoryImpl @Inject constructor(
+internal class ArtistRepositoryImpl @Inject constructor(
     private val artistClient: ArtistClient,
     @param:Dispatcher(MotifDispatcher.IO)
     private val ioDispatcher: CoroutineDispatcher,
@@ -78,6 +79,19 @@ class ArtistRepositoryImpl @Inject constructor(
     override fun getArtists(): Flow<List<ArtistWithSubscription>> =
         flow {
             val response = artistClient.getArtists()
+
+            emit(response.toModel())
+        }.flowOn(ioDispatcher)
+
+    override fun getArtistFeed(
+        page: Int,
+        size: Int,
+    ): Flow<OffsetPage<ArtistFeedItem>> =
+        flow {
+            val response = artistClient.getArtistFeed(
+                page = page,
+                size = size,
+            )
 
             emit(response.toModel())
         }.flowOn(ioDispatcher)
