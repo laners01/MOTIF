@@ -6,6 +6,7 @@ data class ArtistDetail(
     val subscriberCount: Long,
     val challengeCount: Long,
     val isSubscribed: Boolean,
-    val isAlarmOn: Boolean,
-    val hasMotifPass: Boolean,
+    val subscribedDays: Int?,
+    val motifPass: ArtistPass,
+    val myMotifVideos: List<ArtistMotifVideo>,
 )

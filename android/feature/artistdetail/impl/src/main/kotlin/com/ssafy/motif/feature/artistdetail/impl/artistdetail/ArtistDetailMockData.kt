@@ -2,11 +2,12 @@ package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.artist.ArtistDetail
+import com.ssafy.motif.core.model.artist.ArtistPass
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.model.motif.Motif
+import com.ssafy.motif.core.model.notice.Notice
 
 internal object ArtistDetailMockData {
 
@@ -34,7 +35,7 @@ internal object ArtistDetailMockData {
     }
 
     val artist: ArtistDetail = ArtistDetail(
-        Artist(
+        artist = Artist(
             id = 1L,
             name = "Yeji",
             groupName = "ITZY",
@@ -43,9 +44,13 @@ internal object ArtistDetailMockData {
         introduction = "요즘 시간이 진짜 빨리 가는 것 같아요.\n그래도 곧 재밌는 거 보여줄 수 있을 것 같아요 :)",
         subscriberCount = 2_100_000L,
         challengeCount = 121L,
-        isAlarmOn = true,
         isSubscribed = false,
-        hasMotifPass = true
+        subscribedDays = null,
+        motifPass = ArtistPass(
+            active = true,
+            expiresAt = null,
+        ),
+        myMotifVideos = emptyList(),
     )
     private val noticeArtist = Artist(
         id = 1L,

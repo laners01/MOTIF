@@ -6,12 +6,12 @@ import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor() : ViewModel() {
@@ -56,12 +56,8 @@ class ArtistDetailViewModel @Inject constructor() : ViewModel() {
 
     fun toggleAlarm() {
         _uiState.update { state ->
-            val detail = state.artistDetail ?: return@update state
-
             state.copy(
-                artistDetail = detail.copy(
-                    isAlarmOn = !detail.isAlarmOn,
-                ),
+                isAlarmOn = !state.isAlarmOn,
             )
         }
     }

@@ -97,7 +97,7 @@ internal fun ArtistDetailCard(
                         color = MotifTheme.colors.gray400,
                         maxLines = 1,
                     )
-                    if (artistDetail.hasMotifPass) {
+                    if (artistDetail.motifPass.active) {
                         Icon(
                             painter = painterResource(MotifIcons.MotifPass),
                             contentDescription = null,

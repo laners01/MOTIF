@@ -56,6 +56,8 @@ fun ArtistDetailScreen(
 
     ArtistDetailScreen(
         uiState = uiState,
+        // Todo: 수정 필수
+        isAlarmOn = uiState.isAlarmOn,
         onSubscribeClick = viewModel::toggleSubscribe,
         onAlarmClick = viewModel::toggleAlarm,
         onBackClick = viewModel::goBackScreen,
@@ -76,6 +78,7 @@ fun ArtistDetailScreen(
 @Composable
 internal fun ArtistDetailScreen(
     uiState: ArtistDetailUiState,
+    isAlarmOn: Boolean,
     onSubscribeClick: () -> Unit,
     onAlarmClick: () -> Unit,
     onBackClick: () -> Unit,
@@ -158,7 +161,7 @@ internal fun ArtistDetailScreen(
                 ),
             ) {
                 uiState.artistDetail?.let { artistDetail ->
-                    if (artistDetail.hasMotifPass) {
+                    if (artistDetail.motifPass.active) {
                         val motif = uiState.representativeMotif
 
                         if (motif != null) {
@@ -186,11 +189,11 @@ internal fun ArtistDetailScreen(
                     item {
                         ArtistDetailCard(
                             artistDetail = artistDetail,
-                            isAlarmOn = artistDetail.isAlarmOn,
+                            isAlarmOn = isAlarmOn,
                             isSubscribed = artistDetail.isSubscribed,
                             onSubscribeClick = onSubscribeClick,
                             onAlarmClick = onAlarmClick,
-                            modifier = if (artistDetail.hasMotifPass) {
+                            modifier = if (artistDetail.motifPass.active) {
                                 Modifier
                             } else {
                                 Modifier.padding(
