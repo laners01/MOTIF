@@ -19,10 +19,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.component.bottomsheet.rememberBottomSheetState
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.challenges.ArtistChallenge
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.challenge.Challenge
+import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.ui.comment.CommentBottomSheet
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
@@ -36,7 +37,7 @@ import com.ssafy.motif.core.designsystem.R as DesignSystemR
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ArtistChallengeScreen(
-    challenges: List<ArtistChallenge>,
+    challenges: List<Challenge>,
     myProfileImageUrl: String,
     commentUiState: CommentUiState,
     onArtistClick: (Long) -> Unit,
@@ -66,11 +67,11 @@ internal fun ArtistChallengeScreen(
     )
 
     var descriptionChallenge by remember {
-        mutableStateOf<ArtistChallenge?>(null)
+        mutableStateOf<Challenge?>(null)
     }
 
     var commentChallenge by remember {
-        mutableStateOf<ArtistChallenge?>(null)
+        mutableStateOf<Challenge?>(null)
     }
 
     val activeSheetState = when {
@@ -255,7 +256,7 @@ private fun ArtistChallengeScreenPreview() {
 
 private fun previewChallenges(
     profileImageUrl: String,
-): List<ArtistChallenge> {
+): List<Challenge> {
     val yeji = Artist(
         id = 1L,
         name = "Yeji",
@@ -292,14 +293,16 @@ private fun previewChallenges(
     )
 
     return listOf(
-        ArtistChallenge(
+        Challenge(
             id = 1L,
             videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
             thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/thumb.jpg",
             artist = yeji,
             description = "생각보다 어렵지 않으니까 같이 도전해봐요 🖤",
-            songArtistName = "JENNIE",
-            songTitle = "like JENNY",
+            ChallengeSong(
+                artistName = "JENNIE",
+                title = "like JENNY",
+            ),
             likeCount = 12_000L,
             commentCount = 2_400L,
             participantCount = 800L,
@@ -309,14 +312,16 @@ private fun previewChallenges(
             isSubscribed = false,
             challengeArtists = challengeArtists,
         ),
-        ArtistChallenge(
+        Challenge(
             id = 2L,
             videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
             thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/thumb.jpg",
             artist = chaeryeong,
             description = "이번 챌린지는 마지막 포즈가 포인트예요 🔥",
-            songArtistName = "뽀로로",
-            songTitle = "바라밤",
+            ChallengeSong(
+                artistName = "뽀로로",
+                title = "바라밤",
+            ),
             likeCount = 8_421L,
             commentCount = 1_203L,
             participantCount = 534L,

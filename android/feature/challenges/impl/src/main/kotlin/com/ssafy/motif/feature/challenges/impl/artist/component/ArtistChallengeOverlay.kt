@@ -25,12 +25,12 @@ import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.glass.GlassBackdropState
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.challenges.ArtistChallenge
+import com.ssafy.motif.core.model.challenge.Challenge
 import com.ssafy.motif.core.ui.video.VideoSongInfo
 
 @Composable
 internal fun ArtistChallengeOverlay(
-    challenge: ArtistChallenge,
+    challenge: Challenge,
     backdropState: GlassBackdropState,
     onArtistClick: () -> Unit,
     onSubscribeClick: (Long) -> Unit,
@@ -64,7 +64,7 @@ internal fun ArtistChallengeOverlay(
 
 @Composable
 private fun ChallengeShortFormInformation(
-    challenge: ArtistChallenge,
+    challenge: Challenge,
     backdropState: GlassBackdropState,
     onArtistClick: () -> Unit,
     onSubscribeClick: (Long) -> Unit,
@@ -131,8 +131,8 @@ private fun ChallengeShortFormInformation(
         )
 
         VideoSongInfo(
-            artistName = challenge.songArtistName,
-            songTitle = challenge.songTitle,
+            artistName = challenge.song.artistName,
+            songTitle = challenge.song.title,
             backdropState = backdropState,
         )
     }
@@ -172,7 +172,7 @@ private fun ChallengeSubscribeButton(
 
 @Composable
 private fun ChallengeShortFormActions(
-    challenge: ArtistChallenge,
+    challenge: Challenge,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onCaptureClick: () -> Unit,

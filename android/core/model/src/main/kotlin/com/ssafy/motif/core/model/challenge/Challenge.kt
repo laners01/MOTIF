@@ -1,15 +1,14 @@
-package com.ssafy.motif.core.model.challenges
+package com.ssafy.motif.core.model.challenge
 
 import com.ssafy.motif.core.model.artist.Artist
 
-data class ArtistChallenge(
+data class Challenge(
     val id: Long,
     val videoUrl: String,
     val thumbnailUrl: String,
     val artist: Artist,
     val description: String,
-    val songArtistName: String,
-    val songTitle: String,
+    val song: ChallengeSong,
     val likeCount: Long,
     val commentCount: Long,
     val participantCount: Long,
