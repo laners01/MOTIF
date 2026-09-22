@@ -357,17 +357,19 @@ class CompositeJobCreateLocalDbTest {
      * 안에서 같은 사람이 두 자리를 차지하는 것을 막는다.
      */
     private Integer newSlot(Integer challengeSeq, int slotOrder, boolean withEdited) {
-        String uuid = UUID.randomUUID().toString();
-        ChallengeParticipant slot = ChallengeParticipant.of(
+        ChallengeParticipant slot = participantRepository.saveAndFlush(ChallengeParticipant.of(
                 challengeSeq, newArtist(), slotOrder,
-                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995));
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
         if (withEdited) {
-            // 슬롯이 먼저 나고 편집본이 뒤에 붙는다(§3.7.2 → §3.7.6)
-            slot.replaceEditedKeys("private/edited/" + uuid + "/e-" + slotOrder + ".mp4",
-                    "private/edited/" + uuid + "/s-" + slotOrder + ".jpg",
-                    "private/edited/" + uuid + "/p-" + slotOrder + ".jpg", 15_000);
+            // 슬롯이 먼저 나고 편집본이 뒤에 붙는다(§3.7.2 → §3.7.6) — 키가 슬롯 seq 를 품는다
+            String prefix = "private/edited/" + challengeSeq + "/"
+                    + slot.getChallengeParticipantSeq() + "/";
+            slot.replaceEditedKeys(prefix + UUID.randomUUID() + ".mp4",
+                    prefix + UUID.randomUUID() + ".jpg",
+                    prefix + UUID.randomUUID() + ".jpg", 15_000);
+            participantRepository.saveAndFlush(slot);
         }
-        return participantRepository.saveAndFlush(slot).getChallengeParticipantSeq();
+        return slot.getChallengeParticipantSeq();
     }
 
     private MotifAsset newAsset(AssetType type, boolean active) {

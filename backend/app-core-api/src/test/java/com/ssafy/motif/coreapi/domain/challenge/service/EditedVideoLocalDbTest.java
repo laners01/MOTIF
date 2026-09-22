@@ -131,17 +131,20 @@ class EditedVideoLocalDbTest {
 
     /** 슬롯을 만들고, 편집본이 있으면 §3.7.6 처럼 뒤이어 채운다 — 실제 순서와 같다. */
     private Integer newSlot(int slotOrder, boolean withEdited) {
-        String uuid = UUID.randomUUID().toString();
-        ChallengeParticipant slot = ChallengeParticipant.of(
+        ChallengeParticipant slot = participantRepository.saveAndFlush(ChallengeParticipant.of(
                 challengeSeq, newArtist(), slotOrder,
-                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995));
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
         if (withEdited) {
+            // private/edited/{challengeSeq}/{slotSeq}/ — 슬롯이 나야 자리가 정해진다.
             // private/ 프리픽스라야 서명 경로를 탄다(0020)
-            slot.replaceEditedKeys("private/edited/" + uuid + "/e.mp4",
-                    "private/edited/" + uuid + "/s.jpg",
-                    "private/edited/" + uuid + "/p.jpg", DURATION_MS);
+            String prefix = "private/edited/" + challengeSeq + "/"
+                    + slot.getChallengeParticipantSeq() + "/";
+            slot.replaceEditedKeys(prefix + UUID.randomUUID() + ".mp4",
+                    prefix + UUID.randomUUID() + ".jpg",
+                    prefix + UUID.randomUUID() + ".jpg", DURATION_MS);
+            participantRepository.saveAndFlush(slot);
         }
-        return participantRepository.saveAndFlush(slot).getChallengeParticipantSeq();
+        return slot.getChallengeParticipantSeq();
     }
 
     private Integer newArtist() {

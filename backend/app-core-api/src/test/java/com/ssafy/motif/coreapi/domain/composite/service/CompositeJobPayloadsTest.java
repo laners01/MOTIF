@@ -45,14 +45,14 @@ class CompositeJobPayloadsTest {
     private static final UUID CHALLENGE_UUID = UUID.fromString("b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c");
     private static final UUID MOTIF_UUID = UUID.fromString("9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f");
 
-    /** AI 서버 명세 §3.2 CHALLENGE 예시 — <b>한 글자도 고치지 않는다</b>. */
+    /** AI 서버 명세 v0.4 §4 CHALLENGE 예시 — <b>한 글자도 고치지 않는다</b>. */
     private static final String SPEC_CHALLENGE = """
             {
               "job_uuid": "b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c",
               "job_type": "CHALLENGE",
               "attempt": 1,
               "raw_video_key": "raw/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
-              "base_video_key": "private/edited/11/7d2f…e1.mp4",
+              "base_video_key": "private/edited/11/31/7d2f…e1.mp4",
               "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
               "correction_enabled": true,
               "participant_mask": 2,
@@ -209,11 +209,16 @@ class CompositeJobPayloadsTest {
                 participant(7, 2, new Anchor(0.50, 0.30, 0.0995)));
     }
 
-    /** 편집본이 붙은 슬롯 — 베이스 키는 명세 예시의 값 그대로다. */
+    /**
+     * 편집본이 붙은 슬롯 — 베이스 키는 명세 예시의 값 그대로다.
+     *
+     * <p>키에 슬롯 seq(31)가 들어가지만 <b>여기서는 문자열일 뿐이다</b>. 엔티티가 아직
+     * 영속되지 않아 실제 seq 가 없고, 조립기는 키를 파싱하지 않고 그대로 싣는다.
+     */
     private static ChallengeParticipant participant(int artistSeq, int slotOrder, Anchor anchor) {
         ChallengeParticipant slot = ChallengeParticipant.of(11, artistSeq, slotOrder, anchor);
-        slot.replaceEditedKeys("private/edited/11/7d2f…e1.mp4", "private/edited/11/scene.jpg",
-                "private/edited/11/preview.jpg", 15_000);
+        slot.replaceEditedKeys("private/edited/11/31/7d2f…e1.mp4",
+                "private/edited/11/31/scene.jpg", "private/edited/11/31/preview.jpg", 15_000);
         return slot;
     }
 
