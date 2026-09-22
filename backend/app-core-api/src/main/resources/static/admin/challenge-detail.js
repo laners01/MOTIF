@@ -42,6 +42,9 @@ function slotRow(participant) {
     tr.dataset.artistSeq = participant.artist.artistSeq;
     tr.dataset.seq = participant.challengeParticipantSeq;
     tr.querySelector('.order').textContent = participant.slotOrder;
+    // 편집본 키가 이 seq 를 품는다(private/edited/{challengeSeq}/{슬롯 seq}/) — 앱 §7.5·§7.6
+    // 이 쓰는 식별자도 같은 값이라, 화면에 띄워 두면 키·문의와 행을 눈으로 맞출 수 있다
+    tr.querySelector('.seq').textContent = participant.challengeParticipantSeq;
 
     // 아티스트를 고를 수 있다(§3.7.5). dataset 은 서버가 아는 현재 주인이라
     // 앵커 저장(§3.7.9)은 계속 그 값을 경로에 쓴다 — select 는 저장 전까지 후보다
@@ -183,6 +186,7 @@ function refreshSlotSaveState() {
 $('add-slot').addEventListener('click', () => {
     const tr = $('slot-row').content.firstElementChild.cloneNode(true);
     tr.querySelector('.order').textContent = `(새 — ${$('slots').rows.length})`;
+    tr.querySelector('.seq').textContent = '저장 뒤에 난다';
     for (const cell of tr.querySelectorAll('.media .link')) {
         cell.replaceChildren(document.createTextNode('저장 뒤에 올린다'));
     }

@@ -5,6 +5,7 @@ import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.coreapi.admin.challenge.dto.AnchorRequest;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeCreateRequest;
+import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeDetailResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeListItem;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeSlotsResponse;
 import com.ssafy.motif.coreapi.admin.challenge.dto.ChallengeValidateResponse;
@@ -15,6 +16,7 @@ import com.ssafy.motif.coreapi.admin.challenge.dto.ParticipantRequest;
 import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import com.ssafy.motif.coreapi.domain.challenge.ChallengeErrorCode;
 import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.global.media.MediaSigningTestSupport;
 import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.event.contract.ChallengeCreatedEvent;
 import com.ssafy.motif.coreapi.admin.media.AdminMediaKind;
@@ -31,6 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -86,6 +90,15 @@ class AdminChallengeServiceLocalDbTest {
     private RabbitTemplate rabbitTemplate;
 
     /** HEAD 가 성공하는 키 — 테스트가 "업로드된 것으로 친다"고 선언한 것만 존재한다. */
+    /**
+     * CDN 주소와 서명 키를 넣는다 — 로컬·CI 에는 둘 다 없어서 모든 URL 이 조용히
+     * {@code null} 이 되고, 그러면 서명이 통째로 빠져도 단언이 서지 않는다.
+     */
+    @DynamicPropertySource
+    static void media(DynamicPropertyRegistry registry) {
+        MediaSigningTestSupport.register(registry);
+    }
+
     private final Set<String> uploadedKeys = new HashSet<>();
     private final List<Integer> createdChallenges = new ArrayList<>();
     private final List<Integer> createdArtists = new ArrayList<>();
@@ -292,6 +305,36 @@ class AdminChallengeServiceLocalDbTest {
         assertThat(scalar("select 1 from motif_core.challenge_participants "
                 + "where challenge_participant_seq = ?1 and edited_challenge_key = '" + newKey + "'", slotSeq))
                 .isEqualTo(1);
+    }
+
+    /**
+     * 편집본 키는 {@code private/edited/…} 라 어드민에게 주는 주소도 <b>서명돼야 한다</b>.
+     *
+     * <p>무서명으로 내면 CloudFront {@code private/*} 가 403 을 주는데, 저장은 성공하고
+     * 화면에 "열기" 링크까지 뜨므로 <b>업로드가 안 되는 것처럼 보인다</b> — 예외도 로그도
+     * 남지 않는다. 0020 이 앱 §7.5·§7.6 만 옮기고 어드민을 두고 갔던 자리다.
+     *
+     * <p>단언은 접두사와 서명 파라미터 존재만 본다 — {@code Expires} 가 초 단위라 URL
+     * 전체를 견주면 초 경계에서만 깨지는 플레이키가 된다.
+     */
+    @Test
+    @DisplayName("편집본 세 주소는 서명돼서 나온다 — 상세(§3.7.3)도 교체 응답(§3.7.6)도")
+    void 편집본_주소는_서명된다() {
+        ChallengeSlotsResponse created = create(List.of(slot(newArtist())));
+        Integer slotSeq = created.participants().getFirst().challengeParticipantSeq();
+
+        ParticipantEditedResponse replaced =
+                fillEdited(created.challengeSeq(), slotSeq, ORIGIN_DURATION_MS);
+        ChallengeDetailResponse.Participant detailed =
+                adminChallengeService.detail(created.challengeSeq()).participants().getFirst();
+
+        assertThat(List.of(replaced.editedChallengeUrl(), replaced.initialSceneUrl(),
+                replaced.previewImageUrl(), detailed.editedChallengeUrl(),
+                detailed.initialSceneUrl(), detailed.previewImageUrl()))
+                .allSatisfy(url -> assertThat(url)
+                        .startsWith(MediaSigningTestSupport.CDN + "/"
+                                + AdminMediaKind.editedPrefix(created.challengeSeq(), slotSeq))
+                        .contains("Signature=", "Key-Pair-Id="));
     }
 
     /**
