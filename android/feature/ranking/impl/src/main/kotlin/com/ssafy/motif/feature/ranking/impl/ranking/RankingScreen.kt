@@ -1,6 +1,5 @@
 package com.ssafy.motif.feature.ranking.impl.ranking
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,16 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import coil.compose.AsyncImage
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -36,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.IconButton
 import com.ssafy.motif.core.designsystem.component.ModifIconButtonDefaults
@@ -43,7 +40,9 @@ import com.ssafy.motif.core.designsystem.component.Surface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.ranking.ChallengeRankCard
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.challenge.ChallengeRank
+import com.ssafy.motif.core.model.challenge.ChallengeSong
 
 
 @Composable
@@ -68,16 +67,18 @@ fun RankingScreen(
 internal fun RankingScreen(
     uiState: RankingUiState,
     onPlayClick: (Long) -> Unit,    //재생버튼 클릭시
-    onArtistClick:(Long) -> Unit,   //아티스트 클릭시
-    onQueryChange:(String) -> Unit, //검색어 변경시
-    onRemoveClick:() -> Unit,       //검색어 삭제
-    onBackClick:() -> Unit,
+    onArtistClick: (Long) -> Unit,   //아티스트 클릭시
+    onQueryChange: (String) -> Unit, //검색어 변경시
+    onRemoveClick: () -> Unit,       //검색어 삭제
+    onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-){
-    Column(modifier = modifier.fillMaxSize(),){
-        Row(modifier = Modifier.padding(start = 20.dp, top = 23.dp, bottom = 23.dp),
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.padding(start = 20.dp, top = 23.dp, bottom = 23.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
             IconButton(
                 painter = painterResource(MotifIcons.BarArrowLeft),
                 onClick = onBackClick,
@@ -106,24 +107,32 @@ internal fun RankingScreen(
                 .padding(start = 20.dp, end = 20.dp),
         )
 
-        Box(modifier = Modifier.weight(1f)){
+        Box(modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(1),
-                contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
+                contentPadding = PaddingValues(
+                    top = 24.dp,
+                    start = 20.dp,
+                    end = 20.dp,
+                    bottom = 20.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),       //사이 상하간격
                 modifier = Modifier.fillMaxSize()
-                )
+            )
 
             {
-                items(items = uiState.filteredChallengeCard, key = { it.id }) { challenge ->
-                    ArtistRankCard(challenge = challenge,
-                        onPlayClick = {onPlayClick(challenge.id)},
-                        onArtistClick = {onArtistClick(challenge.id)},
+                items(
+                    items = uiState.filteredChallengeCard,
+                    key = { it.challengeId }) { challenge ->
+                    ArtistRankCard(
+                        challenge = challenge,
+                        onPlayClick = { onPlayClick(challenge.challengeId) },
+                        onArtistClick = { onArtistClick(challenge.artist.id) },
                     )
                 }
 
             }
-            if(uiState.query.isNotBlank() && uiState.filteredChallengeCard.isEmpty()){
+            if (uiState.query.isNotBlank() && uiState.filteredChallengeCard.isEmpty()) {
                 Text(
                     text = "검색 결과가 없습니다",
                     style = MotifTheme.typography.bodyR14,
@@ -137,12 +146,11 @@ internal fun RankingScreen(
     }
 
 
-
 }
 
 @Composable
 fun ArtistRankCard(
-    challenge: ChallengeRankCard,
+    challenge: ChallengeRank,
     onPlayClick: () -> Unit,
     onArtistClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -151,54 +159,58 @@ fun ArtistRankCard(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(7.dp),
-            modifier = Modifier.width(24.dp),) {
+            modifier = Modifier.width(24.dp),
+        ) {
             Text(
-                text = "${challenge.ranking}",
+                text = "${challenge.rank}",
                 style = MotifTheme.typography.titleSB20,
                 color = MotifTheme.colors.typo,
                 maxLines = 1,
                 overflow = TextOverflow.Visible,
             )
-            Row(verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),){
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
                 Icon(
-                    painter = if(challenge.rankingChanged>0){
+                    painter = if (challenge.rankDelta > 0) {
                         painterResource(MotifIcons.RankingUpper)
-                    }else if(challenge.rankingChanged<0){
+                    } else if (challenge.rankDelta < 0) {
                         painterResource(MotifIcons.RankingLower)
-                    }else{
+                    } else {
                         painterResource(MotifIcons.RankingUnchanged)
-                    } ,
+                    },
                     contentDescription = null,
-                    tint = if(challenge.rankingChanged>0){
+                    tint = if (challenge.rankDelta > 0) {
                         MotifTheme.colors.pink
-                    }else if(challenge.rankingChanged<0){
+                    } else if (challenge.rankDelta < 0) {
                         MotifTheme.colors.gray500
-                    }else{
+                    } else {
                         MotifTheme.colors.gray500
                     },
-                    modifier = if(challenge.rankingChanged > 0 || challenge.rankingChanged<0){
+                    modifier = if (challenge.rankDelta !in 0..0) {
                         Modifier
                             .height(7.dp)
                             .width(6.dp)
-                    }else{
+                    } else {
                         Modifier
                             .height(2.dp)
                             .width(12.dp)
                     },
 
-                )
+                    )
 
 
-                if(challenge.rankingChanged != 0L) {
+                if (challenge.rankDelta != 0L) {
                     Text(
-                        text = if (challenge.rankingChanged < 0) {
-                            "${challenge.rankingChanged}".drop(1)
+                        text = if (challenge.rankDelta < 0) {
+                            "${challenge.rankDelta}".drop(1)
                         } else {
-                            "${challenge.rankingChanged}"
+                            "${challenge.rankDelta}"
                         },
                         style = MotifTheme.typography.captionSB8,
                         color = MotifTheme.colors.typo,
@@ -214,8 +226,8 @@ fun ArtistRankCard(
 
 
         AsyncImage(
-            model = challenge.profileImageUrl,
-            contentDescription = challenge.name,
+            model = challenge.artist.profileImageUrl,
+            contentDescription = null,
             contentScale = ContentScale.Crop,
             placeholder =
                 painterResource(com.ssafy.motif.core.designsystem.R.drawable.profile_square),
@@ -230,11 +242,12 @@ fun ArtistRankCard(
                 .clip(RoundedCornerShape(4.dp))
                 .clickable(onClick = onArtistClick),
         )
-        Row(verticalAlignment = Alignment.CenterVertically,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+        ) {
             Text(
-                text = challenge.name,
+                text = challenge.song.title,
                 style = MotifTheme.typography.bodySB16,
                 color = MotifTheme.colors.typo,
                 maxLines = 1,
@@ -242,7 +255,7 @@ fun ArtistRankCard(
             )
 
             Text(
-                text = challenge.groupName,
+                text = challenge.artist.groupName ?: "",
                 style = MotifTheme.typography.captionSB10,
                 color = MotifTheme.colors.gray500,
                 maxLines = 1,
@@ -251,7 +264,7 @@ fun ArtistRankCard(
 
         }
         Text(
-            text = challenge.challengeName,
+            text = challenge.song.title,
             style = MotifTheme.typography.bodySB16,
             color = MotifTheme.colors.typo,
             maxLines = 1,
@@ -285,7 +298,7 @@ fun ArtistRankCard(
 private fun ArtistSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onRemoveClick:() -> Unit,
+    onRemoveClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -293,7 +306,7 @@ private fun ArtistSearchBar(
         color = MotifTheme.colors.gray700,
         contentPadding = PaddingValues(horizontal = 7.dp, vertical = 12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically){
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 painter = painterResource(MotifIcons.Search),
                 null,
@@ -313,7 +326,7 @@ private fun ArtistSearchBar(
                     .weight(1f)
                     .padding(start = 8.dp),
                 decorationBox = { innerTextField ->
-                    if(query.isEmpty()){
+                    if (query.isEmpty()) {
                         Text(
                             text = "함께하고 싶은 멤버나 그룹을 찾아보세요",
                             style = MotifTheme.typography.bodyR16,
@@ -337,281 +350,460 @@ private fun ArtistSearchBar(
         }
     }
 }
-internal object RankingMokData {
 
-    /** rankingChanged: 양수는 순위 상승, 음수는 하락, 0은 유지를 뜻한다. */
-    val ranking: List<ChallengeRankCard> = listOf(
-        ChallengeRankCard(
-            id = 1L,
-            name = "이채영",
-            groupName = "프로미스나인",
-            profileImageUrl = null,
-            ranking = 1L,
-            challengeName = "Supersonic 챌린지",
-            rankingChanged = 20L,
+internal object RankingMockData {
+
+    /** rankDelta: 양수는 순위 상승, 음수는 하락, 0은 유지를 뜻한다. */
+    val ranking: List<ChallengeRank> = listOf(
+        ChallengeRank(
+            challengeId = 1L,
+            rank = 1L,
+            artist = Artist(
+                id = 1L,
+                name = "이채영",
+                profileImageUrl = "",
+                groupName = "프로미스나인",
+            ),
+            song = ChallengeSong(
+                title = "Supersonic",
+                artistName = "프로미스나인",
+            ),
+            rankDelta = 20L,
         ),
-        ChallengeRankCard(
-            id = 2L,
-            name = "박지원",
-            groupName = "프로미스나인",
-            profileImageUrl = null,
-            ranking = 2L,
-            challengeName = "Supersonic 챌린지",
-            rankingChanged = -1L,
+        ChallengeRank(
+            challengeId = 2L,
+            rank = 2L,
+            artist = Artist(
+                id = 2L,
+                name = "박지원",
+                profileImageUrl = "",
+                groupName = "프로미스나인",
+            ),
+            song = ChallengeSong(
+                title = "Supersonic",
+                artistName = "프로미스나인",
+            ),
+            rankDelta = -1L,
         ),
-        ChallengeRankCard(
-            id = 3L,
-            name = "김민주",
-            groupName = "아이브",
-            profileImageUrl = null,
-            ranking = 3L,
-            challengeName = "Rebel Heart 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 3L,
+            rank = 3L,
+            artist = Artist(
+                id = 3L,
+                name = "김민주",
+                profileImageUrl = "",
+                groupName = "아이브",
+            ),
+            song = ChallengeSong(
+                title = "Rebel Heart",
+                artistName = "아이브",
+            ),
+            rankDelta = 0L,
         ),
-        ChallengeRankCard(
-            id = 4L,
-            name = "정하윤",
-            groupName = "르세라핌",
-            profileImageUrl = null,
-            ranking = 4L,
-            challengeName = "Crazy 챌린지",
-            rankingChanged = 5L,
+        ChallengeRank(
+            challengeId = 4L,
+            rank = 4L,
+            artist = Artist(
+                id = 4L,
+                name = "정하윤",
+                profileImageUrl = "",
+                groupName = "르세라핌",
+            ),
+            song = ChallengeSong(
+                title = "Crazy",
+                artistName = "르세라핌",
+            ),
+            rankDelta = 5L,
         ),
-        ChallengeRankCard(
-            id = 5L,
-            name = "최서연",
-            groupName = "뉴진스",
-            profileImageUrl = null,
-            ranking = 5L,
-            challengeName = "How Sweet 챌린지",
-            rankingChanged = -3L,
+        ChallengeRank(
+            challengeId = 5L,
+            rank = 5L,
+            artist = Artist(
+                id = 5L,
+                name = "최서연",
+                profileImageUrl = "",
+                groupName = "뉴진스",
+            ),
+            song = ChallengeSong(
+                title = "How Sweet",
+                artistName = "뉴진스",
+            ),
+            rankDelta = -3L,
         ),
-        ChallengeRankCard(
-            id = 6L,
-            name = "한소희",
-            groupName = "아이들",
-            profileImageUrl = null,
-            ranking = 6L,
-            challengeName = "Klaxon 챌린지",
-            rankingChanged = 1L,
+        ChallengeRank(
+            challengeId = 6L,
+            rank = 6L,
+            artist = Artist(
+                id = 6L,
+                name = "한소희",
+                profileImageUrl = "",
+                groupName = "아이들",
+            ),
+            song = ChallengeSong(
+                title = "Klaxon",
+                artistName = "아이들",
+            ),
+            rankDelta = 1L,
         ),
-        ChallengeRankCard(
-            id = 7L,
-            name = "윤가은",
-            groupName = "에스파",
-            profileImageUrl = null,
-            ranking = 7L,
-            challengeName = "Whiplash 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 7L,
+            rank = 7L,
+            artist = Artist(
+                id = 7L,
+                name = "윤가은",
+                profileImageUrl = "",
+                groupName = "에스파",
+            ),
+            song = ChallengeSong(
+                title = "Whiplash",
+                artistName = "에스파",
+            ),
+            rankDelta = 0L,
         ),
-        ChallengeRankCard(
-            id = 8L,
-            name = "오예린",
-            groupName = "트와이스",
-            profileImageUrl = null,
-            ranking = 8L,
-            challengeName = "Strategy 챌린지",
-            rankingChanged = -2L,
+        ChallengeRank(
+            challengeId = 8L,
+            rank = 8L,
+            artist = Artist(
+                id = 8L,
+                name = "오예린",
+                profileImageUrl = "",
+                groupName = "트와이스",
+            ),
+            song = ChallengeSong(
+                title = "Strategy",
+                artistName = "트와이스",
+            ),
+            rankDelta = -2L,
         ),
-        ChallengeRankCard(
-            id = 9L,
-            name = "강나연",
-            groupName = "엔믹스",
-            profileImageUrl = null,
-            ranking = 9L,
-            challengeName = "Dash 챌린지",
-            rankingChanged = 4L,
+        ChallengeRank(
+            challengeId = 9L,
+            rank = 9L,
+            artist = Artist(
+                id = 9L,
+                name = "강나연",
+                profileImageUrl = "",
+                groupName = "엔믹스",
+            ),
+            song = ChallengeSong(
+                title = "Dash",
+                artistName = "엔믹스",
+            ),
+            rankDelta = 4L,
         ),
-        ChallengeRankCard(
-            id = 10L,
-            name = "임수아",
-            groupName = "스테이씨",
-            profileImageUrl = null,
-            ranking = 10L,
-            challengeName = "Bebe 챌린지",
-            rankingChanged = -6L,
+        ChallengeRank(
+            challengeId = 10L,
+            rank = 10L,
+            artist = Artist(
+                id = 10L,
+                name = "임수아",
+                profileImageUrl = "",
+                groupName = "스테이씨",
+            ),
+            song = ChallengeSong(
+                title = "Bebe",
+                artistName = "스테이씨",
+            ),
+            rankDelta = -6L,
         ),
-        ChallengeRankCard(
-            id = 11L,
-            name = "서다인",
-            groupName = "있지",
-            profileImageUrl = null,
-            ranking = 11L,
-            challengeName = "Born to Be 챌린지",
-            rankingChanged = 3L,
+        ChallengeRank(
+            challengeId = 11L,
+            rank = 11L,
+            artist = Artist(
+                id = 11L,
+                name = "서다인",
+                profileImageUrl = "",
+                groupName = "있지",
+            ),
+            song = ChallengeSong(
+                title = "Born to Be",
+                artistName = "있지",
+            ),
+            rankDelta = 3L,
         ),
-        ChallengeRankCard(
-            id = 12L,
-            name = "노유정",
-            groupName = "케플러",
-            profileImageUrl = null,
-            ranking = 12L,
-            challengeName = "Galileo 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 12L,
+            rank = 12L,
+            artist = Artist(
+                id = 12L,
+                name = "노유정",
+                profileImageUrl = "",
+                groupName = "케플러",
+            ),
+            song = ChallengeSong(
+                title = "Galileo",
+                artistName = "케플러",
+            ),
+            rankDelta = 0L,
         ),
-        ChallengeRankCard(
-            id = 13L,
-            name = "백지호",
-            groupName = "라이즈",
-            profileImageUrl = null,
-            ranking = 13L,
-            challengeName = "Boom Boom Bass 챌린지",
-            rankingChanged = -4L,
+        ChallengeRank(
+            challengeId = 13L,
+            rank = 13L,
+            artist = Artist(
+                id = 13L,
+                name = "백지호",
+                profileImageUrl = "",
+                groupName = "라이즈",
+            ),
+            song = ChallengeSong(
+                title = "Boom Boom Bass",
+                artistName = "라이즈",
+            ),
+            rankDelta = -4L,
         ),
-        ChallengeRankCard(
-            id = 14L,
-            name = "송하늘",
-            groupName = "투어스",
-            profileImageUrl = null,
-            ranking = 14L,
-            challengeName = "Last Bell 챌린지",
-            rankingChanged = 7L,
+        ChallengeRank(
+            challengeId = 14L,
+            rank = 14L,
+            artist = Artist(
+                id = 14L,
+                name = "송하늘",
+                profileImageUrl = "",
+                groupName = "투어스",
+            ),
+            song = ChallengeSong(
+                title = "Last Bell",
+                artistName = "투어스",
+            ),
+            rankDelta = 7L,
         ),
-        ChallengeRankCard(
-            id = 15L,
-            name = "문채원",
-            groupName = "베이비몬스터",
-            profileImageUrl = null,
-            ranking = 15L,
-            challengeName = "Drip 챌린지",
-            rankingChanged = -2L,
+        ChallengeRank(
+            challengeId = 15L,
+            rank = 15L,
+            artist = Artist(
+                id = 15L,
+                name = "문채원",
+                profileImageUrl = "",
+                groupName = "베이비몬스터",
+            ),
+            song = ChallengeSong(
+                title = "Drip",
+                artistName = "베이비몬스터",
+            ),
+            rankDelta = -2L,
         ),
-        ChallengeRankCard(
-            id = 16L,
-            name = "구예린",
-            groupName = "아일릿",
-            profileImageUrl = null,
-            ranking = 16L,
-            challengeName = "Magnetic 챌린지",
-            rankingChanged = 1L,
+        ChallengeRank(
+            challengeId = 16L,
+            rank = 16L,
+            artist = Artist(
+                id = 16L,
+                name = "구예린",
+                profileImageUrl = "",
+                groupName = "아일릿",
+            ),
+            song = ChallengeSong(
+                title = "Magnetic",
+                artistName = "아일릿",
+            ),
+            rankDelta = 1L,
         ),
-        ChallengeRankCard(
-            id = 17L,
-            name = "장미르",
-            groupName = "제로베이스원",
-            profileImageUrl = null,
-            ranking = 17L,
-            challengeName = "Feel the Pop 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 17L,
+            rank = 17L,
+            artist = Artist(
+                id = 17L,
+                name = "장미르",
+                profileImageUrl = "",
+                groupName = "제로베이스원",
+            ),
+            song = ChallengeSong(
+                title = "Feel the Pop",
+                artistName = "제로베이스원",
+            ),
+            rankDelta = 0L,
         ),
-        ChallengeRankCard(
-            id = 18L,
-            name = "홍시아",
-            groupName = "우주소녀",
-            profileImageUrl = null,
-            ranking = 18L,
-            challengeName = "Last Sequence 챌린지",
-            rankingChanged = -5L,
+        ChallengeRank(
+            challengeId = 18L,
+            rank = 18L,
+            artist = Artist(
+                id = 18L,
+                name = "홍시아",
+                profileImageUrl = "",
+                groupName = "우주소녀",
+            ),
+            song = ChallengeSong(
+                title = "Last Sequence",
+                artistName = "우주소녀",
+            ),
+            rankDelta = -5L,
         ),
-        ChallengeRankCard(
-            id = 19L,
-            name = "차은비",
-            groupName = "프로미스나인",
-            profileImageUrl = null,
-            ranking = 19L,
-            challengeName = "Supersonic 챌린지",
-            rankingChanged = 9L,
+        ChallengeRank(
+            challengeId = 19L,
+            rank = 19L,
+            artist = Artist(
+                id = 19L,
+                name = "차은비",
+                profileImageUrl = "",
+                groupName = "프로미스나인",
+            ),
+            song = ChallengeSong(
+                title = "Supersonic",
+                artistName = "프로미스나인",
+            ),
+            rankDelta = 9L,
         ),
-        ChallengeRankCard(
-            id = 20L,
-            name = "권도희",
-            groupName = "아이브",
-            profileImageUrl = null,
-            ranking = 20L,
-            challengeName = "Accendio 챌린지",
-            rankingChanged = -1L,
+        ChallengeRank(
+            challengeId = 20L,
+            rank = 20L,
+            artist = Artist(
+                id = 20L,
+                name = "권도희",
+                profileImageUrl = "",
+                groupName = "아이브",
+            ),
+            song = ChallengeSong(
+                title = "Accendio",
+                artistName = "아이브",
+            ),
+            rankDelta = -1L,
         ),
-        ChallengeRankCard(
-            id = 21L,
-            name = "신라온",
-            groupName = "엔하이픈",
-            profileImageUrl = null,
-            ranking = 21L,
-            challengeName = "Bite Me 챌린지",
-            rankingChanged = 2L,
+        ChallengeRank(
+            challengeId = 21L,
+            rank = 21L,
+            artist = Artist(
+                id = 21L,
+                name = "신라온",
+                profileImageUrl = "",
+                groupName = "엔하이픈",
+            ),
+            song = ChallengeSong(
+                title = "Bite Me",
+                artistName = "엔하이픈",
+            ),
+            rankDelta = 2L,
         ),
-        ChallengeRankCard(
-            id = 22L,
-            name = "유하람",
-            groupName = "르세라핌",
-            profileImageUrl = null,
-            ranking = 22L,
-            challengeName = "Smart 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 22L,
+            rank = 22L,
+            artist = Artist(
+                id = 22L,
+                name = "유하람",
+                profileImageUrl = "",
+                groupName = "르세라핌",
+            ),
+            song = ChallengeSong(
+                title = "Smart",
+                artistName = "르세라핌",
+            ),
+            rankDelta = 0L,
         ),
-        ChallengeRankCard(
-            id = 23L,
-            name = "명지우",
-            groupName = "뉴진스",
-            profileImageUrl = null,
-            ranking = 23L,
-            challengeName = "Supernatural 챌린지",
-            rankingChanged = -8L,
+        ChallengeRank(
+            challengeId = 23L,
+            rank = 23L,
+            artist = Artist(
+                id = 23L,
+                name = "명지우",
+                profileImageUrl = "",
+                groupName = "뉴진스",
+            ),
+            song = ChallengeSong(
+                title = "Supernatural",
+                artistName = "뉴진스",
+            ),
+            rankDelta = -8L,
         ),
-        ChallengeRankCard(
-            id = 24L,
-            name = "안소울",
-            groupName = "에스파",
-            profileImageUrl = null,
-            ranking = 24L,
-            challengeName = "Supernova 챌린지",
-            rankingChanged = 6L,
+        ChallengeRank(
+            challengeId = 24L,
+            rank = 24L,
+            artist = Artist(
+                id = 24L,
+                name = "안소울",
+                profileImageUrl = "",
+                groupName = "에스파",
+            ),
+            song = ChallengeSong(
+                title = "Supernova",
+                artistName = "에스파",
+            ),
+            rankDelta = 6L,
         ),
-        ChallengeRankCard(
-            id = 25L,
-            name = "표하은",
-            groupName = "트와이스",
-            profileImageUrl = null,
-            ranking = 25L,
-            challengeName = "One Spark 챌린지",
-            rankingChanged = -3L,
+        ChallengeRank(
+            challengeId = 25L,
+            rank = 25L,
+            artist = Artist(
+                id = 25L,
+                name = "표하은",
+                profileImageUrl = "",
+                groupName = "트와이스",
+            ),
+            song = ChallengeSong(
+                title = "One Spark",
+                artistName = "트와이스",
+            ),
+            rankDelta = -3L,
         ),
-        ChallengeRankCard(
-            id = 26L,
-            name = "남기쁨",
-            groupName = "엔믹스",
-            profileImageUrl = null,
-            ranking = 26L,
-            challengeName = "Love Me Like This 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 26L,
+            rank = 26L,
+            artist = Artist(
+                id = 26L,
+                name = "남기쁨",
+                profileImageUrl = "",
+                groupName = "엔믹스",
+            ),
+            song = ChallengeSong(
+                title = "Love Me Like This",
+                artistName = "엔믹스",
+            ),
+            rankDelta = 0L,
         ),
-        ChallengeRankCard(
-            id = 27L,
-            name = "도새롬",
-            groupName = "스테이씨",
-            profileImageUrl = null,
-            ranking = 27L,
-            challengeName = "Teddy Bear 챌린지",
-            rankingChanged = 4L,
+        ChallengeRank(
+            challengeId = 27L,
+            rank = 27L,
+            artist = Artist(
+                id = 27L,
+                name = "도새롬",
+                profileImageUrl = "",
+                groupName = "스테이씨",
+            ),
+            song = ChallengeSong(
+                title = "Teddy Bear",
+                artistName = "스테이씨",
+            ),
+            rankDelta = 4L,
         ),
-        ChallengeRankCard(
-            id = 28L,
-            name = "황시윤",
-            groupName = "투모로우바이투게더",
-            profileImageUrl = null,
-            ranking = 28L,
-            challengeName = "Deja Vu 챌린지",
-            rankingChanged = -7L,
+        ChallengeRank(
+            challengeId = 28L,
+            rank = 28L,
+            artist = Artist(
+                id = 28L,
+                name = "황시윤",
+                profileImageUrl = "",
+                groupName = "투모로우바이투게더",
+            ),
+            song = ChallengeSong(
+                title = "Deja Vu",
+                artistName = "투모로우바이투게더",
+            ),
+            rankDelta = -7L,
         ),
-        ChallengeRankCard(
-            id = 29L,
-            name = "배로아",
-            groupName = "있지",
-            profileImageUrl = null,
-            ranking = 29L,
-            challengeName = "Cake 챌린지",
-            rankingChanged = 1L,
+        ChallengeRank(
+            challengeId = 29L,
+            rank = 29L,
+            artist = Artist(
+                id = 29L,
+                name = "배로아",
+                profileImageUrl = "",
+                groupName = "있지",
+            ),
+            song = ChallengeSong(
+                title = "Cake",
+                artistName = "있지",
+            ),
+            rankDelta = 1L,
         ),
-        ChallengeRankCard(
-            id = 30L,
-            name = "천보름",
-            groupName = "케플러",
-            profileImageUrl = null,
-            ranking = 30L,
-            challengeName = "Shooting Star 챌린지",
-            rankingChanged = 0L,
+        ChallengeRank(
+            challengeId = 30L,
+            rank = 30L,
+            artist = Artist(
+                id = 30L,
+                name = "천보름",
+                profileImageUrl = "",
+                groupName = "케플러",
+            ),
+            song = ChallengeSong(
+                title = "Shooting Star",
+                artistName = "케플러",
+            ),
+            rankDelta = 0L,
         ),
     )
-
-    val uiState: RankingUiState = RankingUiState(ranking = ranking)
 }

@@ -27,11 +27,13 @@ import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.ClickableSurface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.home.FanRadarArtist
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.challenge.ChallengeRank
+import com.ssafy.motif.core.model.challenge.ChallengeSong
 
 @Composable
 internal fun FanRadar(
-    artists: List<FanRadarArtist>,
+    artists: List<ChallengeRank>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -68,7 +70,7 @@ internal fun FanRadar(
                     .take(FAN_RADAR_ITEM_COUNT)
                     .forEach { artist ->
                         FanRadarArtistItem(
-                            artist = artist,
+                            challengeRank = artist,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -93,7 +95,7 @@ internal fun FanRadar(
 
 @Composable
 private fun FanRadarArtistItem(
-    artist: FanRadarArtist,
+    challengeRank: ChallengeRank,
     modifier: Modifier = Modifier,
 ) {
     val strokeWidth = with(LocalDensity.current) {
@@ -104,7 +106,7 @@ private fun FanRadarArtistItem(
         modifier = modifier.size(80.dp)
     ) {
         AsyncImage(
-            model = artist.profileImageUrl,
+            model = challengeRank.artist.profileImageUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -114,7 +116,7 @@ private fun FanRadarArtistItem(
         )
 
         Text(
-            text = artist.rank.toString(),
+            text = challengeRank.rank.toString(),
             color = MotifTheme.colors.typo,
             style = MotifTheme.typography.rankR36.copy(
                 drawStyle = Stroke(
@@ -127,7 +129,7 @@ private fun FanRadarArtistItem(
         )
 
         Text(
-            text = artist.name,
+            text = challengeRank.artist.name,
             color = MotifTheme.colors.typo,
             style = MotifTheme.typography.captionSB12,
             maxLines = 1,
@@ -147,32 +149,72 @@ private const val FAN_RADAR_ITEM_COUNT = 4
 private fun FanRadarPreview() {
     MotifTheme {
         FanRadar(
-            artists = mockFanRadarArtists,
+            artists = previewChallengeRanks,
             onClick = {},
             modifier = Modifier.padding(16.dp),
         )
     }
 }
 
-private val mockFanRadarArtists = listOf(
-    FanRadarArtist(
-        rank = 1,
-        name = "JENNIE",
-        profileImageUrl = "https://picsum.photos/seed/jennie/200",
+private val previewChallengeRanks = listOf(
+    ChallengeRank(
+        challengeId = 1L,
+        rank = 1L,
+        artist = Artist(
+            id = 1L,
+            name = "카리나",
+            profileImageUrl = "https://picsum.photos/seed/karina/200",
+            groupName = "aespa",
+        ),
+        song = ChallengeSong(
+            title = "Supernova",
+            artistName = "aespa",
+        ),
+        rankDelta = 0L,
     ),
-    FanRadarArtist(
-        rank = 2,
-        name = "WINTER",
-        profileImageUrl = "https://picsum.photos/seed/winter/200",
+    ChallengeRank(
+        challengeId = 2L,
+        rank = 2L,
+        artist = Artist(
+            id = 2L,
+            name = "지수",
+            profileImageUrl = "https://picsum.photos/seed/jisoo/200",
+            groupName = "BLACKPINK",
+        ),
+        song = ChallengeSong(
+            title = "Flower",
+            artistName = "지수",
+        ),
+        rankDelta = 0L,
     ),
-    FanRadarArtist(
-        rank = 3,
-        name = "YEJI",
-        profileImageUrl = "https://picsum.photos/seed/yeji/200",
+    ChallengeRank(
+        challengeId = 3L,
+        rank = 3L,
+        artist = Artist(
+            id = 3L,
+            name = "이채영",
+            profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
+            groupName = "프로미스나인",
+        ),
+        song = ChallengeSong(
+            title = "Supersonic",
+            artistName = "프로미스나인",
+        ),
+        rankDelta = 0L,
     ),
-    FanRadarArtist(
-        rank = 4,
-        name = "KARINA",
-        profileImageUrl = "https://picsum.photos/seed/karina/200",
+    ChallengeRank(
+        challengeId = 4L,
+        rank = 4L,
+        artist = Artist(
+            id = 4L,
+            name = "오해원",
+            profileImageUrl = "https://picsum.photos/seed/haewon/200",
+            groupName = "NMIXX",
+        ),
+        song = ChallengeSong(
+            title = "DASH",
+            artistName = "NMIXX",
+        ),
+        rankDelta = 0L,
     ),
 )

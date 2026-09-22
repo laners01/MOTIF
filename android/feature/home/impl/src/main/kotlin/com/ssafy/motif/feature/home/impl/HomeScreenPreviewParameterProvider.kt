@@ -2,9 +2,10 @@ package com.ssafy.motif.feature.home.impl
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.challenge.ChallengeRank
+import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.home.FanRadarArtist
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.model.home.Onstage
 import com.ssafy.motif.core.model.motif.Motif
@@ -123,26 +124,66 @@ private val previewOnstageItems = listOf(
     ),
 )
 
-private val previewFanRadarArtists = listOf(
-    FanRadarArtist(
-        rank = 1,
-        name = "카리나",
-        profileImageUrl = "https://picsum.photos/seed/karina/200",
+private val previewChallengeRanks = listOf(
+    ChallengeRank(
+        challengeId = 1L,
+        rank = 1L,
+        artist = Artist(
+            id = 1L,
+            name = "카리나",
+            profileImageUrl = "https://picsum.photos/seed/karina/200",
+            groupName = "aespa",
+        ),
+        song = ChallengeSong(
+            title = "Supernova",
+            artistName = "aespa",
+        ),
+        rankDelta = 0L,
     ),
-    FanRadarArtist(
-        rank = 2,
-        name = "지수",
-        profileImageUrl = "https://picsum.photos/seed/jisoo/200",
+    ChallengeRank(
+        challengeId = 2L,
+        rank = 2L,
+        artist = Artist(
+            id = 2L,
+            name = "지수",
+            profileImageUrl = "https://picsum.photos/seed/jisoo/200",
+            groupName = "BLACKPINK",
+        ),
+        song = ChallengeSong(
+            title = "Flower",
+            artistName = "지수",
+        ),
+        rankDelta = 0L,
     ),
-    FanRadarArtist(
-        rank = 3,
-        name = "이채영",
-        profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
+    ChallengeRank(
+        challengeId = 3L,
+        rank = 3L,
+        artist = Artist(
+            id = 3L,
+            name = "이채영",
+            profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
+            groupName = "프로미스나인",
+        ),
+        song = ChallengeSong(
+            title = "Supersonic",
+            artistName = "프로미스나인",
+        ),
+        rankDelta = 0L,
     ),
-    FanRadarArtist(
-        rank = 4,
-        name = "오해원",
-        profileImageUrl = "https://picsum.photos/seed/haewon/200",
+    ChallengeRank(
+        challengeId = 4L,
+        rank = 4L,
+        artist = Artist(
+            id = 4L,
+            name = "오해원",
+            profileImageUrl = "https://picsum.photos/seed/haewon/200",
+            groupName = "NMIXX",
+        ),
+        song = ChallengeSong(
+            title = "DASH",
+            artistName = "NMIXX",
+        ),
+        rankDelta = 0L,
     ),
 )
 
@@ -252,7 +293,7 @@ private val previewOnstageUiState =
 
 private val previewFanRadarUiState =
     FanRadarUiState.Success(
-        artists = previewFanRadarArtists,
+        artists = previewChallengeRanks,
     )
 
 private val previewMyArtistFeedUiState =
