@@ -20,8 +20,7 @@ fun rememberMotifAppState(
     networkMonitor: NetworkMonitor,
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
 ): MotifAppState {
-    // TODO 마이페이지 화면 테스트용. 커밋 전 HomeNavKey로 되돌릴 것
-    val startKey = MyPageNavKey
+    val startKey = HomeNavKey
     val navigationState = rememberNavigationState(
         startKey = startKey,
         topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys + startKey,
