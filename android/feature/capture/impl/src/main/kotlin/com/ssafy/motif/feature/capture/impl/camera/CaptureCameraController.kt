@@ -98,7 +98,7 @@ internal class CaptureCameraController(
                         provider.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector
-                                .DEFAULT_FRONT_CAMERA,
+                                .DEFAULT_BACK_CAMERA,
                             analysis,
                             capture,
                         )
