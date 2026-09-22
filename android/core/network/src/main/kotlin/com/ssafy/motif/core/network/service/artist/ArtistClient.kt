@@ -2,6 +2,7 @@ package com.ssafy.motif.core.network.service.artist
 
 import com.ssafy.motif.core.network.model.artist.ArtistChallengeListResponse
 import com.ssafy.motif.core.network.model.artist.ArtistDetailResponse
+import com.ssafy.motif.core.network.model.artist.ArtistFeedResponse
 import com.ssafy.motif.core.network.model.artist.ArtistListResponse
 import com.ssafy.motif.core.network.model.artist.ArtistNoticeListResponse
 import com.ssafy.motif.core.network.model.artist.ArtistRankingFilter
@@ -75,6 +76,15 @@ class ArtistClient @Inject constructor(
 
     suspend fun getArtists(): ArtistListResponse =
         artistService.getArtists().data
+
+    suspend fun getArtistFeed(
+        page: Int = DEFAULT_PAGE,
+        size: Int = DEFAULT_PAGE_SIZE,
+    ): ArtistFeedResponse =
+        artistService.getArtistFeed(
+            page = page,
+            size = size,
+        ).data
 
     private companion object {
         const val DEFAULT_PAGE = 0
