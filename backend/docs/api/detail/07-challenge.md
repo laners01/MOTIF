@@ -238,8 +238,8 @@ Content-Type: application/json
         "slotOrder": 0,
         "profileImageUrl": "https://cdn.motif.io/profiles/7a1b.jpg",
         "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-        "initialSceneUrl": "https://cdn.motif.io/private/edited/11/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
-        "previewImageUrl": "https://cdn.motif.io/private/edited/11/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
+        "initialSceneUrl": "https://cdn.motif.io/private/edited/11/31/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
+        "previewImageUrl": "https://cdn.motif.io/private/edited/11/31/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
       },
       {
         "challengeParticipantSeq": 32,
@@ -280,7 +280,7 @@ Content-Type: application/json
 
 - 고른 슬롯의 `challengeParticipantSeq` 를 **그대로** §7.6·§13.1 에 보낸다.
 - **비트 마스크는 앱 계약에서 사라졌다.** `1 << slotOrder` 같은 연산을 클라이언트가 할 일이 없다 — 마스크는 AI 접수 페이로드 안에만 남고 서버가 파생한다.
-- 무교체(원본 위 합성)는 §13.1 에서 `challengeParticipantSeq` 를 **생략**한다. `0` 이라는 예약값도 없어졌다.
+- **무교체(원본 위 합성)는 폐기됐다** *(2026-09-22)*. §13.1 의 `challengeParticipantSeq` 는 **필수**이고 생략하면 400 `INVALID_PARAMETER` 다 — 합성은 언제나 슬롯 한 자리를 대체한다. `0` 이라는 예약값도 없다.
 - 원을 누를 때 **썸네일 자리 이미지가 바뀐다**(10-2·10-3 — 배경 교체 개념).
 
 | 상황 | 표시 |
@@ -322,7 +322,7 @@ DB 가 **편집본 영상 ↔ 첫 장면을 짝으로 강제**하므로(CHECK), 
     "challengeParticipantSeq": 31,
     "challengeSeq": 11,
     "artistSeq": 7,
-    "videoUrl": "https://cdn.motif.io/private/edited/11/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
+    "videoUrl": "https://cdn.motif.io/private/edited/11/31/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
     "durationMs": 15020,
     "expiresIn": 600
   },

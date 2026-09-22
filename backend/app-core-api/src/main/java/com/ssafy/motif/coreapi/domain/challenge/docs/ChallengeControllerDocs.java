@@ -206,8 +206,8 @@ public interface ChallengeControllerDocs {
                                             "slotOrder": 0,
                                             "profileImageUrl": "https://cdn.../profiles/7.jpg",
                                             "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-                                            "initialSceneUrl": "https://cdn.../private/edited/11/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
-                                            "previewImageUrl": "https://cdn.../private/edited/11/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
+                                            "initialSceneUrl": "https://cdn.../private/edited/11/31/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
+                                            "previewImageUrl": "https://cdn.../private/edited/11/31/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
                                           },
                                           {
                                             "challengeParticipantSeq": 32,

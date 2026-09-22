@@ -53,7 +53,7 @@ public interface ChallengeParticipantControllerDocs {
                                         "challengeParticipantSeq": 31,
                                         "challengeSeq": 11,
                                         "artistSeq": 7,
-                                        "videoUrl": "https://cdn.../private/edited/11/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
+                                        "videoUrl": "https://cdn.../private/edited/11/31/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
                                         "durationMs": 15020,
                                         "expiresIn": 600
                                       },
