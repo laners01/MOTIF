@@ -17,6 +17,8 @@ android {
 dependencies {
     implementation(projects.feature.home.api)
     implementation(projects.feature.home.impl)
+    implementation(projects.feature.challenges.api)
+    implementation(projects.feature.challenges.impl)
     implementation(projects.feature.onboarding.api)
     implementation(projects.feature.onboarding.impl)
     implementation(projects.feature.ranking.api)
