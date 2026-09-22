@@ -460,9 +460,9 @@ presigned PUT 업로드를 **마친 뒤** 호출한다.
 
 ## 4.9 GET /api/v1/users/me/activities — 내 활동
 
-**커서 페이지네이션**(§1.9). **영상 단위 카드**이며 정렬은 **마지막 상호작용 최신순**이다.
+**커서 페이지네이션**(§1.9). **대상 단위 카드**이며 정렬은 **마지막 상호작용 최신순**이다.
 
-내가 좋아요를 눌렀거나 댓글을 단 영상 1개가 카드 1장이고, 카드에 하트 표시·내 댓글·**내 댓글에 달린 답글**이 붙는다(화면 시안 기준). **본인 게시물은 제외**하고, 탭 분리는 없다.
+내가 좋아요를 눌렀거나 댓글을 단 **참여 영상 1개 또는 챌린지 원본 1개**가 카드 1장이고, 카드에 하트 표시·내 댓글·**내 댓글에 달린 답글**이 붙는다(화면 시안 기준). 둘은 **한 목록에 섞여** 내려오며 탭 분리는 없다.
 
 ### 요청
 
@@ -483,8 +483,9 @@ Authorization: Bearer {accessToken}
   "data": {
     "list": [
       {
-        "video": {
-          "videoSeq": 88,
+        "target": {
+          "type": "VIDEO",
+          "seq": 88,
           "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
           "viewCount": 3400,
           "likeCount": 12000
@@ -516,7 +517,7 @@ Authorization: Bearer {accessToken}
       }
     ],
     "prevCursor": null,
-    "nextCursor": "MTc4NzkxODQwMDAwMDo4OA",
+    "nextCursor": "MTc4NzkxODQwMDAwMDpWSURFTzo4OA",
     "hasPrevious": false,
     "hasNext": true
   },
@@ -526,13 +527,17 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 설명 |
 |---|---|
+| `target.type` | `VIDEO`(참여 영상) \| `CHALLENGE`(챌린지 원본). **`seq` 가 어느 것인지 정한다** |
+| `target.seq` | `VIDEO` 면 `videoSeq`, `CHALLENGE` 면 `challengeSeq`. 두 값은 **seq 공간이 달라** `type` 없이 쓰면 안 된다 |
+| `target.likeCount` | 화면의 "♥ 1.2만" |
 | `liked` | 내가 좋아요를 눌렀는지 = 카드의 하트 표시 |
-| `video.likeCount` | 화면의 "♥ 1.2만" |
-| `myComment` | 내가 단 댓글. **좋아요만 한 영상이면 `null`** |
+| `myComment` | 내가 단 댓글. **좋아요만 했으면 `null`** |
 | `myComment.replyCount` | **노출되는** 답글 수(삭제된 답글·삭제 사용자의 답글 제외 — §9.1 과 같은 집합) |
 | `myComment.parentComment` | 내 댓글이 답글이면 부모 요약, 루트면 `null` |
 | `replies` | **내 댓글에 달린 답글 최신 2개** 프리뷰. 전체는 `myComment.replyCount` 와 함께 게시물 댓글 화면으로 이동 |
-| `lastInteractedDttm` | 정렬 기준. 좋아요·댓글 중 **마지막 상호작용 시각**. 영상의 등록 시각이 아니다 |
+| `lastInteractedDttm` | 정렬 기준. 좋아요·댓글 중 **마지막 상호작용 시각**. 대상의 등록 시각이 아니다 |
+
+**카드를 눌렀을 때의 이동** — `type` 이 정한다. `VIDEO` 는 **§8.2 참여 영상 단건**, `CHALLENGE` 는 **§7.3 챌린지 단건**이다. 댓글 화면도 같은 기준으로 §9.1 의 대상이 갈린다.
 
 **`parentComment` 의 모양** — 원본·이 문서 모두 `null` 예시만 있어 여기서 채운다 **(기본안)**.
 
@@ -547,26 +552,40 @@ Authorization: Bearer {accessToken}
 `author` 는 `replies[].author` 와 **같은 요약**이다(`userSeq`·`nickname`·`profileImageUrl`). §9 의 작성자 요약과 달리 `isArtist` 가 없다 — 아티스트 뱃지는 댓글 목록의 정렬 1순위와 짝인 표시이고, 활동 카드에는 그 정렬도 뱃지도 없다.
 
 - 좋아요와 댓글이 **둘 다 있으면 카드 1장으로 병합**한다.
-- 같은 영상에 내 댓글이 여러 개면 **최신 1개**만 싣는다.
+- 같은 대상에 내 댓글이 여러 개면 **최신 1개**만 싣는다.
 - `replies` 는 **최신 2건을 고르고 등록순으로 싣는다.** 고르는 기준이 최신이어야 새 답글이 보이고, 싣는 순서가 대화 순서여야 읽힌다 — 위 예시의 13:00 → 14:00 이 그 결과다.
 - 내 댓글이 답글이면(depth 2 규칙) `replies` 는 **항상 빈 배열**이다 — 답글에는 답글을 달 수 없다.
-- 대상이 삭제·비노출되었거나 **댓글 사용 중지**된 영상의 카드는 목록에서 제외한다(ACTIVITY-02). 제외 조건 전량은 아래 기본안 표에 있다.
+- 대상이 삭제·비노출되었거나 **댓글 사용 중지**된 경우 카드는 목록에서 제외한다(ACTIVITY-02). 제외 조건은 **대상마다 다르다** — 아래 표를 본다.
 - **내 댓글만 삭제된 경우는 제외가 아니다** — 좋아요가 남아 있으면 카드는 남고 `myComment` 만 `null` 이 된다.
 - **최근 검색어는 이 API 와 무관하다** — 서버 API·DB 없이 Android 로컬에서만 처리한다.
 
-**나머지 두 모양** — 좋아요만 한 영상(`myComment=null`)과 내 댓글이 답글인 영상(`parentComment` 채움 · `replies=[]`). `data.list[]` 만 적는다.
+### 목록에서 빠지는 카드 (ACTIVITY-02)
+
+| 조건 | `VIDEO` | `CHALLENGE` |
+|---|---|---|
+| 대상이 삭제됨 | 제외 | 제외 |
+| 작성자가 탈퇴함 | 제외 | — (게시자가 없다) |
+| 소속 챌린지가 삭제됨 | 제외 | — (자기 자신이다) |
+| **본인 게시물** | 제외 — 내 영상은 §4.8 그리드가 맡는다 | — (게시자가 없다) |
+| **타인의 `PRIVATE`** | 제외 | — (`visibility` 칼럼이 없다) |
+| **댓글 사용 중지** | 제외 (좋아요만 눌렀어도 카드째) | — (`comment_enabled` 칼럼이 없다) |
+| `video_hides`(관심 없음) | **제외하지 않는다** | 해당 없음 |
+
+챌린지는 어드민이 등록하는 콘텐츠라 게시자·공개 범위·댓글 잠금이라는 개념이 없다. 그래서 거르는 것이 `is_deleted` 하나뿐이다 — 조건을 맞추려고 `challenges` 에 칼럼을 더하지 않는다.
+
+**나머지 두 모양** — 좋아요만 한 챌린지(`myComment=null`)와 내 댓글이 답글인 영상(`parentComment` 채움 · `replies=[]`). `data.list[]` 만 적는다.
 
 ```json
 [
   {
-    "video": { "videoSeq": 90, "thumbnailUrl": "https://cdn.motif.io/private/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 120, "likeCount": 8 },
+    "target": { "type": "CHALLENGE", "seq": 12, "thumbnailUrl": "https://cdn.motif.io/challenges/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg", "viewCount": 120, "likeCount": 8 },
     "liked": true,
     "myComment": null,
     "replies": [],
     "lastInteractedDttm": "2026-08-27T09:00:00.000Z"
   },
   {
-    "video": { "videoSeq": 89, "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 940, "likeCount": 77 },
+    "target": { "type": "VIDEO", "seq": 89, "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD", "viewCount": 940, "likeCount": 77 },
     "liked": false,
     "myComment": {
       "commentSeq": 612,
@@ -586,9 +605,11 @@ Authorization: Bearer {accessToken}
 ]
 ```
 
+두 카드의 `commentSeq` 가 다른 테이블에서 온다는 점에 주의한다 — `VIDEO` 는 `video_comments`, `CHALLENGE` 는 `challenge_comments` 다. **댓글 seq 도 대상 종류와 짝으로만 뜻이 있다.**
+
 ### 실패 응답
 
-**도메인 분기 없음.** 공통 분기 외에는 망가진 `cursor` 의 `400 INVALID_PARAMETER` 뿐이다 — 조용히 첫 페이지로 되돌리지 않는다(무한 스크롤이 원인 없이 맨 위로 점프한다). 커서는 서버가 발급한 opaque 토큰이라 클라이언트가 만들거나 고치지 않는다(§1.9).
+**도메인 분기 없음.** 공통 분기 외에는 망가진 `cursor` 의 `400 INVALID_PARAMETER` 뿐이다 — 조용히 첫 페이지로 되돌리지 않는다(무한 스크롤이 원인 없이 맨 위로 점프한다). 커서는 서버가 발급한 opaque 토큰이라 클라이언트가 만들거나 고치지 않는다(§1.9). 칸 수가 3이 아니거나 모르는 `type` 이름이 담긴 토큰도 같은 400 이다.
 
 ### 기본안
 
@@ -597,12 +618,15 @@ Authorization: Bearer {accessToken}
 | 답글 프리뷰 개수 | 2개 | 원본 §4.9 기본안 (§16 #13 클라 확인 대기) |
 | 내 댓글 다건일 때 | 최신 1개 | 〃 |
 | 답글 프리뷰 표시 순서 | 최신 2건을 고르고 **등록순**으로 | 원본 예시가 이미 오름차순이다. 고르는 기준과 싣는 순서는 다른 질문이고, 둘을 최신순으로 맞추면 대화가 거꾸로 읽힌다 |
-| 커서 구성 | `(lastInteractedDttm, videoSeq)` | 보조 키가 없으면 같은 밀리초에 상호작용한 카드가 호출마다 자리를 바꿔 중복·누락이 난다. 한 번의 요청으로 좋아요와 댓글이 같이 들어오는 자리라 실제로 겹친다 |
-| "비노출" 의 범위 | 삭제 · 삭제 사용자/챌린지 소속 · **타인의 `PRIVATE`** 까지. `video_hides`(관심 없음)는 **제외하지 않는다** | 관심 없음은 §8.1 피드를 덜 보기 위한 신호지 "내가 한 일" 을 지우는 조작이 아니다. 좋아요를 눌러 둔 영상이 활동에서 사라지면 되돌릴 경로가 없다 |
-| `comment_enabled=FALSE` | **좋아요만 눌렀어도 카드째 제외** | 명세 문구 그대로다. 카드의 본체가 댓글 스레드라 열어도 보여 줄 것이 없다 |
+| 대상 표현 | `video` 칸을 없애고 **`target{type,seq,…}` 한 칸**으로 | `challenge_seq`(INTEGER)와 `video_seq`(BIGINT)는 서로 다른 seq 공간이라 숫자만으로는 어느 상세로 갈지 알 수 없다. `video`/`challenge` 두 칸으로 가르면 앱이 카드마다 둘 다 `null` 검사를 해야 하고 "둘 다 비어 있음" 이라는 불가능한 상태가 계약에 생긴다 |
+| 커서 구성 | `(lastInteractedDttm, type, seq)` | 보조 키가 없으면 같은 밀리초에 상호작용한 카드가 호출마다 자리를 바꿔 중복·누락이 난다. 한 번의 요청으로 좋아요와 댓글이 같이 들어오는 자리라 실제로 겹치고, **seq 공간이 둘이라 `type` 까지 있어야 경계가 잘린다** |
+| 정렬 타이브레이크 | `lastInteractedDttm DESC, type DESC, seq DESC` | `type` 의 문자열 내림차순이라 `VIDEO` 가 `CHALLENGE` 보다 앞이다. 뜻이 있는 순서는 아니고 **결정적이면 충분하다** — 커서 조건이 같은 비교를 쓴다 |
+| "비노출" 의 범위 | 위 ACTIVITY-02 표. `video_hides`(관심 없음)는 **제외하지 않는다** | 관심 없음은 §8.1 피드를 덜 보기 위한 신호지 "내가 한 일" 을 지우는 조작이 아니다. 좋아요를 눌러 둔 영상이 활동에서 사라지면 되돌릴 경로가 없다 |
+| 챌린지의 제외 조건 | `is_deleted` 하나 | 게시자 `user_seq`·`visibility`·`comment_enabled` 가 `challenges` 에 없다. 참여 영상과 조건을 맞추려고 칼럼을 더하지 않는다 — 챌린지에는 그 개념이 없다 |
 | 내 댓글이 삭제됐을 때 | 카드는 남기고 `myComment=null` | 카드까지 지우면 "좋아요는 그대로인데 활동에서 없어졌다" 가 된다 |
 | 부모가 삭제/탈퇴했을 때 | `parentComment=null`, 카드는 남는다 | 내가 단 답글은 그대로 있다. 사라진 것은 그 위 맥락뿐이다 |
-| `video_comments` 인덱스 | `(user_seq, reg_dttm DESC)` 를 **이 티켓에서 추가**(`0016`) | 좋아요 쪽은 `idx_video_likes_user_dttm` 이 이미 있는데 댓글 쪽은 대상 기준 인덱스뿐이라, 이 조회만 테이블 전체를 훑는다. §4.9 전용이라 별도 이슈로 뺄 이유가 없다 |
+| `video_comments` 인덱스 | `(user_seq, reg_dttm DESC)` 를 `0016` 에서 추가 | 좋아요 쪽은 `idx_video_likes_user_dttm` 이 이미 있는데 댓글 쪽은 대상 기준 인덱스뿐이라, 이 조회만 테이블 전체를 훑는다 |
+| `challenge_likes` 인덱스 | `(user_seq, reg_dttm DESC)` 를 **`0022` 에서 추가** | 챌린지 쪽은 반대다 — 댓글은 `idx_challenge_comments_user` 가 이미 받는데, 좋아요는 PK 가 `(challenge_seq, user_seq)` 라 `user_seq` 가 선행 칼럼이 아니어서 이 조회만 전체를 훑는다 |
 
 ---
 

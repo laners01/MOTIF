@@ -453,7 +453,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 | 4.6 | GET | `/users/{userSeq}/profile` | 타 사용자 정보 Bottom Sheet | CHALLENGE-07 |
 | 4.7 | GET | `/users/me/subscriptions` | 구독 아티스트 카드 목록 | MY-02 |
 | 4.8 | GET | `/users/me/videos` | 내 챌린지(그리드·뷰어 공용) | MY-04 |
-| 4.9 | GET | `/users/me/activities` | 내 활동(영상 단위 카드 — 하트·내 댓글·답글) | MY-03, ACTIVITY-01/02 |
+| 4.9 | GET | `/users/me/activities` | 내 활동(대상 단위 카드 — 참여 영상·챌린지, 하트·내 댓글·답글) | MY-03, ACTIVITY-01/02 |
 
 ### 4.1 GET /users/me
 
@@ -589,13 +589,13 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 
 ### 4.9 GET /users/me/activities** **(회의 확정 R2 — 마이페이지 "내 활동" 화면 기준 재설계)
 
-**커서** `?cursor&size` — **영상 단위 카드**, 마지막 상호작용 최신순. 내가 좋아요 또는 댓글을 남긴 영상 1개가 카드 1장(상단 캐러셀)이고, 카드 아래에 하트 표시·내 댓글·**내 댓글에 달린 답글**이 붙는 구조(화면 시안 기준). 본인 게시물 제외. 탭 분리 없음(구 `type` 필터 삭제).
+**커서** `?cursor&size` — **대상 단위 카드**, 마지막 상호작용 최신순. 내가 좋아요 또는 댓글을 남긴 **참여 영상 1개 또는 챌린지 원본 1개**가 카드 1장(상단 캐러셀)이고, 카드 아래에 하트 표시·내 댓글·**내 댓글에 달린 답글**이 붙는 구조(화면 시안 기준). 두 대상은 한 목록에 섞인다. 본인 게시물 제외(참여 영상에만 해당). 탭 분리 없음(구 `type` 필터 삭제).
 
 **성공 응답 (200)** — `data.list[]`:
 
 ```json
 {
-  "video": { "videoSeq": 88, "thumbnailUrl": "...", "viewCount": 3400, "likeCount": 12000 },
+  "target": { "type": "VIDEO", "seq": 88, "thumbnailUrl": "...", "viewCount": 3400, "likeCount": 12000 },
   "liked": true,
   "myComment": {
     "commentSeq": 501, "content": "이 챌린지 예지랑 너무 잘 어울린다 🔥",
@@ -610,13 +610,17 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 }
 ```
 
-- `liked` = 하트 표시 여부(내가 좋아요 누름). `video.likeCount` 가 화면의 "♥ 1.2만". `viewCount` 포함(그리드 공통 규칙).
+- `target.type` = `VIDEO`(참여 영상) | `CHALLENGE`(챌린지 원본). **`target.seq` 는 이 값과 짝으로만 뜻이 있다** — `video_seq`(BIGINT)와 `challenge_seq`(INTEGER)는 서로 다른 seq 공간이라 숫자만으로는 어느 상세(§8.2 ↔ §7.3)로 갈지 알 수 없다 **(기본안)**.
 
-- `myComment` = 내가 단 댓글(없으면 `null` — 좋아요만 한 영상). 같은 영상에 내 댓글이 여러 개면 **최신 1개** **(기본안)**.
+- `liked` = 하트 표시 여부(내가 좋아요 누름). `target.likeCount` 가 화면의 "♥ 1.2만". `viewCount` 포함(그리드 공통 규칙).
+
+- `myComment` = 내가 단 댓글(없으면 `null` — 좋아요만 한 대상). 같은 대상에 내 댓글이 여러 개면 **최신 1개** **(기본안)**. 댓글 seq 도 대상 종류와 짝이다 — `VIDEO` 는 `video_comments`, `CHALLENGE` 는 `challenge_comments` 다.
 
 - `replies` = **내 댓글에 달린 답글** 최신 2개 프리뷰 **(기본안 — 개수 확인, §16 #22)**. 전체는 `myComment.replyCount` 와 함께 게시물 댓글로 이동. 내 댓글이 답글이면(`parentComment` 존재) depth 2 규칙상 `replies` 는 항상 빈 배열.
 
-- 대상 삭제·비노출·댓글 사용 중지 시 카드 제외(ACTIVITY-02 정책). 좋아요·댓글 둘 다 있으면 카드 1장에 병합.
+- 대상 삭제·비노출·댓글 사용 중지 시 카드 제외(ACTIVITY-02 정책). 좋아요·댓글 둘 다 있으면 카드 1장에 병합. **제외 조건은 대상마다 다르다** — 챌린지에는 게시자·`visibility`·`comment_enabled` 가 없어 거르는 것이 삭제 하나뿐이다(상세 명세 §4.9 표).
+
+- 커서는 `(lastInteractedDttm, type, seq)` 다. 두 대상의 seq 공간이 겹치므로 `type` 이 없으면 같은 시각의 카드 경계가 잘리지 않는다 **(기본안)**.
 
 - 최근 검색어는 **서버 API·DB 없이 Android 로컬에서만 처리**한다. 서버 검색(§5.2)과 최근 검색어 저장은 분리한다.
 

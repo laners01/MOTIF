@@ -1,15 +1,16 @@
 package com.ssafy.motif.coreapi.domain.user.dto;
 
+import com.ssafy.motif.domain.core.user.ActivityTargetType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.util.List;
 
 /**
- * 내 활동 카드 한 장 (API 명세 §4.9) — <b>영상 하나가 카드 하나</b>다.
+ * 내 활동 카드 한 장 (API 명세 §4.9) — <b>대상 하나가 카드 하나</b>다.
  *
- * <p>좋아요와 댓글을 탭으로 가르지 않는다(R2 재설계). 같은 영상에 둘 다 했으면 카드
- * 하나에 하트와 댓글이 함께 붙는다.
+ * <p>대상은 <b>참여 영상과 챌린지 원본 둘</b>이다. 좋아요와 댓글을 탭으로 가르지
+ * 않는다(R2 재설계) — 같은 대상에 둘 다 했으면 카드 하나에 하트와 댓글이 함께 붙는다.
  *
  * <p><b>§9 의 {@code CommentItem}·{@code ReplyItem} 을 재사용하지 않는다.</b> 칸이
  * 겹쳐 보이지만 계약이 다르다 — 그쪽은 댓글 목록 화면이라 {@code isLiked}·{@code isMine}·
@@ -18,14 +19,14 @@ import java.util.List;
  * 좋아요를 누르는 동작도 없다. 지금 합치면 §9 가 칸을 하나 더할 때마다 이 화면이 쓰지
  * 않는 값을 채워야 한다.
  *
- * @param liked              하트 표시 — 내가 이 영상에 좋아요를 눌렀는가
- * @param myComment          내가 단 댓글. <b>좋아요만 한 영상이면 {@code null}</b>
+ * @param liked              하트 표시 — 내가 이 대상에 좋아요를 눌렀는가
+ * @param myComment          내가 단 댓글. <b>좋아요만 했으면 {@code null}</b>
  * @param replies            내 댓글에 달린 답글 프리뷰. 없거나 내 댓글이 답글이면 {@code []}
  * @param lastInteractedDttm 정렬 기준 — 좋아요·댓글 중 <b>마지막</b> 상호작용 시각
  */
 @Schema(description = "내 활동 카드 (§4.9)")
 public record ActivityItem(
-        Video video,
+        Target target,
 
         @Schema(description = "내가 좋아요를 눌렀는가 — 카드의 하트 표시")
         boolean liked,
@@ -38,13 +39,30 @@ public record ActivityItem(
 ) {
 
     /**
-     * 카드가 가리키는 영상.
+     * 카드가 가리키는 대상 — 참여 영상이거나 챌린지 원본이다.
+     *
+     * <p><b>{@code type} 없이 {@code seq} 만 쓰면 안 된다.</b> 두 대상은 seq 공간이
+     * 달라 같은 12번이 양쪽에 다 있을 수 있다. 앱이 어느 상세 화면으로 갈지도 이
+     * 값으로 정한다(§8.2 참여 영상 단건 ↔ §7.3 챌린지 단건).
+     *
+     * <p><b>{@code video}/{@code challenge} 두 칸으로 가르지 않았다.</b> 그러면 앱이
+     * 카드마다 둘 다 {@code null} 검사를 해야 하고, "둘 다 비어 있음" 이라는 불가능한
+     * 상태가 계약에 표현된다.
      *
      * <p>§4.1·§4.8 의 {@code VideoPreviewItem} 과 칸이 다르다 — 그쪽은 <b>내 영상</b>
      * 그리드라 {@code visibility} 를 싣고, 여기는 남의 공개 영상이라 그 칸이 항상
      * {@code PUBLIC} 이 된다. 대신 화면의 "♥ 1.2만" 을 그릴 {@code likeCount} 가 있다.
+     *
+     * @param seq {@code type} 이 {@code VIDEO} 면 {@code videoSeq},
+     *            {@code CHALLENGE} 면 {@code challengeSeq}
      */
-    public record Video(Long videoSeq, String thumbnailUrl, Long viewCount, Integer likeCount) {
+    public record Target(
+            @Schema(description = "VIDEO | CHALLENGE — seq 가 어느 것인지 정한다")
+            ActivityTargetType type,
+            Long seq,
+            String thumbnailUrl,
+            Long viewCount,
+            Integer likeCount) {
     }
 
     /**

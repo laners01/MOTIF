@@ -189,24 +189,35 @@ public interface UserControllerDocs {
             summary = "내 활동 (§4.9)",
             description = """
                     마이페이지 **"내 활동"** 화면(회의 확정 R2 재설계). **커서 페이지**(§1.9)이며
-                    **영상 하나가 카드 하나**다 — 탭 분리는 없다(구 `type` 필터 삭제).
+                    **대상 하나가 카드 하나**다 — 탭 분리는 없다(구 `type` 필터 삭제).
 
-                    내가 **좋아요를 눌렀거나 댓글을 단** 영상이 카드가 되고, 카드에 하트 표시·
+                    대상은 **참여 영상과 챌린지 원본 둘**이고 **한 목록에 섞여** 내려온다.
+                    내가 **좋아요를 눌렀거나 댓글을 단** 것이 카드가 되고, 카드에 하트 표시·
                     내 댓글·**내 댓글에 달린 답글**이 붙는다. 정렬은 **마지막 상호작용 최신순**
-                    (`lastInteractedDttm` = 좋아요·댓글 중 나중), 같은 시각이면 `videoSeq` 내림차순.
+                    (`lastInteractedDttm` = 좋아요·댓글 중 나중), 같은 시각이면
+                    `target.type` → `target.seq` 내림차순이다.
 
                     | 필드 | 규칙 |
                     |---|---|
+                    | `target.type` | `VIDEO` \\| `CHALLENGE` — **`seq` 가 어느 것인지 정한다** |
+                    | `target.seq` | `VIDEO` 면 `videoSeq`, `CHALLENGE` 면 `challengeSeq` |
+                    | `target.likeCount` | 화면의 "♥ 1.2만" |
                     | `liked` | 내가 좋아요를 눌렀는가 = 카드의 하트 표시 |
-                    | `video.likeCount` | 화면의 "♥ 1.2만" |
-                    | `myComment` | 내가 단 댓글. **좋아요만 한 영상이면 `null`** |
+                    | `myComment` | 내가 단 댓글. **좋아요만 했으면 `null`** |
                     | `myComment.replyCount` | **노출되는** 답글 수. 프리뷰보다 많으면 게시물 댓글 화면으로 보낸다 |
                     | `myComment.parentComment` | 내 댓글이 **답글**이면 부모 요약, 루트면 `null` |
                     | `replies` | 내 댓글에 달린 답글 프리뷰 **2건**. 없으면 `[]` |
-                    | `lastInteractedDttm` | 정렬 기준. 영상의 등록 시각이 아니다 |
+                    | `lastInteractedDttm` | 정렬 기준. 대상의 등록 시각이 아니다 |
+
+                    ### `type` 없이 `seq` 만 쓰지 않는다
+                    `video_seq`(BIGINT)와 `challenge_seq`(INTEGER)는 **서로 다른 seq 공간**이라
+                    12번이 양쪽에 다 있을 수 있다. 카드를 눌렀을 때의 이동도 이 값이 정한다 —
+                    `VIDEO` 는 **§8.2 참여 영상 단건**, `CHALLENGE` 는 **§7.3 챌린지 단건**이다.
+                    `myComment.commentSeq` 도 마찬가지로 대상 종류와 짝이다(`video_comments` ↔
+                    `challenge_comments`).
 
                     ### 카드 한 장으로 합쳐지는 것들
-                    같은 영상에 좋아요와 댓글을 **둘 다** 했으면 카드는 하나다. 같은 영상에
+                    같은 대상에 좋아요와 댓글을 **둘 다** 했으면 카드는 하나다. 같은 대상에
                     내 댓글이 **여러 개**면 **최신 1개**만 싣는다(기본안 — 클라 확인 대기).
 
                     ### 답글 프리뷰의 선별과 순서
@@ -214,12 +225,22 @@ public interface UserControllerDocs {
                     보이고, 싣는 순서는 대화 순서여야 읽힌다. 내 댓글이 **답글이면 `replies` 는
                     항상 `[]`** 다 — 답글에는 답글을 달 수 없다(깊이 2).
 
-                    ### 목록에서 빠지는 카드 *(ACTIVITY-02)*
+                    ### 목록에서 빠지는 카드 *(ACTIVITY-02)* — **대상마다 다르다**
+
+                    `VIDEO`
                     - 영상이 **삭제**됐거나 작성자가 탈퇴했거나 **삭제된 챌린지** 소속
                     - **본인 게시물** — 내 영상은 §4.8 그리드가 맡는다
                     - **타인의 `PRIVATE`** 영상
                     - **댓글 사용 중지**(`comment_enabled=FALSE`)된 영상 — **좋아요만 눌렀어도
                       카드째 뺀다.** 카드의 본체가 댓글 스레드라 열어도 보여 줄 것이 없다
+
+                    `CHALLENGE`
+                    - **삭제된 챌린지뿐이다.** 챌린지는 어드민이 등록하는 콘텐츠라 게시자
+                      `user_seq`·`visibility`·`comment_enabled` 가 아예 없다 — 위의 세 조건은
+                      적용 대상 자체가 없다(조건을 맞추려고 칼럼을 더하지 않는다)
+
+                    `video_hides`(관심 없음)는 **어느 쪽도 제외하지 않는다** — 피드를 덜 보기
+                    위한 신호지 "내가 한 일" 을 지우는 조작이 아니다.
 
                     내 댓글이 삭제된 경우는 다르다 — **좋아요가 남아 있으면 카드는 남고**
                     `myComment` 만 `null` 이 된다. 카드까지 지우면 "좋아요는 그대로인데 활동에서
@@ -250,8 +271,9 @@ public interface UserControllerDocs {
                                               "data": {
                                                 "list": [
                                                   {
-                                                    "video": {
-                                                      "videoSeq": 88,
+                                                    "target": {
+                                                      "type": "VIDEO",
+                                                      "seq": 88,
                                                       "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                       "viewCount": 3400,
                                                       "likeCount": 12000
@@ -283,13 +305,13 @@ public interface UserControllerDocs {
                                                   }
                                                 ],
                                                 "prevCursor": null,
-                                                "nextCursor": "MTc4NzkxODQwMDAwMDo4OA",
+                                                "nextCursor": "MTc4NzkxODQwMDAwMDpWSURFTzo4OA",
                                                 "hasPrevious": false,
                                                 "hasNext": true
                                               },
                                               "timestamp": "2026-09-18T00:00:00.000Z"
                                             }"""),
-                                    @ExampleObject(name = "좋아요만 한 영상 · 내 댓글이 답글인 영상", value = """
+                                    @ExampleObject(name = "좋아요만 한 챌린지 · 내 댓글이 답글인 영상", value = """
                                             {
                                               "result": "SUCCESS",
                                               "code": "SUCCESS",
@@ -297,9 +319,10 @@ public interface UserControllerDocs {
                                               "data": {
                                                 "list": [
                                                   {
-                                                    "video": {
-                                                      "videoSeq": 90,
-                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                                    "target": {
+                                                      "type": "CHALLENGE",
+                                                      "seq": 12,
+                                                      "thumbnailUrl": "https://cdn.motif.io/challenges/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg",
                                                       "viewCount": 120,
                                                       "likeCount": 8
                                                     },
@@ -309,8 +332,9 @@ public interface UserControllerDocs {
                                                     "lastInteractedDttm": "2026-08-27T09:00:00.000Z"
                                                   },
                                                   {
-                                                    "video": {
-                                                      "videoSeq": 89,
+                                                    "target": {
+                                                      "type": "VIDEO",
+                                                      "seq": 89,
                                                       "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                       "viewCount": 940,
                                                       "likeCount": 77
@@ -343,6 +367,7 @@ public interface UserControllerDocs {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400", description = """
                             **망가진 `cursor`** — 서버가 발급하지 않은 토큰이거나 형식이 깨졌다.
+                            칸 수가 3이 아니거나 모르는 `type` 이름이 담긴 토큰도 같은 400 이다.
                             커서는 opaque 토큰이라 클라이언트가 만들거나 고치지 않는다(§1.9).
                             """,
                     content = @Content(mediaType = "application/json",
