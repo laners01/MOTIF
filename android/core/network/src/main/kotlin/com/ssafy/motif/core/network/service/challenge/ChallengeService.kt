@@ -1,6 +1,8 @@
 package com.ssafy.motif.core.network.service.challenge
 
 import com.ssafy.motif.core.network.model.BaseResponse
+import com.ssafy.motif.core.network.model.challenge.ChallengeCapturePositionListResponse
+import com.ssafy.motif.core.network.model.challenge.ChallengeCaptureVideoResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeDetailResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeFeedResponse
 import com.ssafy.motif.core.network.model.challenge.HotChallengeParticipationFeedResponse
@@ -40,6 +42,20 @@ interface ChallengeService {
     suspend fun deleteChallengeLike(
         @Path("challengeSeq") challengeSeq: Long,
     )
+
+    @GET("/api/v1/challenges/{challengeSeq}/participants")
+    suspend fun getChallengeCapturePositions(
+        @Path("challengeSeq") challengeSeq: Long,
+    ): BaseResponse<ChallengeCapturePositionListResponse>
+
+    @GET(
+        "/api/v1/challenge-participants/" +
+                "{challengeParticipantSeq}/video",
+    )
+    suspend fun getChallengeCaptureVideo(
+        @Path("challengeParticipantSeq")
+        challengeParticipantSeq: Long,
+    ): BaseResponse<ChallengeCaptureVideoResponse>
 
     @GET("/api/v1/challenges/{challengeSeq}/videos")
     suspend fun getParticipationVideoFeed(
