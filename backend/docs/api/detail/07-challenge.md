@@ -59,7 +59,7 @@ Authorization: Bearer {accessToken}
       }
     ],
     "prevCursor": null,
-    "nextCursor": "eyJjIjoxMX0",
+    "nextCursor": "MTE",
     "hasPrevious": false,
     "hasNext": true
   },

@@ -80,7 +80,7 @@
   "data": {
     "list": [],
     "prevCursor": null,
-    "nextCursor": "eyJrIjoiODgiLCJ2IjoxfQ",
+    "nextCursor": "MTAwMDAwMDAwMzQwMDo4OA",
     "hasPrevious": false,
     "hasNext": true
   },
@@ -222,8 +222,10 @@
 
 | 등급 | 대상 | 형태 |
 |---|---|---|
-| 공개 | 챌린지 원본, PUBLIC 참여 영상, 에셋 미리보기, 썸네일, 프로필, 공지 이미지, 숍 배너 | CloudFront 일반 URL |
-| 보호 | 모티프 결과물, 본인 PRIVATE 참여 영상, 게시·저장 전 합성 결과 프리뷰 | CloudFront **signed URL** (만료 10분) — 재생목록은 core-api 가 다시 써서 내린다 |
+| 공개 | 챌린지 원본, 에셋 미리보기, 프로필, 공지 이미지, 숍 배너 | CloudFront 일반 URL |
+| 보호 | 모티프 결과물, **참여 영상 전량**(`visibility` 무관), 게시·저장 전 합성 결과 프리뷰, 편집본(`private/edited/`) | CloudFront **프리픽스 서명**(만료 10분) — 단일 파일은 URL 하나짜리 서명(만료 6시간) |
+
+**참여 영상은 `PUBLIC` 이어도 보호 등급이다** *(2026-09-22 정정)*. [ADR-0013](../../adr/0013-signed-only-media.md) 이 `public/` 공개 사본 트리를 폐기하면서 산출물이 `private/` 한 곳에만 남았다 — 표에 "PUBLIC 참여 영상"을 공개 줄에 적어 두었던 탓에, 그 값으로 등급을 가르면 `PUBLIC` 영상에 무서명 URL 이 나가 403 이 된다. **등급은 키의 최상위 프리픽스 하나로만 판정한다.**
 
 ### 영상은 HLS 다
 
@@ -262,7 +264,10 @@ POST /api/v1/media/{jobUuid}/signature   → { "query": "Policy=…&Signature=�
 - 구 방식(core-api 가 재생목록을 다시 써서 내리던 `GET /api/v1/media/{jobUuid}/…`)은 **응답에서 더 이상 가리키지 않지만 엔드포인트는 남아 있다** — 안드로이드 전환 기간의 안전망이다.
 - **S3 presigned 는 재생에 쓰지 않는다.** 서명 쿼리스트링이 오리진(S3)까지 전달돼야 해서 CDN 캐시 적중률을 0% 로 만든다. CloudFront 서명은 엣지에서 소비되므로 캐시가 유지된다(ADR-0010 D5). presigned 는 **업로드(PUT)** 전용이다.
 
-각 API 문서의 보호 등급 URL 예시는 **쿼리스트링이 없다** — 실제 응답에는 `Expires`·`Signature`·`Key-Pair-Id` 가 붙는다.
+각 API 문서의 보호 등급 URL 예시는 **서명 파라미터를 붙여 적는다** *(2026-09-22 정리 — 이전에는 "쿼리스트링을 생략한다" 였다)*. 프리픽스 서명이면 `?Policy=…&Signature=…&Key-Pair-Id=…`, 단일 파일 서명이면 `?Expires=…&Signature=…&Key-Pair-Id=…` 다. 값 자체는 자리표시자이고 **있다는 사실이 계약**이라 생략하면 안 된다 — 생략된 예시를 보고 파라미터 없이 요청하면 403 이고, 그게 실제로 §8.1·§8.2 예시에서 일어났다.
+
+**키가 `private/` 로 시작하면 `visibility` 와 무관하게 언제나 서명이 붙는다.** 그래서 `PUBLIC` 참여 영상의 썸네일 예시에도 파라미터가 있다(§4.1·§4.8·§4.9).
+
 ### 산출물 키 규약
 
 | 대상 | 원본(입력) | 산출물 | 서명 |

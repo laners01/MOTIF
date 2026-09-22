@@ -36,8 +36,8 @@
     "videoSeq": 88,
     "challengeSeq": 11,
     "description": "재밌었다!",
-    "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-    "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+    "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
     "durationMs": 15000,
     "author": {
       "userSeq": 5,
@@ -61,7 +61,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `videoUrl` | **HLS 마스터 재생목록**(`master.m3u8`) 주소. `PUBLIC` 이면 서명 없이 열리고, **본인의 `PRIVATE` 이면 core-api 가 서명해 다시 쓴 재생목록**을 받는다(§1.7) |
+| `videoUrl` | **HLS 마스터 재생목록**(`master.m3u8`) 주소. 참여 영상은 `visibility` 와 무관하게 보호 등급이라 **CDN 절대 주소 + 프리픽스 서명**이다(§1.7 · ADR-0012·0013) |
 | `hasArtistLike` · `hasArtistComment` | 해당 챌린지의 아티스트가 좋아요·댓글을 남겼는지. 화면 뱃지이자 §8.1 추천 정렬의 강가중 요소다 |
 | `isLiked` | 요청자의 좋아요 여부 |
 | `commentEnabled` | `false` 면 댓글이 **동결**된다 — 목록 조회까지 차단이다(§9) |
@@ -151,8 +151,8 @@ Authorization: Bearer {accessToken}
         "videoSeq": 88,
         "challengeSeq": 11,
         "description": "재밌었다!",
-        "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-        "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+        "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+        "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
         "durationMs": 15000,
         "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg" },
         "viewCount": 3400,
@@ -276,6 +276,24 @@ Content-Type: application/json
 |---|---|---|
 | 400 | `INVALID_PARAMETER` | 위 제약 위반 · 본문 형식 오류 |
 
+**`data` 에 어긴 항목이 실린다** — 50개짜리 요청에서 어느 대상이 문제인지 모르면 범인을 찾을 수 없다.
+
+```json
+{
+  "result": "FAIL",
+  "code": "INVALID_PARAMETER",
+  "message": "요청 값이 올바르지 않습니다.",
+  "data": { "seq": 101, "maxCountPerTarget": 100 },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+| 위반 | `data` |
+|---|---|
+| 항목 수 초과 | `{ "maxTargetsPerRequest": 50 }` |
+| `seq` 가 없거나 0 이하 | `{ "seq": "null" }` |
+| `count` 가 범위 밖 | `{ "seq": 101, "maxCountPerTarget": 100 }` |
+
 **`VIDEO_NOT_FOUND` 가 없다.** 존재하지 않는 `videoSeq` 를 보내도 202 다 — 조회 이벤트마다
 DB 를 확인하면 집계를 Redis 로 뺀 의미가 없다. 없는 키는 20분 배치의 `UPDATE` 가 0행으로
 버리고, 랭킹 모집단은 어차피 DB 에서 나오므로 순위에도 오르지 않는다. 구 명세의 *"존재
@@ -294,7 +312,7 @@ DB 를 확인하면 집계를 Redis 로 뺀 의미가 없다. 없는 키는 20�
 지금 막는 것은 영상당 `count` 상한 하나뿐이고, 중복 판정은 별도 티켓이다. 정책이 정해져도
 **서버 내부에서만 반영하며 이 API 계약은 바뀌지 않는다.**
 
-§7.4(챌린지 조회 이벤트)는 **아직 구 규약이다** — 같은 구조로 바꾸는 것은 후속 티켓이다.
+§7.4(챌린지 조회 이벤트)도 **이제 같은 계약이다** *(2026-09-21 — [ADR-0016](../../adr/0016-challenge-view-and-artist-ranking.md))*. 경로가 `POST /api/v1/challenges/view` 이고 본문·상한·실패 코드가 이 문서와 같아, 안드로이드가 두 API 를 같은 코드로 다룰 수 있다. 버퍼도 대상 종류만 다른 한 벌을 쓴다.
 
 ---
 
@@ -492,8 +510,8 @@ DB 를 확인하면 집계를 Redis 로 뺀 의미가 없다. 없는 키는 20�
     "videoSeq": 88,
     "challengeSeq": 11,
     "description": "수정한 문구",
-    "videoUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8",
-    "thumbnailUrl": "https://cdn.motif.io/results/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+    "videoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
     "durationMs": 15000,
     "author": { "userSeq": 5, "nickname": "팬123", "profileImageUrl": "https://cdn.motif.io/profiles/8b2d4e1a.jpg" },
     "viewCount": 3400,

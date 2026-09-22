@@ -64,10 +64,10 @@ public interface ChallengeControllerDocs {
                                 "list": [
                                   {
                                     "challengeSeq": 11,
-                                    "videoUrl": "https://cdn.../challenges/{uuid}/master.m3u8",
-                                    "thumbnailUrl": "https://cdn.../challenges/{uuid}/thumb.jpg",
+                                    "videoUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/master.m3u8",
+                                    "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg",
                                     "durationMs": 15000,
-                                    "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.../profiles/3.jpg" },
+                                    "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
                                     "song": { "title": "Supernova", "singerName": "aespa" },
                                     "viewCount": 120000,
                                     "participantCount": 340,
@@ -133,10 +133,10 @@ public interface ChallengeControllerDocs {
                                       "message": "요청이 성공했습니다.",
                                       "data": {
                                         "challengeSeq": 11,
-                                        "videoUrl": "https://cdn.../challenges/{uuid}/master.m3u8",
-                                        "thumbnailUrl": "https://cdn.../challenges/{uuid}/thumb.jpg",
+                                        "videoUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/master.m3u8",
+                                        "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg",
                                         "durationMs": 15000,
-                                        "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.../profiles/3.jpg" },
+                                        "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
                                         "song": { "title": "Supernova", "singerName": "aespa" },
                                         "viewCount": 120000,
                                         "participantCount": 340,
@@ -206,17 +206,17 @@ public interface ChallengeControllerDocs {
                                             "artistSeq": 7,
                                             "name": "윈터",
                                             "slotOrder": 0,
-                                            "profileImageUrl": "https://cdn.../profiles/7.jpg",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/7a1b.jpg",
                                             "anchor": { "x": 0.22, "y": 0.36, "r": 0.0995 },
-                                            "initialSceneUrl": "https://cdn.../private/edited/11/31/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
-                                            "previewImageUrl": "https://cdn.../private/edited/11/31/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
+                                            "initialSceneUrl": "https://cdn.motif.io/private/edited/11/31/e1.jpg?Expires=...&Signature=...&Key-Pair-Id=...",
+                                            "previewImageUrl": "https://cdn.motif.io/private/edited/11/31/p1.jpg?Expires=...&Signature=...&Key-Pair-Id=..."
                                           },
                                           {
                                             "challengeParticipantSeq": 32,
                                             "artistSeq": 9,
                                             "name": "닝닝",
                                             "slotOrder": 1,
-                                            "profileImageUrl": "https://cdn.../profiles/9.jpg",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/9c2d.jpg",
                                             "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 },
                                             "initialSceneUrl": null,
                                             "previewImageUrl": null

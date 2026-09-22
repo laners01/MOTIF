@@ -63,8 +63,10 @@ public interface UserControllerDocs {
                     `thumb.jpg` 는 그 자체로 끝나는 단일 파일이라 리라이팅 없이 서명 URL 을
                     바로 낸다. **공개/보호는 S3 키의 프리픽스가 정한다** — `private/` 로
                     시작하면 서명된 URL, 아니면 무서명 CDN URL 이다. `visibility` 로
-                    판정하지 않는다: PUBLIC 게시는 산출물을 `public/` 으로 **복사**할 뿐
-                    키를 바꾸지 않아, 그 사이 행에서 둘이 어긋난다.
+                    판정하지 않는다: 참여 영상 산출물은 게시 여부와 무관하게 **전부
+                    `private/` 한 곳에 머물기** 때문이다(ADR-0013 — `public/` 공개 사본
+                    트리는 폐기됐다). `visibility` 로 가르면 `PUBLIC` 영상에 무서명 URL 이
+                    나가 403 이 된다.
 
                     이미지 서명 만료는 **6시간**이다(재생목록·조각은 10분). 이미지는 만료돼도
                     다시 받아 복구되는 경로가 없어 길게 잡는다.
@@ -94,7 +96,7 @@ public interface UserControllerDocs {
                                                 "videos": [
                                                   {
                                                     "videoSeq": 88,
-                                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                     "viewCount": 3400,
                                                     "visibility": "PUBLIC"
                                                   },
@@ -165,7 +167,7 @@ public interface UserControllerDocs {
                                         "list": [
                                           {
                                             "videoSeq": 88,
-                                            "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                            "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                             "viewCount": 3400,
                                             "visibility": "PUBLIC"
                                           },
@@ -250,7 +252,7 @@ public interface UserControllerDocs {
                                                   {
                                                     "video": {
                                                       "videoSeq": 88,
-                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg",
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                       "viewCount": 3400,
                                                       "likeCount": 12000
                                                     },
@@ -297,7 +299,7 @@ public interface UserControllerDocs {
                                                   {
                                                     "video": {
                                                       "videoSeq": 90,
-                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg",
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                       "viewCount": 120,
                                                       "likeCount": 8
                                                     },
@@ -309,7 +311,7 @@ public interface UserControllerDocs {
                                                   {
                                                     "video": {
                                                       "videoSeq": 89,
-                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg",
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
                                                       "viewCount": 940,
                                                       "likeCount": 77
                                                     },
