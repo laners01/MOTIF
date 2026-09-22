@@ -3,6 +3,7 @@ package com.ssafy.motif.core.network.service.challenge
 import com.ssafy.motif.core.network.model.BaseResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeDetailResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeFeedResponse
+import com.ssafy.motif.core.network.model.challenge.HotChallengeParticipationFeedResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoFeedResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoResponse
 import com.ssafy.motif.core.network.model.challenge.PublishParticipationVideoRequest
@@ -88,4 +89,10 @@ interface ChallengeService {
         @Path("videoSeq") videoSeq: Long,
         @Body request: ReportParticipationVideoRequest,
     ): BaseResponse<Unit?>
+
+    @GET("/api/v1/home/hot-videos")
+    suspend fun getHotChallengeParticipations(
+        @Query("cursor") cursor: String?,
+        @Query("size") size: Int,
+    ): BaseResponse<HotChallengeParticipationFeedResponse>
 }

@@ -8,6 +8,7 @@ import com.ssafy.motif.core.data.model.CursorPage
 import com.ssafy.motif.core.model.challenge.Challenge
 import com.ssafy.motif.core.model.challenge.ChallengeDetail
 import com.ssafy.motif.core.model.challenge.ChallengeParticipation
+import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
 import com.ssafy.motif.core.model.challenge.ParticipationVisibility
 import com.ssafy.motif.core.network.service.challenge.ChallengeClient
 import kotlinx.coroutines.CoroutineDispatcher
@@ -165,5 +166,18 @@ class ChallengeRepositoryImpl @Inject constructor(
             )
 
             emit(Unit)
+        }.flowOn(ioDispatcher)
+
+    override fun getHotChallengeParticipations(
+        cursor: String?,
+        size: Int,
+    ): Flow<CursorPage<ChallengeParticipationSummary>> =
+        flow {
+            val response = challengeClient.getHotChallengeParticipations(
+                cursor = cursor,
+                size = size,
+            )
+
+            emit(response.toModel())
         }.flowOn(ioDispatcher)
 }

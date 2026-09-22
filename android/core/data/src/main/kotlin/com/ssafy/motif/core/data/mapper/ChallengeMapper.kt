@@ -7,6 +7,7 @@ import com.ssafy.motif.core.model.challenge.ChallengeAnchor
 import com.ssafy.motif.core.model.challenge.ChallengeDetail
 import com.ssafy.motif.core.model.challenge.ChallengeParticipant
 import com.ssafy.motif.core.model.challenge.ChallengeParticipation
+import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
 import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.challenge.EditedChallenge
 import com.ssafy.motif.core.model.challenge.ParticipationVisibility
@@ -19,6 +20,8 @@ import com.ssafy.motif.core.network.model.challenge.ChallengeFeedResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeParticipantResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeSongResponse
 import com.ssafy.motif.core.network.model.challenge.EditedChallengeResponse
+import com.ssafy.motif.core.network.model.challenge.HotChallengeParticipationFeedResponse
+import com.ssafy.motif.core.network.model.challenge.HotChallengeParticipationResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoAuthorResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoFeedResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoResponse
@@ -185,6 +188,28 @@ internal fun ParticipationVisibility.toNetwork(): VideoVisibility =
         ParticipationVisibility.PRIVATE ->
             VideoVisibility.PRIVATE
     }
+
+internal fun HotChallengeParticipationFeedResponse.toModel():
+        CursorPage<ChallengeParticipationSummary> =
+    CursorPage(
+        items = list.map { response ->
+            response.toModel()
+        },
+        previousCursor = prevCursor,
+        nextCursor = nextCursor,
+        hasPrevious = hasPrevious,
+        hasNext = hasNext,
+    )
+
+private fun HotChallengeParticipationResponse.toModel():
+        ChallengeParticipationSummary =
+    ChallengeParticipationSummary(
+        id = videoSeq,
+        rank = rank,
+        videoUrl = videoUrl,
+        thumbnailUrl = thumbnailUrl,
+        song = song.toModel(),
+    )
 
 private fun String.toEpochMilli(): Long =
     runCatching {

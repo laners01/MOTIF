@@ -2,6 +2,7 @@ package com.ssafy.motif.core.network.service.challenge
 
 import com.ssafy.motif.core.network.model.challenge.ChallengeDetailResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeFeedResponse
+import com.ssafy.motif.core.network.model.challenge.HotChallengeParticipationFeedResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoFeedResponse
 import com.ssafy.motif.core.network.model.challenge.ParticipationVideoResponse
 import com.ssafy.motif.core.network.model.challenge.PublishParticipationVideoRequest
@@ -136,6 +137,15 @@ class ChallengeClient @Inject constructor(
             ),
         )
     }
+
+    suspend fun getHotChallengeParticipations(
+        cursor: String? = null,
+        size: Int = DEFAULT_FEED_SIZE,
+    ): HotChallengeParticipationFeedResponse =
+        challengeService.getHotChallengeParticipations(
+            cursor = cursor,
+            size = size,
+        ).data
 
     private companion object {
         const val DEFAULT_FEED_SIZE = 20

@@ -4,6 +4,7 @@ import com.ssafy.motif.core.data.model.CursorPage
 import com.ssafy.motif.core.model.challenge.Challenge
 import com.ssafy.motif.core.model.challenge.ChallengeDetail
 import com.ssafy.motif.core.model.challenge.ChallengeParticipation
+import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
 import com.ssafy.motif.core.model.challenge.ParticipationVisibility
 import kotlinx.coroutines.flow.Flow
 
@@ -64,6 +65,11 @@ interface ChallengeRepository {
         id: Long,
         reasonCode: String,
     ): Flow<Unit>
+
+    fun getHotChallengeParticipations(
+        cursor: String? = null,
+        size: Int = DEFAULT_FEED_SIZE,
+    ): Flow<CursorPage<ChallengeParticipationSummary>>
 
     private companion object {
         const val DEFAULT_FEED_SIZE = 20
