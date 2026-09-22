@@ -108,6 +108,9 @@ public class UserController implements UserControllerDocs {
      *
      * <p>offset 이 아닌 이유는 이 목록이 <b>앞쪽에서 늘어나기</b> 때문이다. 좋아요·댓글을
      * 하나 더 할 때마다 그 카드가 맨 위로 올라와 페이지가 밀린다.
+     *
+     * <p>참여 영상과 챌린지 원본이 한 목록에 섞여 온다 — 카드의 {@code target.type} 이
+     * 어느 쪽인지 말한다.
      */
     @Override
     @GetMapping("/me/activities")

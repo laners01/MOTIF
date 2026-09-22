@@ -281,4 +281,139 @@ public interface ChallengeCommentRepository extends JpaRepository<ChallengeComme
              where challenge_comment_seq in (:commentSeqs)
             """, nativeQuery = true)
     int deleteLikes(@Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /**
+     * 챌린지별 <b>내 최신 댓글 한 건</b> (API 명세 §4.9) — 활동 카드의 {@code myComment}.
+     *
+     * <p>{@code distinct on}·{@code order by} 가 계약의 일부인 이유는
+     * {@link VideoCommentRepository#findMyLatestByVideos} 에 적었다. 대상 칼럼
+     * ({@code challenge_seq})과 PK 이름만 다르다.
+     */
+    @Query(value = """
+            select distinct on (c.challenge_seq)
+                   c.challenge_seq        as "challengeSeq",
+                   c.challenge_comment_seq as "commentSeq",
+                   c.content              as "content",
+                   c.like_count           as "likeCount",
+                   c.parent_comment_seq   as "parentCommentSeq",
+                   c.reg_dttm             as "regDttm"
+              from motif_core.challenge_comments c
+             where c.user_seq = :userSeq
+               and c.is_deleted = false
+               and c.challenge_seq in (:challengeSeqs)
+             order by c.challenge_seq, c.reg_dttm desc, c.challenge_comment_seq desc
+            """, nativeQuery = true)
+    List<MyCommentRow> findMyLatestByChallenges(
+            @Param("userSeq") Integer userSeq,
+            @Param("challengeSeqs") Collection<Integer> challengeSeqs);
+
+    /**
+     * 부모 댓글 <b>여럿</b>에 달린 답글을 각각 최신 {@code limit} 건까지 (§4.9 프리뷰).
+     *
+     * <p>왜 윈도 함수 한 번인지, 왜 고르는 순서와 싣는 순서가 다른지는
+     * {@link VideoCommentRepository#findReplyPreviews} 에 적었다.
+     */
+    @Query(value = """
+            select t."parentSeq"              as "parentSeq",
+                   t."commentSeq"             as "commentSeq",
+                   t."content"                as "content",
+                   t."authorUserSeq"          as "authorUserSeq",
+                   t."authorNickname"         as "authorNickname",
+                   t."authorProfileImageKey"  as "authorProfileImageKey",
+                   t."regDttm"                as "regDttm"
+              from (select c.parent_comment_seq    as "parentSeq",
+                           c.challenge_comment_seq as "commentSeq",
+                           c.content               as "content",
+                           u.user_seq              as "authorUserSeq",
+                           u.nickname              as "authorNickname",
+                           u.profile_image_key     as "authorProfileImageKey",
+                           c.reg_dttm              as "regDttm",
+                           row_number() over (partition by c.parent_comment_seq
+                                              order by c.reg_dttm desc,
+                                                       c.challenge_comment_seq desc) as rn
+                      from motif_core.challenge_comments c
+                      join motif_core.users u on u.user_seq = c.user_seq
+                                             and u.is_deleted = false
+                     where c.parent_comment_seq in (:parentSeqs)
+                       and c.is_deleted = false) t
+             where t.rn <= :limit
+             order by t."parentSeq", t."regDttm" asc, t."commentSeq" asc
+            """, nativeQuery = true)
+    List<ReplyPreviewRow> findReplyPreviews(@Param("parentSeqs") Collection<Long> parentSeqs,
+                                            @Param("limit") int limit);
+
+    /**
+     * 부모 댓글 요약 배치 (§4.9 {@code myComment.parentComment}) — 내 댓글이 답글일 때만.
+     *
+     * <p><b>보이지 않는 부모는 행이 없다</b> — 규칙은
+     * {@link VideoCommentRepository#findParentSummaries} 와 같다.
+     */
+    @Query(value = """
+            select c.challenge_comment_seq as "commentSeq",
+                   c.content               as "content",
+                   u.user_seq              as "authorUserSeq",
+                   u.nickname              as "authorNickname",
+                   u.profile_image_key     as "authorProfileImageKey"
+              from motif_core.challenge_comments c
+              join motif_core.users u on u.user_seq = c.user_seq and u.is_deleted = false
+             where c.challenge_comment_seq in (:commentSeqs)
+               and c.is_deleted = false
+            """, nativeQuery = true)
+    List<ParentCommentRow> findParentSummaries(@Param("commentSeqs") Collection<Long> commentSeqs);
+
+    /**
+     * §4.9 카드의 내 댓글 — {@link #findMyLatestByChallenges} 투영.
+     *
+     * <p><b>{@code VideoCommentRepository.MyCommentRow} 와 합치지 않는다.</b> 게터가
+     * 하나 다르고({@code getChallengeSeq} ↔ {@code getVideoSeq}) 가리키는 seq 공간도
+     * 다르다 — 합치면 호출부가 어느 대상의 seq 인지 모른 채 같은 칸을 읽게 된다.
+     */
+    interface MyCommentRow {
+
+        Integer getChallengeSeq();
+
+        Long getCommentSeq();
+
+        String getContent();
+
+        Integer getLikeCount();
+
+        /** {@code null} 이면 루트 댓글 — 그때만 답글 프리뷰가 붙는다. */
+        Long getParentCommentSeq();
+
+        Instant getRegDttm();
+    }
+
+    /** §4.9 카드의 답글 프리뷰 한 줄 — {@link #findReplyPreviews} 투영. */
+    interface ReplyPreviewRow {
+
+        Long getParentSeq();
+
+        Long getCommentSeq();
+
+        String getContent();
+
+        Integer getAuthorUserSeq();
+
+        String getAuthorNickname();
+
+        /** 프로필은 <b>키</b>다 — URL 로 바꾸는 것은 등급 판정이 있는 core-api 쪽이다. */
+        String getAuthorProfileImageKey();
+
+        Instant getRegDttm();
+    }
+
+    /** §4.9 카드의 부모 댓글 요약 — {@link #findParentSummaries} 투영. */
+    interface ParentCommentRow {
+
+        Long getCommentSeq();
+
+        String getContent();
+
+        Integer getAuthorUserSeq();
+
+        String getAuthorNickname();
+
+        String getAuthorProfileImageKey();
+    }
 }

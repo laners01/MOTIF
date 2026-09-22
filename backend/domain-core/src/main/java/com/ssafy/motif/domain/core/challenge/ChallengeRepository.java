@@ -202,6 +202,27 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
     List<Integer> findLikedChallengeSeqs(@Param("userSeq") Integer userSeq,
                                          @Param("challengeSeqs") Collection<Integer> challengeSeqs);
 
+    /**
+     * 내 활동 카드의 챌린지 본문 배치 조회 (API 명세 §4.9) — 순서 쿼리가 고른 묶음.
+     *
+     * <p>{@code UserActivityRepository} 가 이미 비노출({@code is_deleted})을 걸렀고 같은
+     * 트랜잭션 안이라 조건을 다시 걸지 않는다 — {@code ParticipationVideoRepository
+     * .findFeedCards} 와 같은 규칙이다.
+     *
+     * <p>엔티티를 끌어오지 않는 이유는 카드가 세 칸만 쓰기 때문이다. {@code Challenge}
+     * 는 {@code description}(TEXT)·키 두 개까지 실어 오는데 목록에서는 버려진다.
+     *
+     * <p>{@code in} 은 순서를 보장하지 않는다 — 호출부가 순서 쿼리의 결과로 다시 세운다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.challenge.ChallengeActivityRow(
+                       c.challengeSeq, c.thumbnailKey, c.viewCount, c.likeCount)
+            from Challenge c
+            where c.challengeSeq in :challengeSeqs
+            """)
+    List<ChallengeActivityRow> findActivityCards(
+            @Param("challengeSeqs") Collection<Integer> challengeSeqs);
+
     Optional<Challenge> findByChallengeSeqAndDeletedFalse(Integer challengeSeq);
 
     /**

@@ -58,3 +58,5 @@ databaseChangeLog:
       file: db/changelog/sql/0020-edited-private-duration.sql
   - include:
       file: db/changelog/sql/0021-composite-require-slot.sql
+  - include:
+      file: db/changelog/sql/0022-challenge-activity-index.sql

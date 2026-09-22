@@ -2,6 +2,7 @@ package com.ssafy.motif.coreapi.global.response;
 
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.domain.core.user.ActivityTargetType;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -178,8 +179,11 @@ public final class Cursors {
         }
     }
 
-    /** 상호작용 시각 목록의 커서 위치 — {@code (마지막 항목의 상호작용 시각, 그 videoSeq)} (§4.9). */
-    public record Interacted(Instant at, long lastSeq) {
+    /**
+     * 상호작용 시각 목록의 커서 위치 (§4.9) —
+     * {@code (마지막 항목의 상호작용 시각, 그 대상의 종류, 그 seq)}.
+     */
+    public record Interacted(Instant at, ActivityTargetType type, long lastSeq) {
     }
 
     /**
@@ -197,17 +201,30 @@ public final class Cursors {
      * <p><b>seq 가 함께 들어가는 것이 요점이다.</b> 같은 밀리초에 상호작용한 카드가
      * 둘이면 시각만으로는 경계가 잘리지 않는다 — 한 번의 요청으로 좋아요와 댓글이
      * 동시에 들어오는 일이 있어 실제로 겹친다.
+     *
+     * <p><b>대상의 종류도 함께 담는다.</b> 이 목록은 참여 영상과 챌린지를 한 줄로
+     * 세우는데 둘은 seq 공간이 겹친다 — 타입이 없으면 같은 시각의 12번 영상과 12번
+     * 챌린지 사이에서 경계가 잘리지 않는다. 담는 값은 상수의 <b>이름</b>이고, 정렬
+     * 타이브레이크도 같은 문자열을 비교하므로 순서와 절단이 어긋나지 않는다.
+     *
+     * <p>세 칸이 되면서 {@link #encodeScore}·{@link #encodeSnapshot} 과 토큰 모양이
+     * 갈렸다 — 그래도 형식으로 목록을 알아내려 하지 않는다. 어느 목록의 커서인지는
+     * 여전히 부르는 쪽이 안다.
      */
-    public static String encodeInteracted(Instant at, long lastSeq) {
+    public static String encodeInteracted(Instant at, ActivityTargetType type, long lastSeq) {
         return ENCODER.encodeToString(
-                (at.toEpochMilli() + DELIMITER + lastSeq).getBytes(StandardCharsets.UTF_8));
+                (at.toEpochMilli() + DELIMITER + type.name() + DELIMITER + lastSeq)
+                        .getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * 토큰 → {@code (상호작용 시각, videoSeq)}. {@code null}·빈 문자열은 "최초 호출" 이라
-     * {@code null} 을 준다.
+     * 토큰 → {@code (상호작용 시각, 대상 종류, seq)}. {@code null}·빈 문자열은
+     * "최초 호출" 이라 {@code null} 을 준다.
      *
-     * <p>{@link #decode} 와 같은 이유로 망가진 토큰은 400 이다.
+     * <p>{@link #decode} 와 같은 이유로 망가진 토큰은 400 이다. <b>모르는 타입 이름도
+     * 400 이다</b> — {@code valueOf} 가 던지는 {@code IllegalArgumentException} 이
+     * 같은 catch 로 떨어진다. 조용히 넘기면 그 이름과 일치하는 행이 없어 목록이 빈
+     * 채로 끝나는데, 원인이 응답에 드러나지 않는다.
      */
     public static Interacted decodeInteracted(String cursor) {
         if (cursor == null || cursor.isBlank()) {
@@ -215,13 +232,14 @@ public final class Cursors {
         }
         try {
             String decoded = new String(DECODER.decode(cursor), StandardCharsets.UTF_8);
-            int at = decoded.indexOf(DELIMITER);
-            if (at < 0) {
-                throw new IllegalArgumentException("구분자가 없다");
+            String[] parts = decoded.split(DELIMITER);
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("칸 수가 3이 아니다: " + parts.length);
             }
             return new Interacted(
-                    Instant.ofEpochMilli(Long.parseLong(decoded.substring(0, at))),
-                    Long.parseLong(decoded.substring(at + 1)));
+                    Instant.ofEpochMilli(Long.parseLong(parts[0])),
+                    ActivityTargetType.valueOf(parts[1]),
+                    Long.parseLong(parts[2]));
         } catch (IllegalArgumentException e) {
             throw new BusinessException(CommonErrorCode.INVALID_PARAMETER, "cursor: " + cursor);
         }
