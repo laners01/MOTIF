@@ -172,7 +172,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | kind (presign 요청값) | 프리픽스 | 등급 | 비고 |
 |---|---|---|---|
 | `CHALLENGE_VIDEO` | `challenges/{uuid}.mp4` | 공개 | **신설.** `raw/` 는 사용자 원본 전용(7일 삭제 후보)이라 분리 |
-| `EDITED_VIDEO` / `EDITED_SCENE` / `EDITED_PREVIEW` | **`private/edited/{challengeSeq}/{uuid}.mp4` / `.jpg` / `.jpg`** | **보호(서명)** · 워커는 S3 직접 읽기 | **신설.** AI팀 직접 업로드 또는 **어드민 슬롯 화면에서 파일 업로드**(presign) — 둘 다 키만 등록 API 로 간다. `EDITED_PREVIEW` 는 슬롯 선택 화면 이미지 *(2026-09-18, 618)*. **`private/` 로 옮겼다** *(2026-09-21 · DB v0.19)* — 앱 §7.5·§7.6 이 직접 받게 되면서 서명이 필요해졌고, 서명 여부는 CloudFront 캐시 동작(`private/*`)이 프리픽스로 가른다. `edited/` 로 되돌리면 서명이 검증되지 않아 무서명 요청이 통과한다 |
+| `EDITED_VIDEO` / `EDITED_SCENE` / `EDITED_PREVIEW` | **`private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.mp4` / `.jpg` / `.jpg`** | **보호(서명)** · 워커는 S3 직접 읽기 | **신설.** AI팀 직접 업로드 또는 **어드민 슬롯 화면에서 파일 업로드**(presign) — 둘 다 키만 등록 API 로 간다. `EDITED_PREVIEW` 는 슬롯 선택 화면 이미지 *(2026-09-18, 618)*. **`private/` 로 옮겼다** *(2026-09-21 · DB v0.19)* — 앱 §7.5·§7.6 이 직접 받게 되면서 서명이 필요해졌고, 서명 여부는 CloudFront 캐시 동작(`private/*`)이 프리픽스로 가른다. `edited/` 로 되돌리면 서명이 검증되지 않아 무서명 요청이 통과한다. **슬롯까지 내려간다** *(2026-09-22)* — 챌린지에서 끊으면 한 폴더에 여러 슬롯의 파일이 uuid 만 다른 채 섞이고, 슬롯을 지웠을 때 딸린 파일을 프리픽스로 걷어낼 수 없다. **파일명은 uuid 로 남긴다** — 첫 장면과 선택 화면이 같은 자리·같은 확장자라 슬롯 seq 를 파일명으로 쓰면 둘이 한 오브젝트를 다투고, 영상 교체 때 같은 키를 덮어써 CloudFront 가 옛 영상을 계속 서빙한다 |
 | `ASSET_VIDEO` | `assets/{uuid}.mp4` | 공개(미리보기) | 기존 |
 | `ARTIST_PROFILE` | `profiles/{uuid}.jpg` | 공개 | 기존(사용자 프로필과 공유) |
 | `ARTIST_MOTIF_BG` | `artists/{uuid}.jpg` | 공개 | **신설**(API §11.4 `bannerImageUrl`) |
@@ -414,9 +414,13 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 |---|---|---|---|
 | 3.2.1 | POST | `/media/presign` | 업로드 URL 발급(kind 별 프리픽스 — §1.4) |
 
-**요청** `{ "kind": "CHALLENGE_VIDEO", "contentType": "video/mp4", "contentLength": 48213377, "challengeSeq": 11 }`
+**요청** `{ "kind": "CHALLENGE_VIDEO", "contentType": "video/mp4", "contentLength": 48213377 }`
 
-- `kind` ∈ `CHALLENGE_VIDEO | EDITED_VIDEO | EDITED_SCENE | EDITED_PREVIEW | ASSET_VIDEO | ARTIST_PROFILE | ARTIST_MOTIF_BG | NOTICE_IMAGE | BANNER_IMAGE`. `challengeSeq` 는 `EDITED_*` 에서만(프리픽스 경로 구성 — 신규 등록 중이면 생략, 서버가 `edited/pending/{uuid}` 발급 후 등록 시 경로 그대로 사용 **(기본안)**).
+편집본이면 슬롯까지 지정한다 — `{ "kind": "EDITED_VIDEO", "contentType": "video/mp4", "contentLength": 12345678, "challengeSeq": 11, "challengeParticipantSeq": 31 }`
+
+- `kind` ∈ `CHALLENGE_VIDEO | EDITED_VIDEO | EDITED_SCENE | EDITED_PREVIEW | ASSET_VIDEO | ARTIST_PROFILE | ARTIST_MOTIF_BG | NOTICE_IMAGE | BANNER_IMAGE`.
+- `challengeSeq`·`challengeParticipantSeq` 는 **`EDITED_*` 에서만, 그리고 둘 다 필수**다(프리픽스 경로 구성). 편집본은 챌린지·슬롯이 이미 있는 상태에서만 올라오므로 — 등록 §3.7.2 로 슬롯을 만든 뒤 §3.7.6 으로 채운다 — 두 값이 언제나 정해져 있다. **`pending` 자리표시자는 폐기했다** *(2026-09-22)*.
+- 서버가 두 seq 로 **슬롯을 조회해 실재·소속을 대조**한다. 없거나 다른 챌린지의 슬롯이면 400 `PARTICIPANT_INVALID` 다 — 검증 없이 경로에 박으면 오타 하나로 없는 슬롯 폴더에 파일이 올라가고, §3.7.6 이 404 를 줄 때는 이미 PUT 이 끝난 뒤라 아무도 참조하지 않는 오브젝트가 버킷에 남는다.
 - 서버가 `contentType` 허용 목록·`contentLength` 상한을 검증하고 presigned PUT 조건에 박는다.
 
 **성공 (200)** `data`:
@@ -428,6 +432,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | HTTP | code | 조건 |
 |---|---|---|
 | 400 | `MEDIA_TYPE_NOT_ALLOWED` | kind 에 맞지 않는 Content-Type 또는 크기 초과 |
+| 400 | `PARTICIPANT_INVALID` | `EDITED_*` 인데 두 seq 중 하나가 없거나, 그 슬롯이 없거나 다른 챌린지 것이다. `data` 는 위반 목록 — `CHALLENGE_SEQ_REQUIRED` · `PARTICIPANT_SEQ_REQUIRED` · `SLOT_NOT_FOUND` *(2026-09-22)* |
 
 ### 3.3 소속사 `companies`
 

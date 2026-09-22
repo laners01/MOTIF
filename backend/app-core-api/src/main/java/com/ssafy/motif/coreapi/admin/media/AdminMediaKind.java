@@ -17,8 +17,8 @@ public enum AdminMediaKind {
     CHALLENGE_VIDEO(Category.VIDEO, "challenges", ".mp4", false),
 
     /**
-     * {@code private/edited/{challengeSeq}/{uuid}.mp4} — 기본 경로는 AI팀 직접 업로드,
-     * presign 은 대체 경로.
+     * {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.mp4} — 기본
+     * 경로는 AI팀 직접 업로드, presign 은 대체 경로.
      *
      * <p><b>{@code private/} 아래인 것이 의도다</b>(0020). 앱이 §7.6 으로 편집본 영상을
      * 직접 받게 되면서 서명이 필요해졌는데, 서명 여부는 {@link com.ssafy.motif.coreapi.domain.media.MediaKeys#isProtected}
@@ -28,10 +28,10 @@ public enum AdminMediaKind {
      */
     EDITED_VIDEO(Category.VIDEO, "private/edited", ".mp4", true),
 
-    /** {@code private/edited/{challengeSeq}/{uuid}.jpg} — 편집본 첫 장면. */
+    /** {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.jpg} — 편집본 첫 장면. */
     EDITED_SCENE(Category.IMAGE, "private/edited", ".jpg", true),
 
-    /** {@code private/edited/{challengeSeq}/{uuid}.jpg} — 슬롯 선택 화면 이미지(S15P21D104-618). 첫 장면과 같은 자리·다른 용도라 로그에서 구분되게 kind 만 나눈다. */
+    /** {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.jpg} — 슬롯 선택 화면 이미지(S15P21D104-618). 첫 장면과 같은 자리·다른 용도라 로그에서 구분되게 kind 만 나눈다. */
     EDITED_PREVIEW(Category.IMAGE, "private/edited", ".jpg", true),
 
     /** {@code assets/{uuid}.mp4} — 모티프 에셋 미리보기. */
@@ -52,35 +52,58 @@ public enum AdminMediaKind {
     /** 허용 Content-Type·크기 상한·만료가 갈리는 단위 (§1.4). */
     public enum Category { VIDEO, IMAGE }
 
-    /** 아직 챌린지가 없을 때 {@code EDITED_*} 가 쓰는 자리 (§3.2 기본안). */
-    private static final String PENDING = "pending";
-
     private final Category category;
     private final String prefix;
     private final String extension;
-    private final boolean challengeScoped;
+    private final boolean slotScoped;
 
-    AdminMediaKind(Category category, String prefix, String extension, boolean challengeScoped) {
+    AdminMediaKind(Category category, String prefix, String extension, boolean slotScoped) {
         this.category = category;
         this.prefix = prefix;
         this.extension = extension;
-        this.challengeScoped = challengeScoped;
+        this.slotScoped = slotScoped;
     }
 
     public Category category() {
         return category;
     }
 
+    /** 키가 슬롯에 매여 있는가 — {@code EDITED_*} 만 {@code true} 다. */
+    public boolean isSlotScoped() {
+        return slotScoped;
+    }
+
     /**
-     * @param uuid         서버가 만든 오브젝트 uuid
-     * @param challengeSeq {@code EDITED_*} 에서만 쓴다. 신규 등록 중이라 아직 없으면
-     *                     {@code null} — {@code edited/pending/{uuid}} 로 발급하고
-     *                     등록 시 그 경로를 그대로 쓴다(§3.2)
+     * 오브젝트 키를 만든다.
+     *
+     * <p><b>{@code EDITED_*} 는 슬롯까지 내려간다</b> —
+     * {@code private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.{ext}}.
+     * 챌린지 하나에 슬롯이 여럿이라 프리픽스를 챌린지에서 끊으면 어느 슬롯 것인지
+     * 경로로 알 수 없고, 슬롯을 지웠을 때 딸린 파일을 프리픽스로 걷어낼 수도 없다.
+     *
+     * <p><b>파일명은 uuid 로 남긴다.</b> 첫 장면과 선택 화면이 같은 자리·같은 확장자라
+     * 슬롯 seq 를 파일명으로 쓰면 둘이 겹친다. uuid 면 영상을 교체해도 새 오브젝트가
+     * 쌓여 이전 파일을 덮지 않는다 — CloudFront 가 옛 영상을 계속 서빙할 일이 없다.
+     *
+     * <p>{@code pending} 자리표시자는 없다. 편집본은 챌린지·슬롯이 이미 있는 상태에서만
+     * 올라오므로(등록 §3.7.2 → 편집본 §3.7.6) 두 seq 가 언제나 정해져 있다.
+     *
+     * @param uuid                    서버가 만든 오브젝트 uuid
+     * @param challengeSeq            {@code EDITED_*} 필수. 그 밖에는 쓰지 않는다
+     * @param challengeParticipantSeq {@code EDITED_*} 필수. 그 밖에는 쓰지 않는다
+     * @throws IllegalArgumentException {@code EDITED_*} 인데 seq 가 비었을 때. 호출부가
+     *                                  먼저 400 으로 거르므로(AdminMediaService) 여기
+     *                                  걸리면 거르지 않은 경로가 생긴 것이다 — {@code null}
+     *                                  이 키 문자열에 섞여 들어가는 것보다 낫다
      */
-    public String objectKey(String uuid, Integer challengeSeq) {
-        if (!challengeScoped) {
+    public String objectKey(String uuid, Integer challengeSeq, Integer challengeParticipantSeq) {
+        if (!slotScoped) {
             return prefix + "/" + uuid + extension;
         }
-        return prefix + "/" + (challengeSeq == null ? PENDING : challengeSeq) + "/" + uuid + extension;
+        if (challengeSeq == null || challengeParticipantSeq == null) {
+            throw new IllegalArgumentException(
+                    "%s 는 challengeSeq·challengeParticipantSeq 가 필요하다".formatted(this));
+        }
+        return prefix + "/" + challengeSeq + "/" + challengeParticipantSeq + "/" + uuid + extension;
     }
 }

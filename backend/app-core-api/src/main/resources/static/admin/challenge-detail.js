@@ -240,8 +240,8 @@ $('save-slots').addEventListener('click', async () => {
 // ── 편집본 키 교체 (§3.7.6) ────────────────────────────────────────────────
 
 /*
- * 파일 → presign(edited/{challengeSeq}/) → S3 PUT → §3.7.6 PATCH.
- * 영상은 길이도 실어 서버가 원본과 대조한다.
+ * 파일 → presign(private/edited/{challengeSeq}/{challengeParticipantSeq}/) → S3 PUT
+ * → §3.7.6 PATCH. 영상은 길이도 실어 서버가 원본과 대조한다.
  *
  * 편집본이 없던 슬롯은 영상·첫 장면을 함께 보내야 서버가 받는다(DB CHECK 가 짝을
  * 강제한다). 그래서 영상 하나만 고르면 첫 장면도 고르라고 막고, 둘이 다 준비된
@@ -262,7 +262,8 @@ $('slots').addEventListener('change', async (e) => {
         if (input.dataset.for === 'editedChallengeKey') {
             body.durationMs = (await videoMeta(file, document.createElement('video'))).durationMs;
         }
-        body[input.dataset.for] = await upload(file, input.dataset.kind, Number(challengeSeq));
+        body[input.dataset.for] =
+                await upload(file, input.dataset.kind, Number(challengeSeq), Number(seq));
 
         // 편집본이 없던 슬롯 — 짝이 갖춰질 때까지 모아 둔다
         const hadEdited = participantOf(tr)?.editedChallengeKey;
