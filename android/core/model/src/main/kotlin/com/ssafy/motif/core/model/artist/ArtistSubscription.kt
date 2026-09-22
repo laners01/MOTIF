@@ -1,9 +1,7 @@
-package com.ssafy.motif.core.model.mypage
+package com.ssafy.motif.core.model.artist
 
-data class SubscribedArtist(
-    val id: Long,
-    val name: String,
-    val profileImageUrl: String?,
+data class ArtistSubscription(
+    var artist: Artist,
     val hasMotifPass: Boolean,
     val subscribedDays: Int,        // 구독일 수
     val challengeCount: Long,       // 함께 찍은 챌린지 수
