@@ -27,4 +27,6 @@ dependencies {
 
     // ML Kit
     implementation(libs.segmentation.selfie)
+
+    implementation(libs.androidx.activity.compose)
 }

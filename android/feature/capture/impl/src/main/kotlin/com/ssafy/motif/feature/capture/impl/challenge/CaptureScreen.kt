@@ -1,6 +1,7 @@
 package com.ssafy.motif.feature.capture.impl.challenge
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,7 +18,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
@@ -42,7 +42,8 @@ internal fun CaptureScreen(
     onBrowseChallengeClick: () -> Unit,
     onError: (Throwable) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: CaptureViewModel = hiltViewModel(),
+    viewModel: CaptureViewModel =
+        hiltViewModel(),
 ) {
     val uiState by
     viewModel.uiState
@@ -65,7 +66,9 @@ internal fun CaptureScreen(
     ) {
         viewModel.uiEffect
             .collect { effect ->
-                when (effect) {
+                when (
+                    effect
+                ) {
                     is CaptureUiEffect.Error -> {
                         onError(
                             effect.throwable,
@@ -116,6 +119,20 @@ internal fun CaptureScreen(
     modifier: Modifier = Modifier,
     mediaSourceFactory: MediaSource.Factory? = null,
 ) {
+    /*
+     * WorkManager 적용 전까지는 Job 생성 / S3 업로드 /
+     * 합성 요청이 ViewModelScope에서 실행된다.
+     *
+     * 서버 인계가 완료되기 전 화면이 제거되면 작업이
+     * 취소될 수 있으므로 시스템 Back을 막는다.
+     */
+    BackHandler(
+        enabled =
+            uiState.isTransferInProgress,
+    ) {
+        // 업로드 상태 UI를 유지한다.
+    }
+
     Box(
         modifier =
             modifier.fillMaxSize(),
@@ -168,8 +185,10 @@ internal fun CaptureScreen(
                 CaptureProcessingScreen(
                     previewImageUrl =
                         uiState.previewImageUrl,
-                    browseEnabled =
-                        !uiState.isSubmitting,
+                    processingState =
+                        uiState.processingState,
+                    uploadProgress =
+                        uiState.uploadProgress,
                     onBrowseChallengeClick =
                         onBrowseChallengeClick,
                     modifier =
@@ -192,29 +211,30 @@ internal fun CaptureScreen(
             }
         }
 
-        CaptureBackButton(
-            enabled =
-                !uiState.isSubmitting,
-            onClick =
-                onBackClick,
-            modifier = Modifier
-                .align(
-                    Alignment.TopStart,
-                )
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing,
-                )
-                .padding(
-                    top = 8.dp,
-                    start = 12.dp,
-                ),
-        )
+        if (
+            !uiState.isTransferInProgress
+        ) {
+            CaptureBackButton(
+                onClick =
+                    onBackClick,
+                modifier = Modifier
+                    .align(
+                        Alignment.TopStart,
+                    )
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing,
+                    )
+                    .padding(
+                        top = 8.dp,
+                        start = 12.dp,
+                    ),
+            )
+        }
     }
 }
 
 @Composable
 private fun CaptureBackButton(
-    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -228,16 +248,7 @@ private fun CaptureBackButton(
             .size(
                 48.dp,
             )
-            .alpha(
-                if (enabled) {
-                    1f
-                } else {
-                    DisabledAlpha
-                },
-            )
             .clickable(
-                enabled =
-                    enabled,
                 interactionSource =
                     interactionSource,
                 indication =
@@ -251,7 +262,8 @@ private fun CaptureBackButton(
         Image(
             painter =
                 painterResource(
-                    DesignSystemR.drawable.ic_arrow_left_24,
+                    DesignSystemR.drawable
+                        .ic_arrow_left_24,
                 ),
             contentDescription =
                 stringResource(
@@ -268,6 +280,3 @@ private fun CaptureBackButton(
         )
     }
 }
-
-private const val DisabledAlpha =
-    0.45f

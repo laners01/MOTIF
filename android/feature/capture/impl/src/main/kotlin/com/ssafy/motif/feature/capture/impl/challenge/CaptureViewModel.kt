@@ -6,12 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.ssafy.motif.core.common.result.Result
 import com.ssafy.motif.core.common.result.asResult
 import com.ssafy.motif.core.data.repository.ChallengeRepository
+import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureProcessingState
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureStage
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiEffect
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.io.File
-import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
+import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
 
 @HiltViewModel
 internal class CaptureViewModel @Inject constructor(
@@ -207,7 +210,9 @@ internal class CaptureViewModel @Inject constructor(
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     fun onShootingReady() {
@@ -233,13 +238,12 @@ internal class CaptureViewModel @Inject constructor(
                 ) {
                     _uiState.update { state ->
                         state.copy(
-                            countdown = count,
+                            countdown =
+                                count,
                         )
                     }
 
-                    delay(
-                        COUNTDOWN_INTERVAL_MS,
-                    )
+                    delay(COUNTDOWN_INTERVAL_MS.milliseconds)
                 }
 
                 _uiState.update { state ->
@@ -275,9 +279,10 @@ internal class CaptureViewModel @Inject constructor(
 
             state.copy(
                 elapsedTimeMs =
-                    elapsedTimeMs.coerceAtMost(
-                        state.durationMs,
-                    ),
+                    elapsedTimeMs
+                        .coerceAtMost(
+                            state.durationMs,
+                        ),
             )
         }
     }
@@ -330,8 +335,11 @@ internal class CaptureViewModel @Inject constructor(
                     CaptureStage.Processing,
                 elapsedTimeMs =
                     it.durationMs,
-                isSubmitting =
-                    true,
+                processingState =
+                    CaptureProcessingState
+                        .PreparingUpload,
+                uploadProgress =
+                    INITIAL_UPLOAD_PROGRESS,
             )
         }
 
@@ -350,6 +358,18 @@ internal class CaptureViewModel @Inject constructor(
                             )
                             .first()
 
+                    _uiState.update {
+                        it.copy(
+                            jobUuid =
+                                upload.jobUuid,
+                            processingState =
+                                CaptureProcessingState
+                                    .Uploading,
+                            uploadProgress =
+                                INITIAL_UPLOAD_PROGRESS,
+                        )
+                    }
+
                     challengeRepository
                         .uploadChallengeCompositeVideo(
                             uploadUrl =
@@ -357,7 +377,30 @@ internal class CaptureViewModel @Inject constructor(
                             videoFile =
                                 videoFile,
                         )
-                        .first()
+                        .collect { progress ->
+                            _uiState.update {
+                                it.copy(
+                                    processingState =
+                                        CaptureProcessingState
+                                            .Uploading,
+                                    uploadProgress =
+                                        progress.coerceIn(
+                                            MIN_UPLOAD_PROGRESS,
+                                            MAX_UPLOAD_PROGRESS,
+                                        ),
+                                )
+                            }
+                        }
+
+                    _uiState.update {
+                        it.copy(
+                            processingState =
+                                CaptureProcessingState
+                                    .RequestingComposite,
+                            uploadProgress =
+                                MAX_UPLOAD_PROGRESS,
+                        )
+                    }
 
                     /*
                      * 현재 챌린지 합성은 보정을 항상 활성화한다.
@@ -375,19 +418,28 @@ internal class CaptureViewModel @Inject constructor(
 
                     _uiState.update {
                         it.copy(
-                            jobUuid =
-                                upload.jobUuid,
-                            isSubmitting =
-                                false,
+                            processingState =
+                                CaptureProcessingState
+                                    .Queued,
+                            uploadProgress =
+                                MAX_UPLOAD_PROGRESS,
                         )
                     }
                 } catch (
                     throwable: Throwable,
                 ) {
+                    if (
+                        throwable is
+                                CancellationException
+                    ) {
+                        throw throwable
+                    }
+
                     _uiState.update {
                         it.copy(
-                            isSubmitting =
-                                false,
+                            processingState =
+                                CaptureProcessingState
+                                    .Failed,
                         )
                     }
 
@@ -409,6 +461,12 @@ internal class CaptureViewModel @Inject constructor(
                     COUNTDOWN_SECONDS,
                 elapsedTimeMs =
                     0L,
+                processingState =
+                    CaptureProcessingState.Idle,
+                uploadProgress =
+                    INITIAL_UPLOAD_PROGRESS,
+                jobUuid =
+                    null,
             )
         }
     }
@@ -469,7 +527,9 @@ internal class CaptureViewModel @Inject constructor(
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     private fun emitError(
@@ -485,17 +545,25 @@ internal class CaptureViewModel @Inject constructor(
 
     override fun onCleared() {
         countdownJob?.cancel()
+
         super.onCleared()
     }
 
     private companion object {
         const val COUNTDOWN_SECONDS = 5
         const val COUNTDOWN_INTERVAL_MS = 1_000L
+
+        const val MIN_UPLOAD_PROGRESS = 0
+        const val MAX_UPLOAD_PROGRESS = 100
+        const val INITIAL_UPLOAD_PROGRESS = 0
     }
 }
 
 private fun Uri.toVideoFile(): File? {
-    if (scheme != "file") {
+    if (
+        scheme !=
+        "file"
+    ) {
         return null
     }
 

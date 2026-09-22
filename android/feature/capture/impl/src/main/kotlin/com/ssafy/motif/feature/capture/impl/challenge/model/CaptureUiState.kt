@@ -9,14 +9,18 @@ data class CaptureUiState(
     val selectedParticipantId: Long? = null,
     val stage: CaptureStage =
         CaptureStage.PositionSelection,
-    val countdown: Int = DEFAULT_COUNTDOWN,
+    val countdown: Int =
+        DEFAULT_COUNTDOWN,
     val elapsedTimeMs: Long = 0L,
     val durationMs: Long = 0L,
     val guideVideoUrl: String = "",
     val jobUuid: String? = null,
     val isLoading: Boolean = false,
     val isPreparingShooting: Boolean = false,
-    val isSubmitting: Boolean = false,
+    val processingState:
+    CaptureProcessingState =
+        CaptureProcessingState.Idle,
+    val uploadProgress: Int = 0,
 ) {
 
     val selectedPosition: CapturePosition?
@@ -37,8 +41,18 @@ data class CaptureUiState(
 
     val canStartChallenge: Boolean
         get() =
-            selectedPosition?.isAvailable == true &&
+            selectedPosition?.isAvailable ==
+                    true &&
                     !isPreparingShooting
+
+    val isTransferInProgress: Boolean
+        get() =
+            processingState ==
+                    CaptureProcessingState.PreparingUpload ||
+                    processingState ==
+                    CaptureProcessingState.Uploading ||
+                    processingState ==
+                    CaptureProcessingState.RequestingComposite
 
     private companion object {
         const val DEFAULT_COUNTDOWN = 5
