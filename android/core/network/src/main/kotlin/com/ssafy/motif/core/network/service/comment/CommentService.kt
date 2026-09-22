@@ -2,11 +2,11 @@ package com.ssafy.motif.core.network.service.comment
 
 import com.ssafy.motif.core.network.model.BaseResponse
 import com.ssafy.motif.core.network.model.PageResponse
-import com.ssafy.motif.core.network.service.comment.model.CommentCreateRequest
-import com.ssafy.motif.core.network.service.comment.model.CommentCreateResponse
-import com.ssafy.motif.core.network.service.comment.model.CommentDeleteResponse
-import com.ssafy.motif.core.network.service.comment.model.CommentItemResponse
-import com.ssafy.motif.core.network.service.comment.model.ReplyItemResponse
+import com.ssafy.motif.core.network.model.comment.CommentCreateRequest
+import com.ssafy.motif.core.network.model.comment.CommentCreateResponse
+import com.ssafy.motif.core.network.model.comment.CommentDeleteResponse
+import com.ssafy.motif.core.network.model.comment.CommentItemResponse
+import com.ssafy.motif.core.network.model.comment.ReplyItemResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
