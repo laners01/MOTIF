@@ -1,4 +1,4 @@
-package com.ssafy.motif.core.model.capture
+package com.ssafy.motif.core.model.challenge
 
 import com.ssafy.motif.core.model.artist.Artist
 
