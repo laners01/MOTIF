@@ -17,12 +17,12 @@ data class ChallengeParticipation(
     val hasArtistComment: Boolean,
     val isLiked: Boolean,
     val commentEnabled: Boolean,
-    val visibility: VideoVisibility,
+    val visibility: ParticipationVisibility,
     val isMine: Boolean,
     val createdAt: Long,
 )
 
-enum class VideoVisibility {
+enum class ParticipationVisibility {
     PUBLIC,
     PRIVATE,
 }

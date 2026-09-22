@@ -14,6 +14,7 @@ android {
 
 dependencies {
     implementation(projects.core.common)
+    implementation(projects.core.model)
 
     implementation(libs.sandwich)
     implementation(libs.kotlinx.serialization.json)

@@ -1,4 +1,4 @@
-package com.ssafy.motif.core.network.service.comment.model
+package com.ssafy.motif.core.network.model.comment
 
 import kotlinx.serialization.Serializable
 

@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.ClickableSurface
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
@@ -48,6 +50,53 @@ import com.ssafy.motif.feature.home.impl.model.OnstageUiState
 
 @Composable
 internal fun HomeScreen(
+    onOnstageClick: (Long) -> Unit,
+    onFanRadarClick: () -> Unit,
+    onArtistClick: (Long) -> Unit,
+    onMotifClick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
+    val onstageUiState by
+    viewModel.onstageUiState.collectAsStateWithLifecycle()
+
+    val fanRadarUiState by
+    viewModel.fanRadarUiState.collectAsStateWithLifecycle()
+
+    val myArtistFeedUiState by
+    viewModel.myArtistFeedUiState.collectAsStateWithLifecycle()
+
+    val commentUiState by
+    viewModel.commentUiState.collectAsStateWithLifecycle()
+
+    HomeScreen(
+        onstageUiState = onstageUiState,
+        fanRadarUiState = fanRadarUiState,
+        myArtistFeedUiState = myArtistFeedUiState,
+        commentUiState = commentUiState,
+        onOnstageClick = onOnstageClick,
+        onFanRadarClick = onFanRadarClick,
+        onArtistClick = onArtistClick,
+        onMotifClick = onMotifClick,
+        onNoticeLikeClick = viewModel::toggleNoticeLike,
+        onNoticeCommentClick = viewModel::loadNoticeComments,
+        onCommentLikeClick = viewModel::toggleCommentLike,
+        onReplyClick = viewModel::loadReplies,
+        onCommentBackClick = viewModel::backToComments,
+        onCommentSendClick = viewModel::sendComment,
+        onCommentDismiss = viewModel::dismissComments,
+        onLoadMoreMyArtistFeed = viewModel::loadMoreMyArtistFeed,
+        onOnstageRetryClick = viewModel::retryOnstage,
+        onFanRadarRetryClick = viewModel::retryFanRadar,
+        onMyArtistFeedRetryClick = viewModel::retryMyArtistFeed,
+        onMyArtistFeedLoadMoreRetryClick =
+            viewModel::retryLoadMoreMyArtistFeed,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun HomeScreen(
     onstageUiState: OnstageUiState,
     fanRadarUiState: FanRadarUiState,
     myArtistFeedUiState: MyArtistFeedUiState,
@@ -62,6 +111,7 @@ internal fun HomeScreen(
     onReplyClick: (Long) -> Unit,
     onCommentBackClick: () -> Unit,
     onCommentSendClick: (String) -> Unit,
+    onCommentDismiss: () -> Unit,
     onLoadMoreMyArtistFeed: () -> Unit,
     onOnstageRetryClick: () -> Unit,
     onFanRadarRetryClick: () -> Unit,
@@ -85,10 +135,13 @@ internal fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MotifTheme.colors.background)
+            .background(
+                MotifTheme.colors.background,
+            )
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(
-                    WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                    WindowInsetsSides.Top +
+                            WindowInsetsSides.Horizontal,
                 ),
             ),
     ) {
@@ -120,6 +173,7 @@ internal fun HomeScreen(
                 state = commentUiState,
                 onDismissRequest = {
                     selectedNoticeId = null
+                    onCommentDismiss()
                 },
                 onLikeClick = onCommentLikeClick,
                 onReplyClick = onReplyClick,
@@ -148,16 +202,17 @@ private fun HomeContent(
     onMyArtistFeedLoadMoreRetryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
+    val listState =
+        rememberLazyListState()
 
     val feedSuccessState =
         myArtistFeedUiState as? MyArtistFeedUiState.Success
 
     val canLoadMore =
-        feedSuccessState?.let { state ->
-            state.hasNext &&
-                    state.appendState is FeedAppendUiState.Idle
-        } == true
+        feedSuccessState?.run {
+            hasNext &&
+                    appendState is FeedAppendUiState.Idle
+        } ?: false
 
     val shouldLoadMore by remember(
         listState,
@@ -168,7 +223,9 @@ private fun HomeContent(
                 return@derivedStateOf false
             }
 
-            val layoutInfo = listState.layoutInfo
+            val layoutInfo =
+                listState.layoutInfo
+
             val lastVisibleItemIndex =
                 layoutInfo.visibleItemsInfo
                     .lastOrNull()
@@ -177,11 +234,14 @@ private fun HomeContent(
 
             layoutInfo.totalItemsCount > 0 &&
                     lastVisibleItemIndex >=
-                    layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+                    layoutInfo.totalItemsCount -
+                    LOAD_MORE_THRESHOLD
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(
+        shouldLoadMore,
+    ) {
         if (shouldLoadMore) {
             onLoadMoreMyArtistFeed()
         }
@@ -193,7 +253,10 @@ private fun HomeContent(
         contentPadding = PaddingValues(
             bottom = 32.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                16.dp,
+            ),
     ) {
         item(
             key = "hot-title",
@@ -230,7 +293,9 @@ private fun HomeContent(
                         onRetryClick = onOnstageRetryClick,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(
+                                horizontal = 16.dp,
+                            ),
                     )
                 }
             }
@@ -264,7 +329,9 @@ private fun HomeContent(
                         onRetryClick = onFanRadarRetryClick,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(
+                                horizontal = 16.dp,
+                            ),
                     )
                 }
             }
@@ -289,7 +356,9 @@ private fun HomeContent(
                         onRetryClick = onMyArtistFeedRetryClick,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(
+                                horizontal = 16.dp,
+                            ),
                     )
                 }
             }
@@ -339,9 +408,14 @@ private fun OnstageLoadingContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 40.dp)
-            .aspectRatio(9f / 16f),
-        contentAlignment = Alignment.Center,
+            .padding(
+                horizontal = 40.dp,
+            )
+            .aspectRatio(
+                9f / 16f,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -354,8 +428,11 @@ private fun FanRadarLoadingContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(112.dp),
-        contentAlignment = Alignment.Center,
+            .height(
+                112.dp,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -368,8 +445,11 @@ private fun FeedLoadingContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(180.dp),
-        contentAlignment = Alignment.Center,
+            .height(
+                180.dp,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -382,8 +462,11 @@ private fun FeedLoadingMoreContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        contentAlignment = Alignment.Center,
+            .padding(
+                vertical = 24.dp,
+            ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingText()
     }
@@ -410,7 +493,8 @@ private fun SectionErrorContent(
         modifier = modifier.padding(
             vertical = 24.dp,
         ),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
     ) {
         Text(
             text = "데이터를 불러오지 못했어요.",
@@ -435,8 +519,11 @@ private fun FeedLoadMoreErrorContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(
+                vertical = 20.dp,
+            ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
     ) {
         Text(
             text = "추가 콘텐츠를 불러오지 못했어요.",
@@ -461,7 +548,9 @@ private fun RetryButton(
     ClickableSurface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(
+            8.dp,
+        ),
         color = Color.Transparent,
     ) {
         Text(
@@ -476,10 +565,14 @@ private fun RetryButton(
     }
 }
 
-@Preview(showBackground = true)
+@Preview(
+    showBackground = true,
+)
 @Composable
 private fun HomeScreenPreview(
-    @PreviewParameter(HomeScreenPreviewParameterProvider::class)
+    @PreviewParameter(
+        HomeScreenPreviewParameterProvider::class,
+    )
     previewData: HomeScreenPreviewData,
 ) {
     MotifTheme {
@@ -498,6 +591,7 @@ private fun HomeScreenPreview(
             onReplyClick = {},
             onCommentBackClick = {},
             onCommentSendClick = {},
+            onCommentDismiss = {},
             onLoadMoreMyArtistFeed = {},
             onOnstageRetryClick = {},
             onFanRadarRetryClick = {},

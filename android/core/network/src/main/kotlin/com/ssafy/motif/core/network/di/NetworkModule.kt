@@ -3,6 +3,8 @@ package com.ssafy.motif.core.network.di
 import com.ssafy.motif.core.network.BuildConfig
 import com.ssafy.motif.core.network.NetworkConfig
 import com.ssafy.motif.core.network.auth.AccessTokenInterceptor
+import com.ssafy.motif.core.network.service.artist.ArtistService
+import com.ssafy.motif.core.network.service.challenge.ChallengeService
 import com.ssafy.motif.core.network.service.comment.CommentService
 import com.ssafy.motif.core.network.service.notice.NoticeService
 import dagger.Module
@@ -87,6 +89,20 @@ internal object NetworkModule {
         retrofit: Retrofit,
     ): NoticeService =
         retrofit.create(NoticeService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideChallengeService(
+        retrofit: Retrofit,
+    ): ChallengeService =
+        retrofit.create(ChallengeService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideArtistService(
+        retrofit: Retrofit,
+    ): ArtistService =
+        retrofit.create(ArtistService::class.java)
 
     @Provides
     @Singleton

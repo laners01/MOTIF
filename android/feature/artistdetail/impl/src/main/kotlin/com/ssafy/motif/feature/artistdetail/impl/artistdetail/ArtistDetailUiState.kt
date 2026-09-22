@@ -2,8 +2,8 @@ package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import androidx.compose.runtime.Immutable
 import com.ssafy.motif.core.model.artist.ArtistDetail
-import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.model.motif.Motif
+import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.ui.comment.CommentUiState
 
 enum class ArtistDetailTab(
@@ -16,6 +16,7 @@ enum class ArtistDetailTab(
 @Immutable
 internal data class ArtistDetailUiState(
     val artistId: Long = 0L,
+    val isAlarmOn: Boolean = false,
     val artistDetail: ArtistDetail? = null,
     val notices: List<Notice> = emptyList(),
     val selectedTab: ArtistDetailTab = ArtistDetailTab.Challenge,
