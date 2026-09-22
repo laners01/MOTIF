@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.feature.motif.impl.archive.ArchiveMockData
 import com.ssafy.motif.feature.motif.impl.component.ArtistFilterItem
 

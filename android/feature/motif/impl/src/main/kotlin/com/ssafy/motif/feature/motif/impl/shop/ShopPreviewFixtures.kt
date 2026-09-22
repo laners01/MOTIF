@@ -2,7 +2,7 @@ package com.ssafy.motif.feature.motif.impl.shop
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
 import com.ssafy.motif.core.model.shop.ArtistPass

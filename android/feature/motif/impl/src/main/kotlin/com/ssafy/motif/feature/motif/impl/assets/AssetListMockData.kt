@@ -1,6 +1,6 @@
 package com.ssafy.motif.feature.motif.impl.assets
 
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
 

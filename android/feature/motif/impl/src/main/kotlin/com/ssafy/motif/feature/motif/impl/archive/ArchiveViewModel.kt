@@ -2,7 +2,7 @@ package com.ssafy.motif.feature.motif.impl.archive
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.SavedMotif
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow

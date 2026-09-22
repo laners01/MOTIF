@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import com.ssafy.motif.core.model.motif.Asset
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 
 @HiltViewModel
 class AssetListViewModel @Inject constructor(): ViewModel() {

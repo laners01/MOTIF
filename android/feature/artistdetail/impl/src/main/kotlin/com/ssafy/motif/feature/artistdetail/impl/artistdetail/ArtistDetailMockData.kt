@@ -4,7 +4,7 @@ import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
 import com.ssafy.motif.core.model.artistdetail.ArtistDetail
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.model.artistdetail.ArtistMotif
 

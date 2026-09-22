@@ -1,9 +1,9 @@
 package com.ssafy.motif.feature.home.impl
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.home.Artist
 import com.ssafy.motif.core.model.home.FanRadarArtist
 import com.ssafy.motif.core.model.home.Motif
 import com.ssafy.motif.core.model.home.Notice

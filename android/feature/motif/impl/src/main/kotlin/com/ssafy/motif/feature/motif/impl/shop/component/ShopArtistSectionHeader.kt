@@ -26,7 +26,7 @@ import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.feature.motif.impl.R
 import com.ssafy.motif.feature.motif.impl.shop.ShopPreviewFixtures
 

@@ -1,6 +1,6 @@
 package com.ssafy.motif.core.model.shop
 
-import com.ssafy.motif.core.model.home.Artist
+import com.ssafy.motif.core.model.artist.Artist
 
 /**
  * 샵 상단에 노출되는 아티스트 구독권(PASS) 프로모션 배너.
