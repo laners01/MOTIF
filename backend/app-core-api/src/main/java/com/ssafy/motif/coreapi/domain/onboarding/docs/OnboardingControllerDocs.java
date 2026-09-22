@@ -28,7 +28,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public interface OnboardingControllerDocs {
 
     @Operation(
-            summary = "온보딩 완료 (구독 일괄 + 닉네임 확정)",
+            summary = "온보딩 완료 — 구독 일괄 + 닉네임 확정 (§3.3)",
             description = """
                     아티스트 구독과 닉네임을 **하나의 원자 트랜잭션**으로 확정한다 (명세 §3.3).
 

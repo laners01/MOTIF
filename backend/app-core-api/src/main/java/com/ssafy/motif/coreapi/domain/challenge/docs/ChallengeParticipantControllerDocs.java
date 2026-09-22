@@ -12,8 +12,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/** §7.6 Swagger 문서 — 구현은 {@code ChallengeParticipantController}. */
-@Tag(name = "Challenge", description = "챌린지 (명세 §7)")
+/**
+ * §7.6 Swagger 문서 — 구현은 {@code ChallengeParticipantController}.
+ *
+ * <p><b>태그 이름·설명이 {@link ChallengeControllerDocs} 와 글자까지 같아야 한다.</b>
+ * 경로가 {@code /challenge-participants} 로 갈려 있을 뿐 같은 §7 계약이라, 한 글자라도
+ * 다르면 Swagger UI 에 §7 묶음이 두 개로 쪼개진다.
+ */
+@Tag(name = "챌린지 원본 (CHALLENGE)", description = "명세 §7 — 아티스트 원본 챌린지")
 public interface ChallengeParticipantControllerDocs {
 
     @Operation(
@@ -53,7 +59,7 @@ public interface ChallengeParticipantControllerDocs {
                                         "challengeParticipantSeq": 31,
                                         "challengeSeq": 11,
                                         "artistSeq": 7,
-                                        "videoUrl": "https://cdn.../private/edited/11/31/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
+                                        "videoUrl": "https://cdn.motif.io/private/edited/11/31/e1.mp4?Expires=...&Signature=...&Key-Pair-Id=...",
                                         "durationMs": 15020,
                                         "expiresIn": 600
                                       },

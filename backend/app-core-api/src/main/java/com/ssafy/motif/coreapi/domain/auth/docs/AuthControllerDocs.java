@@ -34,7 +34,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public interface AuthControllerDocs {
 
     @Operation(
-            summary = "구글 로그인·자동 회원가입",
+            summary = "구글 로그인·자동 회원가입 (§2.1)",
             description = """
                     구글 ID 토큰을 검증하고, 최초 로그인이면 users·user_accounts·user_oauth_accounts 를 생성한다 (명세 §2.1).
 
@@ -102,7 +102,7 @@ public interface AuthControllerDocs {
             @Schema(description = "구글 Sign-In 이 발급한 ID 토큰") GoogleLoginRequest request);
 
     @Operation(
-            summary = "토큰 재발급 (rotation)",
+            summary = "토큰 재발급 — rotation (§2.2)",
             description = """
                     refresh token 으로 새 토큰 쌍을 발급한다 (명세 §2.2).
 
@@ -192,7 +192,7 @@ public interface AuthControllerDocs {
             @Schema(description = "재발급에 쓸 refresh token") TokenRefreshRequest request);
 
     @Operation(
-            summary = "로그아웃 (현재 기기)",
+            summary = "로그아웃 — 현재 기기 (§2.3)",
             description = """
                     보낸 refresh token 하나만 폐기한다 (명세 §2.3).
 

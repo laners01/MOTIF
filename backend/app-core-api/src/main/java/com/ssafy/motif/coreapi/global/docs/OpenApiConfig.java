@@ -116,8 +116,15 @@ public class OpenApiConfig {
 
                         `accessToken` 은 1시간 후 만료된다(응답의 `expiresIn` 이 초 단위 값이다).
                         만료되면 `POST /api/v1/auth/refresh` 로 재발급받는다 — refresh token 은 1회용이라
-                        재발급 때마다 교체된다(§2.2). 로그아웃 `POST /api/v1/auth/logout`(§2.3)은
-                        **아직 구현되지 않았다** — 별도 티켓이라 이 문서에도 없다.
+                        재발급 때마다 교체된다(§2.2). 로그아웃은 **2콜**이다 —
+                        `POST /api/v1/auth/logout`(§2.3)으로 refresh token 을 폐기하고,
+                        `DELETE /api/v1/notifications/device-tokens`(§14.2)로 푸시를 끊는다.
+                        둘째를 빠뜨리면 로그아웃한 기기로 알림이 계속 간다.
+
+                        ### 순서
+                        태그 묶음과 그 안의 API 는 **명세 절 순서**로 놓인다(§2 인증 → … → §14 알림,
+                        재생 공용 인프라인 §1.7 미디어가 끝). 각 API 의 제목 끝 `(§x.y)` 가 그 자리다 —
+                        명세 문서와 나란히 놓고 읽으라고 맞춰 둔 것이다.
 
                         `/api/health` 는 Traefik 과의 계약용 얇은 health 이고,
                         관리 엔드포인트(actuator·prometheus)는 관리 포트 9081 에만 열린다.
