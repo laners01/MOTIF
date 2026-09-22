@@ -23,10 +23,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.compose.ContentFrame
@@ -43,7 +41,6 @@ internal fun CaptureShootingScreen(
     uiState: CaptureUiState,
     segmentationProcessor: PersonSegmentationProcessor,
     onShootingReady: () -> Unit,
-    onDurationReady: (Long) -> Unit,
     onRecordingProgress: (Long) -> Unit,
     onRecordingFinished: (Uri) -> Unit,
     onRetryReady: () -> Unit,
@@ -54,7 +51,8 @@ internal fun CaptureShootingScreen(
     val context =
         LocalContext.current
 
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner =
+        LocalLifecycleOwner.current
 
     val view =
         LocalView.current
@@ -62,38 +60,51 @@ internal fun CaptureShootingScreen(
     val targetRotation =
         view.display.rotation
 
-    val videoUrl =
-        uiState.selectedPosition
-            ?.videoUrl
-            .orEmpty()
-
-    var cameraReady by remember {
-        mutableStateOf(false)
+    var cameraReady by
+    remember {
+        mutableStateOf(
+            false,
+        )
     }
 
-    var playerReady by remember {
-        mutableStateOf(false)
+    var playerReady by
+    remember {
+        mutableStateOf(
+            false,
+        )
     }
 
-    var segmentationReady by remember {
-        mutableStateOf(false)
+    var segmentationReady by
+    remember {
+        mutableStateOf(
+            false,
+        )
     }
 
-    var segmentedBitmap by remember {
-        mutableStateOf<Bitmap?>(null)
+    var segmentedBitmap by
+    remember {
+        mutableStateOf<Bitmap?>(
+            null,
+        )
     }
 
-    var isRetrying by remember {
-        mutableStateOf(false)
+    var isRetrying by
+    remember {
+        mutableStateOf(
+            false,
+        )
     }
 
     val player =
         remember(
             context,
-            videoUrl,
+            uiState.guideVideoUrl,
             mediaSourceFactory,
         ) {
-            ExoPlayer.Builder(context)
+            ExoPlayer
+                .Builder(
+                    context,
+                )
                 .apply {
                     mediaSourceFactory
                         ?.let {
@@ -106,7 +117,7 @@ internal fun CaptureShootingScreen(
                 .apply {
                     setMediaItem(
                         MediaItem.fromUri(
-                            videoUrl,
+                            uiState.guideVideoUrl,
                         ),
                     )
 
@@ -126,7 +137,8 @@ internal fun CaptureShootingScreen(
             segmentationProcessor,
         ) {
             CaptureCameraController(
-                context = context,
+                context =
+                    context,
                 segmentationProcessor =
                     segmentationProcessor,
             )
@@ -135,71 +147,31 @@ internal fun CaptureShootingScreen(
     DisposableEffect(
         player,
     ) {
-        var reportedDurationMs =
-            C.TIME_UNSET
-
-        fun reportDurationIfAvailable() {
-            val durationMs =
-                player.duration
-
-            if (
-                durationMs != C.TIME_UNSET &&
-                durationMs > 0L &&
-                durationMs != reportedDurationMs
-            ) {
-                reportedDurationMs =
-                    durationMs
-
-                onDurationReady(
-                    durationMs,
-                )
-            }
-        }
-
         val listener =
             object : Player.Listener {
-
-                override fun onRenderedFirstFrame() {
-                    playerReady =
-                        true
-
-                    reportDurationIfAvailable()
-                }
 
                 override fun onPlaybackStateChanged(
                     playbackState: Int,
                 ) {
-                    when (playbackState) {
+                    when (
+                        playbackState
+                    ) {
                         Player.STATE_READY -> {
-                            reportDurationIfAvailable()
+                            playerReady =
+                                true
                         }
 
                         Player.STATE_ENDED -> {
-                            /*
-                             * 원테이크 자동 종료.
-                             *
-                             * 챌린지 영상이 끝나는 순간
-                             * CameraX 녹화도 종료한다.
-                             */
                             cameraController
                                 .stopRecording()
                         }
                     }
-                }
-
-                override fun onTimelineChanged(
-                    timeline: Timeline,
-                    reason: Int,
-                ) {
-                    reportDurationIfAvailable()
                 }
             }
 
         player.addListener(
             listener,
         )
-
-        reportDurationIfAvailable()
 
         onDispose {
             player.removeListener(
@@ -243,7 +215,9 @@ internal fun CaptureShootingScreen(
     LaunchedEffect(
         uiState.stage,
     ) {
-        when (uiState.stage) {
+        when (
+            uiState.stage
+        ) {
             CaptureStage.Countdown -> {
                 player.pause()
 
@@ -256,10 +230,6 @@ internal fun CaptureShootingScreen(
                 cameraController
                     .startRecording(
                         onStarted = {
-                            /*
-                             * 실제 CameraX 녹화가 시작된 이후
-                             * 챌린지 영상도 같이 시작한다.
-                             */
                             player.play()
                         },
                         onProgress =
@@ -267,8 +237,10 @@ internal fun CaptureShootingScreen(
                         onFinished = { uri ->
                             if (isRetrying) {
                                 deleteRecording(
-                                    context = context,
-                                    uri = uri,
+                                    context =
+                                        context,
+                                    uri =
+                                        uri,
                                 )
 
                                 isRetrying =
@@ -280,10 +252,6 @@ internal fun CaptureShootingScreen(
 
                                 onRetryReady()
                             } else {
-                                /*
-                                 * VideoRecordEvent.Finalize 완료 후
-                                 * Processing으로 전환한다.
-                                 */
                                 onRecordingFinished(
                                     uri,
                                 )
@@ -325,7 +293,8 @@ internal fun CaptureShootingScreen(
             ),
     ) {
         ContentFrame(
-            player = player,
+            player =
+                player,
             contentScale =
                 ContentScale.Crop,
             keepContentOnReset =
@@ -338,7 +307,8 @@ internal fun CaptureShootingScreen(
             ?.let { bitmap ->
                 Image(
                     bitmap =
-                        bitmap.asImageBitmap(),
+                        bitmap
+                            .asImageBitmap(),
                     contentDescription =
                         null,
                     contentScale =
@@ -347,12 +317,14 @@ internal fun CaptureShootingScreen(
                         .fillMaxSize()
                         .graphicsLayer {
                             scaleX =
-                                -1f
+                                1f
                         },
                 )
             }
 
-        when (uiState.stage) {
+        when (
+            uiState.stage
+        ) {
             CaptureStage.Countdown -> {
                 CaptureCountdownOverlay(
                     countdown =
@@ -378,9 +350,6 @@ internal fun CaptureShootingScreen(
                         isRetrying =
                             true
 
-                        /*
-                         * Retry는 현재 take 전체를 버린다.
-                         */
                         player.pause()
 
                         cameraController
@@ -403,9 +372,12 @@ private fun deleteRecording(
     uri: Uri,
 ) {
     runCatching {
-        when (uri.scheme) {
+        when (
+            uri.scheme
+        ) {
             ContentResolver.SCHEME_CONTENT -> {
-                context.contentResolver
+                context
+                    .contentResolver
                     .delete(
                         uri,
                         null,
@@ -415,7 +387,9 @@ private fun deleteRecording(
 
             ContentResolver.SCHEME_FILE -> {
                 uri.path
-                    ?.let(::File)
+                    ?.let(
+                        ::File,
+                    )
                     ?.delete()
             }
         }

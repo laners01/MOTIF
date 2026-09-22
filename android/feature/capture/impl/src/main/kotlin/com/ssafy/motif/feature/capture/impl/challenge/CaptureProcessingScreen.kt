@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -31,6 +32,7 @@ import com.ssafy.motif.feature.capture.impl.R
 @Composable
 internal fun CaptureProcessingScreen(
     previewImageUrl: String,
+    browseEnabled: Boolean,
     onBrowseChallengeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -41,7 +43,10 @@ internal fun CaptureProcessingScreen(
                 Color.Black,
             ),
     ) {
-        if (previewImageUrl.isNotBlank()) {
+        if (
+            previewImageUrl
+                .isNotBlank()
+        ) {
             AsyncImage(
                 model =
                     previewImageUrl,
@@ -70,7 +75,8 @@ internal fun CaptureProcessingScreen(
                     Alignment.Center,
                 )
                 .padding(
-                    horizontal = 32.dp,
+                    horizontal =
+                        32.dp,
                 ),
             horizontalAlignment =
                 Alignment.CenterHorizontally,
@@ -130,6 +136,8 @@ internal fun CaptureProcessingScreen(
             )
 
             CaptureBrowseChallengeButton(
+                enabled =
+                    browseEnabled,
                 onClick =
                     onBrowseChallengeClick,
             )
@@ -139,6 +147,7 @@ internal fun CaptureProcessingScreen(
 
 @Composable
 private fun CaptureBrowseChallengeButton(
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -155,6 +164,13 @@ private fun CaptureBrowseChallengeButton(
             .height(
                 56.dp,
             )
+            .alpha(
+                if (enabled) {
+                    1f
+                } else {
+                    DisabledAlpha
+                },
+            )
             .clip(
                 RoundedCornerShape(
                     28.dp,
@@ -164,6 +180,8 @@ private fun CaptureBrowseChallengeButton(
                 CapturePink,
             )
             .clickable(
+                enabled =
+                    enabled,
                 interactionSource =
                     interactionSource,
                 indication =
@@ -196,3 +214,6 @@ private val CapturePink =
     Color(
         0xFFFF3B9D,
     )
+
+private const val DisabledAlpha =
+    0.45f
