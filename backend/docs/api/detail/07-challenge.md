@@ -46,7 +46,6 @@ Authorization: Bearer {accessToken}
         "artist": {
           "artistSeq": 3,
           "name": "카리나",
-          "groupName": "aespa",
           "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
         },
         "song": { "title": "Supernova", "singerName": "aespa" },
@@ -72,7 +71,7 @@ Authorization: Bearer {accessToken}
 |---|---|
 | `videoUrl` | 챌린지 원본은 **공개 등급** — 일반 CDN URL |
 | `thumbnailUrl` | 첫 프레임이 로드되기 전 **플레이스홀더**용(R2 부활) |
-| `artist` | **공통 아티스트 요약**(README §3.5) |
+| `artist` | **공통 아티스트 요약**(README §3.5)에서 **`groupName` 을 뺀 모양** — §7 은 원본의 제거 결정(회의 확정)을 따른다. §7.2 도 같다 |
 | `isSubscribed` | 피드 오버레이의 구독 버튼 상태 — 이 항목에 속한다 |
 | `description` | 챌린지 소개글 *(2026-09-22 추가)* — 피드 오버레이가 바로 쓴다. 소개글 때문에 §7.2 를 부르지 않는다 |
 | `participantCount` | **PUBLIC·PRIVATE 를 모두 포함**한 게시 참여 수 |
@@ -104,7 +103,6 @@ Authorization: Bearer {accessToken}
     "artist": {
       "artistSeq": 3,
       "name": "카리나",
-      "groupName": "aespa",
       "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
     },
     "song": { "title": "Supernova", "singerName": "aespa" },
