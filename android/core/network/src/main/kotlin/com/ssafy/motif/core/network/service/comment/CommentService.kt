@@ -29,6 +29,19 @@ interface CommentService {
         @Body request: CommentCreateRequest,
     ): BaseResponse<CommentCreateResponse>
 
+    @GET("api/v1/challenges/{challengeSeq}/comments")
+    suspend fun getChallengeComments(
+        @Path("challengeSeq") challengeSeq: Long,
+        @Query("page") page: Int,
+        @Query("size") size: Int,
+    ): BaseResponse<PageResponse<CommentItemResponse>>
+
+    @POST("api/v1/challenges/{challengeSeq}/comments")
+    suspend fun postChallengeComment(
+        @Path("challengeSeq") challengeSeq: Long,
+        @Body request: CommentCreateRequest,
+    ): BaseResponse<CommentCreateResponse>
+
     @GET("api/v1/comments/{type}/{commentSeq}/replies")
     suspend fun getReplies(
         @Path("type") type: String,
