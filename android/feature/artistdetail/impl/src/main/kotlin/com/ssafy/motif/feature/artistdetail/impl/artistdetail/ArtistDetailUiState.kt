@@ -1,8 +1,8 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import androidx.compose.runtime.Immutable
-import com.ssafy.motif.core.model.artistdetail.ArtistDetail
-import com.ssafy.motif.core.model.artistdetail.ArtistMotif
+import com.ssafy.motif.core.model.artist.ArtistDetail
+import com.ssafy.motif.core.model.artist.ArtistMotif
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.ui.comment.CommentUiState
 

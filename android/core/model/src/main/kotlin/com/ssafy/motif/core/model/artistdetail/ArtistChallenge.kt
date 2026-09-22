@@ -1,4 +1,4 @@
-package com.ssafy.motif.core.model.artistdetail
+package com.ssafy.motif.core.model.artist
 
 data class ArtistChallenge (
     val id: Long,

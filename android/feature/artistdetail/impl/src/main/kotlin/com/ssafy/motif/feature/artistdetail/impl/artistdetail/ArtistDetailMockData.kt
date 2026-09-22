@@ -1,12 +1,12 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
-import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
-import com.ssafy.motif.core.model.artistdetail.ArtistDetail
+import com.ssafy.motif.core.model.artist.Artist
+import com.ssafy.motif.core.model.artist.ArtistChallenge
+import com.ssafy.motif.core.model.artist.ArtistDetail
+import com.ssafy.motif.core.model.artist.ArtistMotif
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
-import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.home.Notice
-import com.ssafy.motif.core.model.artistdetail.ArtistMotif
 
 internal object ArtistDetailMockData {
 
@@ -34,12 +34,15 @@ internal object ArtistDetailMockData {
     }
 
     val artist: ArtistDetail = ArtistDetail(
-        name = "Yeji",
-        groupName = "ITZY",
-        profileImageUrl = YEJI,
-        introducing = "요즘 시간이 진짜 빨리 가는 것 같아요.\n그래도 곧 재밌는 거 보여줄 수 있을 것 같아요 :)",
-        subscribeNum = 2_100_000L,
-        challengeNum = 121L,
+        Artist(
+            id = 1L,
+            name = "Yeji",
+            groupName = "ITZY",
+            profileImageUrl = YEJI,
+        ),
+        introduction = "요즘 시간이 진짜 빨리 가는 것 같아요.\n그래도 곧 재밌는 거 보여줄 수 있을 것 같아요 :)",
+        subscriberCount = 2_100_000L,
+        challengeCount = 121L,
         isAlarmOn = true,
         isSubscribed = false,
         hasMotifPass = true

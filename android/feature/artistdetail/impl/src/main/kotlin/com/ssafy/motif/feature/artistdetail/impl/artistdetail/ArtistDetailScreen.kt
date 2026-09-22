@@ -41,10 +41,10 @@ import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import com.ssafy.motif.core.ui.comment.ModalCommentBottomSheet
+import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDetailCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifEmptyContent
-import com.ssafy.motif.core.ui.motif.MotifVideoSection
 
 @Composable
 fun ArtistDetailScreen(
@@ -173,7 +173,7 @@ internal fun ArtistDetailScreen(
                         } else {
                             item {
                                 MotifEmptyContent(
-                                    artistName = artistDetail.name,
+                                    artistName = artistDetail.artist.name,
                                     onCreateClick = onCreateMotifClick,
                                     modifier = Modifier.padding(
                                         bottom = 12.dp,

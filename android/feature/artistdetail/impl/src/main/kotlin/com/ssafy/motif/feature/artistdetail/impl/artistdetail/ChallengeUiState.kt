@@ -1,6 +1,6 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
-import com.ssafy.motif.core.model.artistdetail.ArtistChallenge
+import com.ssafy.motif.core.model.artist.ArtistChallenge
 
 internal sealed interface ChallengeUiState {
 
