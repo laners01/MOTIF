@@ -1,10 +1,8 @@
-package com.ssafy.motif.core.model.artist
+package com.ssafy.motif.core.model.challenge
 
-data class ArtistChallenge (
+data class ChallengeSummary (
     val id: Long,
     val thumbnailUrl:String,
     val view:Long,
     val createdAt: Long,
 )
-
-

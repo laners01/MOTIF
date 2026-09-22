@@ -1,13 +1,13 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
-import com.ssafy.motif.core.model.artist.ArtistChallenge
+import com.ssafy.motif.core.model.challenge.ChallengeSummary
 
 internal sealed interface ChallengeUiState {
 
     data object Loading : ChallengeUiState
 
     data class Success(
-        val challenges: List<ArtistChallenge>,
+        val challenges: List<ChallengeSummary>,
         val hasNext: Boolean,
         val appendState: ChallengeAppendUiState =
             ChallengeAppendUiState.Idle,

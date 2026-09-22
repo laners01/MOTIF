@@ -1,11 +1,11 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
-import com.ssafy.motif.core.model.mypage.MyChallenge
+import com.ssafy.motif.core.model.challenge.ChallengeSummary
 
 internal sealed interface MyChallengeUiState {
     data object Loading : MyChallengeUiState
     data class Success(
-        val challenges: List<MyChallenge>,
+        val challenges: List<ChallengeSummary>,
         val hasNext: Boolean,
         val appendState: MyChallengeAppendUiState = MyChallengeAppendUiState.Idle,
     ) : MyChallengeUiState

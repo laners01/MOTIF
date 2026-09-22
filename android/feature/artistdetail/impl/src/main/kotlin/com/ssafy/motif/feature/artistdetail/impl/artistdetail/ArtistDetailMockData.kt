@@ -1,9 +1,9 @@
 package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import com.ssafy.motif.core.model.artist.Artist
-import com.ssafy.motif.core.model.artist.ArtistChallenge
 import com.ssafy.motif.core.model.artist.ArtistDetail
 import com.ssafy.motif.core.model.artist.ArtistMotif
+import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.home.Notice
@@ -24,8 +24,8 @@ internal object ArtistDetailMockData {
     private const val ONE_DAY_MILLIS = 86_400_000L
 
     // index가 커질수록 createdAt이 작아지므로 목록 자체가 최신 등록순.
-    val challenges: List<ArtistChallenge> = List(29) { index ->
-        ArtistChallenge(
+    val challenges: List<ChallengeSummary> = List(29) { index ->
+        ChallengeSummary(
             id = index + 1L,
             thumbnailUrl = "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
             view = CHALLENGE_VIEWS[index % CHALLENGE_VIEWS.size],
