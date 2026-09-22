@@ -2,11 +2,11 @@ package com.ssafy.motif.feature.artistdetail.impl.artistdetail
 
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.artist.ArtistDetail
-import com.ssafy.motif.core.model.motif.MotifSummary
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.home.Notice
+import com.ssafy.motif.core.model.motif.Motif
 
 internal object ArtistDetailMockData {
 
@@ -183,18 +183,34 @@ internal object ArtistDetailMockData {
     private const val MOTIF_VIDEO =
         "android.resource://com.ssafy.motif/raw/test_video"
 
-    val motifs: List<MotifSummary> = listOf(
-        MotifSummary(
+    val motifs: List<Motif> = listOf(
+        Motif(
             id = 1L,
             videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME,
+            title = "",
+            description = "",
+            artist = Artist(
+                id = 1L,
+                name = "YEJI",
+                profileImageUrl = YEJI,
+                groupName = "ITZY",
+            ),
         ),
-        MotifSummary(
+        Motif(
             id = 2L,
             videoUrl = MOTIF_VIDEO,
             thumbnailUrl = MOTIF_THUMBNAIL,
             createdAt = CHALLENGE_BASE_TIME - ONE_DAY_MILLIS,
+            title = "",
+            description = "",
+            artist = Artist(
+                id = 2L,
+                name = "YEJI",
+                profileImageUrl = YEJI,
+                groupName = "ITZY",
+            ),
         ),
     )
 }

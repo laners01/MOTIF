@@ -1,6 +1,6 @@
 package com.ssafy.motif.feature.home.impl.model
 
-import com.ssafy.motif.core.model.home.Motif
+import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.model.home.Notice
 
 internal sealed interface MyArtistFeedItem {

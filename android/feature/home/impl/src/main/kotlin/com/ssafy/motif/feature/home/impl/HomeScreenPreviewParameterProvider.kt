@@ -5,9 +5,9 @@ import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.home.FanRadarArtist
-import com.ssafy.motif.core.model.home.Motif
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.model.home.Onstage
+import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.feature.home.impl.model.FanRadarUiState
@@ -179,6 +179,8 @@ private val previewMotifs = listOf(
         title = "카페 맞은편 자리에 앉아 예지와 함께 여유로운 하루",
         artist = previewArtist,
         createdAt = 3L,
+        description = "",
+        videoUrl = "",
     ),
     Motif(
         id = 2L,
@@ -186,6 +188,8 @@ private val previewMotifs = listOf(
         title = "예지와 함께 보내는 특별한 순간",
         artist = previewArtist,
         createdAt = 1L,
+        description = "",
+        videoUrl = "",
     ),
 )
 

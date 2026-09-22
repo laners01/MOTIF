@@ -6,7 +6,7 @@ import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
 import com.ssafy.motif.core.model.comment.Reply
-import com.ssafy.motif.core.model.motif.MotifSummary
+import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.model.mypage.LikedChallenge
 import com.ssafy.motif.core.model.mypage.LikedChallengeComment
 import com.ssafy.motif.core.model.mypage.LikedChallengeCommentState
@@ -113,12 +113,20 @@ internal object MyPageMockData {
     )
 
     // 대표 모티프. 미설정 상태를 보려면 ViewModel에서 null을 내려주면 된다.
-    val representativeMotif: MotifSummary = MotifSummary(
+    val representativeMotif: Motif = Motif(
         id = 1L,
         // TODO 마이페이지 전용 리소스로 교체. 현재는 artistdetail 모듈 것을 빌려 씀
         videoUrl = "android.resource://com.ssafy.motif/raw/test_video",
         thumbnailUrl = "android.resource://com.ssafy.motif/drawable/motif_thumbnail",
         createdAt = 0,
+        title = "",
+        description = "",
+        artist = Artist(
+            id = 1L,
+            name = "Yeji",
+            groupName = "ITZY",
+            profileImageUrl = PROFILE_IMAGE,
+        ),
     )
 
     // formatCount의 분기(1000 미만 / k / m)와 경계값을 모두 지나도록 구성했다.

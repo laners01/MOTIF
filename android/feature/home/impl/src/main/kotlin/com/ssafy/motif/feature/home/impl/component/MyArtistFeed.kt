@@ -15,7 +15,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.artist.Artist
-import com.ssafy.motif.core.model.home.Motif
+import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.model.home.Notice
 import com.ssafy.motif.core.ui.motif.MotifCard
 import com.ssafy.motif.core.ui.notice.NoticeCard
@@ -111,6 +111,8 @@ private fun MyArtistFeedPreview() {
                 title = "카페 맞은편 자리에 앉아 예지와 함께 여유로운 하루",
                 artist = artist,
                 createdAt = 2L,
+                description = "",
+                videoUrl = "",
             ),
         ),
         MyArtistFeedItem.NoticeItem(
