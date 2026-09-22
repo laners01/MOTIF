@@ -4,7 +4,6 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.artist.RankedArtist
 import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
-import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
@@ -14,9 +13,9 @@ import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.feature.home.impl.model.FanRadarUiState
 import com.ssafy.motif.feature.home.impl.model.FeedAppendUiState
+import com.ssafy.motif.feature.home.impl.model.MyArtistFeedItem
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedUiState
 import com.ssafy.motif.feature.home.impl.model.OnstageUiState
-import com.ssafy.motif.feature.home.impl.model.mergeMyArtistFeedItems
 
 internal data class HomeScreenPreviewData(
     val name: String,
@@ -83,105 +82,107 @@ internal class HomeScreenPreviewParameterProvider :
         )
 }
 
-private val previewArtist = Artist(
-    id = 1L,
-    name = "YEJI",
-    profileImageUrl = "https://picsum.photos/seed/yeji/200",
-    groupName = "ITZY",
-)
-
-private val previewChallengeParticipationSummaryItems = listOf(
-    ChallengeParticipationSummary(
-        id = 4L,
-        rank = 1,
-        videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
-        thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/thumb.jpg",
-        song = ChallengeSong(
-            title = "like JENNY",
-            artistName = "JENNIE",
-        ),
-    ),
-    ChallengeParticipationSummary(
-        id = 3L,
-        rank = 2,
-        videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
-        thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/thumb.jpg",
-        song = ChallengeSong(
-            title = "바라밤",
-            artistName = "뽀로로",
-        ),
-    ),
-    ChallengeParticipationSummary(
-        id = 2L,
-        rank = 3,
-        videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/a0006c4a-2746-4bf9-8bd1-bafa6e123b55/master.m3u8",
-        thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/a0006c4a-2746-4bf9-8bd1-bafa6e123b55/thumb.jpg",
-        song = ChallengeSong(
-            title = "See Tinh",
-            artistName = "Hoang Thuy Linh",
-        ),
-    ),
-    ChallengeParticipationSummary(
+private val previewArtist =
+    Artist(
         id = 1L,
-        rank = 4,
-        videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/7dfa4de1-792a-41ec-a438-f51c48c15b1e/master.m3u8",
-        thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/7dfa4de1-792a-41ec-a438-f51c48c15b1e/thumb.jpg",
-        song = ChallengeSong(
-            title = "Break Your Legs",
-            artistName = "Shams",
-        ),
-    ),
-)
+        name = "YEJI",
+        profileImageUrl = "https://picsum.photos/seed/yeji/200",
+        groupName = "ITZY",
+    )
 
-private val previewRankedArtists = listOf(
-    RankedArtist(
-        artist = Artist(
-            id = 1L,
-            name = "카리나",
-            profileImageUrl = "https://picsum.photos/seed/karina/200",
-            groupName = "aespa",
-        ),
-        rank = 1,
-        rankDelta = 0,
-        isSubscribed = true,
-    ),
-    RankedArtist(
-        artist = Artist(
-            id = 2L,
-            name = "지수",
-            profileImageUrl = "https://picsum.photos/seed/jisoo/200",
-            groupName = "BLACKPINK",
-        ),
-        rank = 2,
-        rankDelta = 1,
-        isSubscribed = false,
-    ),
-    RankedArtist(
-        artist = Artist(
-            id = 3L,
-            name = "이채영",
-            profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
-            groupName = "프로미스나인",
-        ),
-        rank = 3,
-        rankDelta = -1,
-        isSubscribed = true,
-    ),
-    RankedArtist(
-        artist = Artist(
+private val previewChallengeParticipationSummaryItems =
+    listOf(
+        ChallengeParticipationSummary(
             id = 4L,
-            name = "오해원",
-            profileImageUrl = "https://picsum.photos/seed/haewon/200",
-            groupName = "NMIXX",
+            rank = 1,
+            videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/master.m3u8",
+            thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/d7f49b37-54e7-4e2f-888e-3d24f6f453d4/thumb.jpg",
+            song = ChallengeSong(
+                title = "like JENNY",
+                artistName = "JENNIE",
+            ),
         ),
-        rank = 4,
-        rankDelta = null,
-        isSubscribed = false,
-    ),
-)
+        ChallengeParticipationSummary(
+            id = 3L,
+            rank = 2,
+            videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/master.m3u8",
+            thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/5ece3915-c32b-4836-8b55-868e49a8d8f0/thumb.jpg",
+            song = ChallengeSong(
+                title = "바라밤",
+                artistName = "뽀로로",
+            ),
+        ),
+        ChallengeParticipationSummary(
+            id = 2L,
+            rank = 3,
+            videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/a0006c4a-2746-4bf9-8bd1-bafa6e123b55/master.m3u8",
+            thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/a0006c4a-2746-4bf9-8bd1-bafa6e123b55/thumb.jpg",
+            song = ChallengeSong(
+                title = "See Tinh",
+                artistName = "Hoang Thuy Linh",
+            ),
+        ),
+        ChallengeParticipationSummary(
+            id = 1L,
+            rank = 4,
+            videoUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/7dfa4de1-792a-41ec-a438-f51c48c15b1e/master.m3u8",
+            thumbnailUrl = "https://d21so2cpi8si9r.cloudfront.net/challenges/7dfa4de1-792a-41ec-a438-f51c48c15b1e/thumb.jpg",
+            song = ChallengeSong(
+                title = "Break Your Legs",
+                artistName = "Shams",
+            ),
+        ),
+    )
 
+private val previewRankedArtists =
+    listOf(
+        RankedArtist(
+            artist = Artist(
+                id = 1L,
+                name = "카리나",
+                profileImageUrl = "https://picsum.photos/seed/karina/200",
+                groupName = "aespa",
+            ),
+            rank = 1,
+            rankDelta = 0,
+            isSubscribed = true,
+        ),
+        RankedArtist(
+            artist = Artist(
+                id = 2L,
+                name = "지수",
+                profileImageUrl = "https://picsum.photos/seed/jisoo/200",
+                groupName = "BLACKPINK",
+            ),
+            rank = 2,
+            rankDelta = 1,
+            isSubscribed = false,
+        ),
+        RankedArtist(
+            artist = Artist(
+                id = 3L,
+                name = "이채영",
+                profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
+                groupName = "프로미스나인",
+            ),
+            rank = 3,
+            rankDelta = -1,
+            isSubscribed = true,
+        ),
+        RankedArtist(
+            artist = Artist(
+                id = 4L,
+                name = "오해원",
+                profileImageUrl = "https://picsum.photos/seed/haewon/200",
+                groupName = "NMIXX",
+            ),
+            rank = 4,
+            rankDelta = null,
+            isSubscribed = false,
+        ),
+    )
 
-private val previewNotices = listOf(
+private val previewNotice1 =
     Notice(
         id = 1L,
         artist = previewArtist,
@@ -194,7 +195,9 @@ private val previewNotices = listOf(
         commentCount = 1_100L,
         isLiked = false,
         createdAt = 4L,
-    ),
+    )
+
+private val previewNotice2 =
     Notice(
         id = 2L,
         artist = previewArtist,
@@ -204,10 +207,9 @@ private val previewNotices = listOf(
         commentCount = 123L,
         isLiked = true,
         createdAt = 2L,
-    ),
-)
+    )
 
-private val previewMotifs = listOf(
+private val previewMotif1 =
     Motif(
         id = 1L,
         thumbnailUrl = "https://picsum.photos/seed/motif1/1200/800",
@@ -216,7 +218,9 @@ private val previewMotifs = listOf(
         createdAt = 3L,
         description = "",
         videoUrl = "",
-    ),
+    )
+
+private val previewMotif2 =
     Motif(
         id = 2L,
         thumbnailUrl = "https://picsum.photos/seed/motif2/1200/800",
@@ -225,59 +229,70 @@ private val previewMotifs = listOf(
         createdAt = 1L,
         description = "",
         videoUrl = "",
-    ),
-)
+    )
 
-private val previewComments = listOf(
-    Comment(
-        id = 1L,
-        profileImageUrl = "https://picsum.photos/seed/comment1/200",
-        nickname = "YEJI",
-        content = "다들 너무 잘 따라 해줘서 고마워요 🖤",
-        createdAt = System.currentTimeMillis() - 30 * 60_000L,
-        likeCount = 2_841L,
-        replyCount = 32L,
-        isLiked = true,
-        authorType = CommentAuthorType.ARTIST,
-    ),
-    Comment(
-        id = 2L,
-        profileImageUrl = "https://picsum.photos/seed/comment2/200",
-        nickname = "motif_me",
-        content = "이번 챌린지 진짜 재밌었어요!",
-        createdAt = System.currentTimeMillis() - 2 * 60 * 60_000L,
-        likeCount = 124L,
-        replyCount = 3L,
-        isLiked = false,
-        authorType = CommentAuthorType.CURRENT_USER,
-    ),
-    Comment(
-        id = 3L,
-        profileImageUrl = "https://picsum.photos/seed/comment3/200",
-        nickname = "midzy_01",
-        content = "다음 챌린지도 기다리고 있을게요 👀",
-        createdAt = System.currentTimeMillis() - 5 * 60 * 60_000L,
-        likeCount = 48L,
-        replyCount = 1L,
-        isLiked = false,
-        authorType = CommentAuthorType.USER,
-    ),
-    Comment(
-        id = 4L,
-        profileImageUrl = "https://picsum.photos/seed/comment4/200",
-        nickname = "always_itzy",
-        content = "마지막 포인트 안무가 제일 어렵네요 ㅋㅋ",
-        createdAt = System.currentTimeMillis() - 24 * 60 * 60_000L,
-        likeCount = 21L,
-        replyCount = 0L,
-        isLiked = true,
-        authorType = CommentAuthorType.USER,
-    ),
-)
 private val previewMyArtistFeedItems =
-    mergeMyArtistFeedItems(
-        notices = previewNotices,
-        motifs = previewMotifs,
+    listOf(
+        MyArtistFeedItem.NoticeItem(
+            notice = previewNotice1,
+        ),
+        MyArtistFeedItem.MotifItem(
+            motif = previewMotif1,
+        ),
+        MyArtistFeedItem.NoticeItem(
+            notice = previewNotice2,
+        ),
+        MyArtistFeedItem.MotifItem(
+            motif = previewMotif2,
+        ),
+    )
+
+private val previewComments =
+    listOf(
+        Comment(
+            id = 1L,
+            profileImageUrl = "https://picsum.photos/seed/comment1/200",
+            nickname = "YEJI",
+            content = "다들 너무 잘 따라 해줘서 고마워요 🖤",
+            createdAt = System.currentTimeMillis() - 30 * 60_000L,
+            likeCount = 2_841L,
+            replyCount = 32L,
+            isLiked = true,
+            authorType = CommentAuthorType.ARTIST,
+        ),
+        Comment(
+            id = 2L,
+            profileImageUrl = "https://picsum.photos/seed/comment2/200",
+            nickname = "motif_me",
+            content = "이번 챌린지 진짜 재밌었어요!",
+            createdAt = System.currentTimeMillis() - 2 * 60 * 60_000L,
+            likeCount = 124L,
+            replyCount = 3L,
+            isLiked = false,
+            authorType = CommentAuthorType.CURRENT_USER,
+        ),
+        Comment(
+            id = 3L,
+            profileImageUrl = "https://picsum.photos/seed/comment3/200",
+            nickname = "midzy_01",
+            content = "다음 챌린지도 기다리고 있을게요 👀",
+            createdAt = System.currentTimeMillis() - 5 * 60 * 60_000L,
+            likeCount = 48L,
+            replyCount = 1L,
+            isLiked = false,
+            authorType = CommentAuthorType.USER,
+        ),
+        Comment(
+            id = 4L,
+            profileImageUrl = "https://picsum.photos/seed/comment4/200",
+            nickname = "always_itzy",
+            content = "마지막 포인트 안무가 제일 어렵네요 ㅋㅋ",
+            createdAt = System.currentTimeMillis() - 24 * 60 * 60_000L,
+            likeCount = 21L,
+            replyCount = 0L,
+            isLiked = true,
+            authorType = CommentAuthorType.USER,
+        ),
     )
 
 private val previewOnstageUiState =

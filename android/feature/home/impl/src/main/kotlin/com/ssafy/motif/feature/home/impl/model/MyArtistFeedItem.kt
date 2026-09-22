@@ -1,5 +1,6 @@
 package com.ssafy.motif.feature.home.impl.model
 
+import com.ssafy.motif.core.model.artist.ArtistFeedItem
 import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.model.notice.Notice
 
@@ -10,6 +11,7 @@ internal sealed interface MyArtistFeedItem {
     data class NoticeItem(
         val notice: Notice,
     ) : MyArtistFeedItem {
+
         override val createdAt: Long
             get() = notice.createdAt
     }
@@ -17,31 +19,23 @@ internal sealed interface MyArtistFeedItem {
     data class MotifItem(
         val motif: Motif,
     ) : MyArtistFeedItem {
+
         override val createdAt: Long
             get() = motif.createdAt
     }
 }
 
-internal fun mergeMyArtistFeedItems(
-    notices: List<Notice>,
-    motifs: List<Motif>,
-): List<MyArtistFeedItem> =
-    buildList {
-        addAll(
-            notices.map { notice ->
-                MyArtistFeedItem.NoticeItem(
-                    notice = notice,
-                )
-            },
-        )
+internal fun ArtistFeedItem.toMyArtistFeedItem(): MyArtistFeedItem =
+    when (this) {
+        is ArtistFeedItem.MotifAsset -> {
+            MyArtistFeedItem.MotifItem(
+                motif = motif,
+            )
+        }
 
-        addAll(
-            motifs.map { motif ->
-                MyArtistFeedItem.MotifItem(
-                    motif = motif,
-                )
-            },
-        )
-    }.sortedByDescending(
-        MyArtistFeedItem::createdAt,
-    )
+        is ArtistFeedItem.NoticeItem -> {
+            MyArtistFeedItem.NoticeItem(
+                notice = notice,
+            )
+        }
+    }

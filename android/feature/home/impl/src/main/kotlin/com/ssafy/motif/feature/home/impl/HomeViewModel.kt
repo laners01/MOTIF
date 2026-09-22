@@ -8,18 +8,18 @@ import com.ssafy.motif.core.data.repository.ArtistRepository
 import com.ssafy.motif.core.data.repository.ChallengeRepository
 import com.ssafy.motif.core.data.repository.CommentRepository
 import com.ssafy.motif.core.data.repository.NoticeRepository
+import com.ssafy.motif.core.model.artist.ArtistFeedItem
 import com.ssafy.motif.core.model.artist.ArtistFilter
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentType
-import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import com.ssafy.motif.feature.home.impl.model.FanRadarUiState
+import com.ssafy.motif.feature.home.impl.model.FeedAppendUiState
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedItem
 import com.ssafy.motif.feature.home.impl.model.MyArtistFeedUiState
 import com.ssafy.motif.feature.home.impl.model.OnstageUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
 @HiltViewModel
 internal class HomeViewModel @Inject constructor(
@@ -50,10 +51,6 @@ internal class HomeViewModel @Inject constructor(
     val fanRadarUiState: StateFlow<FanRadarUiState> =
         _fanRadarUiState.asStateFlow()
 
-    /*
-     * TODO:
-     * HOME 구독 아티스트 통합 피드 Repository 구현 후 연결
-     */
     private val _myArtistFeedUiState =
         MutableStateFlow<MyArtistFeedUiState>(
             MyArtistFeedUiState.Loading,
@@ -70,13 +67,17 @@ internal class HomeViewModel @Inject constructor(
 
     private var selectedNoticeId: Long? = null
 
+    private var currentArtistFeedPage = FIRST_PAGE
+
     private var onstageJob: Job? = null
     private var fanRadarJob: Job? = null
+    private var myArtistFeedJob: Job? = null
     private var commentLoadJob: Job? = null
 
     init {
         loadOnstage()
         loadFanRadar()
+        loadMyArtistFeed()
     }
 
     fun retryOnstage() {
@@ -87,29 +88,63 @@ internal class HomeViewModel @Inject constructor(
         loadFanRadar()
     }
 
+    fun retryMyArtistFeed() {
+        loadMyArtistFeed()
+    }
+
+    fun loadMoreMyArtistFeed() {
+        val state =
+            _myArtistFeedUiState.value as? MyArtistFeedUiState.Success
+                ?: return
+
+        if (
+            !state.hasNext ||
+            state.appendState !is FeedAppendUiState.Idle
+        ) {
+            return
+        }
+
+        loadNextMyArtistFeedPage()
+    }
+
+    fun retryLoadMoreMyArtistFeed() {
+        val state =
+            _myArtistFeedUiState.value as? MyArtistFeedUiState.Success
+                ?: return
+
+        if (
+            !state.hasNext ||
+            state.appendState !is FeedAppendUiState.Error
+        ) {
+            return
+        }
+
+        loadNextMyArtistFeedPage()
+    }
+
     fun toggleNoticeLike(
         noticeId: Long,
     ) {
-        val notice = findNotice(
+        val noticeItem = findNoticeItem(
             noticeId = noticeId,
         ) ?: return
 
-        val targetLiked = !notice.isLiked
+        val previousLiked = noticeItem.notice.isLiked
+        val previousLikeCount = noticeItem.notice.likeCount
+
+        val targetLiked = !previousLiked
         val targetLikeCount =
             if (targetLiked) {
-                notice.likeCount + 1
+                previousLikeCount + 1
             } else {
-                (notice.likeCount - 1).coerceAtLeast(0L)
+                (previousLikeCount - 1).coerceAtLeast(0L)
             }
 
-        updateNotice(
+        updateNoticeLikeState(
             noticeId = noticeId,
-        ) { currentNotice ->
-            currentNotice.copy(
-                isLiked = targetLiked,
-                likeCount = targetLikeCount,
-            )
-        }
+            isLiked = targetLiked,
+            likeCount = targetLikeCount,
+        )
 
         noticeRepository
             .updateNoticeLike(
@@ -121,8 +156,9 @@ internal class HomeViewModel @Inject constructor(
                 if (result is Result.Error) {
                     rollbackNoticeLike(
                         noticeId = noticeId,
-                        previousNotice = notice,
                         targetLiked = targetLiked,
+                        previousLiked = previousLiked,
+                        previousLikeCount = previousLikeCount,
                     )
                 }
             }
@@ -148,6 +184,8 @@ internal class HomeViewModel @Inject constructor(
                             Result.Loading -> {
                                 CommentUiState(
                                     page = CommentPage.Comments,
+                                    comments = emptyList(),
+                                    replies = emptyList(),
                                     isLoading = true,
                                 )
                             }
@@ -156,6 +194,7 @@ internal class HomeViewModel @Inject constructor(
                                 CommentUiState(
                                     page = CommentPage.Comments,
                                     comments = result.data.items,
+                                    replies = emptyList(),
                                     isLoading = false,
                                 )
                             }
@@ -163,6 +202,8 @@ internal class HomeViewModel @Inject constructor(
                             is Result.Error -> {
                                 CommentUiState(
                                     page = CommentPage.Comments,
+                                    comments = emptyList(),
+                                    replies = emptyList(),
                                     isLoading = false,
                                 )
                             }
@@ -222,6 +263,7 @@ internal class HomeViewModel @Inject constructor(
                         is Result.Error -> {
                             _commentUiState.update { state ->
                                 state.copy(
+                                    replies = emptyList(),
                                     isLoading = false,
                                 )
                             }
@@ -247,7 +289,9 @@ internal class HomeViewModel @Inject constructor(
         commentLoadJob?.cancel()
 
         selectedNoticeId = null
-        _commentUiState.value = CommentUiState()
+
+        _commentUiState.value =
+            CommentUiState()
     }
 
     fun toggleCommentLike(
@@ -257,12 +301,15 @@ internal class HomeViewModel @Inject constructor(
             commentId = commentId,
         ) ?: return
 
-        val targetLiked = !comment.isLiked
+        val previousLiked = comment.isLiked
+        val previousLikeCount = comment.likeCount
+
+        val targetLiked = !previousLiked
         val targetLikeCount =
             if (targetLiked) {
-                comment.likeCount + 1
+                previousLikeCount + 1
             } else {
-                (comment.likeCount - 1).coerceAtLeast(0L)
+                (previousLikeCount - 1).coerceAtLeast(0L)
             }
 
         updateCommentLikeState(
@@ -281,8 +328,10 @@ internal class HomeViewModel @Inject constructor(
             .onEach { result ->
                 if (result is Result.Error) {
                     rollbackCommentLike(
-                        previousComment = comment,
+                        commentId = commentId,
                         targetLiked = targetLiked,
+                        previousLiked = previousLiked,
+                        previousLikeCount = previousLikeCount,
                     )
                 }
             }
@@ -292,10 +341,11 @@ internal class HomeViewModel @Inject constructor(
     fun sendComment(
         content: String,
     ) {
-        val noticeId = selectedNoticeId
-            ?: return
+        val noticeId =
+            selectedNoticeId ?: return
 
-        val trimmedContent = content.trim()
+        val trimmedContent =
+            content.trim()
 
         if (trimmedContent.isEmpty()) {
             return
@@ -314,24 +364,26 @@ internal class HomeViewModel @Inject constructor(
             )
             .asResult()
             .onEach { result ->
-                if (result is Result.Success) {
-                    incrementNoticeCommentCount(
+                if (result !is Result.Success) {
+                    return@onEach
+                }
+
+                incrementNoticeCommentCount(
+                    noticeId = noticeId,
+                )
+
+                if (parentCommentId == null) {
+                    loadNoticeComments(
                         noticeId = noticeId,
                     )
+                } else {
+                    incrementReplyCount(
+                        commentId = parentCommentId,
+                    )
 
-                    if (parentCommentId == null) {
-                        loadNoticeComments(
-                            noticeId = noticeId,
-                        )
-                    } else {
-                        incrementReplyCount(
-                            commentId = parentCommentId,
-                        )
-
-                        loadReplies(
-                            commentId = parentCommentId,
-                        )
-                    }
+                    loadReplies(
+                        commentId = parentCommentId,
+                    )
                 }
             }
             .launchIn(viewModelScope)
@@ -404,12 +456,119 @@ internal class HomeViewModel @Inject constructor(
                 .launchIn(viewModelScope)
     }
 
-    private fun findNotice(
+    private fun loadMyArtistFeed() {
+        myArtistFeedJob?.cancel()
+
+        currentArtistFeedPage = FIRST_PAGE
+
+        myArtistFeedJob =
+            artistRepository
+                .getArtistFeed(
+                    page = FIRST_PAGE,
+                    size = ARTIST_FEED_SIZE,
+                )
+                .asResult()
+                .onEach { result ->
+                    _myArtistFeedUiState.value =
+                        when (result) {
+                            Result.Loading -> {
+                                MyArtistFeedUiState.Loading
+                            }
+
+                            is Result.Success -> {
+                                currentArtistFeedPage =
+                                    result.data.page
+
+                                MyArtistFeedUiState.Success(
+                                    items = result.data.items.map { item ->
+                                        item.toMyArtistFeedItem()
+                                    },
+                                    hasNext = result.data.hasNext,
+                                )
+                            }
+
+                            is Result.Error -> {
+                                MyArtistFeedUiState.Error(
+                                    exception = result.exception,
+                                )
+                            }
+                        }
+                }
+                .launchIn(viewModelScope)
+    }
+
+    private fun loadNextMyArtistFeedPage() {
+        val nextPage =
+            currentArtistFeedPage + 1
+
+        _myArtistFeedUiState.update { state ->
+            if (state !is MyArtistFeedUiState.Success) {
+                return@update state
+            }
+
+            state.copy(
+                appendState = FeedAppendUiState.Loading,
+            )
+        }
+
+        myArtistFeedJob?.cancel()
+
+        myArtistFeedJob =
+            artistRepository
+                .getArtistFeed(
+                    page = nextPage,
+                    size = ARTIST_FEED_SIZE,
+                )
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading -> Unit
+
+                        is Result.Success -> {
+                            currentArtistFeedPage =
+                                result.data.page
+
+                            val newItems =
+                                result.data.items.map { item ->
+                                    item.toMyArtistFeedItem()
+                                }
+
+                            _myArtistFeedUiState.update { state ->
+                                if (state !is MyArtistFeedUiState.Success) {
+                                    return@update state
+                                }
+
+                                state.copy(
+                                    items = state.items + newItems,
+                                    hasNext = result.data.hasNext,
+                                    appendState = FeedAppendUiState.Idle,
+                                )
+                            }
+                        }
+
+                        is Result.Error -> {
+                            _myArtistFeedUiState.update { state ->
+                                if (state !is MyArtistFeedUiState.Success) {
+                                    return@update state
+                                }
+
+                                state.copy(
+                                    appendState = FeedAppendUiState.Error(
+                                        exception = result.exception,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+                .launchIn(viewModelScope)
+    }
+
+    private fun findNoticeItem(
         noticeId: Long,
-    ): Notice? {
+    ): MyArtistFeedItem.NoticeItem? {
         val state =
-            _myArtistFeedUiState.value as?
-                    MyArtistFeedUiState.Success
+            _myArtistFeedUiState.value as? MyArtistFeedUiState.Success
                 ?: return null
 
         return state.items
@@ -417,12 +576,12 @@ internal class HomeViewModel @Inject constructor(
             .firstOrNull { item ->
                 item.notice.id == noticeId
             }
-            ?.notice
     }
 
-    private fun updateNotice(
+    private fun updateNoticeLikeState(
         noticeId: Long,
-        transform: (Notice) -> Notice,
+        isLiked: Boolean,
+        likeCount: Long,
     ) {
         _myArtistFeedUiState.update { state ->
             if (state !is MyArtistFeedUiState.Success) {
@@ -431,22 +590,18 @@ internal class HomeViewModel @Inject constructor(
 
             state.copy(
                 items = state.items.map { item ->
-                    when (item) {
-                        is MyArtistFeedItem.NoticeItem -> {
-                            if (item.notice.id == noticeId) {
-                                item.copy(
-                                    notice = transform(
-                                        item.notice,
-                                    ),
-                                )
-                            } else {
-                                item
-                            }
-                        }
-
-                        is MyArtistFeedItem.MotifItem -> {
-                            item
-                        }
+                    if (
+                        item is MyArtistFeedItem.NoticeItem &&
+                        item.notice.id == noticeId
+                    ) {
+                        item.copy(
+                            notice = item.notice.copy(
+                                isLiked = isLiked,
+                                likeCount = likeCount,
+                            ),
+                        )
+                    } else {
+                        item
                     }
                 },
             )
@@ -455,33 +610,51 @@ internal class HomeViewModel @Inject constructor(
 
     private fun rollbackNoticeLike(
         noticeId: Long,
-        previousNotice: Notice,
         targetLiked: Boolean,
+        previousLiked: Boolean,
+        previousLikeCount: Long,
     ) {
         val currentNotice =
-            findNotice(
+            findNoticeItem(
                 noticeId = noticeId,
-            ) ?: return
+            )?.notice
+                ?: return
 
         if (currentNotice.isLiked != targetLiked) {
             return
         }
 
-        updateNotice(
+        updateNoticeLikeState(
             noticeId = noticeId,
-        ) {
-            previousNotice
-        }
+            isLiked = previousLiked,
+            likeCount = previousLikeCount,
+        )
     }
 
     private fun incrementNoticeCommentCount(
         noticeId: Long,
     ) {
-        updateNotice(
-            noticeId = noticeId,
-        ) { notice ->
-            notice.copy(
-                commentCount = notice.commentCount + 1,
+        _myArtistFeedUiState.update { state ->
+            if (state !is MyArtistFeedUiState.Success) {
+                return@update state
+            }
+
+            state.copy(
+                items = state.items.map { item ->
+                    if (
+                        item is MyArtistFeedItem.NoticeItem &&
+                        item.notice.id == noticeId
+                    ) {
+                        item.copy(
+                            notice = item.notice.copy(
+                                commentCount =
+                                    item.notice.commentCount + 1,
+                            ),
+                        )
+                    } else {
+                        item
+                    }
+                },
             )
         }
     }
@@ -489,7 +662,8 @@ internal class HomeViewModel @Inject constructor(
     private fun findComment(
         commentId: Long,
     ): Comment? {
-        val state = _commentUiState.value
+        val state =
+            _commentUiState.value
 
         val parentComment =
             (state.page as? CommentPage.Replies)
@@ -544,18 +718,13 @@ internal class HomeViewModel @Inject constructor(
                     }
 
                     is CommentPage.Replies -> {
-                        if (
-                            currentPage.parentComment.id ==
-                            commentId
-                        ) {
+                        if (currentPage.parentComment.id == commentId) {
                             CommentPage.Replies(
                                 parentComment =
-                                    currentPage
-                                        .parentComment
-                                        .copy(
-                                            isLiked = isLiked,
-                                            likeCount = likeCount,
-                                        ),
+                                    currentPage.parentComment.copy(
+                                        isLiked = isLiked,
+                                        likeCount = likeCount,
+                                    ),
                             )
                         } else {
                             currentPage
@@ -572,12 +741,14 @@ internal class HomeViewModel @Inject constructor(
     }
 
     private fun rollbackCommentLike(
-        previousComment: Comment,
+        commentId: Long,
         targetLiked: Boolean,
+        previousLiked: Boolean,
+        previousLikeCount: Long,
     ) {
         val currentComment =
             findComment(
-                commentId = previousComment.id,
+                commentId = commentId,
             ) ?: return
 
         if (currentComment.isLiked != targetLiked) {
@@ -585,9 +756,9 @@ internal class HomeViewModel @Inject constructor(
         }
 
         updateCommentLikeState(
-            commentId = previousComment.id,
-            isLiked = previousComment.isLiked,
-            likeCount = previousComment.likeCount,
+            commentId = commentId,
+            isLiked = previousLiked,
+            likeCount = previousLikeCount,
         )
     }
 
@@ -614,20 +785,14 @@ internal class HomeViewModel @Inject constructor(
                     }
 
                     is CommentPage.Replies -> {
-                        if (
-                            currentPage.parentComment.id ==
-                            commentId
-                        ) {
+                        if (currentPage.parentComment.id == commentId) {
                             CommentPage.Replies(
                                 parentComment =
-                                    currentPage
-                                        .parentComment
-                                        .copy(
-                                            replyCount =
-                                                currentPage
-                                                    .parentComment
-                                                    .replyCount + 1,
-                                        ),
+                                    currentPage.parentComment.copy(
+                                        replyCount =
+                                            currentPage.parentComment
+                                                .replyCount + 1,
+                                    ),
                             )
                         } else {
                             currentPage
@@ -646,5 +811,21 @@ internal class HomeViewModel @Inject constructor(
         const val FIRST_PAGE = 0
         const val ONSTAGE_SIZE = 10
         const val FAN_RADAR_SIZE = 4
+        const val ARTIST_FEED_SIZE = 20
     }
 }
+
+private fun ArtistFeedItem.toMyArtistFeedItem(): MyArtistFeedItem =
+    when (this) {
+        is ArtistFeedItem.MotifAsset -> {
+            MyArtistFeedItem.MotifItem(
+                motif = motif,
+            )
+        }
+
+        is ArtistFeedItem.NoticeItem -> {
+            MyArtistFeedItem.NoticeItem(
+                notice = notice,
+            )
+        }
+    }
