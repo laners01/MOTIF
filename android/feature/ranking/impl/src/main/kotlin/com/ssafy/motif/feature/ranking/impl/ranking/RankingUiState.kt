@@ -1,7 +1,7 @@
 package com.ssafy.motif.feature.ranking.impl.ranking
 
 import androidx.compose.runtime.Immutable
-import com.ssafy.motif.core.model.onboarding.OnboardingArtist
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.ranking.ChallengeRankCard
 
 @Immutable
