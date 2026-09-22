@@ -1,6 +1,8 @@
-# MOTIF 데이터베이스 명세서 (PostgreSQL) — v0.15
+# MOTIF 데이터베이스 명세서 (PostgreSQL) — v0.19
 
-본 문서는 `MOTIF 데이터베이스 명세서 v0.14`에 2026-09-09 DDL 검증(R9) 회신 — 명세 결함 2건 수정과 운영 기준 보강 — 을 반영한 최신 스키마 계약이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
+본 문서는 changeSet 0020 까지를 반영한 **현행 스키마 계약**이다. 구현 시 Liquibase changelog와 JPA 엔티티는 본 명세와 동일한 타입·제약·서비스 불변식을 가져야 한다. 이미 배포된 changeSet은 수정하지 않고 신규 changeSet으로 마이그레이션한다.
+
+**파일명의 `v0_15` 는 버전이 아니다.** v0.13·v0.14 는 그 시점에 얼어붙은 스냅샷이지만 이 파일은 v0.15 이후 제자리에서 갱신돼 현행 명세 노릇을 하고 있다. changelog 파일 21개(SQL 19 · master 2)와 `docs/DDL_*.md` 가 이 경로를 `명세:` 로 가리키므로 파일을 옮기지 않는다 — 버전은 제목과 아래 개정 이력 절이 갖는다.
 
 ## v0.19 반영 내용 (2026-09-21 · changeSet 0020)
 
@@ -48,7 +50,7 @@
 | `edited_challenges.preview_image_key` 추가 | `VARCHAR(255) NULL`. 조합을 골랐을 때 썸네일 자리에 보이는 이미지 — mask 당 1장이라 편집본 행에 붙인다. NULL = 0017 이전 행(어드민 §3.7.6 으로 채움) |
 | 기존 행 처리 | **백필 없음.** bbox→앵커 자동 변환은 원본 해상도를 저장하지 않아 불가능하고, 가능해도 사각형 중심은 원 자리(머리 옆)가 아니다. 두 컬럼 모두 NULL 허용으로 붙여 기존 챌린지를 살린다 |
 
-## 이번 작업 반영 내용 (v0.15)
+## v0.15 반영 내용 (이전 버전)
 
 | 대상 | 변경 |
 |---|---|
@@ -1508,7 +1510,6 @@ platform IN ('ANDROID','IOS','WEB')
 ## 복합 PK
 
 - `subscriptions (user_seq, artist_seq)`
-- `challenge_participants (challenge_seq, artist_seq)`
 - `video_likes (video_seq, user_seq)`
 - `video_hides (user_seq, video_seq)`
 - `challenge_likes (challenge_seq, user_seq)`
@@ -1551,6 +1552,8 @@ platform IN ('ANDROID','IOS','WEB')
 - `idx_refresh_tokens_user` — `refresh_tokens(user_seq, expires_dttm DESC)`
 - `idx_artists_group` — `artists(group_seq, is_deleted)`
 - `idx_artists_company` — `artists(company_seq, is_deleted)`
+- `idx_artist_aliases_artist` — `artist_aliases(artist_seq)` *(v0.17)* — 어드민 §3.5.6 별칭 목록과 §5.2 의 `artists` 조인이 탄다
+- `idx_group_aliases_group` — `group_aliases(group_seq)` *(v0.17)* — 어드민 §3.4.5 용. 구조는 위와 같다
 - `idx_challenges_feed` — `challenges(is_deleted, reg_dttm DESC)`
 - `idx_challenges_song` — `challenges(song_seq)`
 - `idx_pv_challenge_feed` — `participation_videos(challenge_seq, visibility, is_deleted, like_count DESC)`
