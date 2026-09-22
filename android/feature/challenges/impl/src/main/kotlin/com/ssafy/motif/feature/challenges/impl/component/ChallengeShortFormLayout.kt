@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -26,19 +27,25 @@ internal fun ChallengeShortFormLayout(
     onHomeClick: () -> Unit,
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
     overlay: @Composable (
         index: Int,
         backdropState: GlassBackdropState,
     ) -> Unit,
 ) {
-    val videoShortsState = rememberVideoShortsState()
-    val isBottomSheetVisible = activeSheetState != null
+    val videoShortsState =
+        rememberVideoShortsState()
+
+    val isBottomSheetVisible =
+        activeSheetState != null
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(
+                Color.Black,
+            ),
     ) {
         Box(
             modifier = Modifier
@@ -54,13 +61,28 @@ internal fun ChallengeShortFormLayout(
                 muted = false,
                 repeat = true,
                 captureBackdrop = true,
-                userScrollEnabled = !isBottomSheetVisible,
+                userScrollEnabled =
+                    !isBottomSheetVisible,
                 modifier = Modifier
                     .fillMaxSize()
                     .scaleForBottomSheet(
-                        sheetState = activeSheetState,
+                        sheetState =
+                            activeSheetState,
                     ),
-            ) { index, _, backdropState ->
+            ) { index, selected, backdropState ->
+                if (
+                    selected &&
+                    index >=
+                    itemCount - LOAD_MORE_THRESHOLD
+                ) {
+                    LaunchedEffect(
+                        index,
+                        itemCount,
+                    ) {
+                        onLoadMore()
+                    }
+                }
+
                 if (!isBottomSheetVisible) {
                     overlay(
                         index,
@@ -71,12 +93,18 @@ internal fun ChallengeShortFormLayout(
         }
 
         ChallengeBottomNavigation(
-            playbackProgress = videoShortsState.playbackProgress,
-            myProfileImageUrl = myProfileImageUrl,
-            onSeek = videoShortsState::seekTo,
-            onHomeClick = onHomeClick,
-            onMyClick = onMyClick,
-            onMotifClick = onMotifClick,
+            playbackProgress =
+                videoShortsState.playbackProgress,
+            myProfileImageUrl =
+                myProfileImageUrl,
+            onSeek =
+                videoShortsState::seekTo,
+            onHomeClick =
+                onHomeClick,
+            onMyClick =
+                onMyClick,
+            onMotifClick =
+                onMotifClick,
         )
     }
 }
@@ -85,28 +113,41 @@ private fun Modifier.scaleForBottomSheet(
     sheetState: SheetState?,
 ): Modifier =
     graphicsLayer {
-        val sheetTop = sheetState?.offsetOrNull()
+        val sheetTop =
+            sheetState?.offsetOrNull()
 
-        val scale = if (sheetTop == null || size.height <= 0f) {
-            1f
-        } else {
-            (sheetTop / size.height).coerceIn(
-                minimumValue = 0f,
-                maximumValue = 1f,
-            )
-        }
+        val scale =
+            if (
+                sheetTop == null ||
+                size.height <= 0f
+            ) {
+                1f
+            } else {
+                (
+                        sheetTop /
+                                size.height
+                        )
+                    .coerceIn(
+                        minimumValue = 0f,
+                        maximumValue = 1f,
+                    )
+            }
 
         scaleX = scale
         scaleY = scale
 
-        transformOrigin = TransformOrigin(
-            pivotFractionX = 0.5f,
-            pivotFractionY = 0f,
-        )
+        transformOrigin =
+            TransformOrigin(
+                pivotFractionX = 0.5f,
+                pivotFractionY = 0f,
+            )
 
-        alpha = if (scale == 0f) {
-            0f
-        } else {
-            1f
-        }
+        alpha =
+            if (scale == 0f) {
+                0f
+            } else {
+                1f
+            }
     }
+
+private const val LOAD_MORE_THRESHOLD = 3

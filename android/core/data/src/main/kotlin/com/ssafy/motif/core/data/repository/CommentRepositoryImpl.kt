@@ -26,11 +26,12 @@ internal class CommentRepositoryImpl @Inject constructor(
         size: Int,
     ): Flow<OffsetPage<Comment>> =
         flow {
-            val response = commentClient.getNoticeComments(
-                noticeId = noticeId,
-                page = page,
-                size = size,
-            )
+            val response =
+                commentClient.getNoticeComments(
+                    noticeId = noticeId,
+                    page = page,
+                    size = size,
+                )
 
             emit(response.toCommentPage())
         }.flowOn(ioDispatcher)
@@ -41,11 +42,44 @@ internal class CommentRepositoryImpl @Inject constructor(
         parentCommentId: Long?,
     ): Flow<Long> =
         flow {
-            val response = commentClient.createNoticeComment(
-                noticeId = noticeId,
-                content = content,
-                parentCommentId = parentCommentId,
-            )
+            val response =
+                commentClient.createNoticeComment(
+                    noticeId = noticeId,
+                    content = content,
+                    parentCommentId = parentCommentId,
+                )
+
+            emit(response.commentSeq)
+        }.flowOn(ioDispatcher)
+
+    override fun getChallengeComments(
+        challengeId: Long,
+        page: Int,
+        size: Int,
+    ): Flow<OffsetPage<Comment>> =
+        flow {
+            val response =
+                commentClient.getChallengeComments(
+                    challengeId = challengeId,
+                    page = page,
+                    size = size,
+                )
+
+            emit(response.toCommentPage())
+        }.flowOn(ioDispatcher)
+
+    override fun createChallengeComment(
+        challengeId: Long,
+        content: String,
+        parentCommentId: Long?,
+    ): Flow<Long> =
+        flow {
+            val response =
+                commentClient.createChallengeComment(
+                    challengeId = challengeId,
+                    content = content,
+                    parentCommentId = parentCommentId,
+                )
 
             emit(response.commentSeq)
         }.flowOn(ioDispatcher)
@@ -57,12 +91,13 @@ internal class CommentRepositoryImpl @Inject constructor(
         size: Int,
     ): Flow<OffsetPage<Comment>> =
         flow {
-            val response = commentClient.getReplies(
-                type = type,
-                commentId = commentId,
-                page = page,
-                size = size,
-            )
+            val response =
+                commentClient.getReplies(
+                    type = type,
+                    commentId = commentId,
+                    page = page,
+                    size = size,
+                )
 
             emit(response.toReplyPage())
         }.flowOn(ioDispatcher)

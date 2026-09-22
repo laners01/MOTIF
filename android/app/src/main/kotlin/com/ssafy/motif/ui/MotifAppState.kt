@@ -2,14 +2,17 @@ package com.ssafy.motif.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import com.ssafy.motif.core.data.util.NetworkMonitor
 import com.ssafy.motif.core.navigation.NavigationState
 import com.ssafy.motif.core.navigation.rememberNavigationState
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
-import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
-import com.ssafy.motif.navigation.TOP_LEVEL_NAV_ITEMS
+import com.ssafy.motif.feature.motif.api.navigation.MotifSubMenu
+import com.ssafy.motif.navigation.TOP_LEVEL_NAV_KEYS
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -20,10 +23,9 @@ fun rememberMotifAppState(
     networkMonitor: NetworkMonitor,
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
 ): MotifAppState {
-    val startKey = HomeNavKey
     val navigationState = rememberNavigationState(
-        startKey = startKey,
-        topLevelKeys = TOP_LEVEL_NAV_ITEMS.keys + startKey,
+        startKey = HomeNavKey,
+        topLevelKeys = TOP_LEVEL_NAV_KEYS,
     )
 
     return remember(
@@ -45,11 +47,25 @@ class MotifAppState(
     coroutineScope: CoroutineScope,
     networkMonitor: NetworkMonitor,
 ) {
+
+    var selectedMotifSubMenu by mutableStateOf(
+        MotifSubMenu.ASSETS,
+    )
+        private set
+
     val isOffline = networkMonitor.isOnline
         .map(Boolean::not)
         .stateIn(
             scope = coroutineScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.WhileSubscribed(
+                stopTimeoutMillis = 5_000,
+            ),
             initialValue = false,
         )
+
+    fun selectMotifSubMenu(
+        menu: MotifSubMenu,
+    ) {
+        selectedMotifSubMenu = menu
+    }
 }

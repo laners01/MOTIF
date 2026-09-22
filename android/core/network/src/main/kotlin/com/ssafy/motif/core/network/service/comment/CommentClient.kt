@@ -18,24 +18,56 @@ class CommentClient @Inject constructor(
         page: Int = DEFAULT_PAGE,
         size: Int = DEFAULT_SIZE,
     ): PageResponse<CommentItemResponse> =
-        commentService.getNoticeComments(
-            noticeSeq = noticeId,
-            page = page,
-            size = size,
-        ).data
+        commentService
+            .getNoticeComments(
+                noticeSeq = noticeId,
+                page = page,
+                size = size,
+            )
+            .data
 
     suspend fun createNoticeComment(
         noticeId: Long,
         content: String,
         parentCommentId: Long? = null,
     ): CommentCreateResponse =
-        commentService.postNoticeComment(
-            noticeSeq = noticeId,
-            request = CommentCreateRequest(
-                content = content,
-                parentCommentSeq = parentCommentId,
-            ),
-        ).data
+        commentService
+            .postNoticeComment(
+                noticeSeq = noticeId,
+                request = CommentCreateRequest(
+                    content = content,
+                    parentCommentSeq = parentCommentId,
+                ),
+            )
+            .data
+
+    suspend fun getChallengeComments(
+        challengeId: Long,
+        page: Int = DEFAULT_PAGE,
+        size: Int = DEFAULT_SIZE,
+    ): PageResponse<CommentItemResponse> =
+        commentService
+            .getChallengeComments(
+                challengeSeq = challengeId,
+                page = page,
+                size = size,
+            )
+            .data
+
+    suspend fun createChallengeComment(
+        challengeId: Long,
+        content: String,
+        parentCommentId: Long? = null,
+    ): CommentCreateResponse =
+        commentService
+            .postChallengeComment(
+                challengeSeq = challengeId,
+                request = CommentCreateRequest(
+                    content = content,
+                    parentCommentSeq = parentCommentId,
+                ),
+            )
+            .data
 
     suspend fun getReplies(
         type: CommentType,
@@ -43,21 +75,25 @@ class CommentClient @Inject constructor(
         page: Int = DEFAULT_PAGE,
         size: Int = DEFAULT_SIZE,
     ): PageResponse<ReplyItemResponse> =
-        commentService.getReplies(
-            type = type.value,
-            commentSeq = commentId,
-            page = page,
-            size = size,
-        ).data
+        commentService
+            .getReplies(
+                type = type.value,
+                commentSeq = commentId,
+                page = page,
+                size = size,
+            )
+            .data
 
     suspend fun deleteComment(
         type: CommentType,
         commentId: Long,
     ): CommentDeleteResponse =
-        commentService.deleteComment(
-            type = type.value,
-            commentSeq = commentId,
-        ).data
+        commentService
+            .deleteComment(
+                type = type.value,
+                commentSeq = commentId,
+            )
+            .data
 
     suspend fun updateCommentLike(
         type: CommentType,

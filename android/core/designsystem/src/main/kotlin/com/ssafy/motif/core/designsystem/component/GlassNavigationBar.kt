@@ -2,7 +2,7 @@ package com.ssafy.motif.core.designsystem.component
 
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,13 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.ssafy.motif.core.designsystem.R
 import com.ssafy.motif.core.designsystem.glass.GlassBackdropState
 import com.ssafy.motif.core.designsystem.glass.glassBackdrop
 import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
@@ -41,17 +39,13 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 /**
  * Glass 배경의 pill 형태 네비게이션 바.
  *
- * 바 뒤에 그려진 콘텐츠를 blur해서 보여주므로, [backdropState]가 걸린 콘텐츠 영역이
- * 바 아래까지 채워져 있어야 효과가 나타난다. 바깥 여백(화면 좌우, 하단 인셋)은 [modifier]로 지정한다.
- *
- * @param leading 아이템 왼쪽에 고정 크기로 배치되는 슬롯. 서브 네비게이션의 뒤로가기 등.
- * @param content [GlassNavigationBarItem]들. 남은 폭을 균등 분할한다.
+ * 실제 네비게이션 구성은 외부에서 [content]로 전달한다.
+ * Main Navigation과 Motif Navigation 모두 동일한 컴포넌트를 사용한다.
  */
 @Composable
 fun GlassNavigationBar(
     backdropState: GlassBackdropState,
     modifier: Modifier = Modifier,
-    leading: (@Composable () -> Unit)? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
     GlassNavigationBarContainer(
@@ -62,18 +56,18 @@ fun GlassNavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(GlassNavigationBarDefaults.Height)
-                .padding(horizontal = GlassNavigationBarDefaults.HorizontalPadding),
+                .padding(
+                    horizontal = GlassNavigationBarDefaults.HorizontalPadding,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            leading?.invoke()
             content()
         }
     }
 }
 
 /**
- * [GlassNavigationBar] 안에 놓이는 아이콘 + 라벨 아이템.
- * 선택 상태에 따라 콘텐츠 색이 [colors] 사이에서 애니메이션된다.
+ * 일반 Painter 아이콘을 사용하는 Navigation Item.
  */
 @Composable
 fun RowScope.GlassNavigationBarItem(
@@ -83,6 +77,34 @@ fun RowScope.GlassNavigationBarItem(
     label: String,
     modifier: Modifier = Modifier,
     colors: GlassNavigationBarItemColors = GlassNavigationBarDefaults.itemColors(),
+) {
+    GlassNavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        modifier = modifier,
+        colors = colors,
+        iconContent = {
+            Icon(
+                painter = icon,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+        },
+    )
+}
+
+/**
+ * 프로필 이미지 등 Custom Icon UI를 사용하는 Navigation Item.
+ */
+@Composable
+fun RowScope.GlassNavigationBarItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    colors: GlassNavigationBarItemColors = GlassNavigationBarDefaults.itemColors(),
+    iconContent: @Composable () -> Unit,
 ) {
     TabTransition(
         activeColor = colors.selectedContentColor,
@@ -103,14 +125,18 @@ fun RowScope.GlassNavigationBarItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                painter = icon,
-                // 라벨이 이미 읽히므로 아이콘은 접근성 트리에서 생략한다.
-                contentDescription = null,
-                modifier = Modifier.size(GlassNavigationBarDefaults.IconSize),
-            )
+            Box(
+                modifier = Modifier.size(
+                    GlassNavigationBarDefaults.IconSize,
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                iconContent()
+            }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(
+                modifier = Modifier.height(4.dp),
+            )
 
             Text(
                 text = label,
@@ -122,7 +148,9 @@ fun RowScope.GlassNavigationBarItem(
 }
 
 /**
- * [GlassNavigationBar]의 `leading` 슬롯에 놓이는 원형 뒤로가기 버튼.
+ * Motif Navigation의 첫 번째 위치에서 사용하는 뒤로가기 버튼.
+ *
+ * 별도 leading slot 없이 GlassNavigationBar content 안에 직접 배치한다.
  */
 @Composable
 fun GlassNavigationBarBackButton(
@@ -132,13 +160,19 @@ fun GlassNavigationBarBackButton(
 ) {
     ClickableSurface(
         onClick = onClick,
-        modifier = modifier.size(GlassNavigationBarDefaults.BackButtonSize),
+        modifier = modifier.size(
+            GlassNavigationBarDefaults.BackButtonSize,
+        ),
         shape = CircleShape,
-        color = Color.White.copy(alpha = 0.08f),
+        color = Color.Black.copy(
+            alpha = 0.5f,
+        ),
         contentColor = MotifTheme.colors.white,
         border = BorderStroke(
             width = 1.dp,
-            color = Color.White.copy(alpha = 0.15f),
+            color = Color.White.copy(
+                alpha = 0.15f,
+            ),
         ),
     ) {
         Box(
@@ -146,17 +180,18 @@ fun GlassNavigationBarBackButton(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(MotifIcons.BarArrowLeft),
+                painter = painterResource(
+                    MotifIcons.BarArrowLeft,
+                ),
                 contentDescription = contentDescription,
-                modifier = Modifier.size(GlassNavigationBarDefaults.IconSize),
+                modifier = Modifier.size(
+                    GlassNavigationBarDefaults.IconSize,
+                ),
             )
         }
     }
 }
 
-/**
- * Glass 효과는 API 33 이상에서만 지원되므로, 그 이하에서는 불투명도 높은 단색 pill로 대체한다.
- */
 @Composable
 private fun GlassNavigationBarContainer(
     backdropState: GlassBackdropState,
@@ -168,20 +203,24 @@ private fun GlassNavigationBarContainer(
             backdropState = backdropState,
             modifier = modifier,
             shape = GlassNavigationBarDefaults.Shape,
-            blurRadius = 16.dp,
+            blurRadius = 8.dp,
             blurAlpha = 1f,
-            tintColor = Color.Black.copy(alpha = 0.35f),
+            tintColor = Color.Black.copy(alpha = 0.2f),
             content = content,
         )
     } else {
         Surface(
             modifier = modifier,
             shape = GlassNavigationBarDefaults.Shape,
-            color = Color.Black.copy(alpha = 0.7f),
+            color = Color.Black.copy(
+                alpha = 0.7f,
+            ),
             contentColor = MotifTheme.colors.white,
             border = BorderStroke(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.15f),
+                color = Color.White.copy(
+                    alpha = 0.15f,
+                ),
             ),
             content = content,
         )
@@ -189,11 +228,22 @@ private fun GlassNavigationBarContainer(
 }
 
 object GlassNavigationBarDefaults {
-    val Height: Dp = 72.dp
+
+    val Height: Dp = 60.dp
+
     val HorizontalPadding: Dp = 8.dp
+
     val IconSize: Dp = 24.dp
-    val BackButtonSize: Dp = 56.dp
-    val Shape: Shape = RoundedCornerShape(percent = 50)
+
+    val BackButtonSize: Dp = 48.dp
+
+    val HorizontalMargin: Dp = 20.dp
+
+    val BottomMargin: Dp = 16.dp
+
+    val Shape: Shape = RoundedCornerShape(
+        percent = 50,
+    )
 
     @Composable
     fun itemColors(
@@ -211,9 +261,10 @@ class GlassNavigationBarItemColors(
     val selectedContentColor: Color,
     val unselectedContentColor: Color,
 ) {
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other == null || other !is GlassNavigationBarItemColors) return false
+        if (other !is GlassNavigationBarItemColors) return false
 
         if (selectedContentColor != other.selectedContentColor) return false
         if (unselectedContentColor != other.unselectedContentColor) return false
@@ -229,9 +280,6 @@ class GlassNavigationBarItemColors(
     }
 }
 
-/**
- * Glass는 뒤에 그려진 콘텐츠가 있어야 보이므로, backdrop이 걸린 이미지 배경 위에 그린다.
- */
 @Preview
 @Composable
 private fun GlassNavigationBarPreview() {
@@ -239,49 +287,56 @@ private fun GlassNavigationBarPreview() {
         val backdropState = rememberGlassBackdropState()
 
         Box(
-            modifier = Modifier.size(width = 400.dp, height = 200.dp),
+            modifier = Modifier
+                .size(
+                    width = 400.dp,
+                    height = 200.dp,
+                ),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .glassBackdrop(backdropState),
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.img_challenge),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+                    .glassBackdrop(backdropState)
+                    .background(
+                        MotifTheme.colors.background,
+                    ),
+            )
 
             GlassNavigationBar(
                 backdropState = backdropState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(20.dp),
-                leading = {
-                    GlassNavigationBarBackButton(
-                        onClick = {},
-                        contentDescription = "뒤로가기",
-                    )
-                },
             ) {
-                GlassNavigationBarItem(
-                    selected = false,
+                GlassNavigationBarBackButton(
                     onClick = {},
-                    icon = painterResource(MotifIcons.Motif),
-                    label = "모티프",
+                    contentDescription = "뒤로가기",
                 )
-                GlassNavigationBarItem(
-                    selected = false,
-                    onClick = {},
-                    icon = painterResource(MotifIcons.Bag),
-                    label = "Shop",
-                )
+
                 GlassNavigationBarItem(
                     selected = true,
                     onClick = {},
-                    icon = painterResource(MotifIcons.MediaStrip),
+                    icon = painterResource(
+                        MotifIcons.Motif,
+                    ),
+                    label = "모티프",
+                )
+
+                GlassNavigationBarItem(
+                    selected = false,
+                    onClick = {},
+                    icon = painterResource(
+                        MotifIcons.Bag,
+                    ),
+                    label = "SHOP",
+                )
+
+                GlassNavigationBarItem(
+                    selected = false,
+                    onClick = {},
+                    icon = painterResource(
+                        MotifIcons.MediaStrip,
+                    ),
                     label = "보관함",
                 )
             }
