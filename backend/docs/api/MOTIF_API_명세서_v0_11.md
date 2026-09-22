@@ -1558,8 +1558,8 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 **요청** `{ "jobType": "MOTIF", "assetSeq": 21 }` 또는 `{ "jobType": "CHALLENGE", "challengeSeq": 11, "challengeParticipantSeq": 31 }`
 
 - CHALLENGE 의 `challengeParticipantSeq` **(2026-09-21 개정 — DB v0.19, 구 `participantMask`)**: 사용자가 고른 교체 슬롯. §7.5 가 준 값을 **그대로** 보낸다.
-  - **생략 = 무교체**(원본 위 합성, `challenge_participant_seq=NULL`). `participantMask: 0` 이라는 예약값이 사라졌다.
-  - 지정하면 서버가 그 슬롯을 조회해 잡에 기록한다. 슬롯이 없거나 **다른 챌린지의 슬롯**이거나 그 슬롯에 편집본이 없으면 404 `EDITED_CHALLENGE_NOT_FOUND`(§1.8 — 셋을 가르지 않는다).
+  - **필수다 (2026-09-22)** — 합성은 언제나 슬롯 한 자리를 대체한다. 편집본이 슬롯 1개당 1개이고 사용자가 고르는 것도 함께할 아티스트 한 명이라, 아무도 지워지지 않은 영상을 베이스로 쓸 자리가 없다. 생략하면 400 `INVALID_PARAMETER`(`data` 에 `challengeParticipantSeq`). **무교체(원본 위 합성)는 폐기됐다** — §16 잔여 3번을 불허로 닫았고 `ck_composite_jobs_type_shape`(changeSet 0021)가 DB 에서도 막는다.
+  - 서버가 그 슬롯을 조회해 잡에 기록한다. 슬롯이 없거나 **다른 챌린지의 슬롯**이거나 그 슬롯에 편집본이 없으면 404 `EDITED_CHALLENGE_NOT_FOUND`(§1.8 — 셋을 가르지 않는다).
   - **비트 마스크를 받지 않는다.** 앱이 `1 << slotOrder` 같은 비트 연산을 하게 두지 않으려는 것이고, 조합 교체가 없어져 마스크가 표현할 것도 없다. 마스크는 AI 접수 페이로드 안에만 남고 서버가 파생한다.
 
 - 검증: CHALLENGE — 챌린지 비삭제 + 슬롯이 그 챌린지 것인지 대조(반정규화 정합 — 잡 행이 `challenge_seq` 와 슬롯 seq 를 함께 들고 있어 어긋나면 베이스와 챌린지가 다른 잡이 된다). MOTIF — **이용 권한(개별 구매 ACTIVE ∪ 유효 PASS) 필수(C3 선결제 — 회의 확정)**, `challengeParticipantSeq` 미사용.
@@ -1886,6 +1886,6 @@ module-common 의 에러 enum 은 이 표와 1:1 로 구현한다(`code`, `httpS
 |---|---|---|
 | 1 | 13.3 응답 jobType 분기 확정 — CHALLENGE: 프리뷰 URL / MOTIF: `resultSeq`(URL 미포함, §11.6 재생 담당). 공통부에 `attempt` 추가 | §13.3 |
 | 2 | 편집본 **전 조합 등록** 운영 전제 확정 — 어드민 필수 등록 + 서버 완결성 검증(어드민 명세 반영 대기), DB 미결 #10 종결 | §7.2, 13.1 |
-| 3 | CHALLENGE 잡 `edited_challenge_seq NULL`(무교체 원본 합성) 허용 여부는 **팀 논의 예정**으로 유지 | DB #8 |
+| ~~3~~ | ~~CHALLENGE 잡 `edited_challenge_seq NULL`(무교체 원본 합성) 허용 여부~~ → **종결: 불허** *(2026-09-22)*. 합성은 언제나 슬롯 한 자리를 대체한다. `challengeParticipantSeq` 가 §13.1 필수가 되고 `ck_composite_jobs_type_shape`(changeSet 0021)가 DB 에서 강제한다 | DB #8 |
 
 — 끝 (v0.11) —

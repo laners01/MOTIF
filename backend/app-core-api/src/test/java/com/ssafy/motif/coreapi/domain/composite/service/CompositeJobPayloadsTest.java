@@ -55,14 +55,11 @@ class CompositeJobPayloadsTest {
               "base_video_key": "private/edited/11/31/7d2f…e1.mp4",
               "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
               "correction_enabled": true,
-              "participant_mask": 2,
-              "slots": [
-                { "participant_mask": 2, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } }
-              ],
+              "slot": { "participant_mask": 2, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } },
               "base_duration_ms": 15000
             }""";
 
-    /** AI 서버 명세 §3.2 MOTIF 예시. */
+    /** AI 서버 명세 §4 MOTIF 예시. */
     private static final String SPEC_MOTIF = """
             {
               "job_uuid": "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
@@ -72,27 +69,25 @@ class CompositeJobPayloadsTest {
               "base_video_key": "assets/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071.mp4",
               "output_video_key": "results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f.mp4",
               "correction_enabled": false,
-              "participant_mask": 0,
-              "slots": [],
+              "slot": null,
               "base_duration_ms": 9800
             }""";
 
     @Test
-    @DisplayName("CHALLENGE — 조립 결과가 AI 명세 §3.2 예시와 필드 단위로 같다")
+    @DisplayName("CHALLENGE — 조립 결과가 AI 명세 §4 예시와 필드 단위로 같다")
     void challengePayloadMatchesTheSpec() {
         CompositeJob job = challengeJob(true);
         Challenge challenge = challenge("challenges/8a1b/master.m3u8", 15_000);
         // 슬롯 1(= slotOrder 1, 마스크 2)을 고른 사용자. 그 사람을 지운 편집본이 베이스다
-        List<ChallengeParticipant> participants = participants();
-        ChallengeParticipant edited = participants.get(1);
+        ChallengeParticipant edited = participants().get(1);
 
-        CompositeJobPayload payload = CompositeJobPayloads.from(job, challenge, edited, participants);
+        CompositeJobPayload payload = CompositeJobPayloads.from(job, challenge, edited);
 
         assertThat(asMap(payload)).isEqualTo(parse(SPEC_CHALLENGE));
     }
 
     @Test
-    @DisplayName("MOTIF — 조립 결과가 AI 명세 §3.2 예시와 필드 단위로 같다")
+    @DisplayName("MOTIF — 조립 결과가 AI 명세 §4 예시와 필드 단위로 같다")
     void motifPayloadMatchesTheSpec() {
         CompositeJob job = motifJob();
         MotifAsset asset = MotifAsset.register(3, "에셋", "소개",
@@ -107,61 +102,49 @@ class CompositeJobPayloadsTest {
 
     // --- base_video_key 는 언제나 MP4 다 (작업명세 §7 함정 3) -------------------------
 
-    @Test
-    @DisplayName("무교체 — 베이스가 챌린지 원본이고 master.m3u8 가 .mp4 로 되돌아간다")
-    void noReplacementUsesTheChallengeOriginAsMp4() {
-        CompositeJobPayload payload = CompositeJobPayloads.from(
-                challengeJob(false),
-                challenge("challenges/8a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9/master.m3u8", 15_000),
-                null, participants());
-
-        assertThat(payload.baseVideoKey())
-                .isEqualTo("challenges/8a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9.mp4");
-        assertThat(payload.participantMask()).isZero();
-        assertThat(payload.slots()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("가공 전 챌린지 — video_key 가 이미 MP4 면 그대로 쓴다")
-    void unprocessedChallengeKeyIsLeftAlone() {
-        CompositeJobPayload payload = CompositeJobPayloads.from(
-                challengeJob(false), challenge("challenges/8a1b.mp4", 15_000), null, List.of());
-
-        assertThat(payload.baseVideoKey()).isEqualTo("challenges/8a1b.mp4");
-    }
-
-    // --- slots -------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("교체 대상 슬롯만 담는다 — 고르지 않은 슬롯은 빠진다")
-    void slotsCarryOnlyTheSelectedOnes() {
-        List<ChallengeParticipant> participants = participants();
-
-        CompositeJobPayload payload = CompositeJobPayloads.from(
-                challengeJob(true), challenge("challenges/8a1b.mp4", 15_000),
-                participants.get(1), participants);
-
-        assertThat(payload.participantMask()).isEqualTo(2);
-        assertThat(payload.slots()).singleElement()
-                .satisfies(slot -> assertThat(slot.participantMask()).isEqualTo(2));
-    }
-
     /**
-     * 0019 이후 슬롯 배열은 언제나 1개다 — 조합이 없어져 마스크에 비트가 하나뿐이다.
-     * 배열 계약은 그대로 두었으므로 이 사실을 여기 고정해 둔다.
+     * 편집본 키는 가공을 거치지 않는다 — 통짜 MP4 라 {@code sourceMp4Of} 가 그대로 돌려준다.
+     * 되돌림이 필요한 것은 에셋·챌린지 원본처럼 app-media 가 덮어쓰는 키 쪽이다.
      */
     @Test
-    @DisplayName("슬롯 3개짜리 챌린지라도 교체 대상은 1개다")
-    void slotsAlwaysHoldAtMostOne() {
-        List<ChallengeParticipant> participants = participants();
-        for (ChallengeParticipant chosen : participants) {
-            CompositeJobPayload payload = CompositeJobPayloads.from(
-                    challengeJob(true), challenge("challenges/8a1b.mp4", 15_000),
-                    chosen, participants);
+    @DisplayName("편집본 키는 이미 MP4 라 그대로 쓴다")
+    void editedKeyIsLeftAlone() {
+        CompositeJobPayload payload = CompositeJobPayloads.from(
+                challengeJob(true), challenge("challenges/8a1b/master.m3u8", 15_000),
+                participants().get(1));
 
-            assertThat(payload.slots()).hasSize(1);
-            assertThat(payload.participantMask()).isEqualTo(chosen.participantMask());
+        assertThat(payload.baseVideoKey()).isEqualTo("private/edited/11/31/7d2f…e1.mp4");
+    }
+
+    // --- slot ---------------------------------------------------------------------------
+
+    /**
+     * 2026-09-22 — 배열이 없어졌다. 사용자가 고르는 것이 한 명이고 편집본도 슬롯 1개당
+     * 1개라, 한 잡이 교체하는 자리는 언제나 하나다. 바깥 합산 마스크도 같은 이유로 빠졌다.
+     */
+    @Test
+    @DisplayName("고른 슬롯 하나가 그대로 slot 이 된다 — 어느 자리를 골라도")
+    void slotCarriesTheChosenOne() {
+        for (ChallengeParticipant chosen : participants()) {
+            CompositeJobPayload payload = CompositeJobPayloads.from(
+                    challengeJob(true), challenge("challenges/8a1b.mp4", 15_000), chosen);
+
+            assertThat(payload.slot()).isNotNull();
+            assertThat(payload.slot().participantMask()).isEqualTo(chosen.participantMask());
         }
+    }
+
+    @Test
+    @DisplayName("MOTIF 는 slot 이 null 이다 — 교체할 인물이라는 개념이 없다")
+    void motifHasNoSlot() {
+        MotifAsset asset = MotifAsset.register(3, "에셋", "소개", "assets/7e2a.mp4",
+                "assets/7e2a/thumb.jpg", 9_800, AssetType.NORMAL);
+
+        CompositeJobPayload payload = CompositeJobPayloads.from(motifJob(), asset);
+
+        assertThat(payload.slot()).isNull();
+        // 칸은 남는다 — AI 가 "없음" 과 "안 보냄" 을 구분하지 않아도 되게
+        assertThat(asMap(payload)).containsEntry("slot", null);
     }
 
     @Test
@@ -170,16 +153,14 @@ class CompositeJobPayloadsTest {
         ChallengeParticipant old = participant(5, 0, null);
 
         CompositeJobPayload payload = CompositeJobPayloads.from(
-                challengeJob(true), challenge("challenges/8a1b.mp4", 15_000),
-                old, List.of(old));
+                challengeJob(true), challenge("challenges/8a1b.mp4", 15_000), old);
 
-        assertThat(payload.slots()).singleElement()
-                .satisfies(slot -> assertThat(slot.anchor()).isNull());
+        assertThat(payload.slot().anchor()).isNull();
 
         Map<String, Object> slot = new LinkedHashMap<>();
         slot.put("participant_mask", 1);
         slot.put("anchor", null);   // 칸은 남는다 — AI 가 "없음" 과 "안 보냄" 을 구분하지 않아도 되게
-        assertThat(asMap(payload)).containsEntry("slots", List.of(slot));
+        assertThat(asMap(payload)).containsEntry("slot", slot);
     }
 
     // --- 픽스처 ---------------------------------------------------------------------------

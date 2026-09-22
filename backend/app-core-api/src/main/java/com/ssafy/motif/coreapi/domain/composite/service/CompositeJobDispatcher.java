@@ -192,16 +192,16 @@ public class CompositeJobDispatcher {
                     .orElseThrow(() -> new IllegalStateException(
                             "잡이 가리키는 에셋이 없다: assetSeq=" + job.getAssetSeq())));
         }
-        ChallengeParticipant edited = job.getChallengeParticipantSeq() == null ? null
-                : challengeParticipantRepository.findById(job.getChallengeParticipantSeq())
-                        .orElseThrow(() -> new IllegalStateException(
-                                "잡이 가리키는 슬롯이 없다: " + job.getChallengeParticipantSeq()));
+        // CHALLENGE 잡은 언제나 슬롯을 가리킨다(2026-09-22 — 무교체 폐기).
+        // ck_composite_jobs_type_shape 가 DB 에서도 같은 것을 강제한다
+        ChallengeParticipant edited = challengeParticipantRepository
+                .findById(job.getChallengeParticipantSeq())
+                .orElseThrow(() -> new IllegalStateException(
+                        "잡이 가리키는 슬롯이 없다: " + job.getChallengeParticipantSeq()));
         return CompositeJobPayloads.from(job,
                 challengeRepository.findById(job.getChallengeSeq())
                         .orElseThrow(() -> new IllegalStateException(
                                 "잡이 가리키는 챌린지가 없다: " + job.getChallengeSeq())),
-                edited,
-                challengeParticipantRepository
-                        .findByChallengeSeqOrderBySlotOrderAsc(job.getChallengeSeq()));
+                edited);
     }
 }

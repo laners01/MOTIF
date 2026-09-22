@@ -121,6 +121,9 @@ S15P21D104-181
 | **슬롯 앵커**(`ChallengeParticipant.Anchor` · `AnchorRequest` · §3.7.9 `updateAnchor`) — bbox 는 삭제됨. 앱 §7.2 `anchor` | `domain-core/.../challenge/` · `app-core-api/.../admin/challenge/` | S15P21D104-618 |
 | **편집본이 슬롯 행에 있다** — `ChallengeParticipant.editedChallengeKey`·`initialSceneKey`·`previewImageKey`·`editedDurationMs` · `slotOrder`(0-based) · 대리키 `challengeParticipantSeq`. `EditedChallenge` 엔티티·테이블은 **삭제됨**(0019) | `domain-core/.../challenge/ChallengeParticipant` | 0019 · 0020 |
 | **§7.5 슬롯 목록 · §7.6 편집본 영상** `ChallengeController.participants` · `ChallengeParticipantController` · `ChallengeQueryService.participants`·`editedVideo` | `app-core-api/.../domain/challenge/` | 0020 |
+| **편집본 키 규약 파생** `AdminMediaKind.editedPrefix` — presign 조립과 §3.7.6 경로 대조가 같은 함수를 쓴다. 각자 문자열을 만들면 검사가 통과하면서 키는 엉뚱한 자리를 가리킨다 | `app-core-api/.../admin/media/AdminMediaKind` | 2026-09-22 |
+| **편집본 입구는 §3.7.6 하나** — `AdminChallengeService.replaceEditedKeys` 가 보호 프리픽스·슬롯 경로·키 짝·길이·HEAD 를 전부 본다. 등록·슬롯교체 요청에는 편집본 칸이 없다 | `app-core-api/.../admin/challenge/` | 2026-09-22 |
+| **AI 접수 페이로드의 `slot`** — 배열이 아니라 객체 하나(MOTIF 는 `null`). 바깥 `participant_mask` 는 없다 | `app-core-api/.../domain/composite/dto/CompositeJobPayload` | 0021 |
 | **단일 영상 파일 서명** `MediaUrlResolver.resolveVideoFile` (짧은 만료) — 이미지용 `resolve`(6시간)·HLS 용 `resolvePlaylist` 와 셋이 갈린다 | `app-core-api/.../global/media/` | 0020 |
 | presign API `AdminMediaController`·`AdminMediaService`·`AdminMediaKind` | `app-core-api/.../admin/media/` | 588 |
 | 영상 검증 `VideoRules` (폼이 보낸 길이·해상도 대조) | `app-core-api/.../admin/media/` | 589 |
@@ -184,11 +187,17 @@ mediaJobPublisher.publish(
 
 ```java
 // 챌린지 슬롯을 다룰 때 — 순서·마스크는 서버가 정한다. 비트를 직접 쓰지 않는다
-SlotRules.checkParticipants(participants);   // 중복·앵커·편집본 키 짝 (메인도 슬롯이 된다)
+SlotRules.checkParticipants(participants);   // 중복·앵커·개수만 (메인도 슬롯이 된다)
 adminMediaService.requireUploaded(keys);     // HEAD, 부재 키를 data 에 (보낸 키만)
 // slotOrder 는 요청 배열의 인덱스 그대로다. 마스크는 AI 페이로드 안에만 남고
 // 엔티티가 파생한다 — 파생 지점을 둘로 두면 한쪽만 고쳤을 때 어긋난다
-participant.participantMask();               // 1 << slotOrder (AI 서버 명세 §3.2)
+participant.participantMask();               // 1 << slotOrder (AI 서버 명세 §4)
+//
+// 등록(§3.7.2)·슬롯교체(§3.7.5)에 편집본 칸을 되살리지 마라 (2026-09-22) — 키가
+// private/edited/{challengeSeq}/{challengeParticipantSeq}/ 라 슬롯 seq 를 품고 있고,
+// 그 seq 는 그 요청이 INSERT 되면서 난다. 편집본 입구는 §3.7.6 하나다.
+// §3.7.5 는 슬롯을 하드 삭제·재생성하므로 편집본이 전부 비워진다 — 옛 키는 옛 슬롯
+// 번호를 가리켜 §3.7.6 이 EDITED_KEY_NOT_IN_SLOT 으로 막는다.
 //
 // 앱·어드민 API 에 마스크를 되살리지 마라 (0020) — 슬롯을 가리키는 값은
 // challengeParticipantSeq 하나다(§7.5·§7.6·§13.1). 앱이 비트 연산을 하게 두지 않는다.
@@ -201,6 +210,11 @@ participant.participantMask();               // 1 << slotOrder (AI 서버 명세
 // (MediaKeys.isProtected, CloudFront 캐시 동작 private/*), 옮기면 서버는 서명을
 // 붙이는데 CloudFront 가 검증하지 않아 무서명 요청이 그대로 통과한다.
 // 편집본에 durationMs 없이 키만 받지 마라 — §7.6 이 null 을 내보내 촬영 타이머가 멈춘다.
+//
+// 무교체(원본 위 합성)를 되살리지 마라 (0021) — CHALLENGE 합성은 언제나 슬롯 한
+// 자리를 대체한다. 되살리면 아무도 지워지지 않은 영상 위에 합성이 얹힌다.
+// ck_composite_jobs_type_shape 가 DB 에서 막고, AI 페이로드의 slot 이 배열이 아니라
+// 객체 하나인 것도 같은 결정이다(AI 명세 v0.5 §4).
 ```
 
 ```java

@@ -69,6 +69,38 @@ public final class VideoTestData {
         return new VideoFixture(challengeSeq, artistSeq);
     }
 
+    /**
+     * 그 챌린지의 슬롯 하나 — 없으면 만든다 (changeSet 0021).
+     *
+     * <p>CHALLENGE 잡은 언제나 슬롯을 가리킨다({@code ck_composite_jobs_type_shape}) —
+     * 무교체(원본 위 합성)가 폐기됐다. 참여 영상은 슬롯 하나를 대체한 결과물이다.
+     *
+     * <p><b>있으면 그것을 쓴다.</b> 한 챌린지에 영상이 여럿인 픽스처가 흔한데 매번 새로
+     * 만들면 {@code uq_challenge_participants_slot_order} 에 걸린다.
+     *
+     * <p>편집본 키는 비운다 — 여기 테스트들이 읽는 것은 참여 영상이지 합성 베이스가
+     * 아니다. 키 짝 CHECK 는 셋 다 {@code NULL} 인 행을 정상으로 본다.
+     */
+    Integer slotOf(Integer challengeSeq, Integer artistSeq) {
+        var found = entityManager.createNativeQuery("""
+                        select challenge_participant_seq from motif_core.challenge_participants
+                         where challenge_seq = ?1 order by slot_order limit 1
+                        """)
+                .setParameter(1, challengeSeq)
+                .getResultList();
+        if (!found.isEmpty()) {
+            return ((Number) found.getFirst()).intValue();
+        }
+        execute("""
+                insert into motif_core.challenge_participants (challenge_seq, artist_seq, slot_order)
+                values (?1, ?2, 0)
+                """, challengeSeq, artistSeq);
+        return scalar("""
+                select challenge_participant_seq from motif_core.challenge_participants
+                 where challenge_seq = ?1 and slot_order = 0
+                """, challengeSeq);
+    }
+
     void execute(String sql, Object... params) {
         var query = entityManager.createNativeQuery(sql);
         for (int i = 0; i < params.length; i++) {
@@ -164,11 +196,11 @@ public final class VideoTestData {
 
             execute("""
                     insert into motif_core.composite_jobs
-                        (job_uuid, job_type, user_seq, challenge_seq, raw_video_key, status,
-                         result_video_key, result_thumbnail_key)
-                    values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, 'DONE', ?5, ?6)
-                    """, uuid, owner, challengeSeq, "raw/" + uuid + ".mp4",
-                    resultKey, thumbKey);
+                        (job_uuid, job_type, user_seq, challenge_seq, challenge_participant_seq,
+                         raw_video_key, status, result_video_key, result_thumbnail_key)
+                    values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, ?5, 'DONE', ?6, ?7)
+                    """, uuid, owner, challengeSeq, slotOf(challengeSeq, artistSeq),
+                    "raw/" + uuid + ".mp4", resultKey, thumbKey);
             long jobSeq = ((Number) entityManager
                     .createNativeQuery("""
                             select job_seq from motif_core.composite_jobs

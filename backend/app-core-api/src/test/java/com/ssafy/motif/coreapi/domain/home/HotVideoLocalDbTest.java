@@ -324,6 +324,33 @@ class HotVideoLocalDbTest {
                 "challenges/" + uuid + ".mp4");
     }
 
+    /**
+     * 그 챌린지의 슬롯 하나 — 없으면 만든다 (changeSet 0021).
+     *
+     * <p>CHALLENGE 잡은 언제나 슬롯을 가리킨다({@code ck_composite_jobs_type_shape}).
+     * 한 챌린지에 영상이 여럿이라 매번 만들면
+     * {@code uq_challenge_participants_slot_order} 에 걸린다.
+     */
+    private Integer slotOf(Integer challengeSeq) {
+        var found = entityManager.createNativeQuery("""
+                        select challenge_participant_seq from motif_core.challenge_participants
+                         where challenge_seq = ?1 order by slot_order limit 1
+                        """)
+                .setParameter(1, challengeSeq)
+                .getResultList();
+        if (!found.isEmpty()) {
+            return ((Number) found.getFirst()).intValue();
+        }
+        execute("""
+                insert into motif_core.challenge_participants (challenge_seq, artist_seq, slot_order)
+                values (?1, ?2, 0)
+                """, challengeSeq, artistSeq);
+        return scalar("""
+                select challenge_participant_seq from motif_core.challenge_participants
+                 where challenge_seq = ?1 and slot_order = 0
+                """, challengeSeq);
+    }
+
     private Long newVideo(long viewCount, String visibility, boolean deleted, Instant regDttm) {
         return newVideo(viewCount, visibility, deleted, regDttm, "private/challenge/");
     }
@@ -346,10 +373,10 @@ class HotVideoLocalDbTest {
         String resultKey = prefix + uuid + "/master.m3u8";
         execute("""
                 insert into motif_core.composite_jobs
-                    (job_uuid, job_type, user_seq, challenge_seq, raw_video_key, status,
-                     result_video_key, result_thumbnail_key)
-                values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, 'DONE', ?5, ?6)
-                """, uuid, me, challengeSeq, "raw/" + uuid + ".mp4",
+                    (job_uuid, job_type, user_seq, challenge_seq, challenge_participant_seq,
+                     raw_video_key, status, result_video_key, result_thumbnail_key)
+                values (cast(?1 as uuid), 'CHALLENGE', ?2, ?3, ?4, ?5, 'DONE', ?6, ?7)
+                """, uuid, me, challengeSeq, slotOf(challengeSeq), "raw/" + uuid + ".mp4",
                 resultKey, prefix + uuid + "/thumb.jpg");
         Long jobSeq = ((Number) entityManager
                 .createNativeQuery("select job_seq from motif_core.composite_jobs where job_uuid = cast(?1 as uuid)")

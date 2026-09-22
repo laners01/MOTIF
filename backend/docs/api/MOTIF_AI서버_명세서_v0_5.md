@@ -1,4 +1,4 @@
-# MOTIF ↔ AI 서버 연동 명세 — v0.4
+# MOTIF ↔ AI 서버 연동 명세 — v0.5
 
 **2026-09-22 · 대상: AI 팀**
 
@@ -9,7 +9,29 @@
 이 문서는 **AI 팀이 구현할 것만** 적는다. 백엔드 내부 동작은
 [`detail/합성-파이프라인-작업명세.md`](detail/합성-파이프라인-작업명세.md) 에 있다.
 
-> **v0.3 → v0.4 (2026-09-22) — 편집본 경로가 한 단 깊어졌다.**
+> ## v0.3 → v0.5 (2026-09-22) — **접수 본문이 바뀐다. 파싱을 고쳐야 한다.**
+>
+> **① 합성은 언제나 슬롯 한 자리를 대체한다.** 무교체(원본 위 합성)가 없어졌다 —
+> 편집본이 슬롯 1개당 1개이고 사용자가 고르는 것도 함께할 아티스트 한 명이라,
+> 아무도 지워지지 않은 영상을 베이스로 쓸 자리가 없다.
+>
+> 그래서 **`slots` 배열과 바깥 `participant_mask` 가 `slot` 하나로 합쳐졌다.**
+> 둘 다 슬롯 하나에서 유도되던 값이고, 조합 편집본이 있던 시절의 흔적이었다.
+>
+> ```diff
+> - "participant_mask": 2,
+> - "slots": [
+> -   { "participant_mask": 2, "anchor": { … } }
+> - ],
+> + "slot": { "participant_mask": 2, "anchor": { … } },
+> ```
+>
+> - CHALLENGE 는 `slot` 이 **항상 있다**
+> - MOTIF 는 `slot` 이 **`null`** 이다(칸은 남는다 — "없음" 과 "안 보냄" 을 구분하지
+>   않아도 되게)
+> - `slot.participant_mask` 는 그대로 단일 비트(1·2·4·8)다
+>
+> **② 편집본 경로가 한 단 깊어졌다.**
 >
 > ```
 > 전  private/edited/{challengeSeq}/{uuid}.mp4
@@ -17,13 +39,14 @@
 > ```
 >
 > 챌린지 하나에 슬롯이 여럿이라 프리픽스를 챌린지에서 끊으면 어느 슬롯 것인지
-> 경로로 알 수 없었다. **AI 가 할 일은 없다** — 키는 접수 메시지의
-> `base_video_key` 를 그대로 GET 하면 되고(§8), IAM 프리픽스 `private/edited/*` 도
-> 그대로다(하위 디렉터리만 깊어진다). §8 의 프리픽스 표가 v0.3 까지 옛 `edited/`
-> 로 남아 있던 것도 함께 고쳤다.
+> 경로로 알 수 없었다. **이쪽은 AI 가 할 일이 없다** — 키는 `base_video_key` 를
+> 그대로 GET 하면 되고(§8), IAM 프리픽스 `private/edited/*` 도 그대로다(하위
+> 디렉터리만 깊어진다). 편집본을 **직접 S3 에 올리는 경우에만** 자리가 바뀐다 —
+> 어드민이 알려주는 두 seq 아래에 올린다.
 >
-> 편집본을 **직접 S3 에 올리는 경우에만** 자리가 바뀐다 — 어드민이 알려주는 두 seq
-> 아래에 올린다.
+> **③ §8 프리픽스 표가 v0.3 까지 옛 `edited/` 로 남아 있던 것**을 고쳤다.
+> 그 표를 보고 IAM 을 걸었다면 편집본 GET 이 403 이다 — 2026-09-21 변경분이
+> 본문에만 반영되고 표에는 빠져 있었다.
 
 ---
 
@@ -96,7 +119,7 @@ X-Request-Id: 7c1e…
 Content-Type: application/json
 ```
 
-**CHALLENGE** — 베이스는 슬롯 인물이 지워진 편집본(무교체면 원본)
+**CHALLENGE** — 베이스는 **언제나** 슬롯 인물이 지워진 편집본이다
 
 ```json
 {
@@ -107,10 +130,7 @@ Content-Type: application/json
   "base_video_key": "private/edited/11/31/7d2f…e1.mp4",
   "output_video_key": "results/challenge/b7c93b4e-0a56-4d2e-9f0d-2f6e8a54d61c.mp4",
   "correction_enabled": true,
-  "participant_mask": 2,
-  "slots": [
-    { "participant_mask": 2, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } }
-  ],
+  "slot": { "participant_mask": 2, "anchor": { "x": 0.72, "y": 0.34, "r": 0.0995 } },
   "base_duration_ms": 15000
 }
 ```
@@ -126,8 +146,7 @@ Content-Type: application/json
   "base_video_key": "assets/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071.mp4",
   "output_video_key": "results/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f.mp4",
   "correction_enabled": false,
-  "participant_mask": 0,
-  "slots": [],
+  "slot": null,
   "base_duration_ms": 9800
 }
 ```
@@ -138,11 +157,12 @@ Content-Type: application/json
 | `job_type` | `CHALLENGE` \| `MOTIF` | 합성 종류 |
 | `attempt` | int | 몇 번째 시도인지. 로그용 |
 | `raw_video_key` | string | 사용자 촬영본. MP4, 세로. 회전 메타데이터가 붙어 있을 수 있다 |
-| `base_video_key` | string | 합성 베이스. **항상 MP4**. 챌린지 편집본은 **2026-09-21 부터 `private/edited/…`** — 앱이 이 영상을 직접 받게 되면서 CloudFront 서명이 필요해져 프리픽스를 옮겼다. 워커는 S3 로 직접 받으므로 서명과 무관하지만 **읽기 권한 프리픽스를 함께 옮겨야 한다**(옛 `edited/*` 로 한정돼 있으면 403). **2026-09-22 부터 슬롯까지 내려간다** — `private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.mp4`. IAM 은 `private/edited/*` 그대로라 바꿀 것이 없다 |
+| `base_video_key` | string | 합성 베이스. **항상 MP4**. CHALLENGE 는 **언제나 편집본**이다 *(2026-09-22 — 무교체 폐기로 챌린지 원본이 올 일이 없어졌다)*, MOTIF 는 에셋 원본이다. 편집본은 **2026-09-21 부터 `private/edited/…`** — 앱이 이 영상을 직접 받게 되면서 CloudFront 서명이 필요해져 프리픽스를 옮겼다. 워커는 S3 로 직접 받으므로 서명과 무관하지만 **읽기 권한 프리픽스를 함께 옮겨야 한다**(옛 `edited/*` 로 한정돼 있으면 403). **2026-09-22 부터 슬롯까지 내려간다** — `private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.mp4`. IAM 은 `private/edited/*` 그대로라 바꿀 것이 없다 |
 | `output_video_key` | string | 결과를 올릴 키. **이 키에 그대로 PUT.** 재시도면 덮어쓴다 |
 | `correction_enabled` | bool | 사용자가 고른 보정 여부. MOTIF 는 항상 `false`. 뜻은 AI 팀 정의(§9 #1) |
-| `participant_mask` | int | 교체 슬롯 비트. `0` = 무교체(`slots` 빈 배열). **2026-09-21 이후 언제나 단일 비트**(1·2·4·8)다 — 편집본이 슬롯 1개당 1개로 정리돼 2명 이상을 한 번에 교체하는 조합이 없어졌다. 필드·타입은 그대로이므로 파싱은 바뀌지 않는다 |
-| `slots[]` | array | 교체 대상만 — 위 변경으로 **0개 또는 1개**다(배열 형태는 유지). `anchor` 는 **썸네일 대비 0~1 비율**(`x`·`r` 가로, `y` 세로)로 베이스에 곱하면 대략의 인물 자리다. **위치 힌트**이고 픽셀 bbox 는 없다. 옛 챌린지는 `null` 일 수 있다 |
+| `slot` | object \| null | **교체할 자리 하나** *(2026-09-22 — 구 `slots[]` 배열 + 바깥 `participant_mask`)*. CHALLENGE 는 언제나 있고, MOTIF 는 `null` 이다 |
+| `slot.participant_mask` | int | **단일 비트**(1·2·4·8 = `1 << slot_order`). 합성 자체에는 쓰이지 않는다 — 누구를 바꿀지는 베이스 영상(그 사람이 이미 지워져 있다)과 `anchor` 가 말한다. **로그에서 어느 자리 잡인지 가리는 식별자**로 쓴다 |
+| `slot.anchor` | object \| null | **썸네일 대비 0~1 비율**(`x`·`r` 가로, `y` 세로)로 베이스에 곱하면 대략의 인물 자리다. **위치 힌트**이고 픽셀 bbox 는 없다. 옛 챌린지는 `null` 일 수 있다 |
 | `base_duration_ms` | int | 베이스 길이(ms). 결과 길이의 기준 |
 
 **접수 서비스가 줄 응답**
@@ -248,8 +268,10 @@ POST https://j15d104.p.ssafy.io/api/worker/v1/composite-jobs/{job_uuid}/failed
 |---|---|
 | `raw/{job_uuid}.mp4` | 사용자 촬영본 |
 | `private/edited/{challengeSeq}/{challengeParticipantSeq}/{uuid}.mp4` | 슬롯 인물이 지워진 편집본 |
-| `challenges/{uuid}.mp4` | 챌린지 원본(무교체 베이스) |
 | `assets/{uuid}.mp4` | 모티프 에셋 원본 |
+
+`challenges/{uuid}.mp4`(챌린지 원본)가 베이스로 오는 일은 **없다** *(2026-09-22)* —
+무교체가 폐기돼 CHALLENGE 베이스는 언제나 편집본이다.
 
 `raw/` 는 7일 뒤 삭제될 수 있다 — 없으면 `INPUT_NOT_FOUND` 로 보고한다.
 
@@ -340,7 +362,7 @@ S3_BUCKET=motif-media
 | 1 | `correction_enabled` 가 켜지면 무엇을 하나 | AI 팀 정의. 백엔드는 값만 전달 |
 | 2 | 결과 오디오 — 베이스 음원만? 촬영본 음성도? | 베이스 음원만 |
 | 3 | 실패 코드(§6) 중 실제로 구분 가능한 것 | 표 그대로. 구분 못 하는 것은 뺀다 |
-| 4 | 슬롯을 둘 이상 고른 경우 촬영본 1개를 어떻게 넣나 | AI 팀 정의. 못 하면 앱에서 단일 선택으로 막는다 |
+| ~~4~~ | ~~슬롯을 둘 이상 고른 경우 촬영본 1개를 어떻게 넣나~~ | **종결 (2026-09-22)** — 앱이 단일 선택으로 막는다. `slot` 이 배열이 아니라 하나인 것이 그 결과다 |
 | 5 | 합성 위치 — `anchor` 힌트로 충분한가, 편집본 옆 사이드카(마스크)가 필요한가 | 사이드카가 필요하면 AI 팀 규약으로 둔다. 백엔드 변경 없음 |
 | 6 | MOTIF 결과 방향 — 에셋(가로) + 촬영본(세로) | 베이스(에셋)를 따른다 |
 | 7 | 잡 1개 벽시계 시간 · `--task-timeout` | 30분. 실측 후 조정 |

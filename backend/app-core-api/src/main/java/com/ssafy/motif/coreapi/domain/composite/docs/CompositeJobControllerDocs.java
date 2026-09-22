@@ -58,25 +58,26 @@ public interface CompositeJobControllerDocs {
 
             `challengeSeq`·`assetSeq` 가 어긋나면 400 `INVALID_PARAMETER` 이고 `data` 에 필드
             오류 배열이 실린다 — 무시하지 않고 거절한다. DB 도 두 칸이 함께 차는 것을 막는다.
-            `participantMask` 만 MOTIF 에서 조용히 무시된다.
+            `challengeParticipantSeq` 만 MOTIF 에서 조용히 무시된다.
 
-            ### participantMask — 교체할 슬롯 하나 (CHALLENGE)
+            ### challengeParticipantSeq — 교체할 슬롯 (CHALLENGE 필수)
 
-            §7.2 의 `participants[].participantMask` 를 **그대로** 보낸다. 슬롯마다 **단일
-            비트**(1, 2, 4, 8 = `1 << slotOrder`)다.
+            §7.5 가 준 `challengeParticipantSeq` 를 **그대로** 보낸다. 비트 마스크를 받지
+            않는다 — 앱이 `1 << slotOrder` 같은 연산을 하게 두지 않는다(2026-09-21).
 
-            **여러 슬롯을 합산하지 않는다.** 편집본이 슬롯 1개당 1개라 2명 이상을 한 번에
-            교체하는 조합이 없다 — 사용자가 고르는 것은 함께할 아티스트 한 명이다.
+            **합성은 언제나 슬롯 한 자리를 대체한다** (2026-09-22). 원본 위에 얹는 무교체
+            합성은 없어졌다 — 편집본이 슬롯 1개당 1개이고 사용자가 고르는 것도 함께할
+            아티스트 한 명이라, 아무도 지워지지 않은 영상을 베이스로 쓸 자리가 없다.
 
             | 값 | 서버 동작 |
             |---|---|
-            | `0` 또는 생략 | 무교체 — `challenge_participant_seq = NULL` 로 원본 위에 합성 |
-            | 단일 비트 | 그 슬롯을 조회해 잡에 기록. 슬롯이 없거나 편집본이 없으면 **404** |
-            | 조합(비트 2개 이상) | **400** `INVALID_PARAMETER` — 보낼 수 없는 값이다 |
+            | 슬롯 seq | 그 슬롯을 조회해 잡에 기록. 슬롯이 없거나 편집본이 없으면 **404** |
+            | 생략 | **400** `INVALID_PARAMETER` — `data` 에 `challengeParticipantSeq` |
 
-            `EDITED_CHALLENGE_NOT_FOUND` 는 그 자리에 슬롯이 없거나, 슬롯은 있는데 어드민이
-            편집본을 아직 안 올린 경우다. 후자는 정상적으로 일어날 수 있고 §7.2 의
-            `participants[].selectable` 이 화면에서 미리 걸러 준다.
+            `EDITED_CHALLENGE_NOT_FOUND` 는 그 슬롯이 없거나, **다른 챌린지의 슬롯**이거나,
+            슬롯은 맞는데 어드민이 편집본을 아직 안 올린 경우다. 셋을 가르지 않는 이유는
+            §1.8 이다. 마지막 경우는 정상적으로 일어나고 — 등록 직후에는 모든 슬롯이 그
+            상태다 — §7.5 의 `initialSceneUrl` 이 `null` 이라 화면이 미리 잠근다.
 
             ### MOTIF 이용 권한 — 선결제 원칙
 

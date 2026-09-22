@@ -15,7 +15,6 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +30,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 /**
- * AI 접수 호출 (AI 서버 명세 §3.2 응답표 · 작업명세 §4.2 — S15P21D104-536).
+ * AI 접수 호출 (AI 서버 명세 §4 응답표 · 작업명세 §4.2 — S15P21D104-536).
  *
  * <p><b>가르는 것은 202 하나다.</b> 202 면 {@code PROCESSING} 으로 넘기고, 그 밖의 응답과
  * 예외는 전부 "상태 유지 + WARN" 이다 — 401(설정 오류)은 재시도해도 같고 503(쿼터·일시
@@ -78,7 +77,8 @@ class CompositeJobSubmitterTest {
                 .andExpect(jsonPath("$.job_uuid").value(JOB_UUID.toString()))
                 .andExpect(jsonPath("$.output_video_key")
                         .value("results/challenge/" + JOB_UUID + ".mp4"))
-                .andExpect(jsonPath("$.participant_mask").value(0))
+                // 슬롯은 배열이 아니라 객체 하나다(2026-09-22) — 배열로 나가면 AI 가 못 읽는다
+                .andExpect(jsonPath("$.slot.participant_mask").value(2))
                 .andRespond(withStatus(HttpStatus.ACCEPTED)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body("{\"execution\":\"projects/x/executions/motif-compose-abc12\"}"));
@@ -141,12 +141,14 @@ class CompositeJobSubmitterTest {
                 Duration.ofMinutes(1), Duration.ofMinutes(2), Duration.ofMinutes(30));
     }
 
-    /** 조립기(187)가 만드는 것과 같은 모양 — 무교체 CHALLENGE. */
+    /** 조립기(187)가 만드는 것과 같은 모양 — 슬롯 하나를 교체하는 CHALLENGE. */
     private static CompositeJobPayload payload() {
         return new CompositeJobPayload(JOB_UUID, "CHALLENGE", (short) 1,
                 "raw/" + JOB_UUID + ".mp4",
-                "challenges/8a1b.mp4",
+                "private/edited/11/31/7d2f.mp4",
                 "results/challenge/" + JOB_UUID + ".mp4",
-                true, 0, List.of(), 15_000);
+                true,
+                new CompositeJobPayload.Slot(2, new CompositeJobPayload.Anchor(0.72, 0.34, 0.0995)),
+                15_000);
     }
 }

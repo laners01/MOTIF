@@ -503,7 +503,7 @@ class AdminChallengeServiceLocalDbTest {
     void 삭제는_자식을_연쇄하지_않는다() {
         ChallengeSlotsResponse created = create(List.of(slot(newArtist())));
         Integer seq = created.challengeSeq();
-        newParticipationVideo(seq);
+        newParticipationVideo(seq, created.participants().getFirst().challengeParticipantSeq());
         newChallengeComment(seq);
 
         adminChallengeService.delete(ADMIN, seq);
@@ -652,20 +652,23 @@ class AdminChallengeServiceLocalDbTest {
     /**
      * 참여 영상 한 건 (§3.7.7 확인 대화상자가 세는 대상) — 삭제가 이 행을 건드리면 안 된다.
      *
-     * <p>{@code job_seq} 가 NOT NULL UNIQUE FK 라 잡을 먼저 만든다. 잡은 슬롯이 아니라
-     * 원본 위 합성이므로 {@code challenge_participant_seq} 는 NULL 이다.
+     * <p>{@code job_seq} 가 NOT NULL UNIQUE FK 라 잡을 먼저 만든다. 잡은 <b>슬롯을
+     * 가리켜야 한다</b> — 무교체가 폐기돼 {@code ck_composite_jobs_type_shape} 가
+     * {@code challenge_participant_seq} 를 요구한다(changeSet 0021).
+     *
+     * @param slotSeq 그 챌린지의 슬롯. 호출부가 등록 응답에서 꺼내 넘긴다
      */
-    private void newParticipationVideo(Integer challengeSeq) {
+    private void newParticipationVideo(Integer challengeSeq, Integer slotSeq) {
         inTransaction(() -> {
             UUID jobUuid = UUID.randomUUID();
             Integer userSeq = newUser("USER");
             execute("""
                     insert into motif_core.composite_jobs
-                        (job_uuid, job_type, user_seq, challenge_seq, raw_video_key,
-                         status, result_video_key, result_thumbnail_key)
-                    values (?1, 'CHALLENGE', ?2, ?3, 'raw/x.mp4',
+                        (job_uuid, job_type, user_seq, challenge_seq, challenge_participant_seq,
+                         raw_video_key, status, result_video_key, result_thumbnail_key)
+                    values (?1, 'CHALLENGE', ?2, ?3, ?4, 'raw/x.mp4',
                             'DONE', 'videos/x.mp4', 'videos/x.jpg')
-                    """, jobUuid, userSeq, challengeSeq);
+                    """, jobUuid, userSeq, challengeSeq, slotSeq);
             Integer jobSeq = scalar("select job_seq from motif_core.composite_jobs where job_uuid = ?1",
                     jobUuid);
             execute("""

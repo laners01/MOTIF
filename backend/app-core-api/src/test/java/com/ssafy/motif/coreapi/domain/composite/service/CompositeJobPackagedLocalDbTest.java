@@ -12,6 +12,8 @@ import com.ssafy.motif.domain.core.asset.AssetType;
 import com.ssafy.motif.domain.core.asset.MotifAsset;
 import com.ssafy.motif.domain.core.asset.MotifAssetRepository;
 import com.ssafy.motif.domain.core.challenge.Challenge;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipant;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
 import com.ssafy.motif.domain.core.challenge.ChallengeRepository;
 import com.ssafy.motif.domain.core.job.CompositeJob;
 import com.ssafy.motif.domain.core.job.CompositeJobRepository;
@@ -78,6 +80,8 @@ class CompositeJobPackagedLocalDbTest {
     private MotifResultQueryService motifResultQueryService;
     @Autowired
     private ChallengeRepository challengeRepository;
+    @Autowired
+    private ChallengeParticipantRepository participantRepository;
     @Autowired
     private MotifAssetRepository motifAssetRepository;
     @Autowired
@@ -329,7 +333,7 @@ class CompositeJobPackagedLocalDbTest {
     private CompositeJob processingChallengeJob() {
         Integer challengeSeq = newChallenge();
         CompositeJob job = CompositeJob.create(UUID.randomUUID(), JobType.CHALLENGE, fanSeq,
-                challengeSeq, null, null, "raw/" + UUID.randomUUID() + ".mp4");
+                challengeSeq, null, newSlot(challengeSeq), "raw/" + UUID.randomUUID() + ".mp4");
         job.queue(true);
         job.markSubmitted();
         compositeJobRepository.saveAndFlush(job);
@@ -392,6 +396,21 @@ class CompositeJobPackagedLocalDbTest {
         return challengeSeq;
     }
 
+    /**
+     * 편집본까지 채운 슬롯 하나 — CHALLENGE 잡은 언제나 슬롯을 가리킨다
+     * ({@code ck_composite_jobs_type_shape}, 0021).
+     */
+    private Integer newSlot(Integer challengeSeq) {
+        ChallengeParticipant slot = participantRepository.saveAndFlush(ChallengeParticipant.of(
+                challengeSeq, artistSeq, 0,
+                new ChallengeParticipant.Anchor(0.22, 0.36, 0.0995)));
+        String prefix = "private/edited/" + challengeSeq + "/"
+                + slot.getChallengeParticipantSeq() + "/";
+        slot.replaceEditedKeys(prefix + UUID.randomUUID() + ".mp4",
+                prefix + UUID.randomUUID() + ".jpg", null, 15_000);
+        return participantRepository.saveAndFlush(slot).getChallengeParticipantSeq();
+    }
+
     private MotifAsset newAsset() {
         String uuid = UUID.randomUUID().toString();
         MotifAsset asset = motifAssetRepository.saveAndFlush(MotifAsset.register(
@@ -408,6 +427,9 @@ class CompositeJobPackagedLocalDbTest {
                     execute("delete from motif_core.motif_results where job_seq = ?1", seq));
             createdJobs.forEach(seq ->
                     execute("delete from motif_core.composite_jobs where job_seq = ?1", seq));
+            // 슬롯은 챌린지보다 먼저 — FK 가 ON DELETE RESTRICT 다
+            createdChallenges.forEach(seq -> execute(
+                    "delete from motif_core.challenge_participants where challenge_seq = ?1", seq));
             createdChallenges.forEach(seq ->
                     execute("delete from motif_core.challenges where challenge_seq = ?1", seq));
             createdSongs.forEach(seq ->
