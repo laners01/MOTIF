@@ -31,6 +31,18 @@ interface CommentRepository {
         parentCommentId: Long? = null,
     ): Flow<Long>
 
+    fun getVideoComments(
+        videoId: Long,
+        page: Int = DEFAULT_PAGE,
+        size: Int = DEFAULT_PAGE_SIZE,
+    ): Flow<OffsetPage<Comment>>
+
+    fun createVideoComment(
+        videoId: Long,
+        content: String,
+        parentCommentId: Long? = null,
+    ): Flow<Long>
+
     fun getReplies(
         type: CommentType,
         commentId: Long,
