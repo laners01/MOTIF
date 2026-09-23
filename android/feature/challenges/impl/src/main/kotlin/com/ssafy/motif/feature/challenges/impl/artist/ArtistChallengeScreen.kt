@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ import com.ssafy.motif.core.designsystem.R as DesignSystemR
 @Composable
 internal fun ArtistChallengeScreen(
     myProfileImageUrl: String,
+    initialChallengeId: Long? = null,
     onArtistClick: (Long) -> Unit,
     onParticipationClick: (Long) -> Unit,
     onCaptureClick: (
@@ -66,6 +68,15 @@ internal fun ArtistChallengeScreen(
     val commentUiState by
     viewModel.commentUiState
         .collectAsStateWithLifecycle()
+
+    LaunchedEffect(
+        initialChallengeId,
+    ) {
+        viewModel.initialize(
+            initialChallengeId =
+                initialChallengeId,
+        )
+    }
 
     when (val state = uiState) {
         ArtistChallengeUiState.Loading -> {
@@ -186,7 +197,7 @@ private fun ArtistChallengeErrorScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ArtistChallengeScreen(
+private fun ArtistChallengeScreen(
     challenges: List<Challenge>,
     myProfileImageUrl: String,
     commentUiState: CommentUiState,

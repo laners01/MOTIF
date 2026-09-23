@@ -73,6 +73,7 @@ internal fun MyPageScreen(
     onSettingsClick: () -> Unit = {},
     onCreateClick: () -> Unit = {},
     onChallengeClick: (Long) -> Unit = {},
+    onLikedChallengeClick: (UserActivityTargetType, Long) -> Unit = { _, _ -> },
     onArtistSeeMoreClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MyPageViewModel = hiltViewModel(),
@@ -128,6 +129,8 @@ internal fun MyPageScreen(
             onCreateClick,
         onChallengeClick =
             onChallengeClick,
+        onLikedChallengeClick =
+            onLikedChallengeClick,
         onArtistCardClick =
             viewModel::onArtistCardClick,
         onArtistSeeMoreClick =
@@ -160,7 +163,7 @@ internal fun MyPageScreen(
 }
 
 @Composable
-internal fun MyPageScreen(
+private fun MyPageScreen(
     uiState: MyPageUiState,
     onNotificationClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -168,6 +171,7 @@ internal fun MyPageScreen(
     onLoadMoreLiked: () -> Unit,
     onCreateClick: () -> Unit,
     onChallengeClick: (Long) -> Unit,
+    onLikedChallengeClick: (UserActivityTargetType, Long) -> Unit,
     onArtistCardClick: (Long) -> Unit,
     onArtistSeeMoreClick: (Long) -> Unit,
     onLikedFocusChange: (Int) -> Unit,
@@ -659,8 +663,8 @@ internal fun MyPageScreen(
                                             uiState.likedFocusedIndex,
                                         onFocusChange =
                                             onLikedFocusChange,
-                                        onChallengeClick =
-                                            onChallengeClick,
+                                        onLikedChallengeClick =
+                                            onLikedChallengeClick,
                                     )
                                 }
 
@@ -704,7 +708,7 @@ private fun LikedChallengeContent(
     challenges: List<LikedChallengeUiModel>,
     focusedIndex: Int,
     onFocusChange: (Int) -> Unit,
-    onChallengeClick: (Long) -> Unit,
+    onLikedChallengeClick: (UserActivityTargetType, Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -732,14 +736,10 @@ private fun LikedChallengeContent(
                         index,
                     ) ?: return@LikedChallengeCarousel
 
-                if (
-                    challenge.targetType ==
-                    UserActivityTargetType.VIDEO
-                ) {
-                    onChallengeClick(
-                        challenge.id,
-                    )
-                }
+                onLikedChallengeClick(
+                    challenge.targetType,
+                    challenge.id,
+                )
             },
         )
 
@@ -789,7 +789,6 @@ private fun LikedChallengeContent(
             }
     }
 }
-
 @Composable
 private fun ProfileLoading(
     modifier: Modifier = Modifier,

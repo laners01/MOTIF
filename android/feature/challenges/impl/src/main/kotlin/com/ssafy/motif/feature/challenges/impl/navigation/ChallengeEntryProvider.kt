@@ -2,6 +2,7 @@ package com.ssafy.motif.feature.challenges.impl.navigation
 
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
+import com.ssafy.motif.feature.challenges.api.navigation.ArtistChallengeNavKey
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeParticipationNavKey
 import com.ssafy.motif.feature.challenges.impl.artist.ArtistChallengeScreen
@@ -26,6 +27,29 @@ fun EntryProviderScope<NavKey>.challengeEntry(
         ArtistChallengeScreen(
             myProfileImageUrl =
                 myProfileImageUrl,
+            initialChallengeId =
+                null,
+            onArtistClick =
+                onArtistClick,
+            onParticipationClick =
+                onParticipationClick,
+            onCaptureClick =
+                onCaptureClick,
+            onHomeClick =
+                onHomeClick,
+            onMyClick =
+                onMyClick,
+            onMotifClick =
+                onMotifClick,
+        )
+    }
+
+    entry<ArtistChallengeNavKey> { key ->
+        ArtistChallengeScreen(
+            myProfileImageUrl =
+                myProfileImageUrl,
+            initialChallengeId =
+                key.initialChallengeId,
             onArtistClick =
                 onArtistClick,
             onParticipationClick =

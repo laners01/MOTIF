@@ -1,14 +1,9 @@
 package com.ssafy.motif.ui
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -18,11 +13,13 @@ import androidx.navigation3.ui.NavDisplay
 import com.ssafy.motif.core.designsystem.component.GlassNavigationBarDefaults
 import com.ssafy.motif.core.designsystem.glass.glassBackdrop
 import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
+import com.ssafy.motif.core.model.user.UserActivityTargetType
 import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
 import com.ssafy.motif.feature.capture.impl.navigation.captureEntry
+import com.ssafy.motif.feature.challenges.api.navigation.ArtistChallengeNavKey
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeParticipationNavKey
 import com.ssafy.motif.feature.challenges.impl.navigation.challengeEntry
@@ -41,7 +38,7 @@ import com.ssafy.motif.navigation.AppGlassNavigationBarMode
 fun MotifApp(
     appState: MotifAppState,
     modifier: Modifier = Modifier,
-    myProfileImageUrl: String = "",
+    myProfileImageUrl: String = "https://i.namu.wiki/i/UrOyzR3UM58sJpKFwGILzDAVo6pOAqT8fY8wSMszt2Z78mRcTG3znpyTcqsRAy3c4AvBSFfhKUTdcS1m4KW0lA.webp",
 ) {
     val navigator = remember(
         appState.navigationState,
@@ -149,8 +146,6 @@ fun MotifApp(
         )
 
         myPageEntry(
-            navigator =
-                navigator,
             onChallengeClick = {
                     videoId,
                 ->
@@ -160,6 +155,30 @@ fun MotifApp(
                             videoId,
                     ),
                 )
+            },
+            onLikedChallengeClick = {
+                    targetType,
+                    targetId,
+                ->
+                when (targetType) {
+                    UserActivityTargetType.VIDEO -> {
+                        navigator.navigate(
+                            ChallengeParticipationNavKey(
+                                initialVideoId =
+                                    targetId,
+                            ),
+                        )
+                    }
+
+                    UserActivityTargetType.CHALLENGE -> {
+                        navigator.navigate(
+                            ArtistChallengeNavKey(
+                                initialChallengeId =
+                                    targetId,
+                            ),
+                        )
+                    }
+                }
             },
         )
 
