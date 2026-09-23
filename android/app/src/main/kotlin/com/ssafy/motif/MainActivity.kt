@@ -6,8 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -35,6 +37,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    private val viewModel:
+            MainActivityViewModel by viewModels()
+
     override fun onCreate(
         savedInstanceState: Bundle?,
     ) {
@@ -61,6 +66,27 @@ class MainActivity : ComponentActivity() {
                     initialValue =
                         AuthState.Initializing,
                 )
+
+            val myProfileImageUrl by
+            viewModel
+                .myProfileImageUrl
+                .collectAsStateWithLifecycle()
+
+            LaunchedEffect(authState) {
+                when (authState) {
+                    AuthState.SignedIn -> {
+                        viewModel.loadUserProfile()
+                    }
+
+                    AuthState.SignedOut -> {
+                        viewModel.clearUserProfile()
+                    }
+
+                    AuthState.Initializing,
+                    AuthState.OnboardingRequired,
+                        -> Unit
+                }
+            }
 
             MotifTheme {
                 when (val state = authState) {
@@ -115,8 +141,9 @@ class MainActivity : ComponentActivity() {
                                 )
 
                             MotifApp(
-                                appState =
-                                    appState,
+                                appState = appState,
+                                myProfileImageUrl =
+                                    myProfileImageUrl.orEmpty(),
                             )
                         }
                     }

@@ -53,6 +53,9 @@ internal fun CommentItem(
     ) {
         AsyncImage(
             model = comment.profileImageUrl,
+            placeholder = painterResource(DesignSystemR.drawable.img_default_profile),
+            error = painterResource(DesignSystemR.drawable.img_default_profile),
+            fallback = painterResource(DesignSystemR.drawable.img_default_profile),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier

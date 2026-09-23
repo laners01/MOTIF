@@ -6,6 +6,7 @@ import com.ssafy.motif.core.data.mapper.toModel
 import com.ssafy.motif.core.data.model.CursorPage
 import com.ssafy.motif.core.model.user.UserActivity
 import com.ssafy.motif.core.model.user.UserOverview
+import com.ssafy.motif.core.model.user.UserProfile
 import com.ssafy.motif.core.model.user.UserProfileDetail
 import com.ssafy.motif.core.model.user.UserSubscription
 import com.ssafy.motif.core.model.user.UserVideo
@@ -13,8 +14,12 @@ import com.ssafy.motif.core.network.service.user.UserClient
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.update
 
 internal class UserRepositoryImpl @Inject constructor(
     private val userClient: UserClient,
@@ -22,12 +27,28 @@ internal class UserRepositoryImpl @Inject constructor(
     private val ioDispatcher: CoroutineDispatcher,
 ) : UserRepository {
 
+    private val _currentUserProfile =
+        MutableStateFlow<UserProfile?>(
+            null,
+        )
+
+    override val currentUserProfile: StateFlow<UserProfile?> =
+        _currentUserProfile.asStateFlow()
+
     override fun getUserOverview(): Flow<UserOverview> =
         flow {
             val response =
                 userClient.getMe()
 
-            emit(response.toModel())
+            val overview =
+                response.toModel()
+
+            _currentUserProfile.value =
+                overview.profile
+
+            emit(
+                overview,
+            )
         }.flowOn(ioDispatcher)
 
     override fun updateNickname(
@@ -39,7 +60,15 @@ internal class UserRepositoryImpl @Inject constructor(
                     nickname = nickname,
                 )
 
-            emit(updatedNickname)
+            _currentUserProfile.update { profile ->
+                profile?.copy(
+                    nickname = updatedNickname,
+                )
+            }
+
+            emit(
+                updatedNickname,
+            )
         }.flowOn(ioDispatcher)
 
     override fun updateProfileImage(
@@ -65,7 +94,15 @@ internal class UserRepositoryImpl @Inject constructor(
                     imageKey = presign.imageKey,
                 )
 
-            emit(profileImageUrl)
+            _currentUserProfile.update { profile ->
+                profile?.copy(
+                    profileImageUrl = profileImageUrl,
+                )
+            }
+
+            emit(
+                profileImageUrl,
+            )
         }.flowOn(ioDispatcher)
 
     override fun getUserProfile(
@@ -77,7 +114,9 @@ internal class UserRepositoryImpl @Inject constructor(
                     id = id,
                 )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun getSubscriptions():
@@ -86,7 +125,9 @@ internal class UserRepositoryImpl @Inject constructor(
             val response =
                 userClient.getSubscriptions()
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun getVideos(): Flow<List<UserVideo>> =
@@ -94,7 +135,9 @@ internal class UserRepositoryImpl @Inject constructor(
             val response =
                 userClient.getVideos()
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun getActivities(
@@ -108,6 +151,12 @@ internal class UserRepositoryImpl @Inject constructor(
                     size = size,
                 )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
+
+    override fun clearCurrentUserProfile() {
+        _currentUserProfile.value = null
+    }
 }

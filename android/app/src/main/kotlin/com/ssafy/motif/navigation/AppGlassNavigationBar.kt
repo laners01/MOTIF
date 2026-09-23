@@ -38,6 +38,7 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.motif.api.navigation.MotifSubMenu
 import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
+import com.ssafy.motif.core.designsystem.R as designSystemR
 
 internal enum class AppGlassNavigationBarMode {
     MAIN,
@@ -306,6 +307,7 @@ private fun MyNavigationIcon(
 ) {
     AsyncImage(
         model = profileImageUrl,
+        placeholder = painterResource(designSystemR.drawable.img_default_profile),
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier

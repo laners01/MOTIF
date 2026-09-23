@@ -58,6 +58,7 @@ abstract class DataModule {
     ): NoticeRepository
 
     @Binds
+    @Singleton
     internal abstract fun bindUserRepository(
         userRepositoryImpl: UserRepositoryImpl,
     ): UserRepository

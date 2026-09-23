@@ -39,7 +39,7 @@ import com.ssafy.motif.navigation.AppGlassNavigationBarMode
 fun MotifApp(
     appState: MotifAppState,
     modifier: Modifier = Modifier,
-    myProfileImageUrl: String = "https://i.namu.wiki/i/UrOyzR3UM58sJpKFwGILzDAVo6pOAqT8fY8wSMszt2Z78mRcTG3znpyTcqsRAy3c4AvBSFfhKUTdcS1m4KW0lA.webp",
+    myProfileImageUrl: String,
 ) {
     val navigator = remember(
         appState.navigationState,
