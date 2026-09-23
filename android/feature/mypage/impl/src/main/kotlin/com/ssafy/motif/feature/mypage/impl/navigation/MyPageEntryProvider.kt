@@ -8,6 +8,7 @@ import com.ssafy.motif.feature.mypage.impl.mypage.MyPageScreen
 
 fun EntryProviderScope<NavKey>.myPageEntry(
     navigator: Navigator,
+    onChallengeClick: (Long) -> Unit,
 ) {
     entry<MyPageNavKey> {
         MyPageScreen(
@@ -20,10 +21,11 @@ fun EntryProviderScope<NavKey>.myPageEntry(
             onCreateClick = {
                 // TODO Challenge 메인 탭으로 이동
             },
-            onChallengeClick = { videoId ->
-                // TODO 내 참여영상 뷰어로 이동
-            },
-            onArtistSeeMoreClick = { artistId ->
+            onChallengeClick =
+                onChallengeClick,
+            onArtistSeeMoreClick = {
+                    artistId,
+                ->
                 // TODO ArtistDetail로 이동
             },
         )

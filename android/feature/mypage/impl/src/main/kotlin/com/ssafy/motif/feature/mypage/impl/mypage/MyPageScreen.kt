@@ -12,11 +12,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -49,6 +54,7 @@ import com.ssafy.motif.core.designsystem.component.TabRowDefaults
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults.tabIndicatorOffset
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
+import com.ssafy.motif.core.model.user.UserActivityTargetType
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeCarousel
@@ -145,7 +151,11 @@ internal fun MyPageScreen(
                 ),
             )
         },
-        modifier = modifier,
+        modifier = modifier.windowInsetsPadding(
+            WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Top,
+            ),
+        ),
     )
 }
 
@@ -646,10 +656,11 @@ internal fun MyPageScreen(
                                         challenges =
                                             state.challenges,
                                         focusedIndex =
-                                            uiState
-                                                .likedFocusedIndex,
+                                            uiState.likedFocusedIndex,
                                         onFocusChange =
                                             onLikedFocusChange,
+                                        onChallengeClick =
+                                            onChallengeClick,
                                     )
                                 }
 
@@ -693,6 +704,7 @@ private fun LikedChallengeContent(
     challenges: List<LikedChallengeUiModel>,
     focusedIndex: Int,
     onFocusChange: (Int) -> Unit,
+    onChallengeClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -708,12 +720,27 @@ private fun LikedChallengeContent(
         LikedChallengeCarousel(
             itemCount =
                 challenges.size,
-            thumbnailUrl = {
-                challenges[it]
+            thumbnailUrl = { index ->
+                challenges[index]
                     .thumbnailUrl
             },
             onSettledPageChange =
                 onFocusChange,
+            onItemClick = { index ->
+                val challenge =
+                    challenges.getOrNull(
+                        index,
+                    ) ?: return@LikedChallengeCarousel
+
+                if (
+                    challenge.targetType ==
+                    UserActivityTargetType.VIDEO
+                ) {
+                    onChallengeClick(
+                        challenge.id,
+                    )
+                }
+            },
         )
 
         challenges
@@ -748,8 +775,7 @@ private fun LikedChallengeContent(
                     is LikedChallengeCommentUiState.Written -> {
                         MyCommentCard(
                             myComment =
-                                commentState
-                                    .myComment,
+                                commentState.myComment,
                             onClick = {},
                             modifier =
                                 Modifier.padding(

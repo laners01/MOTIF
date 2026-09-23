@@ -24,6 +24,7 @@ import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
 import com.ssafy.motif.feature.capture.impl.navigation.captureEntry
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
+import com.ssafy.motif.feature.challenges.api.navigation.ChallengeParticipationNavKey
 import com.ssafy.motif.feature.challenges.impl.navigation.challengeEntry
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
@@ -54,7 +55,23 @@ fun MotifApp(
 
     val entryProvider = entryProvider {
         homeEntry(
-            navigator = navigator,
+            onOnstageClick = { videoId ->
+                navigator.navigate(
+                    ChallengeParticipationNavKey(
+                        initialVideoId =
+                            videoId,
+                    ),
+                )
+            },
+            onFanRadarClick = {
+                // TODO 아티스트 랭킹 화면으로 이동
+            },
+            onArtistClick = { artistId ->
+                // TODO 아티스트 상세 화면으로 이동
+            },
+            onMotifClick = { motifId ->
+                // TODO 모티프 상세 화면으로 이동
+            },
         )
 
         challengeEntry(
@@ -78,6 +95,18 @@ fun MotifApp(
             onArtistClick = { artistId ->
                 // 기존 ArtistDetail 연결
             },
+            onParticipationClick = {
+                    challengeId,
+                ->
+                navigator.navigate(
+                    ChallengeParticipationNavKey(
+                        challengeId =
+                            challengeId,
+                    ),
+                )
+            },
+            onBackClick =
+                navigator::goBack,
             onCaptureClick = {
                     challengeId,
                     challengeThumbnailUrl,
@@ -120,7 +149,18 @@ fun MotifApp(
         )
 
         myPageEntry(
-            navigator = navigator,
+            navigator =
+                navigator,
+            onChallengeClick = {
+                    videoId,
+                ->
+                navigator.navigate(
+                    ChallengeParticipationNavKey(
+                        initialVideoId =
+                            videoId,
+                    ),
+                )
+            },
         )
 
         motifEntry(
@@ -139,13 +179,22 @@ fun MotifApp(
 
     val navigationBarMode =
         when {
-            currentTopLevelKey == MotifNavKey &&
-                    currentKey == MotifNavKey -> {
+            currentKey is
+                    ChallengeParticipationNavKey -> {
+                null
+            }
+
+            currentTopLevelKey ==
+                    MotifNavKey &&
+                    currentKey ==
+                    MotifNavKey -> {
                 AppGlassNavigationBarMode.MOTIF
             }
 
-            currentTopLevelKey == HomeNavKey ||
-                    currentTopLevelKey == MyPageNavKey -> {
+            currentTopLevelKey ==
+                    HomeNavKey ||
+                    currentTopLevelKey ==
+                    MyPageNavKey -> {
                 AppGlassNavigationBarMode.MAIN
             }
 
@@ -161,17 +210,21 @@ fun MotifApp(
             entries = appState.navigationState.toEntries(
                 entryProvider = entryProvider,
             ),
+            transitionSpec = {
+                motifPushTransition()
+            },
+            popTransitionSpec = {
+                motifPopTransition()
+            },
+            predictivePopTransitionSpec = {
+                motifPredictivePopTransition()
+            },
             onBack = navigator::goBack,
             modifier = Modifier
                 .fillMaxSize()
                 .glassBackdrop(
                     backdropState,
                 )
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top,
-                    ),
-                ),
         )
 
         navigationBarMode?.let { mode ->

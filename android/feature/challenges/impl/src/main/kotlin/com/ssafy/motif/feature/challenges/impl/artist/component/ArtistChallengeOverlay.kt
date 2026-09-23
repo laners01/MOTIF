@@ -27,6 +27,7 @@ import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.challenge.Challenge
 import com.ssafy.motif.core.ui.video.VideoSongInfo
+import com.ssafy.motif.feature.challenges.impl.component.ShortFormOverlay
 
 @Composable
 internal fun ArtistChallengeOverlay(
@@ -35,12 +36,13 @@ internal fun ArtistChallengeOverlay(
     onArtistClick: () -> Unit,
     onSubscribeClick: (Long) -> Unit,
     onDescriptionClick: () -> Unit,
+    onParticipationClick: () -> Unit,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onCaptureClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    _root_ide_package_.com.ssafy.motif.feature.challenges.impl.component.ShortFormOverlay(
+    ShortFormOverlay(
         modifier = modifier,
         actions = {
             ChallengeShortFormActions(
@@ -57,6 +59,8 @@ internal fun ArtistChallengeOverlay(
                 onArtistClick = onArtistClick,
                 onSubscribeClick = onSubscribeClick,
                 onDescriptionClick = onDescriptionClick,
+                onParticipationClick =
+                    onParticipationClick,
             )
         },
     )
@@ -69,6 +73,7 @@ private fun ChallengeShortFormInformation(
     onArtistClick: () -> Unit,
     onSubscribeClick: (Long) -> Unit,
     onDescriptionClick: () -> Unit,
+    onParticipationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -131,9 +136,14 @@ private fun ChallengeShortFormInformation(
         )
 
         VideoSongInfo(
-            artistName = challenge.song.artistName,
-            songTitle = challenge.song.title,
-            backdropState = backdropState,
+            artistName =
+                challenge.song.artistName,
+            songTitle =
+                challenge.song.title,
+            backdropState =
+                backdropState,
+            onClick =
+                onParticipationClick,
         )
     }
 }
