@@ -105,9 +105,9 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      * 을 걸렀으나 공개 사본 트리가 폐기되면서 그 구간이 사라졌다(ADR-0013). 참여
      * 영상은 전부 보호 등급이므로 프리픽스로 거르면 후보가 전멸한다.
      *
-     * <p>집계 없이 전량을 준다 — 감쇠가 영상 하나하나에 걸려야 의미가 있다. 5분에
-     * 한 번이라 전량 스캔이 부담되지 않는다({@code ChallengeRepository.findRankingInputs}
-     * 와 같은 판단).
+     * <p>집계 없이 전량을 준다 — 누적 항이 영상 하나하나의 조회수에서 나온다. 배치가
+     * 한 주기({@code motif.view.interval})에 한 번이라 전량 스캔이 부담되지 않는다
+     * ({@code ChallengeRepository.findRankingInputs} 와 같은 판단).
      */
     @Query("""
             select new com.ssafy.motif.domain.core.video.VideoScoreRow(
@@ -128,7 +128,8 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      * (API 명세 §6.1).
      *
      * <p><b>비노출 조건을 한 번 더 건다.</b> {@link #findRankingInputs} 가 이미 걸렀지만
-     * 스냅샷은 5분마다 갱신되므로 그 사이에 삭제·비공개로 바뀐 영상이 남아 있다.
+     * 스냅샷은 한 주기({@code motif.view.interval})에 한 번만 갱신되므로 그 사이에
+     * 삭제·비공개로 바뀐 영상이 남아 있다.
      * 명세 §1.8 은 조회 API <b>전부</b>에 적용되는 규칙이라 읽는 쪽에서 막는다.
      *
      * <p>그래서 결과가 요청한 {@code videoSeqs} 보다 적을 수 있고, 응답의 {@code rank}
@@ -172,8 +173,8 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      * <p><b>왜 SQL 인가.</b> §5.1·§6.1 의 점수는 시간 감쇠가 있어 {@code now} 를 주입해야
      * 했고, 그래서 순수 Java 클래스로 뺐다. 여기 점수는 <b>저장된 칼럼만의 함수</b>라
      * 시간축이 없고, Java 로 빼면 정렬을 위해 <b>그 챌린지의 후보 전량</b>을 매 요청마다
-     * 읽어야 한다(§6.1 은 5분에 한 번 도는 배치라 전량 스캔이 허용됐다). 대신 순서
-     * 검증은 local-db 테스트가 맡는다.
+     * 읽어야 한다(§6.1 은 {@code motif.view.interval} 에 한 번 도는 배치라 전량 스캔이
+     * 허용됐다). 대신 순서 검증은 local-db 테스트가 맡는다.
      *
      * <p>상수로 둔 것은 {@code where}(커서 비교)와 {@code order by} 가 <b>같은 식</b>을
      * 써야 하기 때문이다. 문자열을 두 번 적으면 한쪽만 고쳤을 때 페이지 경계에서만
@@ -252,7 +253,8 @@ public interface ParticipationVideoRepository extends JpaRepository<Participatio
      *
      * <p>{@link #findFeedKeys} 가 이미 비노출을 걸렀고 같은 트랜잭션 안이라 조건을 다시
      * 걸지 않는다 — §6.1 {@link #findHotCards} 가 한 번 더 거는 것은 그쪽 입력이
-     * <b>5분 전 스냅샷</b>이라서다. 여기 입력은 방금 읽은 것이다.
+     * <b>한 주기 전 스냅샷</b>({@code motif.view.interval})이라서다. 여기 입력은 방금
+     * 읽은 것이다.
      *
      * <p>작성자와 잡을 함께 조인한다. {@code jobUuid} 는 보호 등급 영상의 재생목록
      * 주소를 만드는 재료다(§1.7) — 보호 등급만 골라 따로 읽으면 페이지당 왕복이
