@@ -1,12 +1,15 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
-import com.ssafy.motif.core.model.artist.ArtistSubscription
+import com.ssafy.motif.core.model.user.UserSubscription
 
 internal sealed interface MyArtistUiState {
+
+    data object Idle : MyArtistUiState
+
     data object Loading : MyArtistUiState
 
     data class Success(
-        val artists: List<ArtistSubscription>,
+        val artists: List<UserSubscription>,
     ) : MyArtistUiState
 
     data class Error(

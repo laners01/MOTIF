@@ -1,13 +1,15 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
-import com.ssafy.motif.core.model.mypage.LikedChallenge
-
 internal sealed interface MyLikedUiState {
+
+    data object Idle : MyLikedUiState
+
     data object Loading : MyLikedUiState
 
     data class Success(
-        val challenges: List<LikedChallenge>,
-        val hasNext:Boolean,
+        val challenges: List<LikedChallengeUiModel>,
+        val nextCursor: String?,
+        val hasNext: Boolean,
         val appendState: MyLikedAppendUiState = MyLikedAppendUiState.Idle,
     ) : MyLikedUiState
 
@@ -17,7 +19,12 @@ internal sealed interface MyLikedUiState {
 }
 
 internal sealed interface MyLikedAppendUiState {
+
     data object Idle : MyLikedAppendUiState
+
     data object Loading : MyLikedAppendUiState
-    data class Error(val exception: Throwable) : MyLikedAppendUiState
+
+    data class Error(
+        val exception: Throwable,
+    ) : MyLikedAppendUiState
 }

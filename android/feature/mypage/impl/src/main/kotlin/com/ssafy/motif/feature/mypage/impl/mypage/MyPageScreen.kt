@@ -1,5 +1,8 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,11 +27,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,8 +49,6 @@ import com.ssafy.motif.core.designsystem.component.TabRowDefaults
 import com.ssafy.motif.core.designsystem.component.TabRowDefaults.tabIndicatorOffset
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.mypage.LikedChallenge
-import com.ssafy.motif.core.model.mypage.LikedChallengeCommentState
 import com.ssafy.motif.core.ui.challenges.ChallengeThumbnail
 import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import com.ssafy.motif.feature.mypage.impl.mypage.component.LikedChallengeCarousel
@@ -54,28 +57,94 @@ import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentCard
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyCommentEmptyContent
 import com.ssafy.motif.feature.mypage.impl.mypage.component.MyProfileSection
 import com.ssafy.motif.feature.mypage.impl.mypage.component.SubscribedArtistCard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
-fun MyPageScreen(
+internal fun MyPageScreen(
+    onNotificationClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onCreateClick: () -> Unit = {},
+    onChallengeClick: (Long) -> Unit = {},
+    onArtistSeeMoreClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MyPageViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by
+    viewModel.uiState.collectAsStateWithLifecycle()
+
+    val context =
+        LocalContext.current
+
+    val coroutineScope =
+        rememberCoroutineScope()
+
+    val launcher =
+        rememberLauncherForActivityResult(
+            contract =
+                ActivityResultContracts.PickVisualMedia(),
+        ) { uri ->
+            if (uri == null) {
+                return@rememberLauncherForActivityResult
+            }
+
+            coroutineScope.launch {
+                runCatching {
+                    readProfileImage(
+                        context = context,
+                        uri = uri,
+                    )
+                }.onSuccess { image ->
+                    viewModel.updateProfileImage(
+                        contentType =
+                            image.contentType,
+                        imageBytes =
+                            image.bytes,
+                    )
+                }.onFailure(
+                    viewModel::onProfileImageSelectionError,
+                )
+            }
+        }
 
     MyPageScreen(
         uiState = uiState,
-        onNotificationClick = viewModel::notificationClick,
-        onSettingsClick = viewModel::settingClick,
-        onTabClick = viewModel::selectTab,
-        onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
-        onCreateClick = viewModel::onCreateClick,
-        onArtistCardClick = viewModel::onArtistCardClick,
-        onLikedFocusChange = viewModel::onLikedFocusChange,
-        onNicknameEditStart = viewModel::onNicknameEditStart,
-        onNicknameChange = viewModel::onNicknameChange,
-        onNicknameEditDone = viewModel::onNicknameEditDone,
-        onNicknameEditCancel = viewModel::onNicknameEditCancel,
-        onProfileImageSelected = viewModel::onProfileImageSelected,
+        onNotificationClick =
+            onNotificationClick,
+        onSettingsClick =
+            onSettingsClick,
+        onTabClick =
+            viewModel::selectTab,
+        onLoadMoreLiked =
+            viewModel::onLoadMoreLiked,
+        onCreateClick =
+            onCreateClick,
+        onChallengeClick =
+            onChallengeClick,
+        onArtistCardClick =
+            viewModel::onArtistCardClick,
+        onArtistSeeMoreClick =
+            onArtistSeeMoreClick,
+        onLikedFocusChange =
+            viewModel::onLikedFocusChange,
+        onNicknameEditStart =
+            viewModel::onNicknameEditStart,
+        onNicknameChange =
+            viewModel::onNicknameChange,
+        onNicknameEditDone =
+            viewModel::onNicknameEditDone,
+        onNicknameEditCancel =
+            viewModel::onNicknameEditCancel,
+        onProfileImageClick = {
+            launcher.launch(
+                PickVisualMediaRequest(
+                    ActivityResultContracts
+                        .PickVisualMedia
+                        .ImageOnly,
+                ),
+            )
+        },
         modifier = modifier,
     )
 }
@@ -86,202 +155,367 @@ internal fun MyPageScreen(
     onNotificationClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onTabClick: (MyPageTab) -> Unit,
-    onLoadMoreChallenges: () -> Unit,
+    onLoadMoreLiked: () -> Unit,
     onCreateClick: () -> Unit,
+    onChallengeClick: (Long) -> Unit,
     onArtistCardClick: (Long) -> Unit,
+    onArtistSeeMoreClick: (Long) -> Unit,
     onLikedFocusChange: (Int) -> Unit,
     onNicknameEditStart: () -> Unit,
     onNicknameChange: (String) -> Unit,
     onNicknameEditDone: () -> Unit,
     onNicknameEditCancel: () -> Unit,
-    onProfileImageSelected: (String?) -> Unit,
+    onProfileImageClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-    ) { uri ->
-        onProfileImageSelected(uri?.toString())
-    }
+    val listState =
+        rememberLazyListState()
 
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(uiState.selectedTab) {
+    LaunchedEffect(
+        uiState.selectedTab,
+    ) {
         listState.scrollToItem(0)
     }
 
-    val challengeSuccess = uiState.challengeState as? MyChallengeUiState.Success
-    val canLoadMore = challengeSuccess != null &&
-            uiState.selectedTab == MyPageTab.Challenge &&
-            challengeSuccess.hasNext &&
-            challengeSuccess.appendState is MyChallengeAppendUiState.Idle
+    val likedSuccess =
+        uiState.likedState
+                as? MyLikedUiState.Success
 
-    val shouldLoadMore by remember(listState, canLoadMore) {
+    val canLoadMore =
+        uiState.selectedTab ==
+                MyPageTab.Liked &&
+                likedSuccess != null &&
+                likedSuccess.hasNext &&
+                likedSuccess.appendState is MyLikedAppendUiState.Idle
+
+    val shouldLoadMore by
+    remember(
+        listState,
+        canLoadMore,
+    ) {
         derivedStateOf {
-            if (!canLoadMore) return@derivedStateOf false
+            if (!canLoadMore) {
+                return@derivedStateOf false
+            }
 
-            val layoutInfo = listState.layoutInfo
-            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                ?: return@derivedStateOf false
+            val layoutInfo =
+                listState.layoutInfo
+
+            val lastVisible =
+                layoutInfo
+                    .visibleItemsInfo
+                    .lastOrNull()
+                    ?.index
+                    ?: return@derivedStateOf false
 
             layoutInfo.totalItemsCount > 0 &&
-                    lastVisible >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+                    lastVisible >=
+                    layoutInfo.totalItemsCount -
+                    LOAD_MORE_THRESHOLD
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(
+        shouldLoadMore,
+    ) {
         if (shouldLoadMore) {
-            onLoadMoreChallenges()
+            onLoadMoreLiked()
         }
     }
-    // 탭 아래 남는 영역의 높이. 빈 상태를 그 한가운데에 놓기 위해 측정한다.
-    var listBottom by remember { mutableFloatStateOf(0f) }
-    var headerBottom by remember { mutableFloatStateOf(0f) }
-    val contentAreaHeight = with(LocalDensity.current) {
-        (listBottom - headerBottom).coerceAtLeast(0f).toDp()
+
+    var listBottom by
+    remember {
+        mutableFloatStateOf(0f)
     }
 
-    Surface(modifier = modifier.fillMaxSize()) {
+    var headerBottom by
+    remember {
+        mutableFloatStateOf(0f)
+    }
+
+    val contentAreaHeight =
+        with(LocalDensity.current) {
+            (
+                    listBottom -
+                            headerBottom
+                    )
+                .coerceAtLeast(0f)
+                .toDp()
+        }
+
+    Surface(
+        modifier =
+            modifier.fillMaxSize(),
+    ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .onGloballyPositioned {
-                    listBottom = it.positionInRoot().y + it.size.height
-                },
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned {
+                        listBottom =
+                            it.positionInRoot().y +
+                                    it.size.height
+                    },
         ) {
-            when (val profileState = uiState.profileState) {
+            when (
+                val profileState =
+                    uiState.profileState
+            ) {
                 ProfileUiState.Loading -> {
-                    item { ProfileLoading() }
+                    item {
+                        ProfileLoading()
+                    }
                 }
 
                 is ProfileUiState.Success -> {
                     item {
                         MyProfileSection(
-                            profile = profileState.profile,
-                            nicknameEdit = uiState.nicknameEdit,
-                            onNicknameEditStart = onNicknameEditStart,
-                            onNicknameChange = onNicknameChange,
-                            onNicknameEditDone = onNicknameEditDone,
-                            onNicknameEditCancel = onNicknameEditCancel,
-                            onNotificationClick = onNotificationClick,
-                            onProfileImageClick = {
-                                launcher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                                )
-                            },
-                            onSettingsClick = onSettingsClick,
+                            profile =
+                                profileState.profile,
+                            nicknameEdit =
+                                uiState.nicknameEdit,
+                            onNicknameEditStart =
+                                onNicknameEditStart,
+                            onNicknameChange =
+                                onNicknameChange,
+                            onNicknameEditDone =
+                                onNicknameEditDone,
+                            onNicknameEditCancel =
+                                onNicknameEditCancel,
+                            onNotificationClick =
+                                onNotificationClick,
+                            onProfileImageClick =
+                                onProfileImageClick,
+                            onSettingsClick =
+                                onSettingsClick,
                         )
                     }
                 }
 
                 is ProfileUiState.Error -> {
-                    item {}
-                }
-            }
-            // 대표 모티프가 설정된 경우에만 프로필과 탭 사이에 노출한다.
-            uiState.representativeMotif?.let { motif ->
-                item {
-                    MotifVideoSection(
-                        videoId = motif.id.toString(),
-                        videoUrl = motif.videoUrl,
-                        thumbnailUrl = motif.thumbnailUrl,
-                        // 위 4dp는 닉네임과의 간격(4+16+4=24dp), 아래 12dp는 탭 글씨와의 간격(12+16=28dp)
-                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
-                    )
+                    item { }
                 }
             }
 
+            uiState
+                .representativeMotif
+                ?.let { motif ->
+                    item {
+                        MotifVideoSection(
+                            videoId =
+                                motif.id.toString(),
+                            videoUrl =
+                                motif.videoUrl,
+                            thumbnailUrl =
+                                motif.thumbnailUrl,
+                            modifier =
+                                Modifier.padding(
+                                    top = 4.dp,
+                                    bottom = 12.dp,
+                                ),
+                        )
+                    }
+                }
+
             stickyHeader {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MotifTheme.colors.background)
-                        // 인디케이터가 TabRow 하단에 붙으므로 아래 여백은 TabRow 바깥에 준다.
-                        .padding(bottom = 24.dp)
-                        .onGloballyPositioned {
-                            headerBottom = it.positionInRoot().y + it.size.height
-                        },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MotifTheme
+                                    .colors
+                                    .background,
+                            )
+                            .padding(
+                                bottom = 24.dp,
+                            )
+                            .onGloballyPositioned {
+                                headerBottom =
+                                    it
+                                        .positionInRoot()
+                                        .y +
+                                            it.size.height
+                            },
                 ) {
                     TabRow(
-                        selectedTabIndex = uiState.selectedTab.ordinal,
-                        containerColor = MotifTheme.colors.background,
+                        selectedTabIndex =
+                            uiState
+                                .selectedTab
+                                .ordinal,
+                        containerColor =
+                            MotifTheme
+                                .colors
+                                .background,
                         divider = {},
-                        indicator = { tabPositions ->
-                            if (uiState.selectedTab.ordinal < tabPositions.size) {
+                        indicator = {
+                                tabPositions,
+                            ->
+                            if (
+                                uiState
+                                    .selectedTab
+                                    .ordinal <
+                                tabPositions.size
+                            ) {
                                 TabRowDefaults.Indicator(
-                                    modifier = Modifier
-                                        .tabIndicatorOffset(tabPositions[uiState.selectedTab.ordinal])
-                                        .height(2.dp)
-                                        .width(50.dp),
-                                    color = MotifTheme.colors.pink
+                                    modifier =
+                                        Modifier
+                                            .tabIndicatorOffset(
+                                                tabPositions[
+                                                    uiState
+                                                        .selectedTab
+                                                        .ordinal
+                                                ],
+                                            )
+                                            .height(
+                                                2.dp,
+                                            )
+                                            .width(
+                                                50.dp,
+                                            ),
+                                    color =
+                                        MotifTheme
+                                            .colors
+                                            .pink,
                                 )
                             }
                         },
                     ) {
-                        MyPageTab.entries.forEach { tab ->
-                            Tab(
-                                selected = uiState.selectedTab == tab,
-                                onClick = { onTabClick(tab) },
-                                selectedContentColor = MotifTheme.colors.typo,
-                                unselectedContentColor = MotifTheme.colors.gray400,
-                            ) {
-                                Text(
-                                    text = tab.label,
-                                    style = MotifTheme.typography.bodyR16,
-                                    // 위 16dp는 영상과의 간격(12+16=28dp) 계산에 쓰인다.
-                                    // 아래 8dp 중 2dp는 인디케이터가 차지한다(실제 간격 6dp)
-                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-                                )
+                        MyPageTab.entries
+                            .forEach { tab ->
+                                Tab(
+                                    selected =
+                                        uiState
+                                            .selectedTab ==
+                                                tab,
+                                    onClick = {
+                                        onTabClick(
+                                            tab,
+                                        )
+                                    },
+                                    selectedContentColor =
+                                        MotifTheme
+                                            .colors
+                                            .typo,
+                                    unselectedContentColor =
+                                        MotifTheme
+                                            .colors
+                                            .gray400,
+                                ) {
+                                    Text(
+                                        text =
+                                            tab.label,
+                                        style =
+                                            MotifTheme
+                                                .typography
+                                                .bodyR16,
+                                        modifier =
+                                            Modifier.padding(
+                                                top =
+                                                    16.dp,
+                                                bottom =
+                                                    8.dp,
+                                            ),
+                                    )
+                                }
                             }
-                        }
                     }
                 }
             }
-            when (uiState.selectedTab) {
+
+            when (
+                uiState.selectedTab
+            ) {
                 MyPageTab.Challenge -> {
-                    when (val state = uiState.challengeState) {
+                    when (
+                        val state =
+                            uiState.challengeState
+                    ) {
                         MyChallengeUiState.Loading -> {
-                            item { ChallengeLoadingContent() }
+                            item {
+                                ChallengeLoadingContent()
+                            }
                         }
 
                         is MyChallengeUiState.Success -> {
-                            if (state.challenges.isEmpty()) {
+                            if (
+                                state.challenges
+                                    .isEmpty()
+                            ) {
                                 item {
                                     ChallengeEmptyContent(
-                                        onCreateClick = onCreateClick,
-                                        // 프로필·탭을 뺀 남은 영역의 가운데에 배치
-                                        modifier = Modifier.height(contentAreaHeight),
+                                        onCreateClick =
+                                            onCreateClick,
+                                        modifier =
+                                            Modifier.height(
+                                                contentAreaHeight,
+                                            ),
                                     )
                                 }
                             } else {
                                 items(
-                                    items = state.challenges.chunked(3),
-                                    key = { row -> row.first().id },
+                                    items =
+                                        state
+                                            .challenges
+                                            .chunked(3),
+                                    key = { row ->
+                                        row.first().id
+                                    },
                                 ) { row ->
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 2.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(
+                                                    bottom =
+                                                        2.dp,
+                                                ),
+                                        horizontalArrangement =
+                                            Arrangement
+                                                .spacedBy(
+                                                    2.dp,
+                                                ),
                                     ) {
-                                        row.forEach { challenge ->
+                                        row.forEach {
+                                                challenge,
+                                            ->
                                             ChallengeThumbnail(
-                                                thumbnailUrl = challenge.thumbnailUrl,
-                                                viewCount = challenge.view,
-                                                onClick = { },
-                                                modifier = Modifier.weight(1f),
+                                                thumbnailUrl =
+                                                    challenge
+                                                        .thumbnailUrl,
+                                                viewCount =
+                                                    challenge
+                                                        .viewCount,
+                                                onClick = {
+                                                    onChallengeClick(
+                                                        challenge.id,
+                                                    )
+                                                },
+                                                modifier =
+                                                    Modifier
+                                                        .weight(
+                                                            1f,
+                                                        ),
                                             )
                                         }
-                                        repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
-                                    }
-                                }
 
-                                if (state.appendState is MyChallengeAppendUiState.Loading) {
-                                    item { ChallengeLoadingMore() }
+                                        repeat(
+                                            3 -
+                                                    row.size,
+                                        ) {
+                                            Spacer(
+                                                modifier =
+                                                    Modifier
+                                                        .weight(
+                                                            1f,
+                                                        ),
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-
 
                         is MyChallengeUiState.Error -> {
                             item { }
@@ -290,34 +524,94 @@ internal fun MyPageScreen(
                 }
 
                 MyPageTab.Artist -> {
-                    when (val state = uiState.artistState) {
-                        MyArtistUiState.Loading -> {
-                            item { ChallengeLoadingContent() }
+                    when (
+                        val state =
+                            uiState.artistState
+                    ) {
+                        MyArtistUiState.Idle,
+                        MyArtistUiState.Loading,
+                            -> {
+                            item {
+                                ChallengeLoadingContent()
+                            }
                         }
 
                         is MyArtistUiState.Success -> {
                             items(
-                                items = state.artists.chunked(2),
-                                key = { row -> row.first().artist.id },
+                                items =
+                                    state
+                                        .artists
+                                        .chunked(2),
+                                key = { row ->
+                                    row
+                                        .first()
+                                        .artist
+                                        .id
+                                },
                             ) { row ->
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 24.dp)
-                                        .padding(bottom = 18.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                horizontal =
+                                                    24.dp,
+                                            )
+                                            .padding(
+                                                bottom =
+                                                    18.dp,
+                                            ),
+                                    horizontalArrangement =
+                                        Arrangement
+                                            .spacedBy(
+                                                18.dp,
+                                            ),
                                 ) {
-                                    row.forEach { artistSubscription ->
+                                    row.forEach {
+                                            artistSubscription,
+                                        ->
                                         SubscribedArtistCard(
-                                            artist = artistSubscription,
-                                            isFlipped = uiState.flippedArtistId == artistSubscription.artist.id,
-                                            onClick = { onArtistCardClick(artistSubscription.artist.id) },
-                                            onSeeMoreClick = { },
-                                            modifier = Modifier.weight(1f),
+                                            artist =
+                                                artistSubscription,
+                                            isFlipped =
+                                                uiState
+                                                    .flippedArtistId ==
+                                                        artistSubscription
+                                                            .artist
+                                                            .id,
+                                            onClick = {
+                                                onArtistCardClick(
+                                                    artistSubscription
+                                                        .artist
+                                                        .id,
+                                                )
+                                            },
+                                            onSeeMoreClick = {
+                                                onArtistSeeMoreClick(
+                                                    artistSubscription
+                                                        .artist
+                                                        .id,
+                                                )
+                                            },
+                                            modifier =
+                                                Modifier
+                                                    .weight(
+                                                        1f,
+                                                    ),
                                         )
                                     }
-                                    repeat(2 - row.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
+
+                                    repeat(
+                                        2 -
+                                                row.size,
+                                    ) {
+                                        Spacer(
+                                            modifier =
+                                                Modifier
+                                                    .weight(
+                                                        1f,
+                                                    ),
+                                        )
                                     }
                                 }
                             }
@@ -330,85 +624,143 @@ internal fun MyPageScreen(
                 }
 
                 MyPageTab.Liked -> {
-                    when (val state = uiState.likedState) {
-                        MyLikedUiState.Loading -> {
-                            item { ChallengeLoadingContent() }
+                    when (
+                        val state =
+                            uiState.likedState
+                    ) {
+                        MyLikedUiState.Idle,
+                        MyLikedUiState.Loading,
+                            -> {
+                            item {
+                                ChallengeLoadingContent()
+                            }
                         }
 
                         is MyLikedUiState.Success -> {
-                            if (state.challenges.isNotEmpty()) {
+                            if (
+                                state.challenges
+                                    .isNotEmpty()
+                            ) {
                                 item {
                                     LikedChallengeContent(
-                                        challenges = state.challenges,
-                                        focusedIndex = uiState.likedFocusedIndex,
-                                        onFocusChange = onLikedFocusChange,
+                                        challenges =
+                                            state.challenges,
+                                        focusedIndex =
+                                            uiState
+                                                .likedFocusedIndex,
+                                        onFocusChange =
+                                            onLikedFocusChange,
                                     )
+                                }
+
+                                if (
+                                    state.appendState
+                                            is MyLikedAppendUiState.Loading
+                                ) {
+                                    item {
+                                        ChallengeLoadingMore()
+                                    }
                                 }
                             } else {
                                 item {
                                     LikedChallengeEmptyContent(
-                                        modifier = Modifier.height(contentAreaHeight),
+                                        modifier =
+                                            Modifier.height(
+                                                contentAreaHeight,
+                                            ),
                                     )
                                 }
                             }
                         }
 
                         is MyLikedUiState.Error -> {
-                            item { }
+                            item {
+                                Text(
+                                    text = state.exception.stackTraceToString(),
+                                    color = MotifTheme.colors.typo,
+                                )
+                            }
                         }
                     }
                 }
             }
-
         }
-
-
     }
 }
 
 @Composable
 private fun LikedChallengeContent(
-    challenges: List<LikedChallenge>,
+    challenges: List<LikedChallengeUiModel>,
     focusedIndex: Int,
     onFocusChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            // 댓글 박스 하단과 화면 하단 사이 간격
-            .padding(bottom = 126.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    bottom = 126.dp,
+                ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
     ) {
         LikedChallengeCarousel(
-            itemCount = challenges.size,
-            thumbnailUrl = { challenges[it].thumbnailUrl },
-            onSettledPageChange = onFocusChange,
+            itemCount =
+                challenges.size,
+            thumbnailUrl = {
+                challenges[it]
+                    .thumbnailUrl
+            },
+            onSettledPageChange =
+                onFocusChange,
         )
 
-        // 추가 로드 직후 index가 목록 범위를 벗어날 수 있다.
-        challenges.getOrNull(focusedIndex)?.let { challenge ->
-            LikedChallengeInfo(
-                likeCount = challenge.likeCount,
-                modifier = Modifier.padding(top = 16.dp),
+        challenges
+            .getOrNull(
+                focusedIndex,
             )
-
-            when (val commentState = challenge.commentState) {
-                // 영상 삭제·댓글 사용 중지·원본 댓글 삭제
-                LikedChallengeCommentState.Hidden -> Unit
-
-                LikedChallengeCommentState.Empty -> MyCommentEmptyContent(
-                    // 위 28dp는 좋아요 수와의 간격
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp),
+            ?.let { challenge ->
+                LikedChallengeInfo(
+                    likeCount =
+                        challenge.likeCount,
+                    modifier =
+                        Modifier.padding(
+                            top = 16.dp,
+                        ),
                 )
 
-                is LikedChallengeCommentState.Written -> MyCommentCard(
-                    myComment = commentState.myComment,
-                    onClick = { },   // TODO 댓글 위치 이동은 별도 티켓
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 28.dp),
-                )
+                when (
+                    val commentState =
+                        challenge.commentState
+                ) {
+                    LikedChallengeCommentUiState.Empty -> {
+                        MyCommentEmptyContent(
+                            modifier =
+                                Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    top = 28.dp,
+                                ),
+                        )
+                    }
+
+                    is LikedChallengeCommentUiState.Written -> {
+                        MyCommentCard(
+                            myComment =
+                                commentState
+                                    .myComment,
+                            onClick = {},
+                            modifier =
+                                Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    top = 28.dp,
+                                ),
+                        )
+                    }
+                }
             }
-        }
     }
 }
 
@@ -417,10 +769,14 @@ private fun ProfileLoading(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 40.dp),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 40.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingWheel()
     }
@@ -431,10 +787,14 @@ private fun ChallengeLoadingContent(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 80.dp),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 80.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingWheel()
     }
@@ -445,10 +805,14 @@ private fun ChallengeLoadingMore(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 24.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingWheel()
     }
@@ -460,27 +824,59 @@ private fun ChallengeEmptyContent(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterVertically),
+        modifier =
+            modifier.fillMaxWidth(),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+        verticalArrangement =
+            Arrangement.spacedBy(
+                32.dp,
+                Alignment.CenterVertically,
+            ),
     ) {
         Text(
-            text = "아직 참여한 챌린지가 없어요. \n 마음에 드는 챌린지를 찾아 참여해보세요!",
-            style = MotifTheme.typography.titleR20,
-            color = MotifTheme.colors.gray400,
-            textAlign = TextAlign.Center,
+            text =
+                "아직 참여한 챌린지가 없어요. \n " +
+                        "마음에 드는 챌린지를 찾아 참여해보세요!",
+            style =
+                MotifTheme
+                    .typography
+                    .titleR20,
+            color =
+                MotifTheme
+                    .colors
+                    .gray400,
+            textAlign =
+                TextAlign.Center,
         )
+
         Button(
-            onClick = onCreateClick,
-            shape = RoundedCornerShape(20.dp),
-            colors = MotifButtonDefaults.buttonColors(
-                containerColor = MotifTheme.colors.pink,
-                contentColor = MotifTheme.colors.typo,
-            ),
+            onClick =
+                onCreateClick,
+            shape =
+                RoundedCornerShape(
+                    20.dp,
+                ),
+            colors =
+                MotifButtonDefaults
+                    .buttonColors(
+                        containerColor =
+                            MotifTheme
+                                .colors
+                                .pink,
+                        contentColor =
+                            MotifTheme
+                                .colors
+                                .typo,
+                    ),
         ) {
             Text(
-                text = "챌린지 둘러보기",
-                style = MotifTheme.typography.bodySB16,
+                text =
+                    "챌린지 둘러보기",
+                style =
+                    MotifTheme
+                        .typography
+                        .bodySB16,
             )
         }
     }
@@ -491,17 +887,137 @@ private fun LikedChallengeEmptyContent(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier.fillMaxWidth(),
+        contentAlignment =
+            Alignment.Center,
     ) {
         Text(
-            text = "아직 좋아요한 영상이 없어요",
-            style = MotifTheme.typography.titleR20,
-            color = MotifTheme.colors.gray400,
-            textAlign = TextAlign.Center,
+            text =
+                "아직 좋아요한 영상이 없어요",
+            style =
+                MotifTheme
+                    .typography
+                    .titleR20,
+            color =
+                MotifTheme
+                    .colors
+                    .gray400,
+            textAlign =
+                TextAlign.Center,
         )
-
     }
 }
 
-private const val LOAD_MORE_THRESHOLD = 3
+private suspend fun readProfileImage(
+    context: Context,
+    uri: Uri,
+): SelectedProfileImage =
+    withContext(
+        Dispatchers.IO,
+    ) {
+        val resolver =
+            context.contentResolver
+
+        val contentType =
+            resolver.getType(uri)
+                ?: throw IllegalArgumentException(
+                    "이미지 형식을 확인할 수 없습니다.",
+                )
+
+        require(
+            contentType in
+                    ALLOWED_PROFILE_IMAGE_TYPES,
+        ) {
+            "JPEG, PNG, WEBP 이미지만 사용할 수 있습니다."
+        }
+
+        val declaredSize =
+            resolver
+                .query(
+                    uri,
+                    arrayOf(
+                        OpenableColumns.SIZE,
+                    ),
+                    null,
+                    null,
+                    null,
+                )
+                ?.use { cursor ->
+                    val index =
+                        cursor.getColumnIndex(
+                            OpenableColumns.SIZE,
+                        )
+
+                    if (
+                        index >= 0 &&
+                        cursor.moveToFirst()
+                    ) {
+                        cursor
+                            .getLong(index)
+                            .takeIf {
+                                it >= 0L
+                            }
+                    } else {
+                        null
+                    }
+                }
+
+        if (
+            declaredSize != null &&
+            declaredSize >
+            MAX_PROFILE_IMAGE_BYTES
+        ) {
+            throw IllegalArgumentException(
+                "프로필 이미지는 10MB 이하만 사용할 수 있습니다.",
+            )
+        }
+
+        val bytes =
+            resolver
+                .openInputStream(uri)
+                ?.use {
+                    it.readBytes()
+                }
+                ?: throw IllegalStateException(
+                    "이미지를 읽을 수 없습니다.",
+                )
+
+        require(
+            bytes.isNotEmpty(),
+        ) {
+            "비어 있는 이미지입니다."
+        }
+
+        require(
+            bytes.size.toLong() <=
+                    MAX_PROFILE_IMAGE_BYTES,
+        ) {
+            "프로필 이미지는 10MB 이하만 사용할 수 있습니다."
+        }
+
+        SelectedProfileImage(
+            contentType =
+                contentType,
+            bytes =
+                bytes,
+        )
+    }
+
+private data class SelectedProfileImage(
+    val contentType: String,
+    val bytes: ByteArray,
+)
+
+private const val LOAD_MORE_THRESHOLD =
+    3
+
+private const val MAX_PROFILE_IMAGE_BYTES =
+    10L * 1024L * 1024L
+
+private val ALLOWED_PROFILE_IMAGE_TYPES =
+    setOf(
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    )
