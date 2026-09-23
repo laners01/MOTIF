@@ -11,7 +11,7 @@ import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
 import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.challenge.EditedChallenge
 import com.ssafy.motif.core.model.challenge.ParticipationVisibility
-import com.ssafy.motif.core.model.mypage.UserProfile
+import com.ssafy.motif.core.model.user.UserProfile
 import com.ssafy.motif.core.network.model.challenge.ChallengeAnchorResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeArtistResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeDetailResponse
