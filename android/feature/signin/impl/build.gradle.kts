@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.motif.android.feature.impl)
     alias(libs.plugins.motif.android.library.compose)
+    alias(libs.plugins.motif.hilt)
 }
 
 android {
@@ -15,4 +16,5 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.identity.googleid)
+    implementation(libs.retrofit)
 }

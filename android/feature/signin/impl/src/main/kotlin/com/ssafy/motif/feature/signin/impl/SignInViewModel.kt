@@ -6,10 +6,8 @@ import com.ssafy.motif.core.common.result.Result
 import com.ssafy.motif.core.common.result.asResult
 import com.ssafy.motif.core.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,43 +17,38 @@ class SignInViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<SignInUiState>
-        field = MutableStateFlow(SignInUiState())
-
-    private val signInEventChannel =
-        Channel<SignInEvent>(
-            capacity = Channel.BUFFERED,
+        field = MutableStateFlow(
+            SignInUiState(),
         )
-
-    val signInEvent =
-        signInEventChannel.receiveAsFlow()
 
     fun signInWithGoogle(
         idToken: String,
     ) {
         viewModelScope.launch {
             authRepository
-                .signInWithGoogle(idToken)
+                .signInWithGoogle(
+                    idToken = idToken,
+                )
                 .asResult()
                 .collect { result ->
                     when (result) {
                         Result.Loading -> {
-                            uiState.value = SignInUiState(
-                                isLoading = true,
-                            )
+                            uiState.value =
+                                SignInUiState(
+                                    isLoading = true,
+                                )
                         }
 
                         is Result.Success -> {
-                            uiState.value = SignInUiState()
-
-                            signInEventChannel.send(
-                                SignInEvent.Success,
-                            )
+                            uiState.value =
+                                SignInUiState()
                         }
 
                         is Result.Error -> {
-                            uiState.value = SignInUiState(
-                                isError = true,
-                            )
+                            uiState.value =
+                                SignInUiState(
+                                    isError = true,
+                                )
                         }
                     }
                 }
@@ -63,9 +56,10 @@ class SignInViewModel @Inject constructor(
     }
 
     fun setSignInError() {
-        uiState.value = SignInUiState(
-            isError = true,
-        )
+        uiState.value =
+            SignInUiState(
+                isError = true,
+            )
     }
 
     fun clearSignInError() {
@@ -76,10 +70,6 @@ class SignInViewModel @Inject constructor(
                 )
         }
     }
-}
-
-sealed interface SignInEvent {
-    data object Success : SignInEvent
 }
 
 data class SignInUiState(

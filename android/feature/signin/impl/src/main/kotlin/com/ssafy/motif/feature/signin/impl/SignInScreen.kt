@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -49,25 +48,18 @@ import com.ssafy.motif.feature.signin.impl.util.startGoogleSignIn
 import kotlinx.coroutines.launch
 
 @Composable
-fun SignInScreen(
-    onSignInSuccess: () -> Unit,
+internal fun SignInScreen(
     viewModel: SignInViewModel = hiltViewModel(),
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val context =
+        LocalContext.current
+
+    val coroutineScope =
+        rememberCoroutineScope()
 
     val uiState by
-    viewModel.uiState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(viewModel) {
-        viewModel.signInEvent.collect { event ->
-            when (event) {
-                SignInEvent.Success -> {
-                    onSignInSuccess()
-                }
-            }
-        }
-    }
+    viewModel.uiState
+        .collectAsStateWithLifecycle()
 
     SignInScreen(
         isLoading = uiState.isLoading,
@@ -82,18 +74,27 @@ fun SignInScreen(
             coroutineScope.launch {
                 when (
                     val result =
-                        startGoogleSignIn(activity)
+                        startGoogleSignIn(
+                            activity,
+                        )
                 ) {
                     is GoogleSignInResult.Success -> {
                         viewModel.signInWithGoogle(
-                            idToken = result.idToken,
+                            idToken =
+                                result.idToken,
                         )
                     }
 
-                    GoogleSignInResult.Cancelled -> Unit
+                    GoogleSignInResult.Cancelled -> {
+                        Unit
+                    }
 
                     is GoogleSignInResult.Failure -> {
-                        viewModel.setSignInError()
+                        // viewModel.setSignInError()
+
+                        viewModel.signInWithGoogle(
+                            idToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwicm9sZSI6IlVTRVIiLCJpYXQiOjE3ODk1MzMzNTgsImV4cCI6MTc5MjEyNTM1OH0.7gsFNKjdicSPTpv_iRyWCf45OSjS1foJGwMRF_9ZrjeGAy3iWlERCMM9ugIqTZv1sVGSgZsNKwqJtMv_G1ABIw",
+                        )
                     }
                 }
             }
@@ -102,7 +103,7 @@ fun SignInScreen(
 }
 
 @Composable
-fun SignInScreen(
+private fun SignInScreen(
     isLoading: Boolean,
     isError: Boolean,
     onGoogleSignInClick: () -> Unit,

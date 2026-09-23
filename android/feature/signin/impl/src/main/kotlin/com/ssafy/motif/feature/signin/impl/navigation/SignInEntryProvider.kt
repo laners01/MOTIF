@@ -5,10 +5,8 @@ import androidx.navigation3.runtime.NavKey
 import com.ssafy.motif.feature.signin.api.navigation.SignInNavKey
 import com.ssafy.motif.feature.signin.impl.SignInScreen
 
-fun EntryProviderScope<NavKey>.signInEntry(
-    onSignInSuccess: () -> Unit,
-) {
+fun EntryProviderScope<NavKey>.signInEntry() {
     entry<SignInNavKey> {
-        SignInScreen(onSignInSuccess = onSignInSuccess)
+        SignInScreen()
     }
 }
