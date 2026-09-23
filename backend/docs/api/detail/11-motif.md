@@ -345,8 +345,9 @@ Authorization: Bearer {accessToken}
 ```
 
 - `thumbnailUrl` 은 **보호 등급**이라 signed URL 이다 — 모티프 결과물 전체가 그렇다(§1.7).
-  서명 만료는 **6시간**(`motif.media.signing.image-ttl`)이다. 재생목록(10분)보다 긴 이유는
-  `<img>` 가 403 이 되면 되받아 복구할 경로가 없기 때문이다.
+  서명 만료는 **6시간**(`motif.media.signing.image-ttl`)이다. 재생목록(2시간,
+  `playlist-ttl`)·단일 영상 파일(10분, `video-file-ttl`)보다 긴 이유는 `<img>` 가 403 이
+  되면 되받아 복구할 경로가 없기 때문이다 — 셋을 가르는 기준이 그 복구 경로다(ADR-0017).
 - `isRep` 은 대표 모티프 여부다(§4.1 의 `repMotif`). 사용자당 하나뿐이다.
 - **`viewCount` 가 없다** — 모티프 결과물에는 조회수 카운터가 없다(R2 예외 명시).
 - 본인 것만 나온다. 삭제한 결과물은 제외한다.

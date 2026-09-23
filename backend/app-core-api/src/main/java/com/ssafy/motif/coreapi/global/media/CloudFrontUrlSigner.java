@@ -45,7 +45,8 @@ public class CloudFrontUrlSigner {
     private final CloudFrontUtilities utilities = CloudFrontUtilities.create();
     private final PrivateKey privateKey;
     private final String keyPairId;
-    private final Duration ttl;
+    private final Duration playlistTtl;
+    private final Duration videoFileTtl;
     private final Duration imageTtl;
 
     /** 프리픽스 서명의 Resource 를 만들 때 쓴다 — 서명 대상이 CDN 절대 주소여야 한다. */
@@ -54,7 +55,8 @@ public class CloudFrontUrlSigner {
 
     public CloudFrontUrlSigner(MediaSigningProperties properties) {
         this.keyPairId = properties.keyPairId();
-        this.ttl = properties.ttl();
+        this.playlistTtl = properties.playlistTtl();
+        this.videoFileTtl = properties.videoFileTtl();
         this.imageTtl = properties.imageTtl();
         this.privateKey = parse(properties.privateKey());
         if (this.privateKey == null) {
@@ -68,22 +70,25 @@ public class CloudFrontUrlSigner {
     }
 
     /**
-     * 절대 URL 하나를 서명한다.
+     * 영상 파일 하나를 서명한다 — §7.6 편집본처럼 HLS 가 아닌 단일 MP4.
+     *
+     * <p><b>만료가 셋 중 가장 짧다.</b> 만료되면 앱이 §7.6 을 다시 불러 새 URL 을 받는
+     * 복구 경로가 실제로 있다 — 재생목록({@link #signPrefix})·이미지({@link #signImage})
+     * 와 값을 나눠 둔 이유가 그것이다.
      *
      * @param resourceUrl {@code https://<배포 도메인>/<키>} — 쿼리 없는 절대 주소
      * @throws IllegalStateException 개인키가 주입되지 않았을 때. <b>무서명 URL 을 대신
      *                               돌려주지 않는다</b> — 그러면 보호 콘텐츠가 열린다
      */
     public String sign(String resourceUrl) {
-        return sign(resourceUrl, ttl);
+        return sign(resourceUrl, videoFileTtl);
     }
 
     /**
      * 이미지 한 장을 서명한다 — 썸네일·프로필.
      *
-     * <p><b>만료가 재생목록보다 길다.</b> 조각 URL 은 만료돼도 앱이 재생목록을 다시
-     * 받아 복구되지만 {@code <img>} 에는 그 경로가 없어 깨진 채로 남는다. 길게 줘도
-     * 새는 범위는 서명된 그 한 장뿐이다.
+     * <p><b>복구 경로가 아예 없다.</b> {@code <img>} 가 403 을 받으면 깨진 채로 남고
+     * 다시 받을 계기가 없다. 길게 줘도 새는 범위는 서명된 그 한 장뿐이다.
      */
     public String signImage(String resourceUrl) {
         return sign(resourceUrl, imageTtl);
@@ -108,30 +113,51 @@ public class CloudFrontUrlSigner {
      * <p>서명 파라미터는 CloudFront 예약값이라 <b>엣지에서 소비되고 캐시 키에 들어가지
      * 않는다</b> — 사용자마다 값이 달라도 캐시 적중률은 유지된다.
      *
+     * <p><b>만료가 {@code playlistTtl} 이다</b>(ADR-0017). 자동재생에서는 403 을 만난
+     * 뒤 재발급받는 사후 복구가 성립하지 않아, 목록이 살아 있는 동안 서명도 살아 있어야
+     * 한다 — 근거는 {@link MediaSigningProperties} javadoc 에 있다.
+     *
      * @param prefix S3 키의 산출물 프리픽스 — {@code private/motif/{uuid}} 꼴
      * @throws IllegalStateException 개인키가 없을 때. {@link #sign} 과 같은 이유로
      *                               무서명을 대신 돌려주지 않는다
      */
     public String signPrefix(String prefix) {
+        return signPrefixWithExpiry(prefix).query();
+    }
+
+    /**
+     * {@link #signPrefix} 와 같되 <b>서명에 박힌 만료 시각을 함께</b> 돌려준다 —
+     * 클라이언트가 갱신 시점을 잡는 데 쓴다.
+     *
+     * <p><b>만료를 따로 계산하지 않는다.</b> 예전에는 서명과 만료가 각자
+     * {@code Instant.now()} 를 불러, 돌려준 시각이 실제 만료보다 뒤였다 — 그 값에 맞춰
+     * 미리 갱신하는 클라이언트가 한 발 늦게 갱신한다.
+     */
+    public PrefixSignature signPrefixWithExpiry(String prefix) {
         if (privateKey == null) {
             throw new IllegalStateException(
                     "CloudFront 개인키가 없어 보호 등급 URL 을 낼 수 없다 — "
                             + "core-api-secret 의 CLOUDFRONT_PRIVATE_KEY 를 확인하라");
         }
+        Instant expiresAt = Instant.now().plus(playlistTtl);
         // Resource 에 와일드카드를 넣고 서명한 뒤 쿼리만 떼어 쓴다. 정책 JSON 조립과
         // 서명은 SDK 에 맡긴다 — 직접 만들면 base64 변형 알파벳(+=/ → -_~)에서 틀리기 쉽다
         var signed = utilities.getSignedUrlWithCustomPolicy(CustomSignerRequest.builder()
                 .resourceUrl(prefixResourceUrl(prefix))
                 .privateKey(privateKey)
                 .keyPairId(keyPairId)
-                .expirationDate(Instant.now().plus(ttl))
+                .expirationDate(expiresAt)
                 .build());
-        return queryOf(signed.url());
+        return new PrefixSignature(queryOf(signed.url()), expiresAt);
     }
 
-    /** 이 프리픽스 서명이 언제까지 유효한가 — 클라이언트가 갱신 시점을 잡는 데 쓴다. */
-    public Instant prefixSignatureExpiry() {
-        return Instant.now().plus(ttl);
+    /**
+     * 프리픽스 서명 한 벌.
+     *
+     * @param query     조각 요청에 그대로 붙일 쿼리스트링
+     * @param expiresAt 이 파라미터에 실제로 박힌 만료 시각
+     */
+    public record PrefixSignature(String query, Instant expiresAt) {
     }
 
     private String prefixResourceUrl(String prefix) {

@@ -247,7 +247,10 @@ public class ChallengeQueryService {
                 slot.getArtistSeq(),
                 mediaUrlResolver.resolveVideoFile(slot.getEditedChallengeKey()),
                 slot.getEditedDurationMs(),
-                signingProperties.ttl().toSeconds());
+                // resolveVideoFile 이 실제로 쓰는 만료와 같은 값이어야 한다 — 재생목록
+                // (playlist-ttl)이 아니라 단일 파일 쪽이다. 섞으면 앱이 아직 살아 있다고
+                // 믿는 URL 이 403 이 된다 (ADR-0017)
+                signingProperties.videoFileTtl().toSeconds());
     }
 
     /** 0017 이전 슬롯은 앵커가 없다 — null 로 내려 클라이언트가 원을 숨긴다. */
