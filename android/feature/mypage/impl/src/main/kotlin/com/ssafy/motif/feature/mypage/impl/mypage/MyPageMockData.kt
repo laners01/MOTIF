@@ -3,6 +3,7 @@ package com.ssafy.motif.feature.mypage.impl.mypage
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.challenge.ParticipationVisibility
 import com.ssafy.motif.core.model.user.RepresentativeMotif
+import com.ssafy.motif.core.model.user.UserActivityTargetType
 import com.ssafy.motif.core.model.user.UserProfile
 import com.ssafy.motif.core.model.user.UserSubscription
 import com.ssafy.motif.core.model.user.UserVideo
@@ -170,6 +171,12 @@ internal object MyPageMockData {
         List(17) { index ->
             LikedChallengeUiModel(
                 id = index + 1L,
+                targetType =
+                    if (index % 3 == 0) {
+                        UserActivityTargetType.CHALLENGE
+                    } else {
+                        UserActivityTargetType.VIDEO
+                    },
                 thumbnailUrl =
                     "android.resource://com.ssafy.motif/drawable/ch_${index % 5 + 1}",
                 likeCount =

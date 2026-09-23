@@ -95,7 +95,7 @@ data class UserActivityListResponse(
 
 @Serializable
 data class UserActivityResponse(
-    val video: UserActivityVideoResponse,
+    val target: UserActivityTargetResponse,
     val liked: Boolean,
     val myComment: UserActivityCommentResponse?,
     val replies: List<UserActivityReplyResponse>,
@@ -103,12 +103,19 @@ data class UserActivityResponse(
 )
 
 @Serializable
-data class UserActivityVideoResponse(
-    val videoSeq: Long,
+data class UserActivityTargetResponse(
+    val type: UserActivityTargetTypeResponse,
+    val seq: Long,
     val thumbnailUrl: String,
     val viewCount: Long,
     val likeCount: Long,
 )
+
+@Serializable
+enum class UserActivityTargetTypeResponse {
+    VIDEO,
+    CHALLENGE,
+}
 
 @Serializable
 data class UserActivityCommentResponse(

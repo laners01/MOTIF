@@ -1,10 +1,11 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
 import androidx.compose.runtime.Immutable
+import com.ssafy.motif.core.model.user.UserActivityTargetType
 
-@Immutable
 internal data class LikedChallengeUiModel(
     val id: Long,
+    val targetType: UserActivityTargetType,
     val thumbnailUrl: String,
     val likeCount: Long,
     val commentState: LikedChallengeCommentUiState,

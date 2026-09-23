@@ -1,6 +1,5 @@
 package com.ssafy.motif.feature.mypage.impl.mypage
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ssafy.motif.core.common.result.Result
@@ -503,11 +502,6 @@ internal class MyPageViewModel @Inject constructor(
                 .onEach { result ->
                     when (result) {
                         Result.Loading -> {
-                            /*
-                             * GET /users/me 에서 최신 9개 프리뷰를
-                             * 이미 받은 상태일 수 있으므로,
-                             * 전체 목록 조회 중에는 기존 화면을 유지한다.
-                             */
                             if (
                                 _uiState.value.challengeState
                                         !is MyChallengeUiState.Success
@@ -534,10 +528,6 @@ internal class MyPageViewModel @Inject constructor(
                         }
 
                         is Result.Error -> {
-                            /*
-                             * /users/me 에서 받은 최신 9개가 있으면
-                             * 전체 목록 호출 실패 시에도 그대로 유지한다.
-                             */
                             if (
                                 _uiState.value.challengeState
                                         !is MyChallengeUiState.Success
@@ -719,8 +709,9 @@ internal class MyPageViewModel @Inject constructor(
                                                         likedState.challenges +
                                                                 newChallenges
                                                         )
-                                                    .distinctBy {
-                                                        it.id
+                                                    .distinctBy { challenge ->
+                                                        challenge.targetType to
+                                                                challenge.id
                                                     },
                                             nextCursor =
                                                 result
@@ -780,11 +771,13 @@ private fun UserActivity.toLikedChallengeUiModel():
         LikedChallengeUiModel =
     LikedChallengeUiModel(
         id =
-            video.id,
+            target.id,
+        targetType =
+            target.type,
         thumbnailUrl =
-            video.thumbnailUrl,
+            target.thumbnailUrl,
         likeCount =
-            video.likeCount,
+            target.likeCount,
         commentState =
             myComment
                 ?.let { comment ->

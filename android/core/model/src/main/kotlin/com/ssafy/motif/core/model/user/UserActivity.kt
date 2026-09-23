@@ -1,19 +1,25 @@
 package com.ssafy.motif.core.model.user
 
 data class UserActivity(
-    val video: UserActivityVideo,
+    val target: UserActivityTarget,
     val isLiked: Boolean,
     val myComment: UserActivityComment?,
     val replies: List<UserActivityReply>,
     val lastInteractedAt: Long,
 )
 
-data class UserActivityVideo(
+data class UserActivityTarget(
+    val type: UserActivityTargetType,
     val id: Long,
     val thumbnailUrl: String,
     val viewCount: Long,
     val likeCount: Long,
 )
+
+enum class UserActivityTargetType {
+    VIDEO,
+    CHALLENGE,
+}
 
 data class UserActivityComment(
     val id: Long,
