@@ -14,6 +14,7 @@ dependencies {
     api(projects.core.network)
 
     implementation(libs.androidx.dataStore)
+    implementation(libs.retrofit)
 
     testImplementation(libs.junit)
     testImplementation(libs.turbine)

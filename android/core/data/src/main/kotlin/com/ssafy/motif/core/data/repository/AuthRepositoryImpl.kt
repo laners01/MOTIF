@@ -7,7 +7,9 @@ import com.ssafy.motif.core.data.mapper.toModel
 import com.ssafy.motif.core.datastore.auth.AuthSessionDataSource
 import com.ssafy.motif.core.model.auth.AuthLoginResult
 import com.ssafy.motif.core.model.auth.AuthState
+import com.ssafy.motif.core.model.onboarding.OnboardingCompletionResult
 import com.ssafy.motif.core.network.service.auth.AuthClient
+import com.ssafy.motif.core.network.service.onboarding.OnboardingClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -17,10 +19,12 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import javax.inject.Inject
 
 internal class AuthRepositoryImpl @Inject constructor(
     private val authClient: AuthClient,
+    private val onboardingClient: OnboardingClient,
     private val authSessionDataSource: AuthSessionDataSource,
     private val sessionAccessTokenProvider: SessionAccessTokenProvider,
     @param:Dispatcher(MotifDispatcher.IO)
@@ -129,10 +133,96 @@ internal class AuthRepositoryImpl @Inject constructor(
             )
         }.flowOn(ioDispatcher)
 
+    override fun submitOnboarding(
+        artistIds: List<Long>,
+        nickname: String,
+    ): Flow<OnboardingCompletionResult> =
+        flow {
+            require(artistIds.isNotEmpty()) {
+                "At least one artist must be selected."
+            }
+
+            require(
+                NICKNAME_PATTERN.matches(
+                    nickname,
+                ),
+            ) {
+                "Invalid nickname."
+            }
+
+            try {
+                val response =
+                    onboardingClient.completeOnboarding(
+                        artistIds = artistIds.distinct(),
+                        nickname = nickname,
+                    )
+
+                /*
+                 * 서버가 온보딩을 정상 완료한 이후에만
+                 * 로컬 상태를 완료로 바꾼다.
+                 */
+                authSessionDataSource.completeOnboarding()
+
+                emit(
+                    OnboardingCompletionResult.Completed(
+                        subscribedCount =
+                            response.subscribedCount,
+                        nickname =
+                            response.nickname,
+                    ),
+                )
+            } catch (exception: HttpException) {
+                when (exception.code()) {
+                    HTTP_BAD_REQUEST -> {
+                        emit(
+                            OnboardingCompletionResult
+                                .InvalidParameter,
+                        )
+                    }
+
+                    HTTP_NOT_FOUND -> {
+                        emit(
+                            OnboardingCompletionResult
+                                .ArtistNotFound,
+                        )
+                    }
+
+                    HTTP_CONFLICT -> {
+                        /*
+                         * 서버에서는 이미 온보딩 완료 상태이므로
+                         * 로컬 상태도 완료 상태로 맞춘다.
+                         */
+                        authSessionDataSource.completeOnboarding()
+
+                        emit(
+                            OnboardingCompletionResult
+                                .AlreadyCompleted,
+                        )
+                    }
+
+                    else -> {
+                        throw exception
+                    }
+                }
+            }
+        }.flowOn(ioDispatcher)
+
     override suspend fun completeOnboarding() {
         withContext(ioDispatcher) {
             authSessionDataSource
                 .completeOnboarding()
         }
+    }
+
+    private companion object {
+
+        const val HTTP_BAD_REQUEST = 400
+        const val HTTP_NOT_FOUND = 404
+        const val HTTP_CONFLICT = 409
+
+        val NICKNAME_PATTERN =
+            Regex(
+                "^[a-zA-Z0-9가-힣._]{2,20}$",
+            )
     }
 }
