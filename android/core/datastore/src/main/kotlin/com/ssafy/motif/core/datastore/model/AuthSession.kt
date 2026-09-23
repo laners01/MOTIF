@@ -5,7 +5,11 @@ data class AuthSession(
     val refreshToken: String,
     val userId: Long?,
     val deviceId: String,
+    val onboardingCompleted: Boolean?,
+    val onboardingUserId: Long?,
 ) {
     val hasTokens: Boolean
-        get() = accessToken.isNotBlank() && refreshToken.isNotBlank()
+        get() =
+            accessToken.isNotBlank() &&
+                    refreshToken.isNotBlank()
 }

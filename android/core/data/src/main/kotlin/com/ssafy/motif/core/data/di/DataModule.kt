@@ -20,6 +20,7 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -31,6 +32,7 @@ abstract class DataModule {
     ): NetworkMonitor
 
     @Binds
+    @Singleton
     internal abstract fun bindAuthRepository(
         authRepositoryImpl: AuthRepositoryImpl,
     ): AuthRepository
@@ -61,6 +63,7 @@ abstract class DataModule {
     ): UserRepository
 
     @Binds
+    @Singleton
     internal abstract fun bindAccessTokenProvider(
         provider: SessionAccessTokenProvider,
     ): AccessTokenProvider

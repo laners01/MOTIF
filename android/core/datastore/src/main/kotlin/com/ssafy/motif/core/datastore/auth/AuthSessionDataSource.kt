@@ -21,12 +21,25 @@ class AuthSessionDataSource @Inject constructor(
                 AuthSession(
                     accessToken = preferences.accessToken,
                     refreshToken = preferences.refreshToken,
-                    userId = if (preferences.hasUserId()) {
-                        preferences.userId
-                    } else {
-                        null
-                    },
+                    userId =
+                        if (preferences.hasUserId()) {
+                            preferences.userId
+                        } else {
+                            null
+                        },
                     deviceId = preferences.deviceId,
+                    onboardingCompleted =
+                        if (preferences.hasOnboardingCompleted()) {
+                            preferences.onboardingCompleted
+                        } else {
+                            null
+                        },
+                    onboardingUserId =
+                        if (preferences.hasOnboardingUserId()) {
+                            preferences.onboardingUserId
+                        } else {
+                            null
+                        },
                 )
             }
 
@@ -44,12 +57,35 @@ class AuthSessionDataSource @Inject constructor(
         accessToken: String,
         refreshToken: String,
         userId: Long,
+        onboardingCompleted: Boolean,
     ) {
         authSessionPreferences.updateData {
             it.copy {
                 this.accessToken = accessToken
                 this.refreshToken = refreshToken
                 this.userId = userId
+
+                this.onboardingCompleted =
+                    onboardingCompleted
+
+                onboardingUserId =
+                    userId
+            }
+        }
+    }
+
+    suspend fun completeOnboarding() {
+        authSessionPreferences.updateData { preferences ->
+            if (!preferences.hasUserId()) {
+                return@updateData preferences
+            }
+
+            val userId =
+                preferences.userId
+
+            preferences.copy {
+                onboardingCompleted = true
+                onboardingUserId = userId
             }
         }
     }
@@ -60,6 +96,13 @@ class AuthSessionDataSource @Inject constructor(
                 accessToken = ""
                 refreshToken = ""
                 clearUserId()
+
+                /*
+                 * onboardingCompleted / onboardingUserId는 유지한다.
+                 *
+                 * 온보딩 중 인증이 끊겨 다시 로그인하더라도
+                 * 동일 사용자인 경우 온보딩을 계속 진행하기 위함.
+                 */
             }
         }
     }
@@ -71,7 +114,10 @@ class AuthSessionDataSource @Inject constructor(
                     it
                 } else {
                     it.copy {
-                        deviceId = UUID.randomUUID().toString()
+                        deviceId =
+                            UUID
+                                .randomUUID()
+                                .toString()
                     }
                 }
             }

@@ -31,6 +31,7 @@ import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.feature.mypage.impl.navigation.myPageEntry
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
 import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
+import com.ssafy.motif.feature.signin.impl.navigation.signInEntry
 import com.ssafy.motif.navigation.AppGlassNavigationBar
 import com.ssafy.motif.navigation.AppGlassNavigationBarMode
 
@@ -51,6 +52,7 @@ fun MotifApp(
     val backdropState = rememberGlassBackdropState()
 
     val entryProvider = entryProvider {
+        signInEntry()
         homeEntry(
             onOnstageClick = { videoId ->
                 navigator.navigate(
@@ -121,7 +123,8 @@ fun MotifApp(
         )
 
         onboardingEntry(
-            navigator = navigator,
+            onCompleteClick =
+                appState::completeOnboarding,
         )
 
         rankingEntry(

@@ -15,6 +15,8 @@ android {
 }
 
 dependencies {
+    implementation(projects.feature.signin.api)
+    implementation(projects.feature.signin.impl)
     implementation(projects.feature.home.api)
     implementation(projects.feature.home.impl)
     implementation(projects.feature.challenges.api)

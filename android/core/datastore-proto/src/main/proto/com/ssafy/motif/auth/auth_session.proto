@@ -8,4 +8,7 @@ message AuthSessionPreferences {
   string refresh_token = 2;
   optional int64 user_id = 3;
   string device_id = 4;
+
+  optional bool onboarding_completed = 5;
+  optional int64 onboarding_user_id = 6;
 }
