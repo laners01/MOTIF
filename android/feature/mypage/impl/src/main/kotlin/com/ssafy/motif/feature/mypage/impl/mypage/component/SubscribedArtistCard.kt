@@ -37,40 +37,59 @@ import com.ssafy.motif.core.designsystem.glass.glassBackdrop
 import com.ssafy.motif.core.designsystem.glass.rememberGlassBackdropState
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.artist.ArtistSubscription
+import com.ssafy.motif.core.model.user.UserSubscription
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
 @Composable
 internal fun SubscribedArtistCard(
-    artist: ArtistSubscription,
+    artist: UserSubscription,
     isFlipped: Boolean,
     onClick: () -> Unit,
     onSeeMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val rotation by animateFloatAsState(
-        targetValue = if (isFlipped) 180f else 0f,
-        animationSpec = tween(durationMillis = 400),
+    val rotation by
+    animateFloatAsState(
+        targetValue =
+            if (isFlipped) {
+                180f
+            } else {
+                0f
+            },
+        animationSpec =
+            tween(
+                durationMillis = 400,
+            ),
         label = "artist card flip",
     )
 
     Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .graphicsLayer {
-                rotationY = rotation
-                cameraDistance = 12f * density
-            }
-            .clickable(onClick = onClick),
+        modifier =
+            modifier
+                .aspectRatio(1f)
+                .graphicsLayer {
+                    rotationY = rotation
+                    cameraDistance = 12f * density
+                }
+                .clickable(
+                    onClick = onClick,
+                ),
     ) {
         if (rotation <= 90f) {
-            ArtistCardFront(artist = artist)
+            ArtistCardFront(
+                artist = artist,
+            )
         } else {
-            // 부모가 180도 돌아간 상태라, 뒤집지 않으면 내용이 좌우 반전된다.
-            Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
+            Box(
+                modifier =
+                    Modifier.graphicsLayer {
+                        rotationY = 180f
+                    },
+            ) {
                 ArtistCardBack(
                     artist = artist,
-                    onSeeMoreClick = onSeeMoreClick,
+                    onSeeMoreClick =
+                        onSeeMoreClick,
                 )
             }
         }
@@ -79,101 +98,184 @@ internal fun SubscribedArtistCard(
 
 @Composable
 private fun ArtistCardFront(
-    artist: ArtistSubscription,
+    artist: UserSubscription,
     modifier: Modifier = Modifier,
 ) {
     ArtistProfileImage(
         artist = artist,
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     )
 }
 
 @Composable
 private fun ArtistCardBack(
-    artist: ArtistSubscription,
+    artist: UserSubscription,
     onSeeMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val backdropState = rememberGlassBackdropState()
+    val backdropState =
+        rememberGlassBackdropState()
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier =
+            modifier.fillMaxSize(),
+    ) {
         ArtistProfileImage(
             artist = artist,
-            modifier = Modifier
-                .matchParentSize()
-                .glassBackdrop(backdropState),
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .glassBackdrop(
+                        backdropState,
+                    ),
         )
 
         GlassSurface(
-            backdropState = backdropState,
-            modifier = Modifier.matchParentSize(),
-            shape = RectangleShape,
-            blurRadius = 16.dp,
-            blurAlpha = 1f,
-            tintColor = Color.Black.copy(alpha = 0.65f),
-            borderWidth = 0.dp,
+            backdropState =
+                backdropState,
+            modifier =
+                Modifier.matchParentSize(),
+            shape =
+                RectangleShape,
+            blurRadius =
+                16.dp,
+            blurAlpha =
+                1f,
+            tintColor =
+                Color.Black.copy(
+                    alpha = 0.65f,
+                ),
+            borderWidth =
+                0.dp,
         ) {}
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        16.dp,
+                    ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment =
+                    Alignment.CenterVertically,
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        6.dp,
+                    ),
             ) {
                 Text(
-                    text = "WITH ${artist.artist.name}",
-                    style = MotifTheme.typography.bodySB16,
-                    color = MotifTheme.colors.typo,
+                    text =
+                        "WITH ${artist.artist.name}",
+                    style =
+                        MotifTheme
+                            .typography
+                            .bodySB16,
+                    color =
+                        MotifTheme
+                            .colors
+                            .typo,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    overflow =
+                        TextOverflow.Ellipsis,
+                    modifier =
+                        Modifier.weight(
+                            weight = 1f,
+                            fill = false,
+                        ),
                 )
 
-                if (artist.hasMotifPass) {
+                if (artist.passActive) {
                     Icon(
-                        painter = painterResource(MotifIcons.MotifPass),
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        painter =
+                            painterResource(
+                                MotifIcons.MotifPass,
+                            ),
+                        contentDescription =
+                            null,
+                        modifier =
+                            Modifier.size(
+                                16.dp,
+                            ),
                     )
                 }
             }
 
             ArtistStatRow(
                 label = "DAYS",
-                value = "${artist.subscribedDays}",
+                value =
+                    artist
+                        .subscribedDays
+                        .toString(),
             )
 
             ArtistStatRow(
                 label = "Challenges",
-                value = "${artist.challengeCount}",
+                value =
+                    artist
+                        .challengeCount
+                        .toString(),
             )
 
             ArtistStatRow(
                 label = "MOTIF",
-                value = "${artist.ownedMotifCount} / ${artist.totalMotifCount}",
+                value =
+                    "${artist.purchasedAssetCount} / ${artist.totalAssetCount}",
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(
+                modifier =
+                    Modifier.weight(
+                        1f,
+                    ),
+            )
 
             Button(
-                onClick = onSeeMoreClick,
-                shape = RoundedCornerShape(50),
-                colors = MotifButtonDefaults.buttonColors(
-                    containerColor = MotifTheme.colors.pink,
-                    contentColor = MotifTheme.colors.typo,
-                ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .height(28.dp),
+                onClick =
+                    onSeeMoreClick,
+                shape =
+                    RoundedCornerShape(
+                        50,
+                    ),
+                colors =
+                    MotifButtonDefaults
+                        .buttonColors(
+                            containerColor =
+                                MotifTheme
+                                    .colors
+                                    .pink,
+                            contentColor =
+                                MotifTheme
+                                    .colors
+                                    .typo,
+                        ),
+                contentPadding =
+                    PaddingValues(
+                        horizontal = 16.dp,
+                        vertical = 0.dp,
+                    ),
+                modifier =
+                    Modifier
+                        .align(
+                            Alignment.CenterHorizontally,
+                        )
+                        .height(
+                            28.dp,
+                        ),
             ) {
                 Text(
-                    text = "See More",
-                    style = MotifTheme.typography.bodySB12,
+                    text =
+                        "See More",
+                    style =
+                        MotifTheme
+                            .typography
+                            .bodySB12,
                 )
             }
         }
@@ -187,35 +289,71 @@ private fun ArtistStatRow(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier =
+            modifier.fillMaxWidth(),
+        horizontalArrangement =
+            Arrangement.SpaceBetween,
     ) {
         Text(
             text = label,
-            style = MotifTheme.typography.bodyR12,
-            color = MotifTheme.colors.typo,
+            style =
+                MotifTheme
+                    .typography
+                    .bodyR12,
+            color =
+                MotifTheme
+                    .colors
+                    .typo,
         )
 
         Text(
             text = value,
-            style = MotifTheme.typography.bodySB12,
-            color = MotifTheme.colors.typo,
+            style =
+                MotifTheme
+                    .typography
+                    .bodySB12,
+            color =
+                MotifTheme
+                    .colors
+                    .typo,
         )
     }
 }
 
 @Composable
 private fun ArtistProfileImage(
-    artist: ArtistSubscription,
+    artist: UserSubscription,
     modifier: Modifier = Modifier,
 ) {
     AsyncImage(
-        model = artist.artist.profileImageUrl,
-        contentDescription = artist.artist.name,
-        contentScale = ContentScale.Crop,
-        placeholder = painterResource(DesignSystemR.drawable.profile_square),
-        error = painterResource(DesignSystemR.drawable.profile_square),
-        fallback = painterResource(DesignSystemR.drawable.profile_square),
+        model =
+            artist
+                .artist
+                .profileImageUrl,
+        contentDescription =
+            artist
+                .artist
+                .name,
+        contentScale =
+            ContentScale.Crop,
+        placeholder =
+            painterResource(
+                DesignSystemR
+                    .drawable
+                    .profile_square,
+            ),
+        error =
+            painterResource(
+                DesignSystemR
+                    .drawable
+                    .profile_square,
+            ),
+        fallback =
+            painterResource(
+                DesignSystemR
+                    .drawable
+                    .profile_square,
+            ),
         modifier = modifier,
     )
 }

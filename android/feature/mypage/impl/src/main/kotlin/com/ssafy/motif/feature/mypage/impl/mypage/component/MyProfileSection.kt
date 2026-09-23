@@ -21,7 +21,6 @@ import com.ssafy.motif.core.designsystem.component.ModifIconButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.mypage.UserProfile
 import com.ssafy.motif.feature.mypage.impl.mypage.NicknameEditUiState
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 import androidx.compose.foundation.clickable
@@ -34,6 +33,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
+import com.ssafy.motif.core.model.user.UserProfile
 
 
 @Composable

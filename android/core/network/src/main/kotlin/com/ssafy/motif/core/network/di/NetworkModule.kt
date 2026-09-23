@@ -8,18 +8,19 @@ import com.ssafy.motif.core.network.service.challenge.ChallengeService
 import com.ssafy.motif.core.network.service.comment.CommentService
 import com.ssafy.motif.core.network.service.composite.CompositeJobService
 import com.ssafy.motif.core.network.service.notice.NoticeService
+import com.ssafy.motif.core.network.service.user.UserService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
-import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -158,6 +159,15 @@ internal object NetworkModule {
     ): CompositeJobService =
         retrofit.create(
             CompositeJobService::class.java,
+        )
+
+    @Provides
+    @Singleton
+    fun provideUserService(
+        retrofit: Retrofit,
+    ): UserService =
+        retrofit.create(
+            UserService::class.java,
         )
 
     private const val NETWORK_TIMEOUT_SECONDS = 30L

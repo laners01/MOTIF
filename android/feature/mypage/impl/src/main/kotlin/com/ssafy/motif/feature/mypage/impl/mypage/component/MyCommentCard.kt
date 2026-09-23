@@ -22,73 +22,139 @@ import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
-import com.ssafy.motif.core.model.mypage.LikedChallengeComment
 import com.ssafy.motif.core.ui.formatter.formatCount
 import com.ssafy.motif.core.ui.formatter.formatCreatedAt
+import com.ssafy.motif.feature.mypage.impl.mypage.MyCommentUiModel
 
 @Composable
 internal fun MyCommentCard(
-    myComment: LikedChallengeComment,
+    myComment: MyCommentUiModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val comment = myComment.comment
-
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MotifTheme.colors.black)
-            .clickable(onClick = onClick)
-            .padding(16.dp)
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(
+                    RoundedCornerShape(
+                        16.dp,
+                    ),
+                )
+                .background(
+                    MotifTheme.colors.black,
+                )
+                .clickable(
+                    onClick = onClick,
+                )
+                .padding(
+                    16.dp,
+                ),
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment =
+                Alignment.CenterVertically,
+            horizontalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
         ) {
             Text(
-                text = comment.content,
-                style = MotifTheme.typography.bodyR14,
-                color = MotifTheme.colors.typo,
-                // 본문이 길면 시간이 다음 줄로 밀리도록 남는 폭만 차지한다.
-                modifier = Modifier.weight(1f, fill = false),
+                text =
+                    myComment.content,
+                style =
+                    MotifTheme
+                        .typography
+                        .bodyR14,
+                color =
+                    MotifTheme
+                        .colors
+                        .typo,
+                modifier =
+                    Modifier.weight(
+                        1f,
+                        fill = false,
+                    ),
             )
+
             Text(
-                text = comment.createdAt.formatCreatedAt(),
-                style = MotifTheme.typography.captionR12,
-                color = MotifTheme.colors.gray400,
+                text =
+                    myComment
+                        .createdAt
+                        .formatCreatedAt(),
+                style =
+                    MotifTheme
+                        .typography
+                        .captionR12,
+                color =
+                    MotifTheme
+                        .colors
+                        .gray400,
             )
         }
-        Spacer(modifier = Modifier.height(12.dp))
+
+        Spacer(
+            modifier =
+                Modifier.height(
+                    12.dp,
+                ),
+        )
+
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalAlignment =
+                Alignment.CenterVertically,
+            horizontalArrangement =
+                Arrangement.spacedBy(
+                    24.dp,
+                ),
         ) {
             CommentCount(
-                iconRes = MotifIcons.Heart,
-                count = comment.likeCount,
+                iconRes =
+                    MotifIcons.Heart,
+                count =
+                    myComment.likeCount,
             )
 
             CommentCount(
-                iconRes = MotifIcons.Message,
-                count = comment.replyCount,
+                iconRes =
+                    MotifIcons.Message,
+                count =
+                    myComment.replyCount,
             )
         }
-        if (myComment.replies.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(16.dp))
+
+        if (
+            myComment.replies
+                .isNotEmpty()
+        ) {
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        16.dp,
+                    ),
+            )
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        12.dp,
+                    ),
             ) {
-                myComment.replies
-                    .take(MAX_VISIBLE_REPLIES)
+                myComment
+                    .replies
+                    .take(
+                        MAX_VISIBLE_REPLIES,
+                    )
                     .forEach { reply ->
-                        ReplyItem(reply = reply)
+                        ReplyItem(
+                            reply = reply,
+                        )
                     }
             }
         }
     }
 }
+
 @Composable
 private fun CommentCount(
     @DrawableRes iconRes: Int,
@@ -97,24 +163,41 @@ private fun CommentCount(
 ) {
     Row(
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically
-        ,
-        horizontalArrangement = Arrangement.spacedBy(6
-            .dp),
+        verticalAlignment =
+            Alignment.CenterVertically,
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                6.dp,
+            ),
     ) {
         Icon(
-            painter = painterResource(iconRes),
+            painter =
+                painterResource(
+                    iconRes,
+                ),
             contentDescription = null,
-            tint = MotifTheme.colors.typo,
-            modifier = Modifier.size(20.dp),
+            tint =
+                MotifTheme.colors.typo,
+            modifier =
+                Modifier.size(
+                    20.dp,
+                ),
         )
 
         Text(
-            text = count.formatCount(),
-            style = MotifTheme.typography.bodyR14,
-            color = MotifTheme.colors.typo,
+            text =
+                count.formatCount(),
+            style =
+                MotifTheme
+                    .typography
+                    .bodyR14,
+            color =
+                MotifTheme
+                    .colors
+                    .typo,
         )
     }
 }
 
-private const val MAX_VISIBLE_REPLIES = 2
+private const val MAX_VISIBLE_REPLIES =
+    2
