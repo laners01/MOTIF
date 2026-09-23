@@ -4,6 +4,7 @@ import com.ssafy.motif.core.network.BuildConfig
 import com.ssafy.motif.core.network.NetworkConfig
 import com.ssafy.motif.core.network.auth.AccessTokenInterceptor
 import com.ssafy.motif.core.network.service.artist.ArtistService
+import com.ssafy.motif.core.network.service.auth.AuthService
 import com.ssafy.motif.core.network.service.challenge.ChallengeService
 import com.ssafy.motif.core.network.service.comment.CommentService
 import com.ssafy.motif.core.network.service.composite.CompositeJobService
@@ -13,14 +14,14 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -168,6 +169,15 @@ internal object NetworkModule {
     ): UserService =
         retrofit.create(
             UserService::class.java,
+        )
+
+    @Provides
+    @Singleton
+    fun provideAuthService(
+        retrofit: Retrofit,
+    ): AuthService =
+        retrofit.create(
+            AuthService::class.java,
         )
 
     private const val NETWORK_TIMEOUT_SECONDS = 30L
