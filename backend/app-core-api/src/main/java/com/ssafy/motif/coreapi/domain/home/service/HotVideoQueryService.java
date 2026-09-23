@@ -21,9 +21,9 @@ import java.util.stream.Collectors;
 /**
  * 홈 HOT 참여 영상 조회 (API 명세 §6.1).
  *
- * <p><b>점수를 모른다.</b> 순위는 {@code VideoRankingSnapshotJob} 이 5분마다 확정해
- * Redis 에 적어 두고, 여기는 그 순서를 자를 뿐이다. 정렬을 조회 시점에 하면 배치
- * 교체와 무관하게 페이지마다 순서가 흔들린다.
+ * <p><b>점수를 모른다.</b> 순위는 {@code VideoRankingSnapshotJob} 이 한 주기
+ * ({@code motif.view.interval})마다 확정해 Redis 에 적어 두고, 여기는 그 순서를 자를
+ * 뿐이다. 정렬을 조회 시점에 하면 배치 교체와 무관하게 페이지마다 순서가 흔들린다.
  *
  * <p>읽기 전용 트랜잭션이다.
  */

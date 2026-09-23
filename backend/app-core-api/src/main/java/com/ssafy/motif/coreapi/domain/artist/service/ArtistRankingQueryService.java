@@ -124,9 +124,9 @@ public class ArtistRankingQueryService {
      * 메타가 없으면 그 항목을 뺀다 — 스냅샷이 만들어진 뒤 아티스트가 삭제된 경우다.
      *
      * <p>이름 없는 항목을 내보내면 앱에 빈 카드가 뜨고, 눌러도 §5.3 이 404 다. 최대 한
-     * 주기(5분) 동안만 생기는 상태라 다음 스냅샷이 알아서 치운다. {@code totalElements}
-     * 와 실제 항목 수가 잠깐 어긋나는 것은 감수한다 — 지워진 아티스트를 보여주는 쪽이
-     * 훨씬 나쁘다.
+     * 주기({@code motif.view.interval}) 동안만 생기는 상태라 다음 스냅샷이 알아서
+     * 치운다. {@code totalElements} 와 실제 항목 수가 잠깐 어긋나는 것은 감수한다 —
+     * 지워진 아티스트를 보여주는 쪽이 훨씬 나쁘다.
      */
     private ArtistRankingResponse toItem(Ranked ranked, Map<Integer, ArtistCardRow> cards,
                                          Set<Integer> subscribed) {

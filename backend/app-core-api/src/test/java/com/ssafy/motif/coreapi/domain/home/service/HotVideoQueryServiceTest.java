@@ -57,7 +57,7 @@ class HotVideoQueryServiceTest {
         // 통째로 null 이어도 테스트가 통과한다
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
                 "KTESTKEYPAIRID", MediaSigningTestSupport.pkcs8Pem(),
-                Duration.ofMinutes(10), Duration.ofHours(6)));
+                Duration.ofHours(2), Duration.ofMinutes(10), Duration.ofHours(6)));
         ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
 
         service = new HotVideoQueryService(snapshot, participationVideoRepository,

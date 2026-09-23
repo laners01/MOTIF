@@ -89,7 +89,10 @@ public class MediaPlaylistQueryService {
     public SignedPrefix signature(Integer userSeq, String jobUuid) {
         CompositeJob job = authorize(userSeq, jobUuid);
         String prefix = MediaKeys.prefixOf(job.getResultVideoKey());
-        return new SignedPrefix(signer.signPrefix(prefix), signer.prefixSignatureExpiry());
+        // 서명에 실제로 박힌 만료를 그대로 싣는다 — 따로 계산하면 돌려준 시각이 진짜
+        // 만료보다 뒤가 되어, 그 값에 맞춰 미리 갱신하는 클라이언트가 한 발 늦는다
+        CloudFrontUrlSigner.PrefixSignature signed = signer.signPrefixWithExpiry(prefix);
+        return new SignedPrefix(signed.query(), signed.expiresAt());
     }
 
     /**

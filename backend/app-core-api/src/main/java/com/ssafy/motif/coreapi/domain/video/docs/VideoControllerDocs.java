@@ -241,7 +241,9 @@ public interface VideoControllerDocs {
                     - **`PUBLIC → PRIVATE`**: 목록·조회에서는 즉시 사라진다. 재생은 **서명 갱신
                       TTL 안에** 닫힌다 — 만료되면 클라이언트가 `POST /media/{jobUuid}/signature`
                       를 거쳐야 하는데 거기서 인가를 다시 하기 때문이다. 이미 발급된 서명이
-                      만료될 때까지(기본 10분)가 최대 지연이라 "즉시 차단"은 약속하지 않는다.
+                      만료될 때까지(`motif.media.signing.playlist-ttl` — 지금 **2시간**)가 최대
+                      지연이라 "즉시 차단"은 약속하지 않는다. 자동재생이 만료를 사후에 복구할
+                      수 없어 늘린 값이다(ADR-0017).
                     - **`PRIVATE → PUBLIC`**: 즉시 남에게도 보이고 재생된다. 남의 `PUBLIC` 영상에도
                       서명이 나가고 갱신도 받을 수 있다 — 인가는 `visibility` 로 하지 서명 유무로
                       하지 않는다.

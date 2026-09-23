@@ -59,8 +59,8 @@ class SignedPrefixPlaybackTest {
     @DisplayName("개인키가 없으면 던진다 — 무서명을 대신 돌려주지 않는다")
     void withoutKeyItThrows() {
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(
-                new MediaSigningProperties(KEY_PAIR_ID, "", Duration.ofMinutes(10),
-                        Duration.ofHours(6)));
+                new MediaSigningProperties(KEY_PAIR_ID, "", Duration.ofHours(2),
+                        Duration.ofMinutes(10), Duration.ofHours(6)));
         ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
 
         assertThatThrownBy(() -> signer.signPrefix(PREFIX))
@@ -85,7 +85,7 @@ class SignedPrefixPlaybackTest {
     private static CloudFrontUrlSigner signer() {
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(
                 new MediaSigningProperties(KEY_PAIR_ID, generatePkcs8Pem(),
-                        Duration.ofMinutes(10), Duration.ofHours(6)));
+                        Duration.ofHours(2), Duration.ofMinutes(10), Duration.ofHours(6)));
         ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
         return signer;
     }

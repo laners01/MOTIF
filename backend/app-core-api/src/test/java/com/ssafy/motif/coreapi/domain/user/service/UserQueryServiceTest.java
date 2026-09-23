@@ -90,7 +90,8 @@ class UserQueryServiceTest {
         motifPassRepository = mock(MotifPassRepository.class);
 
         CloudFrontUrlSigner signer = new CloudFrontUrlSigner(new MediaSigningProperties(
-                "KTESTKEYPAIRID", generatePkcs8Pem(), Duration.ofMinutes(10), Duration.ofHours(6)));
+                "KTESTKEYPAIRID", generatePkcs8Pem(),
+                Duration.ofHours(2), Duration.ofMinutes(10), Duration.ofHours(6)));
         // 프리픽스 서명(ADR-0012)은 CDN base URL 을 Resource 로 쓴다 — @Value 주입이
         // 없는 단위 테스트라 직접 넣는다
         ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);

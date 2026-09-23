@@ -170,7 +170,9 @@ public class ParticipationVideo extends BaseTimeEntity {
      * <p><b>{@code PUBLIC → PRIVATE} 은 이것만으로 닫힌다.</b> 재생 중에는 CDN 직통이라
      * core-api 를 지나지 않지만 서명 갱신은 반드시 지나고, 거기서
      * {@code MediaPlaylistQueryService} 가 이 값을 다시 본다. 이미 발급된 서명이 만료될
-     * 때까지(기본 10분)가 최대 지연이다.
+     * 때까지({@code motif.media.signing.playlist-ttl} — 지금 2시간)가 최대 지연이다.
+     * 자동재생이 사후 복구를 못 쓰는 탓에 늘어난 값이다(ADR-0017) — 목록·조회에서
+     * 사라지는 것은 그대로고, 늘어난 것은 이미 URL 을 받아 간 쪽의 재생 창뿐이다.
      *
      * <p>예전에는 키를 함께 받아 {@code PUBLIC → PRIVATE} 에서 정본으로 되돌렸다 —
      * 공개 사본 트리가 있던 시절의 잔재이고, {@code null} 을 "유지" 로 겹쳐 쓰는 바람에
