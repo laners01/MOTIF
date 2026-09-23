@@ -1,6 +1,6 @@
 package com.ssafy.motif.core.model.challenge
 
-import com.ssafy.motif.core.model.mypage.UserProfile
+import com.ssafy.motif.core.model.user.UserProfile
 
 data class ChallengeParticipation(
     val id: Long,
