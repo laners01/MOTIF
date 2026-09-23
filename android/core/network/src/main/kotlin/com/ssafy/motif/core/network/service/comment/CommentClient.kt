@@ -33,11 +33,15 @@ class CommentClient @Inject constructor(
     ): CommentCreateResponse =
         commentService
             .postNoticeComment(
-                noticeSeq = noticeId,
-                request = CommentCreateRequest(
-                    content = content,
-                    parentCommentSeq = parentCommentId,
-                ),
+                noticeSeq =
+                    noticeId,
+                request =
+                    CommentCreateRequest(
+                        content =
+                            content,
+                        parentCommentSeq =
+                            parentCommentId,
+                    ),
             )
             .data
 
@@ -48,9 +52,12 @@ class CommentClient @Inject constructor(
     ): PageResponse<CommentItemResponse> =
         commentService
             .getChallengeComments(
-                challengeSeq = challengeId,
-                page = page,
-                size = size,
+                challengeSeq =
+                    challengeId,
+                page =
+                    page,
+                size =
+                    size,
             )
             .data
 
@@ -61,11 +68,50 @@ class CommentClient @Inject constructor(
     ): CommentCreateResponse =
         commentService
             .postChallengeComment(
-                challengeSeq = challengeId,
-                request = CommentCreateRequest(
-                    content = content,
-                    parentCommentSeq = parentCommentId,
-                ),
+                challengeSeq =
+                    challengeId,
+                request =
+                    CommentCreateRequest(
+                        content =
+                            content,
+                        parentCommentSeq =
+                            parentCommentId,
+                    ),
+            )
+            .data
+
+    suspend fun getVideoComments(
+        videoId: Long,
+        page: Int = DEFAULT_PAGE,
+        size: Int = DEFAULT_SIZE,
+    ): PageResponse<CommentItemResponse> =
+        commentService
+            .getVideoComments(
+                videoSeq =
+                    videoId,
+                page =
+                    page,
+                size =
+                    size,
+            )
+            .data
+
+    suspend fun createVideoComment(
+        videoId: Long,
+        content: String,
+        parentCommentId: Long? = null,
+    ): CommentCreateResponse =
+        commentService
+            .postVideoComment(
+                videoSeq =
+                    videoId,
+                request =
+                    CommentCreateRequest(
+                        content =
+                            content,
+                        parentCommentSeq =
+                            parentCommentId,
+                    ),
             )
             .data
 
@@ -77,10 +123,14 @@ class CommentClient @Inject constructor(
     ): PageResponse<ReplyItemResponse> =
         commentService
             .getReplies(
-                type = type.value,
-                commentSeq = commentId,
-                page = page,
-                size = size,
+                type =
+                    type.value,
+                commentSeq =
+                    commentId,
+                page =
+                    page,
+                size =
+                    size,
             )
             .data
 
@@ -90,8 +140,10 @@ class CommentClient @Inject constructor(
     ): CommentDeleteResponse =
         commentService
             .deleteComment(
-                type = type.value,
-                commentSeq = commentId,
+                type =
+                    type.value,
+                commentSeq =
+                    commentId,
             )
             .data
 
@@ -101,20 +153,29 @@ class CommentClient @Inject constructor(
         isLiked: Boolean,
     ) {
         if (isLiked) {
-            commentService.postCommentLike(
-                type = type.value,
-                commentSeq = commentId,
-            )
+            commentService
+                .postCommentLike(
+                    type =
+                        type.value,
+                    commentSeq =
+                        commentId,
+                )
         } else {
-            commentService.deleteCommentLike(
-                type = type.value,
-                commentSeq = commentId,
-            )
+            commentService
+                .deleteCommentLike(
+                    type =
+                        type.value,
+                    commentSeq =
+                        commentId,
+                )
         }
     }
 
     private companion object {
-        const val DEFAULT_PAGE = 0
-        const val DEFAULT_SIZE = 20
+        const val DEFAULT_PAGE =
+            0
+
+        const val DEFAULT_SIZE =
+            20
     }
 }
