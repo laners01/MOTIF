@@ -33,8 +33,12 @@ internal class CommentRepositoryImpl @Inject constructor(
                     size = size,
                 )
 
-            emit(response.toCommentPage())
-        }.flowOn(ioDispatcher)
+            emit(
+                response.toCommentPage(),
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
 
     override fun createNoticeComment(
         noticeId: Long,
@@ -46,11 +50,16 @@ internal class CommentRepositoryImpl @Inject constructor(
                 commentClient.createNoticeComment(
                     noticeId = noticeId,
                     content = content,
-                    parentCommentId = parentCommentId,
+                    parentCommentId =
+                        parentCommentId,
                 )
 
-            emit(response.commentSeq)
-        }.flowOn(ioDispatcher)
+            emit(
+                response.commentSeq,
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
 
     override fun getChallengeComments(
         challengeId: Long,
@@ -60,13 +69,20 @@ internal class CommentRepositoryImpl @Inject constructor(
         flow {
             val response =
                 commentClient.getChallengeComments(
-                    challengeId = challengeId,
-                    page = page,
-                    size = size,
+                    challengeId =
+                        challengeId,
+                    page =
+                        page,
+                    size =
+                        size,
                 )
 
-            emit(response.toCommentPage())
-        }.flowOn(ioDispatcher)
+            emit(
+                response.toCommentPage(),
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
 
     override fun createChallengeComment(
         challengeId: Long,
@@ -76,13 +92,66 @@ internal class CommentRepositoryImpl @Inject constructor(
         flow {
             val response =
                 commentClient.createChallengeComment(
-                    challengeId = challengeId,
-                    content = content,
-                    parentCommentId = parentCommentId,
+                    challengeId =
+                        challengeId,
+                    content =
+                        content,
+                    parentCommentId =
+                        parentCommentId,
                 )
 
-            emit(response.commentSeq)
-        }.flowOn(ioDispatcher)
+            emit(
+                response.commentSeq,
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
+
+    override fun getVideoComments(
+        videoId: Long,
+        page: Int,
+        size: Int,
+    ): Flow<OffsetPage<Comment>> =
+        flow {
+            val response =
+                commentClient.getVideoComments(
+                    videoId =
+                        videoId,
+                    page =
+                        page,
+                    size =
+                        size,
+                )
+
+            emit(
+                response.toCommentPage(),
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
+
+    override fun createVideoComment(
+        videoId: Long,
+        content: String,
+        parentCommentId: Long?,
+    ): Flow<Long> =
+        flow {
+            val response =
+                commentClient.createVideoComment(
+                    videoId =
+                        videoId,
+                    content =
+                        content,
+                    parentCommentId =
+                        parentCommentId,
+                )
+
+            emit(
+                response.commentSeq,
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
 
     override fun getReplies(
         type: CommentType,
@@ -93,14 +162,22 @@ internal class CommentRepositoryImpl @Inject constructor(
         flow {
             val response =
                 commentClient.getReplies(
-                    type = type,
-                    commentId = commentId,
-                    page = page,
-                    size = size,
+                    type =
+                        type,
+                    commentId =
+                        commentId,
+                    page =
+                        page,
+                    size =
+                        size,
                 )
 
-            emit(response.toReplyPage())
-        }.flowOn(ioDispatcher)
+            emit(
+                response.toReplyPage(),
+            )
+        }.flowOn(
+            ioDispatcher,
+        )
 
     override fun deleteComment(
         type: CommentType,
@@ -108,12 +185,16 @@ internal class CommentRepositoryImpl @Inject constructor(
     ): Flow<Unit> =
         flow {
             commentClient.deleteComment(
-                type = type,
-                commentId = commentId,
+                type =
+                    type,
+                commentId =
+                    commentId,
             )
 
             emit(Unit)
-        }.flowOn(ioDispatcher)
+        }.flowOn(
+            ioDispatcher,
+        )
 
     override fun updateCommentLike(
         type: CommentType,
@@ -122,11 +203,16 @@ internal class CommentRepositoryImpl @Inject constructor(
     ): Flow<Unit> =
         flow {
             commentClient.updateCommentLike(
-                type = type,
-                commentId = commentId,
-                isLiked = isLiked,
+                type =
+                    type,
+                commentId =
+                    commentId,
+                isLiked =
+                    isLiked,
             )
 
             emit(Unit)
-        }.flowOn(ioDispatcher)
+        }.flowOn(
+            ioDispatcher,
+        )
 }

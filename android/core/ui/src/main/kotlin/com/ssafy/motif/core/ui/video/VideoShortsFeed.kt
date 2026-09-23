@@ -47,6 +47,7 @@ fun VideoShortsFeed(
     videoUrl: (index: Int) -> String,
     thumbnailUrl: (index: Int) -> String,
     modifier: Modifier = Modifier,
+    initialPage: Int = 0,
     state: VideoShortsState =
         rememberVideoShortsState(),
     muted: Boolean = false,
@@ -63,8 +64,17 @@ fun VideoShortsFeed(
         return
     }
 
+    val safeInitialPage =
+        initialPage.coerceIn(
+            minimumValue = 0,
+            maximumValue =
+                itemCount - 1,
+        )
+
     val pagerState =
         rememberPagerState(
+            initialPage =
+                safeInitialPage,
             pageCount = {
                 itemCount
             },
@@ -102,13 +112,6 @@ fun VideoShortsFeed(
         }
     }
 
-    /*
-     * 페이지 전환이 완료되면
-     * 해당 영상 재생.
-     *
-     * 이전 영상에서 보여주던
-     * Play/Pause 피드백도 제거한다.
-     */
     LaunchedEffect(
         pagerState.settledPage,
         mediaController,
@@ -128,9 +131,6 @@ fun VideoShortsFeed(
         )
     }
 
-    /*
-     * 영상 진행률과 실제 재생 상태 갱신.
-     */
     LaunchedEffect(
         mediaController,
     ) {
@@ -141,7 +141,10 @@ fun VideoShortsFeed(
         while (isActive) {
             state.updatePlaybackState()
 
-            delay(PLAYBACK_PROGRESS_INTERVAL.milliseconds)
+            delay(
+                PLAYBACK_PROGRESS_INTERVAL
+                    .milliseconds,
+            )
         }
     }
 
@@ -174,37 +177,29 @@ fun VideoShortsFeed(
                         remember {
                             MutableInteractionSource()
                         },
-                    indication = null,
+                    indication =
+                        null,
                     onClick = {
                         state.togglePlayback()
                     },
                 ),
-            decoration = { backdropState ->
+            decoration = {
+                    backdropState,
+                ->
 
-                /*
-                 * 각 feature에서 전달한
-                 * 기존 overlay.
-                 */
                 decoration(
                     page,
                     selected,
                     backdropState,
                 )
 
-                /*
-                 * Challenge overlay 등과 별개로
-                 * 영상 자체에서 제공하는
-                 * Play / Pause 피드백.
-                 *
-                 * 따라서 Challenge BottomSheet가 열려
-                 * ChallengeShortFormOverlay가 사라져도
-                 * 이 아이콘은 계속 표시된다.
-                 */
                 if (selected) {
                     PlaybackFeedbackOverlay(
                         feedback =
                             state.playbackFeedback,
-                        onFinished = { feedback ->
+                        onFinished = {
+                                feedback,
+                            ->
                             state.clearPlaybackFeedback(
                                 feedback,
                             )

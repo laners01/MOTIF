@@ -17,9 +17,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -46,11 +48,23 @@ internal class ArtistChallengeViewModel @Inject constructor(
         _commentUiState.asStateFlow()
 
     private var selectedChallengeId: Long? = null
-
     private var challengeFeedJob: Job? = null
     private var commentLoadJob: Job? = null
+    private var initialChallengeId: Long? = null
+    private var initialized = false
 
-    init {
+    fun initialize(
+        initialChallengeId: Long?,
+    ) {
+        if (initialized) {
+            return
+        }
+
+        initialized = true
+
+        this.initialChallengeId =
+            initialChallengeId
+
         loadChallenges()
     }
 
@@ -453,39 +467,68 @@ internal class ArtistChallengeViewModel @Inject constructor(
         challengeFeedJob?.cancel()
 
         challengeFeedJob =
-            challengeRepository
-                .getChallengeFeed(
-                    cursor = null,
-                    size = CHALLENGE_FEED_SIZE,
-                )
-                .asResult()
-                .onEach { result ->
-                    _uiState.value =
-                        when (result) {
-                            Result.Loading -> {
-                                ArtistChallengeUiState.Loading
+            viewModelScope.launch {
+                _uiState.value =
+                    ArtistChallengeUiState.Loading
+
+                runCatching {
+                    val page =
+                        challengeRepository
+                            .getChallengeFeed(
+                                cursor = null,
+                                size = CHALLENGE_FEED_SIZE,
+                            )
+                            .first()
+
+                    val initialChallenge =
+                        initialChallengeId
+                            ?.let { challengeId ->
+                                page.items
+                                    .firstOrNull { challenge ->
+                                        challenge.id ==
+                                                challengeId
+                                    }
+                                    ?: challengeRepository
+                                        .getChallengeDetail(
+                                            id = challengeId,
+                                        )
+                                        .first()
+                                        .challenge
                             }
 
-                            is Result.Success -> {
-                                ArtistChallengeUiState.Success(
-                                    challenges =
-                                        result.data.items,
-                                    nextCursor =
-                                        result.data.nextCursor,
-                                    hasNext =
-                                        result.data.hasNext,
-                                )
-                            }
-
-                            is Result.Error -> {
-                                ArtistChallengeUiState.Error(
-                                    exception =
-                                        result.exception,
-                                )
-                            }
+                    val challenges =
+                        if (initialChallenge == null) {
+                            page.items
+                        } else {
+                            listOf(
+                                initialChallenge,
+                            ) +
+                                    page.items
+                                        .filterNot { challenge ->
+                                            challenge.id ==
+                                                    initialChallenge.id
+                                        }
                         }
+
+                    ArtistChallengeUiState.Success(
+                        challenges =
+                            challenges,
+                        nextCursor =
+                            page.nextCursor,
+                        hasNext =
+                            page.hasNext,
+                    )
+                }.onSuccess { state ->
+                    _uiState.value =
+                        state
+                }.onFailure { throwable ->
+                    _uiState.value =
+                        ArtistChallengeUiState.Error(
+                            exception =
+                                throwable,
+                        )
                 }
-                .launchIn(viewModelScope)
+            }
     }
 
     private fun loadNextChallengePage(

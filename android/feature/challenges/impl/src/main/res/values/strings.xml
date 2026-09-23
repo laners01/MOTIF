@@ -6,4 +6,14 @@
     <string name="challenge_description_view">조회수</string>
     <string name="challenge_description_date">%1$d월 %2$d일</string>
     <string name="challenge_description_year">%1$d년</string>
+
+    <string name="challenge_participation_back">뒤로가기</string>
+    <string name="challenge_participation_like">좋아요</string>
+    <string name="challenge_participation_comment">댓글</string>
+    <string name="challenge_participation_edit">수정하기</string>
+    <string name="challenge_participation_delete">삭제하기</string>
+    <string name="challenge_participation_view_count">조회수 %1$s</string>
+    <string name="challenge_participation_empty">아직 참여 영상이 없어요.</string>
+    <string name="challenge_participation_error">참여 영상을 불러오지 못했습니다.</string>
+    <string name="challenge_participation_retry">다시 시도</string>
 </resources>

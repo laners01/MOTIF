@@ -29,6 +29,7 @@ internal fun ChallengeShortFormLayout(
     onMotifClick: () -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
+    initialPage: Int = 0,
     overlay: @Composable (
         index: Int,
         backdropState: GlassBackdropState,
@@ -57,6 +58,7 @@ internal fun ChallengeShortFormLayout(
                 videoId = videoId,
                 videoUrl = videoUrl,
                 thumbnailUrl = thumbnailUrl,
+                initialPage = initialPage,
                 state = videoShortsState,
                 muted = false,
                 repeat = true,
@@ -73,7 +75,8 @@ internal fun ChallengeShortFormLayout(
                 if (
                     selected &&
                     index >=
-                    itemCount - LOAD_MORE_THRESHOLD
+                    itemCount -
+                    LOAD_MORE_THRESHOLD
                 ) {
                     LaunchedEffect(
                         index,
@@ -94,7 +97,8 @@ internal fun ChallengeShortFormLayout(
 
         ChallengeBottomNavigation(
             playbackProgress =
-                videoShortsState.playbackProgress,
+                videoShortsState
+                    .playbackProgress,
             myProfileImageUrl =
                 myProfileImageUrl,
             onSeek =
@@ -138,8 +142,10 @@ private fun Modifier.scaleForBottomSheet(
 
         transformOrigin =
             TransformOrigin(
-                pivotFractionX = 0.5f,
-                pivotFractionY = 0f,
+                pivotFractionX =
+                    0.5f,
+                pivotFractionY =
+                    0f,
             )
 
         alpha =
@@ -150,4 +156,5 @@ private fun Modifier.scaleForBottomSheet(
             }
     }
 
-private const val LOAD_MORE_THRESHOLD = 3
+private const val LOAD_MORE_THRESHOLD =
+    3
