@@ -9,6 +9,7 @@ import com.ssafy.motif.core.network.service.challenge.ChallengeService
 import com.ssafy.motif.core.network.service.comment.CommentService
 import com.ssafy.motif.core.network.service.composite.CompositeJobService
 import com.ssafy.motif.core.network.service.notice.NoticeService
+import com.ssafy.motif.core.network.service.onboarding.OnboardingService
 import com.ssafy.motif.core.network.service.user.UserService
 import dagger.Module
 import dagger.Provides
@@ -178,6 +179,15 @@ internal object NetworkModule {
     ): AuthService =
         retrofit.create(
             AuthService::class.java,
+        )
+
+    @Provides
+    @Singleton
+    fun provideOnboardingService(
+        retrofit: Retrofit,
+    ): OnboardingService =
+        retrofit.create(
+            OnboardingService::class.java,
         )
 
     private const val NETWORK_TIMEOUT_SECONDS = 30L
