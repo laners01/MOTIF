@@ -60,7 +60,7 @@ public interface AuthControllerDocs {
                                         "tokenType": "Bearer",
                                         "expiresIn": 3600,
                                         "isNewUser": true,
-                                        "user": { "userSeq": 1, "nickname": "user_1", "profileImageUrl": null }
+                                        "user": { "userSeq": 1, "nickname": "user_1", "profileImageUrl": "https://cdn.motif.io/profiles/default.png" }
                                       },
                                       "timestamp": "2026-09-10T00:00:00.000Z"
                                     }"""))),

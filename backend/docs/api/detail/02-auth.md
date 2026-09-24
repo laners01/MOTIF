@@ -46,7 +46,7 @@ Content-Type: application/json; charset=utf-8
     "tokenType": "Bearer",
     "expiresIn": 3600,
     "isNewUser": true,
-    "user": { "userSeq": 1, "nickname": "user_1", "profileImageUrl": null }
+    "user": { "userSeq": 1, "nickname": "user_1", "profileImageUrl": "https://cdn.motif.io/profiles/default.png" }
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
@@ -60,7 +60,7 @@ Content-Type: application/json; charset=utf-8
 | `expiresIn` | number | access token 유효 기간(초). 현재 3600 |
 | `isNewUser` | boolean | **이번 요청에서 `users` 행이 새로 생겼는지** — 온보딩 노출 판정의 유일한 근거 |
 | `user.nickname` | string | 최초 가입은 임시값 `user_{userSeq}`. 확정은 §3.3 |
-| `user.profileImageUrl` | string \| null | 공개 CDN URL(§1.7). 미설정이면 `null` — 신규 가입은 항상 이 경우다 |
+| `user.profileImageUrl` | string | 공개 CDN URL(§1.7). 미설정이면 기본 프로필 이미지 URL — 신규 가입은 항상 이 경우다 |
 
 ### 서버 처리 순서
 
@@ -179,7 +179,7 @@ Content-Type: application/json; charset=utf-8
 | `isNewUser` | boolean | **재발급에서는 항상 `false`** — 아래 (기본안) 참조 |
 | `user.userSeq` | number | 사용자 PK |
 | `user.nickname` | string | 현재 닉네임 |
-| `user.profileImageUrl` | string \| null | 공개 등급 CloudFront 일반 URL(§1.7). 미설정이면 `null`. 예시의 도메인은 placeholder |
+| `user.profileImageUrl` | string | 공개 등급 CloudFront 일반 URL(§1.7). 미설정이면 기본 프로필 이미지 URL. 예시의 도메인은 placeholder |
 
 - 응답 형태는 §2.1 로그인과 **완전히 동일**하다(원본 §2.2 "2.1 과 동일한 토큰 쌍 + user 요약"). 안드로이드는 같은 DTO·파서를 쓰면 된다.
 - **(기본안)** `isNewUser` 는 재발급에서 의미가 없지만 필드를 빼지 않고 `false` 로 내린다. 필드를 빼면 클라이언트가 로그인/재발급용 응답 타입을 둘로 나눠야 한다. 온보딩 판정은 로그인(§2.1) 응답으로만 한다.

@@ -288,7 +288,7 @@ public class UserActivityQueryService {
     }
 
     private ActivityItem.Author author(Integer userSeq, String nickname, String profileImageKey) {
-        return new ActivityItem.Author(userSeq, nickname, mediaUrlResolver.resolve(profileImageKey));
+        return new ActivityItem.Author(userSeq, nickname, mediaUrlResolver.resolveProfile(profileImageKey));
     }
 
     private static TargetKey key(Integer challengeSeq) {

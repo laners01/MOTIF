@@ -148,7 +148,7 @@ public class MotifResultQueryService {
                 card.artistSeq(),
                 card.name(),
                 card.groupName(),
-                mediaUrlResolver.resolve(card.profileImageKey()));
+                mediaUrlResolver.resolveProfile(card.profileImageKey()));
     }
 
     /**
@@ -198,6 +198,6 @@ public class MotifResultQueryService {
                 card.artistSeq(),
                 card.name(),
                 card.groupName(),
-                mediaUrlResolver.resolve(card.profileImageKey()));
+                mediaUrlResolver.resolveProfile(card.profileImageKey()));
     }
 }

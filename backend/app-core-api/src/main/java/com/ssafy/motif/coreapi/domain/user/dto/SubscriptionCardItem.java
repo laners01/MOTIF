@@ -33,7 +33,7 @@ public record SubscriptionCardItem(
         String name,
         @Schema(description = "솔로 아티스트는 null", nullable = true)
         String groupName,
-        @Schema(description = "공개 CDN URL. 미설정이면 null", nullable = true)
+        @Schema(description = "공개 CDN URL. 미설정이면 기본 프로필 이미지")
         String profileImageUrl,
         boolean passActive,
         @Schema(description = "패스가 없으면 null", nullable = true)

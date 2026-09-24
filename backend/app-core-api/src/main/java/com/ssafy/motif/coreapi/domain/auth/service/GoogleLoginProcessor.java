@@ -65,7 +65,7 @@ public class GoogleLoginProcessor {
                 refreshToken.rawToken(),
                 jwtProvider.accessTokenTtlSeconds(),
                 isNewUser,
-                UserSummaryResponse.of(user, publicMediaUrlResolver.resolve(user.getProfileImageKey())));
+                UserSummaryResponse.of(user, publicMediaUrlResolver.resolveProfile(user.getProfileImageKey())));
     }
 
     /** users → user_accounts → user_oauth_accounts 3행 생성 (명세 §2.1). */

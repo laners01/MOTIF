@@ -181,6 +181,6 @@ public class HomeActivityQueryService {
 
     private ActivityItem.Artist toArtist(SubscribedArtistRow row) {
         return new ActivityItem.Artist(row.artistSeq(), row.name(), row.groupName(),
-                mediaUrlResolver.resolve(row.profileImageKey()));
+                mediaUrlResolver.resolveProfile(row.profileImageKey()));
     }
 }

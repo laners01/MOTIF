@@ -38,6 +38,11 @@ public class MediaUrlResolver {
                 : publicResolver.resolve(key);
     }
 
+    /** 프로필은 언제나 공개 등급이다 — {@link PublicMediaUrlResolver#resolveProfile}. */
+    public String resolveProfile(String key) {
+        return publicResolver.resolveProfile(key);
+    }
+
     /**
      * 단일 <b>영상 파일</b> 키 → 재생 주소 (0020 — §7.6 편집본).
      *

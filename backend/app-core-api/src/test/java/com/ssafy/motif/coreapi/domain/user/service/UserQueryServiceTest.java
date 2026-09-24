@@ -96,7 +96,7 @@ class UserQueryServiceTest {
         // 없는 단위 테스트라 직접 넣는다
         ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
         MediaUrlResolver resolver = new MediaUrlResolver(
-                new PublicMediaUrlResolver(CDN), new ProtectedMediaUrlResolver(CDN, signer), signer);
+                new PublicMediaUrlResolver(CDN, "profiles/default.png"), new ProtectedMediaUrlResolver(CDN, signer), signer);
 
         service = new UserQueryService(userRepository, motifResultRepository,
                 participationVideoRepository, subscriptionRepository,
@@ -122,9 +122,9 @@ class UserQueryServiceTest {
     }
 
     @Test
-    @DisplayName("프로필 이미지가 없으면 null 이다")
-    void profileImageMayBeNull() {
-        assertThat(service.me(ME).profileImageUrl()).isNull();
+    @DisplayName("프로필 이미지가 없으면 기본 프로필 이미지다")
+    void missingProfileImageFallsBackToDefault() {
+        assertThat(service.me(ME).profileImageUrl()).isEqualTo(CDN + "/profiles/default.png");
     }
 
     @Test
@@ -270,16 +270,17 @@ class UserQueryServiceTest {
         }
 
         @Test
-        @DisplayName("프로필 이미지가 없으면 null 이다 — 아티스트 쪽도 같다")
-        void missingImagesAreNull() {
+        @DisplayName("프로필 이미지가 없으면 기본 프로필 이미지다 — 아티스트 쪽도 같다")
+        void missingImagesFallBackToDefault() {
             givenTarget(OTHER, "팬123", null);
             given(subscriptionRepository.findSubscribed(OTHER)).willReturn(List.of(
                     new SubscribedArtistRow(9, "아이유", null, null, Instant.now())));
 
             UserProfileResponse profile = service.profile(OTHER);
 
-            assertThat(profile.profileImageUrl()).isNull();
-            assertThat(profile.subscribedArtists().get(0).profileImageUrl()).isNull();
+            assertThat(profile.profileImageUrl()).isEqualTo(CDN + "/profiles/default.png");
+            assertThat(profile.subscribedArtists().get(0).profileImageUrl())
+                    .isEqualTo(CDN + "/profiles/default.png");
         }
 
         @Test

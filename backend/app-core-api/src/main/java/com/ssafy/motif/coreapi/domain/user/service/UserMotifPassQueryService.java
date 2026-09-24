@@ -121,6 +121,6 @@ public class UserMotifPassQueryService {
                 card.artistSeq(),
                 card.name(),
                 card.groupName(),
-                mediaUrlResolver.resolve(card.profileImageKey()));
+                mediaUrlResolver.resolveProfile(card.profileImageKey()));
     }
 }

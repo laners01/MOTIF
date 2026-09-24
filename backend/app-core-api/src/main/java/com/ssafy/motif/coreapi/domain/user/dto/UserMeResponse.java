@@ -10,7 +10,7 @@ import java.util.List;
  * <p>프로필 + 대표 모티프 + 내 영상 3×3 프리뷰를 한 번에 담는다. 전체 목록·더보기는
  * §4.8 이고, 대표 모티프의 설정·해제·문구 수정은 §11.8 이다(R4 통합).
  *
- * @param profileImageUrl 공개 CDN URL. 미설정이면 {@code null}
+ * @param profileImageUrl 공개 CDN URL. 미설정이면 기본 프로필 이미지
  * @param repMotif        대표 모티프. <b>미설정·삭제·부재면 {@code null}</b>
  * @param videos          내 참여 영상 최신 9건. <b>없으면 빈 배열</b>
  */
@@ -18,7 +18,7 @@ import java.util.List;
 public record UserMeResponse(
         Integer userSeq,
         String nickname,
-        @Schema(description = "공개 CDN URL. 미설정이면 null", nullable = true)
+        @Schema(description = "공개 CDN URL. 미설정이면 기본 프로필 이미지")
         String profileImageUrl,
         @Schema(description = "대표 모티프. 미설정·삭제·부재면 null", nullable = true)
         RepMotif repMotif,

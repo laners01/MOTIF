@@ -63,7 +63,7 @@ public record ChallengeDetailResponse(
             @Schema(description = "아티스트 표시 이름 (users.nickname)", example = "카리나")
             String name,
 
-            @Schema(description = "CloudFront 일반 URL(공개 등급 — §1.7). 미설정이면 null", nullable = true)
+            @Schema(description = "CloudFront 일반 URL(공개 등급 — §1.7). 미설정이면 기본 프로필 이미지")
             String profileImageUrl
     ) {
     }

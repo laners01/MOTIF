@@ -61,7 +61,7 @@ class HotVideoQueryServiceTest {
         ReflectionTestUtils.setField(signer, "cdnBaseUrl", CDN);
 
         service = new HotVideoQueryService(snapshot, participationVideoRepository,
-                new MediaUrlResolver(new PublicMediaUrlResolver(CDN),
+                new MediaUrlResolver(new PublicMediaUrlResolver(CDN, "profiles/default.png"),
                         new ProtectedMediaUrlResolver(CDN, signer), signer));
     }
 

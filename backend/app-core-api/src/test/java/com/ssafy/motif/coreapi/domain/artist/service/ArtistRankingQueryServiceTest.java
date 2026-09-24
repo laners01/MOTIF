@@ -67,7 +67,7 @@ class ArtistRankingQueryServiceTest {
         });
 
         service = new ArtistRankingQueryService(snapshot, artistRepository,
-                subscriptionRepository, new PublicMediaUrlResolver("https://cdn.motif.io"));
+                subscriptionRepository, new PublicMediaUrlResolver("https://cdn.motif.io", "profiles/default.png"));
     }
 
     private static ArtistCardRow card(Integer artistSeq) {
@@ -299,14 +299,14 @@ class ArtistRankingQueryServiceTest {
     }
 
     @Test
-    @DisplayName("프로필 키가 없으면 URL 도 null 이다")
-    void nullKeyGivesNullUrl() {
+    @DisplayName("프로필 키가 없으면 기본 프로필 이미지다")
+    void nullKeyGivesDefaultProfile() {
         snapshot(List.of(KARINA));
         given(artistRepository.findCards(any()))
                 .willReturn(List.of(new ArtistCardRow(KARINA, "카리나", null, null)));
 
         ArtistRankingResponse item = ranking(RankingFilter.ALL, 0, 20).list().getFirst();
-        assertThat(item.profileImageUrl()).isNull();
+        assertThat(item.profileImageUrl()).isEqualTo("https://cdn.motif.io/profiles/default.png");
         assertThat(item.groupName()).isNull();
     }
 }

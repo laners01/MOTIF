@@ -102,7 +102,7 @@ public class AssetQueryService {
                         row.getArtistSeq(),
                         row.getArtistName(),
                         row.getGroupName(),
-                        mediaUrlResolver.resolve(row.getArtistProfileImageKey())),
+                        mediaUrlResolver.resolveProfile(row.getArtistProfileImageKey())),
                 row.getTitle(),
                 mediaUrlResolver.resolve(row.getThumbnailKey()),
                 row.getDescription(),
@@ -132,7 +132,7 @@ public class AssetQueryService {
                         row.getArtistSeq(),
                         row.getArtistName(),
                         row.getGroupName(),
-                        mediaUrlResolver.resolve(row.getArtistProfileImageKey())),
+                        mediaUrlResolver.resolveProfile(row.getArtistProfileImageKey())),
                 row.getTitle(),
                 // 키를 조립하지 않는다 — 가공이 끝나면 app-media 가 video_key 를 마스터
                 // 재생목록으로 덮어쓴다. 서버가 master.m3u8 을 붙이면 가공 전 에셋에

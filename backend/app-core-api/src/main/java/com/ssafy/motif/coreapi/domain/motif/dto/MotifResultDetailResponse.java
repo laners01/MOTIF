@@ -74,7 +74,7 @@ public record MotifResultDetailResponse(
             @Schema(description = "그룹명. 솔로면 null", example = "aespa")
             String groupName,
 
-            @Schema(description = "프로필 이미지 URL. 미설정이면 null")
+            @Schema(description = "프로필 이미지 URL. 미설정이면 기본 프로필 이미지")
             String profileImageUrl) {
     }
 }

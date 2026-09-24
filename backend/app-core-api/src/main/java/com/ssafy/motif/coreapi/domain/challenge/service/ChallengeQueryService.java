@@ -131,7 +131,7 @@ public class ChallengeQueryService {
                 new ChallengeFeedItem.Artist(
                         c.getArtistSeq(),
                         artist == null ? null : artist.name(),
-                        artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey())),
+                        artist == null ? null : mediaUrlResolver.resolveProfile(artist.profileImageKey())),
                 new ChallengeFeedItem.Song(
                         song == null ? null : song.getTitle(),
                         song == null ? null : song.getSingerName()),
@@ -168,7 +168,7 @@ public class ChallengeQueryService {
                 challenge.getDurationMs(),
                 new ChallengeDetailResponse.Artist(
                         artist.artistSeq(), artist.name(),
-                        mediaUrlResolver.resolve(artist.profileImageKey())),
+                        mediaUrlResolver.resolveProfile(artist.profileImageKey())),
                 new ChallengeDetailResponse.Song(song.getTitle(), song.getSingerName()),
                 challenge.getViewCount(),
                 challenge.getParticipantCount(),
@@ -216,7 +216,7 @@ public class ChallengeQueryService {
                             slot.getArtistSeq(),
                             artist == null ? null : artist.name(),
                             slot.getSlotOrder(),
-                            artist == null ? null : mediaUrlResolver.resolve(artist.profileImageKey()),
+                            artist == null ? null : mediaUrlResolver.resolveProfile(artist.profileImageKey()),
                             toAnchor(slot.anchorOrNull()),
                             mediaUrlResolver.resolve(slot.getInitialSceneKey()),
                             mediaUrlResolver.resolve(slot.getPreviewImageKey()));

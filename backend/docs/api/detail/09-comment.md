@@ -159,7 +159,7 @@ offset 페이지네이션이다.
         "author": {
           "userSeq": 9,
           "nickname": "dancing_mandu",
-          "profileImageUrl": null,
+          "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
           "isArtist": false
         },
         "likeCount": 0,

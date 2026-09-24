@@ -140,7 +140,7 @@ public class ArtistRankingQueryService {
                 card.artistSeq(),
                 card.name(),
                 card.groupName(),
-                mediaUrlResolver.resolve(card.profileImageKey()),
+                mediaUrlResolver.resolveProfile(card.profileImageKey()),
                 subscribed.contains(ranked.artistSeq()));
     }
 

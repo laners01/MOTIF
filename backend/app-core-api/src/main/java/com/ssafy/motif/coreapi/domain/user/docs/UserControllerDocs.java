@@ -43,7 +43,7 @@ public interface UserControllerDocs {
                     마이페이지 첫 화면에 필요한 것을 **한 번의 호출**로 내려준다
                     (회의 확정 2026-09-02 개편) — 프로필 + 대표 모티프 + 내 영상 3×3 프리뷰.
 
-                    - `profileImageUrl` — 공개 CDN URL. **미설정이면 `null`**
+                    - `profileImageUrl` — 공개 CDN URL. **미설정이면 기본 프로필 이미지 URL**
                     - `repMotif` — **미설정·삭제·부재면 `null`**. 설정·해제·문구 수정은
                       이 API 가 아니라 **§11.8 `PATCH /motif/results/{resultSeq}`** 다(R4 통합)
                     - `videos` — 내 참여 영상 **최신 9건**. **없으면 빈 배열 `[]`**.
@@ -118,7 +118,7 @@ public interface UserControllerDocs {
                                               "data": {
                                                 "userSeq": 1,
                                                 "nickname": "모티프러버",
-                                                "profileImageUrl": null,
+                                                "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
                                                 "repMotif": null,
                                                 "videos": []
                                               },
@@ -296,7 +296,7 @@ public interface UserControllerDocs {
                                                       },
                                                       {
                                                         "commentSeq": 531,
-                                                        "author": { "userSeq": 1, "nickname": "kkongdance", "profileImageUrl": null },
+                                                        "author": { "userSeq": 1, "nickname": "kkongdance", "profileImageUrl": "https://cdn.motif.io/profiles/default.png" },
                                                         "content": "이거 보고 바로 챌린지 찍으러 갑니다",
                                                         "regDttm": "2026-08-28T14:00:00.000Z"
                                                       }
