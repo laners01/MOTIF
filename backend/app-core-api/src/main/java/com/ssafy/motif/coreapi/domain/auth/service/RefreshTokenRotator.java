@@ -66,7 +66,7 @@ public class RefreshTokenRotator {
                 jwtProvider.accessTokenTtlSeconds(),
                 // 재발급에는 가입 판정이 없다. 응답 형태를 §2.1 과 같게 유지하려고 필드는 남긴다
                 false,
-                UserSummaryResponse.of(user, publicMediaUrlResolver.resolve(user.getProfileImageKey())));
+                UserSummaryResponse.of(user, publicMediaUrlResolver.resolveProfile(user.getProfileImageKey())));
     }
 
     private RefreshToken findAndLock(String rawRefreshToken) {

@@ -13,14 +13,14 @@ import java.util.List;
  * <p>본인 마이페이지(§4.1)와는 다른 응답이다 — 남의 화면에는 대표 모티프도 영상
  * 그리드도 없고, 대신 구독 중인 아티스트가 붙는다.
  *
- * @param profileImageUrl 무서명 공개 CDN URL. 미설정이면 {@code null}
+ * @param profileImageUrl 무서명 공개 CDN URL. 미설정이면 기본 프로필 이미지
  * @param subscribedArtists 구독 최신순. 없으면 빈 배열
  */
 @Schema(description = "타 사용자 프로필 (§4.6)")
 public record UserProfileResponse(
         Integer userSeq,
         String nickname,
-        @Schema(description = "공개 CDN URL. 미설정이면 null", nullable = true)
+        @Schema(description = "공개 CDN URL. 미설정이면 기본 프로필 이미지")
         String profileImageUrl,
         @Schema(description = "구독 중인 아티스트. 구독 최신순. 없으면 []")
         List<SubscribedArtist> subscribedArtists) {
@@ -45,7 +45,7 @@ public record UserProfileResponse(
             String name,
             @Schema(description = "솔로 아티스트는 null", nullable = true)
             String groupName,
-            @Schema(description = "공개 CDN URL. 미설정이면 null", nullable = true)
+            @Schema(description = "공개 CDN URL. 미설정이면 기본 프로필 이미지")
             String profileImageUrl) {
     }
 }

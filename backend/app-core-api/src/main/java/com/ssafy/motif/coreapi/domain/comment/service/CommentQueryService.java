@@ -224,7 +224,7 @@ public class CommentQueryService {
         return new CommentItem.Author(
                 row.authorUserSeq(),
                 row.authorNickname(),
-                mediaUrlResolver.resolve(row.authorProfileImageKey()),
+                mediaUrlResolver.resolveProfile(row.authorProfileImageKey()),
                 row.authorUserSeq().equals(artistUserSeq));
     }
 }

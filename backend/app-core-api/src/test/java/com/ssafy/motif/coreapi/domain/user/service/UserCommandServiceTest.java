@@ -48,7 +48,7 @@ class UserCommandServiceTest {
         presignRegistry = mock(ProfileImagePresignRegistry.class);
         objectStore = mock(MediaObjectStore.class);
         MediaUrlResolver mediaUrlResolver = mock(MediaUrlResolver.class);
-        given(mediaUrlResolver.resolve(anyString()))
+        given(mediaUrlResolver.resolveProfile(anyString()))
                 .willAnswer(call -> "https://cdn.motif.test/" + call.getArgument(0));
 
         service = new UserCommandService(

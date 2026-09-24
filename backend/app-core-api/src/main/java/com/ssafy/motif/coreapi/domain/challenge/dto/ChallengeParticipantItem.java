@@ -33,7 +33,7 @@ public record ChallengeParticipantItem(
         @Schema(description = "화면 좌→우 순서, 0부터", example = "0")
         int slotOrder,
 
-        @Schema(description = "프로필 이미지 URL. 미등록이면 null", nullable = true)
+        @Schema(description = "프로필 이미지 URL. 슬롯에 아티스트가 없으면 null, 사진 미등록이면 기본 프로필 이미지", nullable = true)
         String profileImageUrl,
 
         @Schema(description = "선택 화면에서 프로필 원이 앉는 자리. 어드민이 아직 안 찍은 옛 슬롯은 null — 원을 숨긴다",

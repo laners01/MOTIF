@@ -87,7 +87,7 @@ public class UserCommandService {
 
         presignRegistry.forget(userSeq, imageKey);
 
-        return new ProfileImageUpdateResponse(mediaUrlResolver.resolve(user.getProfileImageKey()));
+        return new ProfileImageUpdateResponse(mediaUrlResolver.resolveProfile(user.getProfileImageKey()));
     }
 
     private User requireUser(Integer userSeq) {

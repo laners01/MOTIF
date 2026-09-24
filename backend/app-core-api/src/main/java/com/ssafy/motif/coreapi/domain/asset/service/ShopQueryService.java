@@ -81,7 +81,7 @@ public class ShopQueryService {
                         artist.artistSeq(),
                         artist.name(),
                         artist.groupName(),
-                        mediaUrlResolver.resolve(artist.profileImageKey())),
+                        mediaUrlResolver.resolveProfile(artist.profileImageKey())),
                 passActive,
                 passExpiry,
                 assets.stream().map(row -> asset(row, passActive)).toList());

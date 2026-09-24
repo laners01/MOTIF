@@ -60,7 +60,7 @@ class HomeActivityQueryServiceTest {
         noticeImageRepository = mock(NoticeImageRepository.class);
         service = new HomeActivityQueryService(subscriptionRepository, homeActivityRepository,
                 motifAssetRepository, noticeRepository, noticeImageRepository,
-                new PublicMediaUrlResolver(CDN));
+                new PublicMediaUrlResolver(CDN, "profiles/default.png"));
 
         // 기본값 — 각 테스트가 필요한 것만 덮어쓴다
         given(motifAssetRepository.findAllById(any())).willReturn(List.of());

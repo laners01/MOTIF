@@ -17,7 +17,7 @@ public record UserSummaryResponse(
         @Schema(description = "최초 가입 시에는 임시값 user_{userSeq}. 확정은 온보딩 완료 API(§3.3)", example = "user_1")
         String nickname,
 
-        @Schema(description = "CloudFront 일반 URL(공개 등급 — §1.7). 미설정이면 null", nullable = true)
+        @Schema(description = "CloudFront 일반 URL(공개 등급 — §1.7). 미설정이면 기본 프로필 이미지")
         String profileImageUrl
 ) {
 

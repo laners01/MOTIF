@@ -75,6 +75,9 @@ motif:
         max-size: 10MB
         # 어드민 §1.4 이미지 300초 · API 명세 §4.3 expiresIn 300 — 같은 값이다
         presign-ttl: 300s
+    # 프로필 미설정(사용자·아티스트) 때 앱 API 가 내려줄 이미지. 공개 프리픽스라 무서명이다.
+    # 어드민 API 는 "미등록" 을 봐야 하므로 여전히 null 을 준다
+    default-profile-key: profiles/default.png
     s3:
       bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
       region: ${AWS_REGION:ap-northeast-2}

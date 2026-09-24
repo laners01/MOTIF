@@ -29,8 +29,8 @@ public record ArtistSearchResponse(
         @Schema(description = "그룹명. 솔로 아티스트는 null", example = "aespa", nullable = true)
         String groupName,
 
-        @Schema(description = "프로필 이미지 URL — 공개 등급이라 서명하지 않는다(§1.7). 미등록이면 null",
-                example = "https://cdn.motif.io/profiles/3f9c1a2b.jpg", nullable = true)
+        @Schema(description = "프로필 이미지 URL — 공개 등급이라 서명하지 않는다(§1.7). 미등록이면 기본 프로필 이미지",
+                example = "https://cdn.motif.io/profiles/3f9c1a2b.jpg")
         String profileImageUrl,
 
         @Schema(description = "요청자의 구독 여부", example = "true")

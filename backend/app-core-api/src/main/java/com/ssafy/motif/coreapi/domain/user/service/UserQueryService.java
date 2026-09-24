@@ -93,7 +93,7 @@ public class UserQueryService {
         return new UserMeResponse(
                 user.getUserSeq(),
                 user.getNickname(),
-                mediaUrlResolver.resolve(user.getProfileImageKey()),
+                mediaUrlResolver.resolveProfile(user.getProfileImageKey()),
                 repMotif(user),
                 previews(userSeq));
     }
@@ -152,7 +152,7 @@ public class UserQueryService {
         return new UserProfileResponse(
                 user.getUserSeq(),
                 user.getNickname(),
-                mediaUrlResolver.resolve(user.getProfileImageKey()),
+                mediaUrlResolver.resolveProfile(user.getProfileImageKey()),
                 artists);
     }
 
@@ -161,7 +161,7 @@ public class UserQueryService {
                 row.artistSeq(),
                 row.name(),
                 row.groupName(),
-                mediaUrlResolver.resolve(row.profileImageKey()));
+                mediaUrlResolver.resolveProfile(row.profileImageKey()));
     }
 
     /**
@@ -208,7 +208,7 @@ public class UserQueryService {
                             row.artistSeq(),
                             row.name(),
                             row.groupName(),
-                            mediaUrlResolver.resolve(row.profileImageKey()),
+                            mediaUrlResolver.resolveProfile(row.profileImageKey()),
                             expiresDttm != null,
                             expiresDttm,
                             ChronoUnit.DAYS.between(row.subscribedDttm(), now),

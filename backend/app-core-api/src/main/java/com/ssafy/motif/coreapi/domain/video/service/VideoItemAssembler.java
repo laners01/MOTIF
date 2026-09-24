@@ -47,7 +47,7 @@ public class VideoItemAssembler {
                 new VideoItem.Author(
                         row.userSeq(),
                         row.authorNickname(),
-                        mediaUrlResolver.resolve(row.authorProfileImageKey())),
+                        mediaUrlResolver.resolveProfile(row.authorProfileImageKey())),
                 row.viewCount(),
                 row.likeCount(),
                 row.commentCount(),

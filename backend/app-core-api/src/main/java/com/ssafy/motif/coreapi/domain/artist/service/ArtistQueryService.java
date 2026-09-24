@@ -95,7 +95,7 @@ public class ArtistQueryService {
                         row.artistSeq(),
                         row.name(),
                         row.groupName(),
-                        mediaUrlResolver.resolve(row.profileImageKey()),
+                        mediaUrlResolver.resolveProfile(row.profileImageKey()),
                         subscribed.contains(row.artistSeq())))
                 .toList());
     }
@@ -140,7 +140,7 @@ public class ArtistQueryService {
                         row.getArtistSeq(),
                         row.getName(),
                         row.getGroupName(),
-                        mediaUrlResolver.resolve(row.getProfileImageKey()),
+                        mediaUrlResolver.resolveProfile(row.getProfileImageKey()),
                         subscribed.contains(row.getArtistSeq())))
                 .toList());
     }
@@ -185,7 +185,7 @@ public class ArtistQueryService {
                 artist.artistSeq(),
                 artist.name(),
                 artist.groupName(),
-                mediaUrlResolver.resolve(artist.profileImageKey()),
+                mediaUrlResolver.resolveProfile(artist.profileImageKey()),
                 artist.bio(),
                 artist.subscriberCount(),
                 challengeCount(artistSeq),
@@ -246,7 +246,7 @@ public class ArtistQueryService {
         }
 
         ArtistNoticeResponse.Artist writer = new ArtistNoticeResponse.Artist(
-                artist.artistSeq(), artist.name(), mediaUrlResolver.resolve(artist.profileImageKey()));
+                artist.artistSeq(), artist.name(), mediaUrlResolver.resolveProfile(artist.profileImageKey()));
         List<Integer> noticeSeqs = notices.stream().map(Notice::getNoticeSeq).toList();
         Map<Integer, List<ArtistNoticeResponse.Image>> images = imagesByNotice(noticeSeqs);
         Set<Integer> liked = Set.copyOf(noticeRepository.findLikedNoticeSeqs(userSeq, noticeSeqs));
