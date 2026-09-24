@@ -56,7 +56,7 @@ Authorization: Bearer {accessToken}
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `profileImageUrl` | string \| null | **무서명 공개 CDN URL.** 미설정이면 `null` |
+| `profileImageUrl` | string | **무서명 공개 CDN URL.** 미설정이면 기본 프로필 이미지 URL |
 | `repMotif` | object \| null | 대표 모티프. **미설정이면 `null`** |
 | `repMotif.videoUrl` | string | **HLS 마스터 재생목록** 주소. 모티프 결과물은 보호 등급이라 **CDN 절대 주소 + 프리픽스 서명 파라미터**다(ADR-0012). 클라이언트가 조각·자식 재생목록 요청에 같은 파라미터를 붙인다. 진입 시 자동재생·음소거 |
 | `repMotif.thumbnailUrl` | string | 같은 프리픽스의 `thumb.jpg`. 단일 파일이라 **URL 하나짜리 signed URL**(만료 6시간)을 바로 낸다 |
@@ -508,7 +508,7 @@ Authorization: Bearer {accessToken}
           },
           {
             "commentSeq": 531,
-            "author": { "userSeq": 1, "nickname": "kkongdance", "profileImageUrl": null },
+            "author": { "userSeq": 1, "nickname": "kkongdance", "profileImageUrl": "https://cdn.motif.io/profiles/default.png" },
             "content": "이거 보고 바로 챌린지 찍으러 갑니다",
             "regDttm": "2026-08-28T14:00:00.000Z"
           }

@@ -86,7 +86,7 @@ Authorization: Bearer {accessToken}
         "artistSeq": 7,
         "name": "윈터",
         "groupName": "aespa",
-        "profileImageUrl": null,
+        "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
         "isSubscribed": true
       }
     ],
@@ -603,7 +603,7 @@ Authorization: Bearer {accessToken}
         "artistSeq": 7,
         "name": "윈터",
         "groupName": "aespa",
-        "profileImageUrl": null,
+        "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
         "isSubscribed": false
       }
     ]

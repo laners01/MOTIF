@@ -191,7 +191,7 @@
 | `artistSeq` | number | 아티스트 식별자 |
 | `name` | string | `artists.user_seq → users.nickname` |
 | `groupName` | string \| **null** | `artists.group_seq → artist_groups.group_name`. **`group_seq` 가 NULL 허용**이라 솔로 아티스트는 `null` |
-| `profileImageUrl` | string \| null | `users.profile_image_key` → 공개 CDN URL. 미설정이면 `null` |
+| `profileImageUrl` | string | `users.profile_image_key` → 공개 CDN URL. 미설정이면 기본 프로필 이미지 URL(`motif.media.default-profile-key`) |
 
 **왜 통일하나.** 원본은 화면마다 `groupName`·`profileImageUrl` 을 빼고 넣었지만(§4.6·§5.5·§7.1·§7.2 에서 제거), 그러면 클라이언트가 **같은 개념에 대해 응답 타입을 여러 개** 들고 있어야 한다. 빠진 필드는 대부분 `null` 하나 크기이므로 payload 이득보다 타입 단일화 이득이 크다.
 
