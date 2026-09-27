@@ -48,6 +48,7 @@ internal fun ProductDetailScreen(
     artistId: Long,
     assetId: Long,
     onPassClick: (Long) -> Unit,
+    onCaptureClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel:
     ProductDetailViewModel =
@@ -142,6 +143,8 @@ internal fun ProductDetailScreen(
         onPassClick = onPassClick,
         onPurchaseClick =
             viewModel::purchaseSelectedAsset,
+        onCaptureClick =
+            onCaptureClick,
         modifier = modifier,
     )
 }
@@ -152,6 +155,7 @@ private fun ProductDetailScreen(
     onAssetClick: (Long) -> Unit,
     onPassClick: (Long) -> Unit,
     onPurchaseClick: () -> Unit,
+    onCaptureClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -175,6 +179,8 @@ private fun ProductDetailScreen(
                     onPassClick,
                 onPurchaseClick =
                     onPurchaseClick,
+                onCaptureClick =
+                    onCaptureClick,
                 modifier = modifier,
             )
         }
@@ -195,6 +201,7 @@ private fun ProductDetailContent(
     onAssetClick: (Long) -> Unit,
     onPassClick: (Long) -> Unit,
     onPurchaseClick: () -> Unit,
+    onCaptureClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val detail =
@@ -323,11 +330,17 @@ private fun ProductDetailContent(
         }
 
         PurchaseButton(
-            isPurchased =
-                uiState
-                    .isSelectedAssetPurchased,
-            onClick =
+            isAvailable =
+                uiState.canUseSelectedAsset,
+            artistName =
+                selectedAsset.artist.name,
+            onPurchaseClick =
                 onPurchaseClick,
+            onMomentClick = {
+                onCaptureClick(
+                    selectedAsset.id,
+                )
+            },
             modifier =
                 Modifier
                     .navigationBarsPadding()
@@ -355,6 +368,7 @@ private fun ProductDetailScreenPreview() {
             onAssetClick = {},
             onPassClick = {},
             onPurchaseClick = {},
+            onCaptureClick = {},
         )
     }
 }
@@ -384,6 +398,7 @@ private fun ProductDetailScreenPurchasedPreview() {
             onAssetClick = {},
             onPassClick = {},
             onPurchaseClick = {},
+            onCaptureClick = {},
         )
     }
 }
@@ -403,6 +418,7 @@ private fun ProductDetailScreenLoadingPreview() {
             onAssetClick = {},
             onPassClick = {},
             onPurchaseClick = {},
+            onCaptureClick = {},
         )
     }
 }

@@ -4,12 +4,18 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
 import com.ssafy.motif.feature.capture.api.navigation.ChallengeCompositeResultNavKey
+import com.ssafy.motif.feature.capture.api.navigation.MotifCaptureNavKey
 import com.ssafy.motif.feature.capture.impl.challenge.CaptureScreen
 import com.ssafy.motif.feature.capture.impl.challenge.result.ChallengeCompositeResultScreen
+import com.ssafy.motif.feature.capture.impl.motif.MotifCaptureScreen
 
 fun EntryProviderScope<NavKey>.captureEntry(
     onBackClick: () -> Unit,
     onBrowseChallengeClick: () -> Unit,
+    onBrowseMotifClick: (
+        artistId: Long,
+        assetId: Long,
+    ) -> Unit,
     onCompositePublished: (Long) -> Unit,
     onError: (Throwable) -> Unit,
 ) {
@@ -25,6 +31,16 @@ fun EntryProviderScope<NavKey>.captureEntry(
                 onBrowseChallengeClick,
             onError =
                 onError,
+        )
+    }
+
+    entry<MotifCaptureNavKey> { key ->
+        MotifCaptureScreen(
+            assetId = key.assetId,
+            onBackClick = onBackClick,
+            onBrowseMotifClick =
+                onBrowseMotifClick,
+            onError = onError,
         )
     }
 

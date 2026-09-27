@@ -2,7 +2,6 @@ package com.ssafy.motif.feature.motif.impl.shop.detail
 
 import androidx.compose.runtime.Immutable
 import com.ssafy.motif.core.model.motif.Asset
-import com.ssafy.motif.core.model.motif.AssetAvailability
 import com.ssafy.motif.core.model.shop.ShopArtistDetail
 
 internal sealed interface ProductDetailUiState {
@@ -17,13 +16,11 @@ internal sealed interface ProductDetailUiState {
     ) : ProductDetailUiState {
 
         /**
-         * 개별 구매 또는 PASS로 이미 사용 가능한 경우
-         * 다시 구매하지 않는다.
+         * 개별 구매 또는 PASS로 현재 촬영 가능한지 여부.
          */
-        val isSelectedAssetPurchased: Boolean
+        val canUseSelectedAsset: Boolean
             get() =
-                selectedAsset.availability !=
-                        AssetAvailability.LOCKED
+                selectedAsset.isAvailable
     }
 
     data class Error(

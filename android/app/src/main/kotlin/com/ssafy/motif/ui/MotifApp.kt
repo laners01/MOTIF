@@ -21,6 +21,7 @@ import com.ssafy.motif.core.notifications.navigation.NotificationNavigationTarge
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
 import com.ssafy.motif.feature.capture.api.navigation.ChallengeCompositeResultNavKey
+import com.ssafy.motif.feature.capture.api.navigation.MotifCaptureNavKey
 import com.ssafy.motif.feature.capture.impl.navigation.captureEntry
 import com.ssafy.motif.feature.challenges.api.navigation.ArtistChallengeNavKey
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
@@ -29,6 +30,7 @@ import com.ssafy.motif.feature.challenges.impl.navigation.challengeEntry
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
 import com.ssafy.motif.feature.motif.api.navigation.MotifNavKey
+import com.ssafy.motif.feature.motif.api.navigation.ProductDetailNavKey
 import com.ssafy.motif.feature.motif.impl.navigation.motifEntry
 import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.feature.mypage.impl.navigation.myPageEntry
@@ -186,6 +188,17 @@ fun MotifApp(
                         ChallengeNavKey,
                     )
                 },
+                onBrowseMotifClick = {
+                        artistId,
+                        assetId,
+                    ->
+                    navigator.navigate(
+                        ProductDetailNavKey(
+                            artistId = artistId,
+                            assetId = assetId,
+                        ),
+                    )
+                },
                 onCompositePublished = {
                         videoId,
                     ->
@@ -253,6 +266,15 @@ fun MotifApp(
                 selectedMenu = {
                     appState
                         .selectedMotifSubMenu
+                },
+                onMotifCaptureClick = {
+                        assetId,
+                    ->
+                    navigator.navigate(
+                        MotifCaptureNavKey(
+                            assetId = assetId,
+                        ),
+                    )
                 },
             )
         }
