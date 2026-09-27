@@ -104,8 +104,7 @@ internal class ArchiveViewModel @Inject constructor(
                 ?: return
 
         if (
-            current
-                .updatingRepresentativeMotifId !=
+            current.updatingRepresentativeMotifId !=
             null
         ) {
             return
@@ -114,13 +113,136 @@ internal class ArchiveViewModel @Inject constructor(
         val target =
             current.motifs
                 .firstOrNull { motif ->
-                    motif.id ==
-                            motifId
+                    motif.id == motifId
                 }
                 ?: return
 
         val makeRepresentative =
             !target.isRepresentative
+
+        /*
+         * API 실패 시 대표 상태를 되돌리기 위해
+         * 현재 대표 상태를 저장한다.
+         */
+        val previousRepresentativeStates =
+            buildMap {
+                current.motifs.forEach { motif ->
+                    put(
+                        motif.id,
+                        motif.isRepresentative,
+                    )
+                }
+
+                current.selectedMotif
+                    ?.let { motif ->
+                        put(
+                            motif.id,
+                            motif.isRepresentative,
+                        )
+                    }
+            }
+
+        /*
+         * 대표 설정과 함께 상단 영상도 변경되므로
+         * 실패 시 복구할 기존 선택 영상도 저장한다.
+         */
+        val previousSelectedMotif =
+            current.selectedMotif
+
+        /*
+         * 낙관적 업데이트.
+         *
+         * 대표로 설정:
+         * - 선택한 모티프를 대표로 변경
+         * - 기존 대표 모티프 해제
+         * - 상단 selectedMotif도 새 대표 모티프로 변경
+         *
+         * 대표 해제:
+         * - 해당 모티프의 대표 상태만 해제
+         */
+        _uiState.update { state ->
+            val success =
+                state as?
+                        ArchiveUiState.Success
+                    ?: return@update state
+
+            val updatedMotifs =
+                success.motifs
+                    .map { motif ->
+                        when {
+                            motif.id == motifId -> {
+                                motif.copy(
+                                    isRepresentative =
+                                        makeRepresentative,
+                                )
+                            }
+
+                            makeRepresentative &&
+                                    motif.isRepresentative -> {
+                                motif.copy(
+                                    isRepresentative =
+                                        false,
+                                )
+                            }
+
+                            else -> {
+                                motif
+                            }
+                        }
+                    }
+
+            val updatedTarget =
+                updatedMotifs
+                    .firstOrNull { motif ->
+                        motif.id == motifId
+                    }
+
+            val updatedSelectedMotif =
+                if (
+                    makeRepresentative &&
+                    updatedTarget != null
+                ) {
+                    /*
+                     * 새 대표로 설정한 순간
+                     * 상단 ArchivePlayer도 해당 영상으로 변경한다.
+                     */
+                    updatedTarget
+                } else {
+                    success.selectedMotif
+                        ?.let { selectedMotif ->
+                            when {
+                                selectedMotif.id ==
+                                        motifId -> {
+                                    selectedMotif.copy(
+                                        isRepresentative =
+                                            makeRepresentative,
+                                    )
+                                }
+
+                                makeRepresentative &&
+                                        selectedMotif.isRepresentative -> {
+                                    selectedMotif.copy(
+                                        isRepresentative =
+                                            false,
+                                    )
+                                }
+
+                                else -> {
+                                    selectedMotif
+                                }
+                            }
+                        }
+                }
+
+            success.copy(
+                motifs =
+                    updatedMotifs,
+                selectedMotif =
+                    updatedSelectedMotif,
+                updatingRepresentativeMotifId =
+                    motifId,
+            )
+        }
 
         representativeJob?.cancel()
 
@@ -136,40 +258,29 @@ internal class ArchiveViewModel @Inject constructor(
                 .onEach { result ->
                     when (result) {
                         Result.Loading -> {
-                            _uiState.update {
-                                    state,
-                                ->
-                                val success =
-                                    state as?
-                                            ArchiveUiState
-                                            .Success
-                                        ?: return@update state
-
-                                success.copy(
-                                    updatingRepresentativeMotifId =
-                                        motifId,
-                                )
-                            }
+                            /*
+                             * 이미 낙관적으로 UI를 변경했으므로
+                             * 추가 작업 없음.
+                             */
+                            Unit
                         }
 
                         is Result.Success -> {
                             val updated =
                                 result.data
 
-                            _uiState.update {
-                                    state,
-                                ->
+                            /*
+                             * 서버 응답을 최종 상태로 반영한다.
+                             */
+                            _uiState.update { state ->
                                 val success =
                                     state as?
-                                            ArchiveUiState
-                                            .Success
+                                            ArchiveUiState.Success
                                         ?: return@update state
 
                                 val motifs =
                                     success.motifs
-                                        .map {
-                                                motif,
-                                            ->
+                                        .map { motif ->
                                             when {
                                                 motif.id ==
                                                         updated.id -> {
@@ -180,31 +291,34 @@ internal class ArchiveViewModel @Inject constructor(
                                                     )
                                                 }
 
-                                                makeRepresentative -> {
+                                                updated.isRepresentative -> {
                                                     motif.copy(
                                                         isRepresentative =
                                                             false,
                                                     )
                                                 }
 
-                                                else ->
+                                                else -> {
                                                     motif
+                                                }
                                             }
                                         }
 
                                 val selected =
-                                    success
-                                        .selectedMotif
-                                        ?.let {
-                                                selectedMotif,
-                                            ->
+                                    success.selectedMotif
+                                        ?.let { selectedMotif ->
                                             when {
                                                 selectedMotif.id ==
                                                         updated.id -> {
+                                                    /*
+                                                     * 현재 상단에서 보고 있는 영상이
+                                                     * 대표로 변경한 영상이면
+                                                     * 서버 응답 객체로 갱신한다.
+                                                     */
                                                     updated
                                                 }
 
-                                                makeRepresentative &&
+                                                updated.isRepresentative &&
                                                         selectedMotif
                                                             .isRepresentative -> {
                                                     selectedMotif.copy(
@@ -220,7 +334,8 @@ internal class ArchiveViewModel @Inject constructor(
                                         }
 
                                 success.copy(
-                                    motifs = motifs,
+                                    motifs =
+                                        motifs,
                                     selectedMotif =
                                         selected,
                                     updatingRepresentativeMotifId =
@@ -230,16 +345,54 @@ internal class ArchiveViewModel @Inject constructor(
                         }
 
                         is Result.Error -> {
-                            _uiState.update {
-                                    state,
-                                ->
+                            /*
+                             * API 실패 시 대표 상태 롤백.
+                             */
+                            _uiState.update { state ->
                                 val success =
                                     state as?
-                                            ArchiveUiState
-                                            .Success
+                                            ArchiveUiState.Success
                                         ?: return@update state
 
+                                val motifs =
+                                    success.motifs
+                                        .map { motif ->
+                                            previousRepresentativeStates[
+                                                motif.id
+                                            ]
+                                                ?.let {
+                                                        previousRepresentative,
+                                                    ->
+                                                    motif.copy(
+                                                        isRepresentative =
+                                                            previousRepresentative,
+                                                    )
+                                                }
+                                                ?: motif
+                                        }
+
+                                /*
+                                 * 요청 중 사용자가 다른 영상을 직접 선택했다면
+                                 * 그 선택을 덮어쓰지 않는다.
+                                 *
+                                 * 여전히 대표 설정한 영상이 선택되어 있는 경우에만
+                                 * 이전 상단 영상으로 롤백한다.
+                                 */
+                                val selected =
+                                    if (
+                                        success.selectedMotif?.id ==
+                                        motifId
+                                    ) {
+                                        previousSelectedMotif
+                                    } else {
+                                        success.selectedMotif
+                                    }
+
                                 success.copy(
+                                    motifs =
+                                        motifs,
+                                    selectedMotif =
+                                        selected,
                                     updatingRepresentativeMotifId =
                                         null,
                                 )
@@ -299,20 +452,15 @@ internal class ArchiveViewModel @Inject constructor(
                             rememberArtists(
                                 artists =
                                     page.items
-                                        .map {
-                                                motif,
-                                            ->
+                                        .map { motif ->
                                             motif.artist
                                         },
                             )
 
-                            _uiState.update {
-                                    state,
-                                ->
+                            _uiState.update { state ->
                                 val success =
                                     state as?
-                                            ArchiveUiState
-                                            .Success
+                                            ArchiveUiState.Success
                                         ?: return@update state
 
                                 success.copy(
@@ -321,9 +469,7 @@ internal class ArchiveViewModel @Inject constructor(
                                                 success.motifs +
                                                         page.items
                                                 )
-                                            .distinctBy {
-                                                    motif,
-                                                ->
+                                            .distinctBy { motif ->
                                                 motif.id
                                             },
                                     artists =
@@ -342,13 +488,10 @@ internal class ArchiveViewModel @Inject constructor(
                         }
 
                         is Result.Error -> {
-                            _uiState.update {
-                                    state,
-                                ->
+                            _uiState.update { state ->
                                 val success =
                                     state as?
-                                            ArchiveUiState
-                                            .Success
+                                            ArchiveUiState.Success
                                         ?: return@update state
 
                                 success.copy(
@@ -356,8 +499,7 @@ internal class ArchiveViewModel @Inject constructor(
                                         ArchiveAppendUiState
                                             .Error(
                                                 exception =
-                                                    result
-                                                        .exception,
+                                                    result.exception,
                                             ),
                                 )
                             }
@@ -413,9 +555,7 @@ internal class ArchiveViewModel @Inject constructor(
                             rememberArtists(
                                 artists =
                                     page.items
-                                        .map {
-                                                motif,
-                                            ->
+                                        .map { motif ->
                                             motif.artist
                                         },
                             )
@@ -445,18 +585,14 @@ internal class ArchiveViewModel @Inject constructor(
                             ) {
                                 val defaultMotif =
                                     page.items
-                                        .firstOrNull {
-                                                motif,
-                                            ->
+                                        .firstOrNull { motif ->
                                             motif.isRepresentative
                                         }
                                         ?: page.items
                                             .firstOrNull()
 
                                 defaultMotif
-                                    ?.let {
-                                            motif,
-                                        ->
+                                    ?.let { motif ->
                                         loadMotifDetail(
                                             motifId =
                                                 motif.id,
@@ -510,21 +646,16 @@ internal class ArchiveViewModel @Inject constructor(
                             ),
                     )
 
-                    _uiState.update {
-                            state,
-                        ->
+                    _uiState.update { state ->
                         val success =
                             state as?
-                                    ArchiveUiState
-                                    .Success
+                                    ArchiveUiState.Success
                                 ?: return@update state
 
                         success.copy(
                             motifs =
                                 success.motifs
-                                    .map {
-                                            item,
-                                        ->
+                                    .map { item ->
                                         if (
                                             item.id ==
                                             motif.id

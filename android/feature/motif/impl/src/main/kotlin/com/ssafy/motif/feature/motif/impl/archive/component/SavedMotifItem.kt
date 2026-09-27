@@ -115,7 +115,7 @@ private fun RepresentativeToggle(
     IconButton(
         onClick = onClick,
         painter = painterResource(
-            if (isRepresentative) MotifIcons.FilledStar else MotifIcons.Star,
+            if (isRepresentative) MotifIcons.FilledHeart else MotifIcons.Heart,
         ),
         contentDescription = stringResource(
             if (isRepresentative) {
@@ -138,7 +138,7 @@ private val ThumbnailWidth = 178.dp
 private val ThumbnailCornerRadius = 8.dp
 
 // 썸네일(178×100dp) 안에 들어가야 하므로 목록 밖 버튼보다 작게 잡는다.
-private val ToggleSize = 32.dp
+private val ToggleSize = 40.dp
 private val ToggleInnerPadding = 6.dp
 private val ToggleEdgePadding = 4.dp
 
