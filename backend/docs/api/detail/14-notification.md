@@ -148,11 +148,12 @@ notification 페이로드를 쓰면 앱이 백그라운드일 때 시스템이 �
 | `NEW_CHALLENGE` | 아티스트 신규 챌린지 등록 | 그 아티스트 구독자 전원 | `challengeSeq` | — |
 | `NEW_NOTICE` | 아티스트 신규 공지 등록 | 그 아티스트 구독자 전원 | `noticeSeq` | — |
 | `NEW_COMMENT` | 내 게시물에 댓글 | 게시물 주인 | `challengeSeq` \| `videoSeq` \| `noticeSeq` | `commentSeq` |
-| `NEW_REPLY` | 내 댓글에 답글 | 원댓글 작성자 | `challengeSeq` \| `videoSeq` \| `noticeSeq` | `commentSeq` |
+| `NEW_REPLY` | 내 댓글에 답글 | 원댓글 작성자 | `challengeSeq` \| `videoSeq` \| `noticeSeq` | `commentSeq`, `parentCommentSeq` |
 | `COMPOSITE_DONE` | 합성 완료 | 잡 주인 | `jobUuid` | `jobType` |
 | `COMPOSITE_FAILED` | 합성 실패 | 잡 주인 | `jobUuid` | `jobType`, `failCode` |
 
 - 댓글·답글의 대상 키는 댓글이 달린 게시물 종류를 따른다. `commentSeq` 는 스레드 안 해당 댓글 위치로 이동할 때 쓴다
+- `NEW_REPLY` 의 `commentSeq` 는 답글 ID, `parentCommentSeq` 는 원댓글 ID
 - `jobType` 은 `MOTIF` \| `CHALLENGE`
 - 수신자의 활성 기기가 여럿이면 전부 발송한다
 - data 메시지라 **모든 값이 문자열**이다. `challengeSeq` 등 숫자도 문자열로 온다
