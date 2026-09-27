@@ -3,11 +3,14 @@ package com.ssafy.motif.feature.capture.impl.navigation
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
+import com.ssafy.motif.feature.capture.api.navigation.ChallengeCompositeResultNavKey
 import com.ssafy.motif.feature.capture.impl.challenge.CaptureScreen
+import com.ssafy.motif.feature.capture.impl.challenge.result.ChallengeCompositeResultScreen
 
 fun EntryProviderScope<NavKey>.captureEntry(
     onBackClick: () -> Unit,
     onBrowseChallengeClick: () -> Unit,
+    onCompositePublished: (Long) -> Unit,
     onError: (Throwable) -> Unit,
 ) {
     entry<CaptureNavKey> { key ->
@@ -20,6 +23,19 @@ fun EntryProviderScope<NavKey>.captureEntry(
                 onBackClick,
             onBrowseChallengeClick =
                 onBrowseChallengeClick,
+            onError =
+                onError,
+        )
+    }
+
+    entry<ChallengeCompositeResultNavKey> { key ->
+        ChallengeCompositeResultScreen(
+            jobUuid =
+                key.jobUuid,
+            onBackClick =
+                onBackClick,
+            onPublished =
+                onCompositePublished,
             onError =
                 onError,
         )
