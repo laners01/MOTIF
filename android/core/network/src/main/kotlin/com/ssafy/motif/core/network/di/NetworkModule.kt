@@ -8,6 +8,7 @@ import com.ssafy.motif.core.network.service.auth.AuthService
 import com.ssafy.motif.core.network.service.challenge.ChallengeService
 import com.ssafy.motif.core.network.service.comment.CommentService
 import com.ssafy.motif.core.network.service.composite.CompositeJobService
+import com.ssafy.motif.core.network.service.motif.MotifService
 import com.ssafy.motif.core.network.service.notice.NoticeService
 import com.ssafy.motif.core.network.service.notification.NotificationService
 import com.ssafy.motif.core.network.service.onboarding.OnboardingService
@@ -198,6 +199,15 @@ internal object NetworkModule {
     ): NotificationService =
         retrofit.create(
             NotificationService::class.java,
+        )
+
+    @Provides
+    @Singleton
+    fun provideMotifService(
+        retrofit: Retrofit,
+    ): MotifService =
+        retrofit.create(
+            MotifService::class.java,
         )
 
     private const val NETWORK_TIMEOUT_SECONDS = 30L
