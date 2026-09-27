@@ -23,7 +23,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -47,17 +47,13 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.AssetAvailability
+import com.ssafy.motif.feature.motif.impl.R
 import com.ssafy.motif.feature.motif.impl.component.ArtistFilterItem
 import com.ssafy.motif.feature.motif.impl.component.ArtistFilterItemDefaults
-import com.ssafy.motif.feature.motif.impl.component.LoadingFooter
+import com.ssafy.motif.feature.motif.impl.component.MotifEmptyContent
 import com.ssafy.motif.feature.motif.impl.component.MotifScreenTitle
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
-/**
- * 모티프 서브 네비게이션의 에셋 목록 화면.
- *
- * @param contentPadding 서브 네비게이션 바에 가려지지 않도록 콘텐츠에 적용할 여백.
- */
 @Composable
 internal fun AssetListScreen(
     contentPadding: PaddingValues,
@@ -71,7 +67,6 @@ internal fun AssetListScreen(
         contentPadding = contentPadding,
         onArtistClick = viewModel::selectArtist,
         onAssetClick = viewModel::selectAsset,
-        onLoadMore = viewModel::loadMore,
         modifier = modifier,
     )
 }
@@ -82,7 +77,6 @@ private fun AssetListScreen(
     contentPadding: PaddingValues,
     onArtistClick: (Long?) -> Unit,
     onAssetClick: (Long) -> Unit,
-    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -98,19 +92,61 @@ private fun AssetListScreen(
         }
 
         is AssetListUiState.Success -> {
-            AssetListContent(
-                uiState = uiState,
-                contentPadding = contentPadding,
-                onArtistClick = onArtistClick,
-                onAssetClick = onAssetClick,
-                onLoadMore = onLoadMore,
-                modifier = modifier,
-            )
+            if (
+                uiState.assets.isEmpty() &&
+                uiState.artists.isEmpty()
+            ) {
+                AssetListEmptyContent(
+                    contentPadding = contentPadding,
+                    modifier = modifier,
+                )
+            } else {
+                AssetListContent(
+                    uiState = uiState,
+                    contentPadding = contentPadding,
+                    onArtistClick = onArtistClick,
+                    onAssetClick = onAssetClick,
+                    modifier = modifier,
+                )
+            }
         }
 
         is AssetListUiState.Error -> {
-            // TODO 에러 상태 UI. Mock 데이터는 실패하지 않으므로 이번 티켓에서는 빈 화면
-            Box(modifier = modifier.fillMaxSize())
+            Box(
+                modifier = modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssetListEmptyContent(
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+    ) {
+        MotifScreenTitle(
+            text = "MOTIF",
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(
+                    bottom = contentPadding.calculateBottomPadding(),
+                ),
+        ) {
+            MotifEmptyContent(
+                title = stringResource(
+                    R.string.feature_motif_impl_assets_empty_title,
+                ),
+                description = stringResource(
+                    R.string.feature_motif_impl_assets_empty_description,
+                ),
+            )
         }
     }
 }
@@ -121,36 +157,14 @@ private fun AssetListContent(
     contentPadding: PaddingValues,
     onArtistClick: (Long?) -> Unit,
     onAssetClick: (Long) -> Unit,
-    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
 
-    // 필터가 바뀌면 목록을 최상단으로 되돌린다.
-    LaunchedEffect(uiState.selectedArtistId) {
+    LaunchedEffect(
+        uiState.selectedArtistId,
+    ) {
         listState.scrollToItem(0)
-    }
-
-    val canLoadMore = uiState.hasNext &&
-            uiState.appendState is AssetListAppendUiState.Idle
-
-    val shouldLoadMore by remember(listState, canLoadMore) {
-        derivedStateOf {
-            if (!canLoadMore) return@derivedStateOf false
-
-            val layoutInfo = listState.layoutInfo
-            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                ?: return@derivedStateOf false
-
-            layoutInfo.totalItemsCount > 0 &&
-                    lastVisible >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
-        }
-    }
-
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            onLoadMore()
-        }
     }
 
     LazyColumn(
@@ -158,34 +172,58 @@ private fun AssetListContent(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
     ) {
-        item(key = "header") {
-            MotifScreenTitle(text = "MOTIF")
+        item(
+            key = "header",
+        ) {
+            MotifScreenTitle(
+                text = "MOTIF",
+            )
         }
 
-        stickyHeader(key = "filter") {
+        stickyHeader(
+            key = "filter",
+        ) {
             ArtistFilterRow(
                 artists = uiState.artists,
                 selectedArtistId = uiState.selectedArtistId,
                 onArtistClick = onArtistClick,
-                // sticky 상태에서 아래로 지나가는 카드가 비치지 않도록 배경을 깐다.
-                modifier = Modifier.background(MotifTheme.colors.background),
+                modifier = Modifier.background(
+                    MotifTheme.colors.background,
+                ),
             )
+        }
+
+        if (uiState.assets.isEmpty()) {
+            item(
+                key = "filtered-empty",
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp),
+                ) {
+                    MotifEmptyContent(
+                        title = stringResource(
+                            R.string.feature_motif_impl_assets_filter_empty,
+                        ),
+                        description = stringResource(
+                            R.string.feature_motif_impl_assets_filter_empty_description,
+                        ),
+                    )
+                }
+            }
         }
 
         items(
             items = uiState.assets,
-            key = { it.id },
+            key = { asset ->
+                asset.id
+            },
         ) { asset ->
             AssetCard(
                 asset = asset,
                 onClick = onAssetClick,
             )
-        }
-
-        if (uiState.appendState is AssetListAppendUiState.Loading) {
-            item(key = "footer") {
-                LoadingFooter()
-            }
         }
     }
 }
@@ -193,29 +231,46 @@ private fun AssetListContent(
 @Composable
 private fun ArtistFilterRow(
     artists: List<Artist>,
-    selectedArtistId: Long?, // ALL인 경우 null
+    selectedArtistId: Long?,
     onArtistClick: (Long?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        // ALL 칩은 라벨이 없어 세로 중앙 정렬하면 아바타보다 아래로 내려간다. 원들의 윗변을 맞춘다.
+        contentPadding = PaddingValues(
+            horizontal = 16.dp,
+            vertical = 12.dp,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(
+            16.dp,
+        ),
         verticalAlignment = Alignment.Top,
     ) {
-        item(key = "all") {
+        item(
+            key = "all",
+        ) {
             AllFilterChip(
                 selected = selectedArtistId == null,
-                onClick = { onArtistClick(null) },
+                onClick = {
+                    onArtistClick(null)
+                },
             )
         }
 
-        items(artists, key = { it.id }) { artist ->
+        items(
+            items = artists,
+            key = { artist ->
+                artist.id
+            },
+        ) { artist ->
             ArtistFilterItem(
                 artist = artist,
                 selected = artist.id == selectedArtistId,
-                onClick = { onArtistClick(artist.id) },
+                onClick = {
+                    onArtistClick(
+                        artist.id,
+                    )
+                },
             )
         }
     }
@@ -228,7 +283,11 @@ private fun AllFilterChip(
     modifier: Modifier = Modifier,
 ) {
     val borderColor by animateColorAsState(
-        targetValue = if (selected) MotifTheme.colors.pink else Color.Transparent,
+        targetValue = if (selected) {
+            MotifTheme.colors.pink
+        } else {
+            Color.Transparent
+        },
         label = "all chip border",
     )
 
@@ -236,7 +295,9 @@ private fun AllFilterChip(
         modifier = modifier
             .size(AllChipSize)
             .clip(CircleShape)
-            .background(MotifTheme.colors.black)
+            .background(
+                MotifTheme.colors.black,
+            )
             .border(
                 width = FilterBorderWidth,
                 color = borderColor,
@@ -266,7 +327,13 @@ private fun AssetCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button) { onClick(asset.id) },
+            .clickable(
+                role = Role.Button,
+            ) {
+                onClick(
+                    asset.id,
+                )
+            },
     ) {
         AsyncImage(
             model = asset.thumbnailUrl,
@@ -274,11 +341,16 @@ private fun AssetCard(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f),
+                .aspectRatio(
+                    16f / 9f,
+                ),
         )
 
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(
+                horizontal = 16.dp,
+                vertical = 12.dp,
+            ),
         ) {
             Text(
                 text = asset.title,
@@ -288,7 +360,11 @@ private fun AssetCard(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(
+                modifier = Modifier.height(
+                    4.dp,
+                ),
+            )
 
             Text(
                 text = asset.artist.displayNameWithGroup(),
@@ -301,17 +377,46 @@ private fun AssetCard(
     }
 }
 
-// TODO core:ui의 MotifCard에 같은 함수가 private으로 있음. 공유가 필요해지면 Artist 확장으로 승격
 private fun Artist.displayNameWithGroup(): String =
-    groupName?.takeIf { it.isNotBlank() }?.let { "$name · $it" } ?: name
+    groupName
+        ?.takeIf {
+            it.isNotBlank()
+        }
+        ?.let { groupName ->
+            "$name · $groupName"
+        }
+        ?: name
 
-private const val LOAD_MORE_THRESHOLD = 2
+private val AllChipSize =
+    ArtistFilterItemDefaults.Size
 
-// ALL 칩은 아티스트 필터 항목과 같은 크기·테두리로 맞춘다.
-private val AllChipSize = ArtistFilterItemDefaults.Size
-private val FilterBorderWidth = ArtistFilterItemDefaults.BorderWidth
+private val FilterBorderWidth =
+    ArtistFilterItemDefaults.BorderWidth
 
-@Preview(showBackground = true, heightDp = 900)
+@Preview(
+    name = "Empty",
+    showBackground = true,
+    heightDp = 900,
+)
+@Composable
+private fun AssetListScreenEmptyPreview() {
+    MotifTheme {
+        AssetListScreen(
+            uiState = AssetListUiState.Success(
+                assets = emptyList(),
+                artists = emptyList(),
+            ),
+            contentPadding = PaddingValues(0.dp),
+            onArtistClick = {},
+            onAssetClick = {},
+        )
+    }
+}
+
+@Preview(
+    showBackground = true,
+    heightDp = 900,
+)
 @Composable
 private fun AssetListScreenPreview() {
     val artists = previewArtists()
@@ -319,37 +424,38 @@ private fun AssetListScreenPreview() {
     MotifTheme {
         AssetListScreen(
             uiState = AssetListUiState.Success(
-                assets = previewAssets(artists),
+                assets = previewAssets(
+                    artists,
+                ),
                 artists = artists,
-                selectedArtistId = null,
-                hasNext = true,
-                appendState = AssetListAppendUiState.Loading,
             ),
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
             onArtistClick = {},
             onAssetClick = {},
-            onLoadMore = {},
         )
     }
 }
 
-/**
- * 실기기 Run Preview용. 필터를 누르면 선택과 목록이 실제로 바뀐다.
- * 추가 로드는 ViewModel이 담당하므로 여기서는 동작하지 않는다.
- */
-@Preview(name = "Interactive", showBackground = true, heightDp = 900)
+@Preview(
+    name = "Interactive",
+    showBackground = true,
+    heightDp = 900,
+)
 @Composable
 private fun AssetListScreenInteractivePreview() {
     val artists = previewArtists()
-    val assets = previewAssets(artists)
+
+    val assets = previewAssets(
+        artists,
+    )
 
     var uiState by remember {
         mutableStateOf(
             AssetListUiState.Success(
                 assets = assets,
                 artists = artists,
-                selectedArtistId = null,
-                hasNext = false,
             ),
         )
     }
@@ -357,75 +463,104 @@ private fun AssetListScreenInteractivePreview() {
     MotifTheme {
         AssetListScreen(
             uiState = uiState,
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
             onArtistClick = { artistId ->
                 uiState = uiState.copy(
                     selectedArtistId = artistId,
-                    assets = if (artistId == null) assets else assets.filter { it.artist.id == artistId },
+                    assets = if (
+                        artistId == null
+                    ) {
+                        assets
+                    } else {
+                        assets.filter { asset ->
+                            asset.artist.id ==
+                                    artistId
+                        }
+                    },
                 )
             },
             onAssetClick = {},
-            onLoadMore = {},
         )
     }
 }
 
-@Preview(name = "Loading", showBackground = true, heightDp = 400)
+@Preview(
+    name = "Loading",
+    showBackground = true,
+    heightDp = 400,
+)
 @Composable
 private fun AssetListScreenLoadingPreview() {
     MotifTheme {
         AssetListScreen(
             uiState = AssetListUiState.Loading,
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
             onArtistClick = {},
             onAssetClick = {},
-            onLoadMore = {},
         )
     }
 }
 
-@Preview(name = "Long title", showBackground = true)
 @Composable
-private fun AssetCardLongTitlePreview() {
-    MotifTheme {
-        AssetCard(
-            asset = Asset(
-                id = 1L,
-                thumbnailUrl = previewImageUrl(DesignSystemR.drawable.img_test_motif),
-                title = "연습실에서 카리나와 함께 마지막 동선 체크까지 완벽하게 맞춰보는 리허설 타임 🕺",
-                artist = previewArtists().first(),
-                availability = AssetAvailability.PURCHASED,
-            ),
-            onClick = {},
-        )
-    }
-}
-
-/**
- * Preview 렌더러는 앱 패키지의 리소스를 직접 못 읽으므로, 현재 패키지 기준 android.resource URL로 만든다.
- */
-@Composable
-private fun previewImageUrl(resId: Int): String {
+private fun previewImageUrl(
+    resId: Int,
+): String {
     val context = LocalContext.current
+
     return "android.resource://${context.packageName}/$resId"
 }
 
 @Composable
 private fun previewArtists(): List<Artist> {
-    val profileUrl = previewImageUrl(DesignSystemR.drawable.img_profile)
+    val profileUrl = previewImageUrl(
+        DesignSystemR.drawable.img_profile,
+    )
 
     return listOf(
-        Artist(id = 1L, name = "YEJI", profileImageUrl = profileUrl, groupName = "ITZY"),
-        Artist(id = 2L, name = "카리나", profileImageUrl = profileUrl, groupName = "aespa"),
-        Artist(id = 3L, name = "지수", profileImageUrl = profileUrl, groupName = "BLACKPINK"),
-        Artist(id = 4L, name = "이채영", profileImageUrl = profileUrl, groupName = "fromis_9"),
-        Artist(id = 5L, name = "오해원", profileImageUrl = profileUrl, groupName = "NMIXX"),
+        Artist(
+            id = 1L,
+            name = "YEJI",
+            profileImageUrl = profileUrl,
+            groupName = "ITZY",
+        ),
+        Artist(
+            id = 2L,
+            name = "카리나",
+            profileImageUrl = profileUrl,
+            groupName = "aespa",
+        ),
+        Artist(
+            id = 3L,
+            name = "지수",
+            profileImageUrl = profileUrl,
+            groupName = "BLACKPINK",
+        ),
+        Artist(
+            id = 4L,
+            name = "이채영",
+            profileImageUrl = profileUrl,
+            groupName = "fromis_9",
+        ),
+        Artist(
+            id = 5L,
+            name = "오해원",
+            profileImageUrl = profileUrl,
+            groupName = "NMIXX",
+        ),
     )
 }
 
 @Composable
-private fun previewAssets(artists: List<Artist>): List<Asset> {
-    val thumbnailUrl = previewImageUrl(DesignSystemR.drawable.img_test_motif)
+private fun previewAssets(
+    artists: List<Artist>,
+): List<Asset> {
+    val thumbnailUrl = previewImageUrl(
+        DesignSystemR.drawable.img_test_motif,
+    )
 
     val titles = listOf(
         "카리나와 함께 만드는 핑거하트 모먼트 💖",
@@ -443,8 +578,10 @@ private fun previewAssets(artists: List<Artist>): List<Asset> {
             id = index + 1L,
             thumbnailUrl = thumbnailUrl,
             title = title,
-            artist = artists[index % artists.size],
-            availability = AssetAvailability.SUBSCRIPTION,
+            artist = artists[
+                index % artists.size
+            ],
+            availability = AssetAvailability.PURCHASED,
         )
     }
 }
