@@ -17,6 +17,4 @@ data class ChallengeDetailResponse(
     val isLiked: Boolean,
     val isSubscribed: Boolean,
     val description: String,
-    val participants: List<ChallengeParticipantResponse>,
-    val editedChallenges: List<EditedChallengeResponse> = emptyList(),
 )

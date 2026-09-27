@@ -16,4 +16,5 @@ data class ChallengeFeedItemResponse(
     val commentCount: Long,
     val isLiked: Boolean,
     val isSubscribed: Boolean,
+    val description: String,
 )
