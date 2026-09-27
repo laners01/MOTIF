@@ -44,7 +44,7 @@ import com.ssafy.motif.feature.motif.impl.shop.pass.component.PassPlanCard
  * @param onAssetClick 포함 에셋 카드 선택 → 상품 상세 이동 (artistId, assetId).
  */
 @Composable
-fun PassPurchaseScreen(
+internal fun PassPurchaseScreen(
     artistId: Long,
     onAssetClick: (artistId: Long, assetId: Long) -> Unit,
     modifier: Modifier = Modifier,
