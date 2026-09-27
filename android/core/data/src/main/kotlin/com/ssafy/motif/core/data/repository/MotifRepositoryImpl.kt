@@ -4,21 +4,28 @@ import com.ssafy.motif.core.common.network.Dispatcher
 import com.ssafy.motif.core.common.network.MotifDispatcher
 import com.ssafy.motif.core.data.mapper.toModel
 import com.ssafy.motif.core.data.model.CursorPage
+import com.ssafy.motif.core.model.composite.CompositeJobRequestResult
+import com.ssafy.motif.core.model.composite.CompositeJobUpload
 import com.ssafy.motif.core.model.motif.Asset
 import com.ssafy.motif.core.model.motif.SavedMotif
 import com.ssafy.motif.core.model.shop.ArtistPass
 import com.ssafy.motif.core.model.shop.MyMotifPass
 import com.ssafy.motif.core.model.shop.PassBanner
 import com.ssafy.motif.core.model.shop.ShopArtistSection
+import com.ssafy.motif.core.network.service.composite.CompositeJobClient
 import com.ssafy.motif.core.network.service.motif.MotifClient
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 
 internal class MotifRepositoryImpl @Inject constructor(
     private val motifClient: MotifClient,
+    private val compositeJobClient: CompositeJobClient,
     @param:Dispatcher(MotifDispatcher.IO)
     private val ioDispatcher: CoroutineDispatcher,
 ) : MotifRepository {
@@ -118,8 +125,7 @@ internal class MotifRepositoryImpl @Inject constructor(
                 motifClient.updateMotifResult(
                     resultId = resultId,
                     description = description,
-                    isRepresentative =
-                        isRepresentative,
+                    isRepresentative = isRepresentative,
                 )
 
             emit(
@@ -159,4 +165,56 @@ internal class MotifRepositoryImpl @Inject constructor(
                 response.toModel(),
             )
         }.flowOn(ioDispatcher)
+
+    override fun createMotifCompositeJob(
+        assetId: Long,
+        contentLength: Long,
+    ): Flow<CompositeJobUpload> =
+        flow {
+            val response =
+                compositeJobClient.createMotifJob(
+                    assetId = assetId,
+                    contentLength = contentLength,
+                )
+
+            emit(
+                response.toModel(),
+            )
+        }.flowOn(ioDispatcher)
+
+    override fun uploadMotifCompositeVideo(
+        uploadUrl: String,
+        videoFile: File,
+    ): Flow<Int> =
+        channelFlow {
+            trySend(INITIAL_UPLOAD_PROGRESS)
+
+            compositeJobClient.uploadVideo(
+                uploadUrl = uploadUrl,
+                videoFile = videoFile,
+                onProgress = { progress ->
+                    trySend(progress)
+                },
+            )
+        }
+            .distinctUntilChanged()
+            .flowOn(ioDispatcher)
+
+    override fun requestMotifCompositeJob(
+        jobUuid: String,
+    ): Flow<CompositeJobRequestResult> =
+        flow {
+            val response =
+                compositeJobClient.requestMotifJob(
+                    jobUuid = jobUuid,
+                )
+
+            emit(
+                response.toModel(),
+            )
+        }.flowOn(ioDispatcher)
+
+    private companion object {
+        const val INITIAL_UPLOAD_PROGRESS = 0
+    }
 }
