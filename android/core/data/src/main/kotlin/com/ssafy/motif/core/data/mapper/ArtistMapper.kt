@@ -10,7 +10,8 @@ import com.ssafy.motif.core.model.artist.ArtistMotifVideo
 import com.ssafy.motif.core.model.artist.ArtistPass
 import com.ssafy.motif.core.model.artist.ArtistSubscriptionResult
 import com.ssafy.motif.core.model.artist.ArtistWithSubscription
-import com.ssafy.motif.core.model.artist.RankedArtist
+import com.ssafy.motif.core.model.challenge.ChallengeRank
+import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.model.notice.Notice
@@ -35,7 +36,7 @@ import com.ssafy.motif.core.network.model.artist.ArtistSubscriptionSummaryRespon
 import com.ssafy.motif.core.network.model.artist.ArtistSummaryResponse
 import java.time.Instant
 
-internal fun ArtistRankingResponse.toModel(): OffsetPage<RankedArtist> =
+internal fun ArtistRankingResponse.toModel(): OffsetPage<ChallengeRank> =
     OffsetPage(
         items = list.map { response ->
             response.toModel()
@@ -48,17 +49,21 @@ internal fun ArtistRankingResponse.toModel(): OffsetPage<RankedArtist> =
         hasPrevious = hasPrevious,
     )
 
-private fun ArtistRankingItemResponse.toModel(): RankedArtist =
-    RankedArtist(
+private fun ArtistRankingItemResponse.toModel(): ChallengeRank =
+    ChallengeRank(
+        challengeId = challengeSeq ?: 0L,
+        rank = rank.toLong(),
         artist = Artist(
             id = artistSeq,
             name = name,
             profileImageUrl = profileImageUrl.orEmpty(),
             groupName = groupName,
         ),
-        rank = rank,
-        rankDelta = rankDelta,
-        isSubscribed = isSubscribed,
+        song = ChallengeSong(
+            title = songTitle.orEmpty(),
+            artistName = singerName.orEmpty(),
+        ),
+        rankDelta = rankDelta?.toLong() ?: 0,
     )
 
 internal fun ArtistSearchResponse.toModel(): List<ArtistWithSubscription> =
@@ -191,11 +196,6 @@ internal fun ArtistFilter.toNetwork(): ArtistRankingFilter =
             ArtistRankingFilter.UNSUBSCRIBED
     }
 
-private fun String.toEpochMilliOrNull(): Long? =
-    runCatching {
-        Instant.parse(this).toEpochMilli()
-    }.getOrNull()
-
 internal fun ArtistFeedResponse.toModel(): OffsetPage<ArtistFeedItem> =
     OffsetPage(
         items = list.map { response ->
@@ -210,13 +210,15 @@ internal fun ArtistFeedResponse.toModel(): OffsetPage<ArtistFeedItem> =
     )
 
 private fun ArtistFeedItemResponse.toModel(): ArtistFeedItem {
-    val createdAt = regDttm.toEpochMilli()
+    val createdAt =
+        regDttm.toEpochMilli()
 
     return when (type) {
         ArtistFeedType.MOTIF_ASSET -> {
-            val asset = requireNotNull(asset) {
-                "MOTIF_ASSET feed item must contain asset."
-            }
+            val asset =
+                requireNotNull(asset) {
+                    "MOTIF_ASSET feed item must contain asset."
+                }
 
             ArtistFeedItem.MotifAsset(
                 motif = Motif(
@@ -233,9 +235,10 @@ private fun ArtistFeedItemResponse.toModel(): ArtistFeedItem {
         }
 
         ArtistFeedType.NOTICE -> {
-            val notice = requireNotNull(notice) {
-                "NOTICE feed item must contain notice."
-            }
+            val notice =
+                requireNotNull(notice) {
+                    "NOTICE feed item must contain notice."
+                }
 
             ArtistFeedItem.NoticeItem(
                 notice = Notice(
@@ -266,6 +269,11 @@ private fun ArtistFeedArtistResponse.toModel(): Artist =
         profileImageUrl = profileImageUrl.orEmpty(),
         groupName = groupName,
     )
+
+private fun String.toEpochMilliOrNull(): Long? =
+    runCatching {
+        Instant.parse(this).toEpochMilli()
+    }.getOrNull()
 
 private fun String.toEpochMilli(): Long =
     runCatching {

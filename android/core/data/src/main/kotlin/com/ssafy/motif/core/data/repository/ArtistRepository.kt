@@ -7,7 +7,7 @@ import com.ssafy.motif.core.model.artist.ArtistFeedItem
 import com.ssafy.motif.core.model.artist.ArtistFilter
 import com.ssafy.motif.core.model.artist.ArtistSubscriptionResult
 import com.ssafy.motif.core.model.artist.ArtistWithSubscription
-import com.ssafy.motif.core.model.artist.RankedArtist
+import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.notice.Notice
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +18,7 @@ interface ArtistRepository {
         filter: ArtistFilter = ArtistFilter.ALL,
         page: Int = DEFAULT_PAGE,
         size: Int = DEFAULT_PAGE_SIZE,
-    ): Flow<OffsetPage<RankedArtist>>
+    ): Flow<OffsetPage<ChallengeRank>>
 
     fun searchArtists(
         query: String,

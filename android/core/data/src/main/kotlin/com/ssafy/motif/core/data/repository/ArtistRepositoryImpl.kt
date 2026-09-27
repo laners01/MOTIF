@@ -11,7 +11,7 @@ import com.ssafy.motif.core.model.artist.ArtistFeedItem
 import com.ssafy.motif.core.model.artist.ArtistFilter
 import com.ssafy.motif.core.model.artist.ArtistSubscriptionResult
 import com.ssafy.motif.core.model.artist.ArtistWithSubscription
-import com.ssafy.motif.core.model.artist.RankedArtist
+import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.notice.Notice
 import com.ssafy.motif.core.network.service.artist.ArtistClient
@@ -31,7 +31,7 @@ internal class ArtistRepositoryImpl @Inject constructor(
         filter: ArtistFilter,
         page: Int,
         size: Int,
-    ): Flow<OffsetPage<RankedArtist>> =
+    ): Flow<OffsetPage<ChallengeRank>> =
         flow {
             val response = artistClient.getArtistRanking(
                 filter = filter.toNetwork(),

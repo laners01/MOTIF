@@ -9,6 +9,7 @@ data class ArtistSummaryResponse(
     val groupName: String? = null,
     val profileImageUrl: String? = null,
 )
+
 @Serializable
 data class ArtistSubscriptionSummaryResponse(
     val artistSeq: Long,
@@ -38,6 +39,9 @@ data class ArtistRankingItemResponse(
     val groupName: String?,
     val profileImageUrl: String?,
     val isSubscribed: Boolean,
+    val challengeSeq: Long? = null,
+    val songTitle: String? = null,
+    val singerName: String? = null,
 )
 
 @Serializable
@@ -107,7 +111,7 @@ data class ArtistNoticeResponse(
     val noticeSeq: Long,
     val artist: ArtistSummaryResponse,
     val content: String,
-    val images: List<ArtistNoticeImageResponse>,
+    val images: List<ArtistNoticeImageResponse> = emptyList(),
     val likeCount: Long,
     val commentCount: Long,
     val isLiked: Boolean,

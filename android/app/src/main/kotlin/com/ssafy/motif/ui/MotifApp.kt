@@ -36,6 +36,7 @@ import com.ssafy.motif.feature.motif.impl.navigation.motifEntry
 import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.feature.mypage.impl.navigation.myPageEntry
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
+import com.ssafy.motif.feature.ranking.api.navigation.RankingNavKey
 import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
 import com.ssafy.motif.feature.signin.impl.navigation.signInEntry
 import com.ssafy.motif.navigation.AppGlassNavigationBar
@@ -105,7 +106,9 @@ fun MotifApp(
                     )
                 },
                 onFanRadarClick = {
-                    // TODO ranking API 수정 이후 연결
+                    navigator.navigate(
+                        RankingNavKey,
+                    )
                 },
                 onArtistClick = { artistId ->
                     navigator.navigate(
@@ -308,6 +311,10 @@ fun MotifApp(
             }
 
             currentKey is ArtistChallengeNavKey -> {
+                null
+            }
+
+            currentKey is RankingNavKey -> {
                 null
             }
 
