@@ -124,6 +124,11 @@ public class MotifResult extends BaseTimeEntity {
      * 그건 <b>이 엔티티가 모르는 일</b>이라 서비스가 같은 트랜잭션에서 처리한다 —
      * FK 가 없는 논리 참조라 DB 도 정리해 주지 않는다.
      */
+    /** 썸네일 교체 (어드민 §3.17.2). 영상 키는 건드리지 않는다. */
+    public void changeThumbnail(String thumbnailKey) {
+        this.thumbnailKey = thumbnailKey;
+    }
+
     public void softDelete() {
         this.deleted = true;
     }

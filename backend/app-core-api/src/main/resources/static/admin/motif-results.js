@@ -23,6 +23,20 @@ function play(r) {
     playVideo($('player'), r.videoUrl).catch((e) => showError($('err'), e));
 }
 
+/** 고른 이미지를 MOTIF_THUMBNAIL 로 올리고 결과물 썸네일을 그 키로 바꾼다 (§3.17.2). */
+async function changeThumbnail(r, file, img) {
+    clearError($('err'));
+    try {
+        const thumbnailKey = await upload(file, 'MOTIF_THUMBNAIL');
+        const res = await api(`/motif-results/${r.resultSeq}/thumbnail`, {
+            method: 'PATCH', body: {thumbnailKey},
+        });
+        img.src = res.thumbnailUrl;
+    } catch (e) {
+        showError($('err'), e);
+    }
+}
+
 function row(r) {
     const tr = $('row').content.firstElementChild.cloneNode(true);
     tr.classList.toggle('missing', r.isDeleted);
@@ -35,6 +49,12 @@ function row(r) {
     set(tr, '.duration', r.durationMs ? `${(r.durationMs / 1000).toFixed(1)}초` : '');
     set(tr, '.reg', new Date(r.regDttm).toLocaleString('ko-KR'));
     tr.querySelector('.play').addEventListener('click', () => play(r));
+    const file = tr.querySelector('.thumb-file');
+    tr.querySelector('.thumb-change').addEventListener('click', () => file.click());
+    file.addEventListener('change', () => {
+        if (file.files[0]) changeThumbnail(r, file.files[0], tr.querySelector('.thumb'));
+        file.value = '';
+    });
     return tr;
 }
 

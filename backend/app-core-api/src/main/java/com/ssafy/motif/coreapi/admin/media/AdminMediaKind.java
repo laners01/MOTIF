@@ -43,6 +43,12 @@ public enum AdminMediaKind {
      */
     ASSET_THUMBNAIL(Category.IMAGE, "assets", ".jpg", false),
 
+    /**
+     * {@code private/motif-thumbnails/{uuid}.jpg} — 모티프 결과물 썸네일 교체(§3.17.2). 결과물과
+     * 같은 보호 등급이라 {@code private/} 아래다 — 공개 경로에 두면 남의 결과물 썸네일이 새어 나간다.
+     */
+    MOTIF_THUMBNAIL(Category.IMAGE, "private/motif-thumbnails", ".jpg", false),
+
     /** {@code profiles/{uuid}.jpg} — 사용자 프로필과 프리픽스를 공유한다. */
     ARTIST_PROFILE(Category.IMAGE, "profiles", ".jpg", false),
 

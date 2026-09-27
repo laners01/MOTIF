@@ -5,10 +5,18 @@ import com.ssafy.motif.common.response.ApiResponse;
 import com.ssafy.motif.common.response.PageResponse;
 import com.ssafy.motif.coreapi.admin.AdminPaths;
 import com.ssafy.motif.coreapi.admin.motif.dto.AdminMotifResultItem;
+import com.ssafy.motif.coreapi.admin.motif.dto.MotifThumbnailRequest;
+import com.ssafy.motif.coreapi.admin.motif.dto.MotifThumbnailResponse;
+import com.ssafy.motif.coreapi.admin.security.AuthenticatedAdmin;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,5 +43,16 @@ public class AdminMotifResultController {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(adminMotifResultService
                 .list(userSeq, artistSeq, assetSeq, includeDeleted, page, size));
+    }
+
+    @Operation(summary = "모티프 결과물 썸네일 교체",
+            description = "MOTIF_THUMBNAIL 로 presign 받아 올린 이미지 키를 준다. 영상은 바뀌지 않는다.")
+    @PatchMapping("/{resultSeq}/thumbnail")
+    public ApiResponse<MotifThumbnailResponse> changeThumbnail(
+            @AuthenticationPrincipal AuthenticatedAdmin admin,
+            @PathVariable long resultSeq,
+            @Valid @RequestBody MotifThumbnailRequest request) {
+        return ApiResponse.success(
+                adminMotifResultService.changeThumbnail(admin, resultSeq, request.thumbnailKey()));
     }
 }
