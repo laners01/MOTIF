@@ -360,7 +360,7 @@ internal class MlKitPersonSegmentationProcessor :
     private companion object {
 
         const val TARGET_SEGMENTATION_FPS =
-            12L
+            18L
 
         const val NANOS_PER_SECOND =
             1_000_000_000L
@@ -430,7 +430,7 @@ private fun confidenceToAlpha(
 }
 
 private const val FOREGROUND_START =
-    0.25f
+    0.6f
 
 private const val FOREGROUND_END =
     0.75f
