@@ -45,7 +45,7 @@ import com.ssafy.motif.feature.motif.impl.shop.detail.component.SelectedProductC
  * @param onPassClick PASS 배너 선택 → PASS 결제 화면 이동.
  */
 @Composable
-fun ProductDetailScreen(
+internal fun ProductDetailScreen(
     artistId: Long,
     assetId: Long,
     onPassClick: (Long) -> Unit,
