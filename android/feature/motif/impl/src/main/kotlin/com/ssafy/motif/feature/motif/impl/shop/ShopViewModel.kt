@@ -29,14 +29,15 @@ internal class ShopViewModel @Inject constructor(
             StateFlow<ShopUiState> =
         _uiState.asStateFlow()
 
-    private var loadJob: Job? = null
+    private var loadJob: Job? =
+        null
 
-    init {
+    fun refresh() {
         loadShop()
     }
 
     fun retry() {
-        loadShop()
+        refresh()
     }
 
     private fun loadShop() {
@@ -57,23 +58,35 @@ internal class ShopViewModel @Inject constructor(
             }
                 .asResult()
                 .onEach { result ->
-                    _uiState.value =
-                        when (result) {
-                            Result.Loading -> {
-                                ShopUiState.Loading
-                            }
-
-                            is Result.Success -> {
-                                result.data
-                            }
-
-                            is Result.Error -> {
-                                ShopUiState.Error(
-                                    exception =
-                                        result.exception,
-                                )
+                    when (result) {
+                        Result.Loading -> {
+                            if (
+                                _uiState.value !is
+                                        ShopUiState.Success
+                            ) {
+                                _uiState.value =
+                                    ShopUiState.Loading
                             }
                         }
+
+                        is Result.Success -> {
+                            _uiState.value =
+                                result.data
+                        }
+
+                        is Result.Error -> {
+                            if (
+                                _uiState.value !is
+                                        ShopUiState.Success
+                            ) {
+                                _uiState.value =
+                                    ShopUiState.Error(
+                                        exception =
+                                            result.exception,
+                                    )
+                            }
+                        }
+                    }
                 }
                 .launchIn(
                     viewModelScope,

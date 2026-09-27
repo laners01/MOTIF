@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
@@ -57,16 +58,34 @@ import com.ssafy.motif.core.designsystem.R as DesignSystemR
 @Composable
 internal fun AssetListScreen(
     contentPadding: PaddingValues,
+    onProductClick: (
+        artistId: Long,
+        assetId: Long,
+    ) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AssetListViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by
+    viewModel.uiState
+        .collectAsStateWithLifecycle()
+
+    LifecycleResumeEffect(
+        viewModel,
+    ) {
+        viewModel.refresh()
+
+        onPauseOrDispose {
+            // 별도 정리 작업 없음.
+        }
+    }
 
     AssetListScreen(
         uiState = uiState,
         contentPadding = contentPadding,
-        onArtistClick = viewModel::selectArtist,
-        onAssetClick = viewModel::selectAsset,
+        onArtistClick =
+            viewModel::selectArtist,
+        onAssetClick =
+            onProductClick,
         modifier = modifier,
     )
 }
@@ -76,7 +95,10 @@ private fun AssetListScreen(
     uiState: AssetListUiState,
     contentPadding: PaddingValues,
     onArtistClick: (Long?) -> Unit,
-    onAssetClick: (Long) -> Unit,
+    onAssetClick: (
+        artistId: Long,
+        assetId: Long,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -156,7 +178,10 @@ private fun AssetListContent(
     uiState: AssetListUiState.Success,
     contentPadding: PaddingValues,
     onArtistClick: (Long?) -> Unit,
-    onAssetClick: (Long) -> Unit,
+    onAssetClick: (
+        artistId: Long,
+        assetId: Long,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -222,7 +247,12 @@ private fun AssetListContent(
         ) { asset ->
             AssetCard(
                 asset = asset,
-                onClick = onAssetClick,
+                onClick = { assetId ->
+                    onAssetClick(
+                        asset.artist.id,
+                        assetId,
+                    )
+                },
             )
         }
     }
@@ -408,7 +438,7 @@ private fun AssetListScreenEmptyPreview() {
             ),
             contentPadding = PaddingValues(0.dp),
             onArtistClick = {},
-            onAssetClick = {},
+            onAssetClick = {_, _ ->},
         )
     }
 }
@@ -433,7 +463,7 @@ private fun AssetListScreenPreview() {
                 0.dp,
             ),
             onArtistClick = {},
-            onAssetClick = {},
+            onAssetClick = {_, _ ->},
         )
     }
 }
@@ -481,7 +511,7 @@ private fun AssetListScreenInteractivePreview() {
                     },
                 )
             },
-            onAssetClick = {},
+            onAssetClick = {_, _ ->},
         )
     }
 }
@@ -500,7 +530,7 @@ private fun AssetListScreenLoadingPreview() {
                 0.dp,
             ),
             onArtistClick = {},
-            onAssetClick = {},
+            onAssetClick = {_, _ ->},
         )
     }
 }

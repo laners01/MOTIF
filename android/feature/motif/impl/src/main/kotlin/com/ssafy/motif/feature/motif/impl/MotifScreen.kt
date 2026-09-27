@@ -27,22 +27,26 @@ fun MotifScreen(
     ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val navigationBarInset = WindowInsets.navigationBars
-        .asPaddingValues()
-        .calculateBottomPadding()
+    val navigationBarInset =
+        WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding()
 
-    val contentPadding = PaddingValues(
-        bottom = navigationBarInset +
-                GlassNavigationBarDefaults.BottomMargin +
-                GlassNavigationBarDefaults.Height,
-    )
+    val contentPadding =
+        PaddingValues(
+            bottom =
+                navigationBarInset +
+                        GlassNavigationBarDefaults.BottomMargin +
+                        GlassNavigationBarDefaults.Height,
+        )
 
     MotifSubContent(
         selectedMenu = selectedMenu,
         contentPadding = contentPadding,
         onProductClick = onProductClick,
         onPassClick = onPassClick,
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     )
 }
 
@@ -63,6 +67,7 @@ private fun MotifSubContent(
         MotifSubMenu.ASSETS -> {
             AssetListScreen(
                 contentPadding = contentPadding,
+                onProductClick = onProductClick,
                 modifier = modifier,
             )
         }
@@ -92,8 +97,13 @@ private fun MotifSubContent(
 private fun MotifScreenPreview() {
     MotifTheme {
         MotifScreen(
-            selectedMenu = MotifSubMenu.ARCHIVE,
-            onProductClick = { _, _ -> },
+            selectedMenu =
+                MotifSubMenu.ARCHIVE,
+            onProductClick = {
+                    _,
+                    _,
+                ->
+            },
             onPassClick = {},
         )
     }

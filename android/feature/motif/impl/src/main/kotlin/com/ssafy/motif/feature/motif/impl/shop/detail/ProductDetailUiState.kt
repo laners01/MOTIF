@@ -7,18 +7,23 @@ import com.ssafy.motif.core.model.shop.ShopArtistDetail
 
 internal sealed interface ProductDetailUiState {
 
-    data object Loading : ProductDetailUiState
+    data object Loading :
+        ProductDetailUiState
 
     @Immutable
     data class Success(
         val detail: ShopArtistDetail,
-        /** 상단 미리보기와 선택 상품 카드, 구매 버튼의 대상. PASS는 별도 결제 화면으로 이동하므로 선택 대상은 항상 에셋이다. */
         val selectedAsset: Asset,
     ) : ProductDetailUiState {
 
-        /** 선택된 에셋이 이미 구매된 것이면 구매 버튼을 비활성화한다. */
+        /**
+         * 개별 구매 또는 PASS로 이미 사용 가능한 경우
+         * 다시 구매하지 않는다.
+         */
         val isSelectedAssetPurchased: Boolean
-            get() = selectedAsset.availability == AssetAvailability.PURCHASED
+            get() =
+                selectedAsset.availability !=
+                        AssetAvailability.LOCKED
     }
 
     data class Error(

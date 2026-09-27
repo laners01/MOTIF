@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
@@ -27,13 +28,11 @@ import com.ssafy.motif.feature.motif.impl.shop.component.ShopArtistSection
 @Composable
 internal fun ShopScreen(
     contentPadding: PaddingValues,
-    onProductClick:
-        (
+    onProductClick: (
         artistId: Long,
         assetId: Long,
     ) -> Unit,
-    onPassClick:
-        (
+    onPassClick: (
         artistId: Long,
     ) -> Unit,
     modifier: Modifier = Modifier,
@@ -43,18 +42,22 @@ internal fun ShopScreen(
     viewModel.uiState
         .collectAsStateWithLifecycle()
 
+    LifecycleResumeEffect(
+        viewModel,
+    ) {
+        viewModel.refresh()
+
+        onPauseOrDispose {
+            // 별도 정리 작업 없음.
+        }
+    }
+
     ShopScreen(
         uiState = uiState,
-        contentPadding =
-            contentPadding,
-
-        // 공용 배너 API에는 클릭 액션이 없다.
-        onBannerClick = {},
-
-        onPassClick =
-            onPassClick,
-        onAssetClick =
-            onProductClick,
+        contentPadding = contentPadding,
+        onBannerClick = onPassClick,
+        onPassClick = onPassClick,
+        onAssetClick = onProductClick,
         modifier = modifier,
     )
 }

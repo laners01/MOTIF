@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -33,21 +34,23 @@ internal class AssetListViewModel @Inject constructor(
     private var allAssets: List<Asset> =
         emptyList()
 
-    private var loadJob: Job? = null
+    private var loadJob: Job? =
+        null
 
-    init {
+    fun refresh() {
         loadAssets()
     }
 
     fun retry() {
-        loadAssets()
+        refresh()
     }
 
     fun selectArtist(
         artistId: Long?,
     ) {
         val current =
-            _uiState.value as? AssetListUiState.Success
+            _uiState.value as?
+                    AssetListUiState.Success
                 ?: return
 
         if (
@@ -59,10 +62,12 @@ internal class AssetListViewModel @Inject constructor(
 
         _uiState.update {
             current.copy(
-                assets = allAssets.filterByArtist(
-                    artistId = artistId,
-                ),
-                selectedArtistId = artistId,
+                assets =
+                    allAssets.filterByArtist(
+                        artistId = artistId,
+                    ),
+                selectedArtistId =
+                    artistId,
             )
         }
     }
@@ -75,44 +80,104 @@ internal class AssetListViewModel @Inject constructor(
     }
 
     private fun loadAssets() {
+        val selectedArtistId =
+            (
+                    _uiState.value as?
+                            AssetListUiState.Success
+                    )?.selectedArtistId
+
         loadJob?.cancel()
 
         loadJob =
-            motifRepository
-                .getPurchasedAssets()
+            combine(
+                motifRepository
+                    .getPurchasedAssets(),
+                motifRepository
+                    .getShop(),
+            ) {
+                    purchasedAssets,
+                    shopSections,
+                ->
+
+                val availableShopAssets =
+                    shopSections
+                        .flatMap { section ->
+                            section.assets
+                        }
+                        .filter { asset ->
+                            asset.isAvailable
+                        }
+
+                (
+                        purchasedAssets +
+                                availableShopAssets
+                        )
+                    .distinctBy { asset ->
+                        asset.id
+                    }
+            }
                 .asResult()
                 .onEach { result ->
-                    _uiState.value =
-                        when (result) {
-                            Result.Loading -> {
-                                AssetListUiState.Loading
-                            }
-
-                            is Result.Success -> {
-                                allAssets =
-                                    result.data
-
-                                AssetListUiState.Success(
-                                    assets =
-                                        allAssets,
-                                    artists =
-                                        allAssets
-                                            .map { asset ->
-                                                asset.artist
-                                            }
-                                            .distinctBy { artist ->
-                                                artist.id
-                                            },
-                                )
-                            }
-
-                            is Result.Error -> {
-                                AssetListUiState.Error(
-                                    exception =
-                                        result.exception,
-                                )
+                    when (result) {
+                        Result.Loading -> {
+                            if (
+                                _uiState.value !is
+                                        AssetListUiState.Success
+                            ) {
+                                _uiState.value =
+                                    AssetListUiState.Loading
                             }
                         }
+
+                        is Result.Success -> {
+                            allAssets =
+                                result.data
+
+                            val artists =
+                                allAssets
+                                    .map { asset ->
+                                        asset.artist
+                                    }
+                                    .distinctBy { artist ->
+                                        artist.id
+                                    }
+
+                            val nextSelectedArtistId =
+                                selectedArtistId
+                                    ?.takeIf { id ->
+                                        artists.any { artist ->
+                                            artist.id == id
+                                        }
+                                    }
+
+                            _uiState.value =
+                                AssetListUiState.Success(
+                                    assets =
+                                        allAssets
+                                            .filterByArtist(
+                                                artistId =
+                                                    nextSelectedArtistId,
+                                            ),
+                                    artists =
+                                        artists,
+                                    selectedArtistId =
+                                        nextSelectedArtistId,
+                                )
+                        }
+
+                        is Result.Error -> {
+                            if (
+                                _uiState.value !is
+                                        AssetListUiState.Success
+                            ) {
+                                _uiState.value =
+                                    AssetListUiState.Error(
+                                        exception =
+                                            result.exception,
+                                    )
+                            }
+                        }
+                    }
                 }
                 .launchIn(
                     viewModelScope,
