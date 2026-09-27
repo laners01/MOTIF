@@ -124,4 +124,16 @@
     <string name="capture_result_retry">
     다시 시도
 </string>
+
+    <!-- MOTIF Capture -->
+    <string name="motif_capture_start">촬영 시작</string>
+    <string name="motif_capture_retry">다시 촬영</string>
+    <string name="motif_capture_review_title">촬영 완료!</string>
+    <string name="motif_capture_review_question">이 영상으로 MOTIF를 만들어볼까요?</string>
+    <string name="motif_capture_review_description">완성된 영상은 AI가 아티스트 영상과 자연스럽게 합성해드려요.</string>
+    <string name="motif_capture_make">MOTIF 만들기</string>
+    <string name="motif_capture_processing_title">AI가 영상을 만들고 있어요</string>
+    <string name="motif_capture_processing_browse">완성되는 동안 다른 모티프를 둘러보세요</string>
+    <string name="motif_capture_processing_notification">영상이 완성되면 알림으로 알려드릴게요</string>
+
 </resources>

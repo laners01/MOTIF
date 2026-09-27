@@ -8,6 +8,7 @@
     <string name="feature_motif_impl_pass_purchase">Pass 구매</string>
     <string name="feature_motif_impl_pass_owned">구독권 보유</string>
     <string name="feature_motif_impl_purchased">구매 완료</string>
+    <string name="feature_motif_impl_moment_with">Moment with %1$s</string>
 
     <string name="feature_motif_impl_archive_empty">저장한 모티프가 없습니다</string>
     <string name="feature_motif_impl_representative_set">대표 모티프로 설정</string>
