@@ -37,6 +37,12 @@ public enum AdminMediaKind {
     /** {@code assets/{uuid}.mp4} — 모티프 에셋 미리보기. */
     ASSET_VIDEO(Category.VIDEO, "assets", ".mp4", false),
 
+    /**
+     * {@code assets/{uuid}.jpg} — 모티프 에셋 썸네일을 직접 올릴 때. 보통은 app-media 가 영상에서
+     * 뽑으므로 쓰지 않는다. 영상을 다른 에셋과 공유하는 시연 데이터처럼 썸네일만 따로 둘 때 쓴다.
+     */
+    ASSET_THUMBNAIL(Category.IMAGE, "assets", ".jpg", false),
+
     /** {@code profiles/{uuid}.jpg} — 사용자 프로필과 프리픽스를 공유한다. */
     ARTIST_PROFILE(Category.IMAGE, "profiles", ".jpg", false),
 

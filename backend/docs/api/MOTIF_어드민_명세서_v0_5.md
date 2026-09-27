@@ -179,6 +179,7 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | `ARTIST_MOTIF_BG` | `artists/{uuid}.jpg` | 공개 | **신설**(API §11.4 `bannerImageUrl`) |
 | `NOTICE_IMAGE` | `notices/{uuid}.jpg` | 공개 | 기존 |
 | `BANNER_IMAGE` | `banners/{uuid}.jpg` | 공개 | **신설**(DB §40) |
+| `ASSET_THUMBNAIL` | `assets/{uuid}.jpg` | 공개 | 에셋 썸네일 직접 등록용. 평소엔 app-media 가 영상에서 뽑는다 *(2026-09-27)* |
 | (서버 생성) | `thumbnails/public/{uuid}.jpg` | 공개 | 영상 외 추출 썸네일. **영상 썸네일은 산출물 프리픽스 아래**(`{프리픽스}/thumb.jpg`) *(v0.5)* |
 
 **산출물 프리픽스** *(v0.4 신설 — app-media 가 만든다, ADR-0010 D4)*
@@ -423,7 +424,7 @@ HLS 재생은 hls.js(cdnjs)를 쓴다. 보호 등급은 master 주소의 서명 
 
 편집본이면 슬롯까지 지정한다 — `{ "kind": "EDITED_VIDEO", "contentType": "video/mp4", "contentLength": 12345678, "challengeSeq": 11, "challengeParticipantSeq": 31 }`
 
-- `kind` ∈ `CHALLENGE_VIDEO | EDITED_VIDEO | EDITED_SCENE | EDITED_PREVIEW | ASSET_VIDEO | ARTIST_PROFILE | ARTIST_MOTIF_BG | NOTICE_IMAGE | BANNER_IMAGE`.
+- `kind` ∈ `CHALLENGE_VIDEO | EDITED_VIDEO | EDITED_SCENE | EDITED_PREVIEW | ASSET_VIDEO | ARTIST_PROFILE | ARTIST_MOTIF_BG | NOTICE_IMAGE | BANNER_IMAGE | ASSET_THUMBNAIL`.
 - `challengeSeq`·`challengeParticipantSeq` 는 **`EDITED_*` 에서만, 그리고 둘 다 필수**다(프리픽스 경로 구성). 편집본은 챌린지·슬롯이 이미 있는 상태에서만 올라오므로 — 등록 §3.7.2 로 슬롯을 만든 뒤 §3.7.6 으로 채운다 — 두 값이 언제나 정해져 있다. **`pending` 자리표시자는 폐기했다** *(2026-09-22)*.
 - 서버가 두 seq 로 **슬롯을 조회해 실재·소속을 대조**한다. 없거나 다른 챌린지의 슬롯이면 400 `PARTICIPANT_INVALID` 다 — 검증 없이 경로에 박으면 오타 하나로 없는 슬롯 폴더에 파일이 올라가고, §3.7.6 이 404 를 줄 때는 이미 PUT 이 끝난 뒤라 아무도 참조하지 않는 오브젝트가 버킷에 남는다.
 - 서버가 `contentType` 허용 목록·`contentLength` 상한을 검증하고 presigned PUT 조건에 박는다.
