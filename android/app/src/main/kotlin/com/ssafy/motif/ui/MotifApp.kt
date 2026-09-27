@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.entryProvider
@@ -63,6 +65,9 @@ fun MotifApp(
             )
         }
 
+    val currentMyProfileImageUrl by rememberUpdatedState(
+        myProfileImageUrl,
+    )
     /*
      * FCM을 통해 들어온 Navigation은
      * 실제 앱 Navigation이 생성된 이후 처리한다.
@@ -133,8 +138,9 @@ fun MotifApp(
             )
 
             challengeEntry(
-                myProfileImageUrl =
-                    myProfileImageUrl,
+                myProfileImageUrl = {
+                    currentMyProfileImageUrl
+                },
                 onHomeClick = {
                     navigator.navigate(
                         HomeNavKey,

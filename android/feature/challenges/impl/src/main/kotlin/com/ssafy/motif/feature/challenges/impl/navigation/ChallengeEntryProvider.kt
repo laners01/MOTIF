@@ -9,7 +9,7 @@ import com.ssafy.motif.feature.challenges.impl.artist.ArtistChallengeScreen
 import com.ssafy.motif.feature.challenges.impl.participation.ChallengeParticipationScreen
 
 fun EntryProviderScope<NavKey>.challengeEntry(
-    myProfileImageUrl: String,
+    myProfileImageUrl: () -> String,
     onHomeClick: () -> Unit,
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
@@ -25,8 +25,7 @@ fun EntryProviderScope<NavKey>.challengeEntry(
 ) {
     entry<ChallengeNavKey> {
         ArtistChallengeScreen(
-            myProfileImageUrl =
-                myProfileImageUrl,
+            myProfileImageUrl = myProfileImageUrl(),
             initialChallengeId =
                 null,
             onArtistClick =
@@ -47,7 +46,7 @@ fun EntryProviderScope<NavKey>.challengeEntry(
     entry<ArtistChallengeNavKey> { key ->
         ArtistChallengeScreen(
             myProfileImageUrl =
-                myProfileImageUrl,
+                myProfileImageUrl(),
             initialChallengeId =
                 key.initialChallengeId,
             onArtistClick =
@@ -72,7 +71,7 @@ fun EntryProviderScope<NavKey>.challengeEntry(
             initialVideoId =
                 key.initialVideoId,
             myProfileImageUrl =
-                myProfileImageUrl,
+                myProfileImageUrl(),
             onBackClick =
                 onBackClick,
             onHomeClick =
