@@ -18,6 +18,7 @@ import com.ssafy.motif.core.model.user.UserActivityTargetType
 import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.core.notifications.navigation.NotificationNavigationTarget
+import com.ssafy.motif.feature.artistdetail.api.navigation.ArtistDetailNavKey
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
 import com.ssafy.motif.feature.capture.api.navigation.ChallengeCompositeResultNavKey
@@ -99,22 +100,21 @@ fun MotifApp(
                 onOnstageClick = { videoId ->
                     navigator.navigate(
                         ChallengeParticipationNavKey(
-                            initialVideoId =
-                                videoId,
+                            initialVideoId = videoId,
                         ),
                     )
                 },
                 onFanRadarClick = {
-                    // TODO 아티스트 랭킹 화면
+                    // TODO ranking API 수정 이후 연결
                 },
-                onArtistClick = {
-                        artistId,
-                    ->
-                    // TODO 아티스트 상세 화면
+                onArtistClick = { artistId ->
+                    navigator.navigate(
+                        ArtistDetailNavKey(
+                            artistId = artistId,
+                        ),
+                    )
                 },
-                onMotifClick = {
-                        motifId,
-                    ->
+                onMotifClick = { motifId ->
                     // TODO 모티프 상세 화면
                 },
             )
@@ -137,10 +137,12 @@ fun MotifApp(
                         MotifNavKey,
                     )
                 },
-                onArtistClick = {
-                        artistId,
-                    ->
-                    // 기존 ArtistDetail 연결
+                onArtistClick = { artistId ->
+                    navigator.navigate(
+                        ArtistDetailNavKey(
+                            artistId = artistId,
+                        ),
+                    )
                 },
                 onParticipationClick = {
                         challengeId,
@@ -298,6 +300,14 @@ fun MotifApp(
 
             currentKey is
                     ChallengeCompositeResultNavKey -> {
+                null
+            }
+
+            currentKey is ArtistDetailNavKey -> {
+                null
+            }
+
+            currentKey is ArtistChallengeNavKey -> {
                 null
             }
 

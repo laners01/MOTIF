@@ -1,5 +1,6 @@
 package com.ssafy.motif.core.data.mapper
 
+import com.ssafy.motif.core.data.model.CursorPage
 import com.ssafy.motif.core.data.model.OffsetPage
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.artist.ArtistDetail
@@ -10,8 +11,11 @@ import com.ssafy.motif.core.model.artist.ArtistPass
 import com.ssafy.motif.core.model.artist.ArtistSubscriptionResult
 import com.ssafy.motif.core.model.artist.ArtistWithSubscription
 import com.ssafy.motif.core.model.artist.RankedArtist
+import com.ssafy.motif.core.model.challenge.ChallengeSummary
 import com.ssafy.motif.core.model.motif.Motif
 import com.ssafy.motif.core.model.notice.Notice
+import com.ssafy.motif.core.network.model.artist.ArtistChallengeListResponse
+import com.ssafy.motif.core.network.model.artist.ArtistChallengeResponse
 import com.ssafy.motif.core.network.model.artist.ArtistDetailResponse
 import com.ssafy.motif.core.network.model.artist.ArtistFeedArtistResponse
 import com.ssafy.motif.core.network.model.artist.ArtistFeedItemResponse
@@ -19,6 +23,8 @@ import com.ssafy.motif.core.network.model.artist.ArtistFeedResponse
 import com.ssafy.motif.core.network.model.artist.ArtistFeedType
 import com.ssafy.motif.core.network.model.artist.ArtistListResponse
 import com.ssafy.motif.core.network.model.artist.ArtistMotifVideoResponse
+import com.ssafy.motif.core.network.model.artist.ArtistNoticeListResponse
+import com.ssafy.motif.core.network.model.artist.ArtistNoticeResponse
 import com.ssafy.motif.core.network.model.artist.ArtistPassResponse
 import com.ssafy.motif.core.network.model.artist.ArtistRankingFilter
 import com.ssafy.motif.core.network.model.artist.ArtistRankingItemResponse
@@ -26,6 +32,7 @@ import com.ssafy.motif.core.network.model.artist.ArtistRankingResponse
 import com.ssafy.motif.core.network.model.artist.ArtistSearchResponse
 import com.ssafy.motif.core.network.model.artist.ArtistSubscriptionResponse
 import com.ssafy.motif.core.network.model.artist.ArtistSubscriptionSummaryResponse
+import com.ssafy.motif.core.network.model.artist.ArtistSummaryResponse
 import java.time.Instant
 
 internal fun ArtistRankingResponse.toModel(): OffsetPage<RankedArtist> =
@@ -90,7 +97,9 @@ internal fun ArtistDetailResponse.toModel(): ArtistDetail =
         isSubscribed = isSubscribed,
         subscribedDays = subscribedDays,
         motifPass = pass.toModel(),
-        myMotifVideos = myMotifVideos.map { it.toModel() },
+        myMotifVideos = myMotifVideos.map { response ->
+            response.toModel()
+        },
     )
 
 private fun ArtistPassResponse.toModel(): ArtistPass =
@@ -105,6 +114,63 @@ private fun ArtistMotifVideoResponse.toModel(): ArtistMotifVideo =
         videoUrl = videoUrl,
         thumbnailUrl = thumbnailUrl,
         durationMs = durationMs,
+    )
+
+internal fun ArtistChallengeListResponse.toModel(): List<ChallengeSummary> {
+    val now = System.currentTimeMillis()
+
+    return list.map { response ->
+        response.toModel(
+            createdAt = now,
+        )
+    }
+}
+
+private fun ArtistChallengeResponse.toModel(
+    createdAt: Long,
+): ChallengeSummary =
+    ChallengeSummary(
+        id = challengeSeq,
+        thumbnailUrl = thumbnailUrl,
+        view = viewCount,
+        createdAt = createdAt,
+    )
+
+internal fun ArtistNoticeListResponse.toModel(): CursorPage<Notice> =
+    CursorPage(
+        items = list.map { response ->
+            response.toModel()
+        },
+        previousCursor = prevCursor,
+        nextCursor = nextCursor,
+        hasPrevious = hasPrevious,
+        hasNext = hasNext,
+    )
+
+private fun ArtistNoticeResponse.toModel(): Notice =
+    Notice(
+        id = noticeSeq,
+        artist = artist.toModel(),
+        content = content,
+        imageUrls = images
+            .sortedBy { image ->
+                image.displayOrder
+            }
+            .map { image ->
+                image.imageUrl
+            },
+        likeCount = likeCount,
+        commentCount = commentCount,
+        isLiked = isLiked,
+        createdAt = regDttm.toEpochMilli(),
+    )
+
+private fun ArtistSummaryResponse.toModel(): Artist =
+    Artist(
+        id = artistSeq,
+        name = name,
+        profileImageUrl = profileImageUrl.orEmpty(),
+        groupName = groupName,
     )
 
 internal fun ArtistSubscriptionResponse.toModel(): ArtistSubscriptionResult =
@@ -152,7 +218,6 @@ private fun ArtistFeedItemResponse.toModel(): ArtistFeedItem {
                 "MOTIF_ASSET feed item must contain asset."
             }
 
-            // todo: 빈 값 수정
             ArtistFeedItem.MotifAsset(
                 motif = Motif(
                     id = asset.assetSeq,

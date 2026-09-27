@@ -5,12 +5,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -47,38 +52,62 @@ import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDe
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifEmptyContent
 
 @Composable
-fun ArtistDetailScreen(
+internal fun ArtistDetailScreen(
     artistId: Long,
+    onBackClick: () -> Unit,
+    onChallengeClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    onCreateMotifClick: () -> Unit = {},
     viewModel: ArtistDetailViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by
+    viewModel
+        .uiState
+        .collectAsStateWithLifecycle()
+
+    LaunchedEffect(
+        artistId,
+    ) {
+        viewModel.loadArtist(
+            artistId = artistId,
+        )
+    }
 
     ArtistDetailScreen(
         uiState = uiState,
-        // Todo: 수정 필수
-        isAlarmOn = uiState.isAlarmOn,
-        onSubscribeClick = viewModel::toggleSubscribe,
-        onAlarmClick = viewModel::toggleAlarm,
-        onBackClick = viewModel::goBackScreen,
-        onNoticeLikeClick = viewModel::toggleNoticeLike,
-        onNoticeCommentClick = viewModel::onNoticeCommentClick,
-        onTabClick = viewModel::selectTab,
-        onCommentLikeClick = viewModel::onCommentLikeClick,
-        onReplyClick = viewModel::onReplyClick,
-        onCommentBackClick = viewModel::onCommentBackClick,
-        onCommentSendClick = viewModel::onCommentSendClick,
-        onChallengeClick = viewModel::onChallengeClick,
-        onLoadMoreChallenges = viewModel::onLoadMoreChallenges,
-        onCreateMotifClick = viewModel::onCreateMotifClick,
+        onSubscribeClick =
+            viewModel::toggleSubscribe,
+        onAlarmClick =
+            viewModel::toggleAlarm,
+        onBackClick =
+            onBackClick,
+        onNoticeLikeClick =
+            viewModel::toggleNoticeLike,
+        onNoticeCommentClick =
+            viewModel::onNoticeCommentClick,
+        onTabClick =
+            viewModel::selectTab,
+        onCommentLikeClick =
+            viewModel::onCommentLikeClick,
+        onReplyClick =
+            viewModel::onReplyClick,
+        onCommentBackClick =
+            viewModel::onCommentBackClick,
+        onCommentSendClick =
+            viewModel::onCommentSendClick,
+        onChallengeClick =
+            onChallengeClick,
+        onLoadMoreNotices =
+            viewModel::loadMoreNotices,
+        onCreateMotifClick =
+            onCreateMotifClick,
         modifier = modifier,
     )
 }
 
 @Composable
-internal fun ArtistDetailScreen(
+private fun ArtistDetailScreen(
     uiState: ArtistDetailUiState,
-    isAlarmOn: Boolean,
     onSubscribeClick: () -> Unit,
     onAlarmClick: () -> Unit,
     onBackClick: () -> Unit,
@@ -90,214 +119,334 @@ internal fun ArtistDetailScreen(
     onCommentBackClick: () -> Unit,
     onCommentSendClick: (String) -> Unit,
     onChallengeClick: (Long) -> Unit,
-    onLoadMoreChallenges: () -> Unit,
+    onLoadMoreNotices: () -> Unit,
     onCreateMotifClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
+    val listState =
+        rememberLazyListState()
 
-    var selectedNoticeId by rememberSaveable {
-        mutableStateOf<Long?>(null)
+    var selectedNoticeId by
+    rememberSaveable {
+        mutableStateOf<Long?>(
+            null,
+        )
     }
 
-    LaunchedEffect(uiState.selectedTab) {
-        listState.scrollToItem(0)
+    LaunchedEffect(
+        uiState.selectedTab,
+    ) {
+        listState.scrollToItem(
+            0,
+        )
     }
 
-    val challengeSuccess =
-        uiState.challengeState as? ChallengeUiState.Success
+    val noticeSuccess =
+        uiState.noticeState as?
+                ArtistNoticeUiState.Success
 
-    val canLoadMore =
-        challengeSuccess != null &&
-                uiState.selectedTab == ArtistDetailTab.Challenge &&
-                challengeSuccess.hasNext &&
-                challengeSuccess.appendState is ChallengeAppendUiState.Idle
+    val canLoadMoreNotices =
+        uiState.selectedTab ==
+                ArtistDetailTab.Post &&
+                noticeSuccess != null &&
+                noticeSuccess.hasNext &&
+                noticeSuccess.appendState is ArtistNoticeAppendUiState.Idle
 
-    val shouldLoadMore by remember(
+    val shouldLoadMoreNotices by
+    remember(
         listState,
-        canLoadMore,
+        canLoadMoreNotices,
     ) {
         derivedStateOf {
-            if (!canLoadMore) {
+            if (!canLoadMoreNotices) {
                 return@derivedStateOf false
             }
 
-            val layoutInfo = listState.layoutInfo
+            val layoutInfo =
+                listState.layoutInfo
+
             val lastVisibleIndex =
-                layoutInfo.visibleItemsInfo
+                layoutInfo
+                    .visibleItemsInfo
                     .lastOrNull()
                     ?.index
                     ?: return@derivedStateOf false
 
             layoutInfo.totalItemsCount > 0 &&
                     lastVisibleIndex >=
-                    layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+                    layoutInfo.totalItemsCount -
+                    LOAD_MORE_THRESHOLD
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            onLoadMoreChallenges()
+    LaunchedEffect(
+        shouldLoadMoreNotices,
+    ) {
+        if (shouldLoadMoreNotices) {
+            onLoadMoreNotices()
         }
     }
 
-    val selectedNotice = selectedNoticeId?.let { noticeId ->
-        uiState.notices.firstOrNull { notice ->
-            notice.id == noticeId
-        }
-    }
+    val notices =
+        noticeSuccess
+            ?.notices
+            .orEmpty()
+
+    val selectedNotice =
+        selectedNoticeId
+            ?.let { noticeId ->
+                notices.firstOrNull { notice ->
+                    notice.id == noticeId
+                }
+            }
 
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top +
+                                WindowInsetsSides.Horizontal,
+                    ),
+                ),
     ) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier =
+                Modifier.fillMaxSize(),
         ) {
             LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    bottom = 12.dp,
-                ),
+                state =
+                    listState,
+                modifier =
+                    Modifier.fillMaxSize(),
+                contentPadding =
+                    PaddingValues(
+                        bottom = 12.dp,
+                    ),
             ) {
-                uiState.artistDetail?.let { artistDetail ->
-                    if (artistDetail.motifPass.active) {
-                        val motif = uiState.representativeMotif
-
-                        if (motif != null) {
-                            item {
-                                MotifVideoSection(
-                                    videoId = motif.id.toString(),
-                                    videoUrl = motif.videoUrl,
-                                    thumbnailUrl = motif.thumbnailUrl,
-                                    modifier = Modifier.padding(bottom = 12.dp),
-                                )
-                            }
-                        } else {
-                            item {
-                                MotifEmptyContent(
-                                    artistName = artistDetail.artist.name,
-                                    onCreateClick = onCreateMotifClick,
-                                    modifier = Modifier.padding(
-                                        bottom = 12.dp,
-                                    ),
-                                )
-                            }
+                when (
+                    val detailState =
+                        uiState.detailState
+                ) {
+                    ArtistDetailContentUiState.Loading -> {
+                        item {
+                            ContentLoading()
                         }
                     }
 
-                    item {
-                        ArtistDetailCard(
-                            artistDetail = artistDetail,
-                            isAlarmOn = isAlarmOn,
-                            isSubscribed = artistDetail.isSubscribed,
-                            onSubscribeClick = onSubscribeClick,
-                            onAlarmClick = onAlarmClick,
-                            modifier = if (artistDetail.motifPass.active) {
-                                Modifier
+                    is ArtistDetailContentUiState.Success -> {
+                        val artistDetail =
+                            detailState.artistDetail
+
+                        if (
+                            artistDetail
+                                .motifPass
+                                .active
+                        ) {
+                            val motif =
+                                artistDetail
+                                    .myMotifVideos
+                                    .firstOrNull()
+
+                            if (motif != null) {
+                                item {
+                                    MotifVideoSection(
+                                        videoId =
+                                            motif.id.toString(),
+                                        videoUrl =
+                                            motif.videoUrl,
+                                        thumbnailUrl =
+                                            motif.thumbnailUrl,
+                                        modifier =
+                                            Modifier.padding(
+                                                bottom = 12.dp,
+                                            ),
+                                    )
+                                }
                             } else {
-                                Modifier.padding(
-                                    top = 12.dp,
-                                )
-                            },
-                        )
+                                item {
+                                    MotifEmptyContent(
+                                        artistName =
+                                            artistDetail
+                                                .artist
+                                                .name,
+                                        onCreateClick =
+                                            onCreateMotifClick,
+                                        modifier =
+                                            Modifier.padding(
+                                                bottom = 12.dp,
+                                            ),
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
+                            ArtistDetailCard(
+                                artistDetail =
+                                    artistDetail,
+                                isAlarmOn =
+                                    uiState.isAlarmOn,
+                                isSubscriptionUpdating =
+                                    uiState.isSubscriptionUpdating,
+                                onSubscribeClick =
+                                    onSubscribeClick,
+                                onAlarmClick =
+                                    onAlarmClick,
+                                modifier =
+                                    if (
+                                        artistDetail
+                                            .motifPass
+                                            .active
+                                    ) {
+                                        Modifier
+                                    } else {
+                                        Modifier.padding(
+                                            top = 12.dp,
+                                        )
+                                    },
+                            )
+                        }
+                    }
+
+                    is ArtistDetailContentUiState.Error -> {
+                        item {
+                            ErrorContent()
+                        }
                     }
                 }
 
                 stickyHeader {
                     TabRow(
-                        selectedTabIndex = uiState.selectedTab.ordinal,
-                        containerColor = MotifTheme.colors.background,
+                        selectedTabIndex =
+                            uiState
+                                .selectedTab
+                                .ordinal,
+                        containerColor =
+                            MotifTheme
+                                .colors
+                                .background,
                         divider = {},
-                        indicator = { tabPositions ->
-                            if (uiState.selectedTab.ordinal < tabPositions.size) {
-                                TabRowDefaults.Indicator(
-                                    modifier = Modifier
-                                        .tabIndicatorOffset(
-                                            tabPositions[
-                                                uiState.selectedTab.ordinal
-                                            ],
-                                        )
-                                        .height(2.dp)
-                                        .width(50.dp),
-                                    color = MotifTheme.colors.pink,
-                                )
+                        indicator = {
+                                tabPositions,
+                            ->
+                            if (
+                                uiState
+                                    .selectedTab
+                                    .ordinal <
+                                tabPositions.size
+                            ) {
+                                TabRowDefaults
+                                    .Indicator(
+                                        modifier =
+                                            Modifier
+                                                .tabIndicatorOffset(
+                                                    tabPositions[
+                                                        uiState
+                                                            .selectedTab
+                                                            .ordinal
+                                                    ],
+                                                )
+                                                .height(
+                                                    2.dp,
+                                                )
+                                                .width(
+                                                    50.dp,
+                                                ),
+                                        color =
+                                            MotifTheme
+                                                .colors
+                                                .pink,
+                                    )
                             }
                         },
                     ) {
-                        ArtistDetailTab.entries.forEach { tab ->
-                            Tab(
-                                selected = uiState.selectedTab == tab,
-                                onClick = {
-                                    onTabClick(tab)
-                                },
-                                selectedContentColor = MotifTheme.colors.typo,
-                                unselectedContentColor = MotifTheme.colors.gray400,
-                            ) {
-                                Text(
-                                    text = tab.label,
-                                    style = MotifTheme.typography.bodyR16,
-                                    modifier = Modifier.padding(
-                                        top = 24.dp,
-                                        bottom = 26.dp,
-                                    ),
-                                )
+                        ArtistDetailTab
+                            .entries
+                            .forEach { tab ->
+                                Tab(
+                                    selected =
+                                        uiState
+                                            .selectedTab ==
+                                                tab,
+                                    onClick = {
+                                        onTabClick(
+                                            tab,
+                                        )
+                                    },
+                                    selectedContentColor =
+                                        MotifTheme
+                                            .colors
+                                            .typo,
+                                    unselectedContentColor =
+                                        MotifTheme
+                                            .colors
+                                            .gray400,
+                                ) {
+                                    Text(
+                                        text =
+                                            tab.label,
+                                        style =
+                                            MotifTheme
+                                                .typography
+                                                .bodyR16,
+                                        modifier =
+                                            Modifier.padding(
+                                                top = 24.dp,
+                                                bottom = 26.dp,
+                                            ),
+                                    )
+                                }
                             }
-                        }
                     }
                 }
 
-                when (uiState.selectedTab) {
-                    ArtistDetailTab.Post -> {
-                        items(
-                            items = uiState.notices,
-                            key = { notice ->
-                                notice.id
-                            },
-                        ) { notice ->
-                            NoticeCard(
-                                notice = notice,
-                                onArtistClick = {},
-                                onLikeClick = onNoticeLikeClick,
-                                onCommentClick = { noticeId ->
-                                    onNoticeCommentClick(noticeId)
-                                    selectedNoticeId = noticeId
-                                },
-                                modifier = Modifier.padding(
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    bottom = 12.dp,
-                                ),
-                            )
-                        }
-                    }
-
+                when (
+                    uiState.selectedTab
+                ) {
                     ArtistDetailTab.Challenge -> {
-                        when (val state = uiState.challengeState) {
-                            ChallengeUiState.Loading -> {
+                        when (
+                            val challengeState =
+                                uiState.challengeState
+                        ) {
+                            ArtistChallengeUiState.Loading -> {
                                 item {
-                                    ChallengeLoadingContent()
+                                    ContentLoading()
                                 }
                             }
 
-                            is ChallengeUiState.Success -> {
-                                if (state.challenges.isEmpty()) {
+                            is ArtistChallengeUiState.Success -> {
+                                if (
+                                    challengeState
+                                        .challenges
+                                        .isEmpty()
+                                ) {
                                     item {
-                                        ChallengeEmptyContent()
+                                        EmptyContent(
+                                            text =
+                                                "등록된 챌린지가 없습니다",
+                                        )
                                     }
                                 } else {
                                     items(
-                                        items = state.challenges.chunked(3),
+                                        items =
+                                            challengeState
+                                                .challenges
+                                                .chunked(
+                                                    3,
+                                                ),
                                         key = { row ->
                                             row.first().id
                                         },
                                     ) { row ->
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(
-                                                    bottom = 2.dp,
-                                                ),
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        bottom = 2.dp,
+                                                    ),
                                             horizontalArrangement =
                                                 Arrangement.spacedBy(
                                                     2.dp,
@@ -305,42 +454,116 @@ internal fun ArtistDetailScreen(
                                         ) {
                                             row.forEach { challenge ->
                                                 ChallengeThumbnail(
-                                                    thumbnailUrl = challenge.thumbnailUrl,
-                                                    viewCount = challenge.view,
+                                                    thumbnailUrl =
+                                                        challenge.thumbnailUrl,
+                                                    viewCount =
+                                                        challenge.view,
                                                     onClick = {
                                                         onChallengeClick(
                                                             challenge.id,
                                                         )
                                                     },
-                                                    modifier = Modifier.weight(
-                                                        1f,
-                                                    ),
+                                                    modifier =
+                                                        Modifier.weight(
+                                                            1f,
+                                                        ),
                                                 )
                                             }
 
-                                            repeat(3 - row.size) {
+                                            repeat(
+                                                3 - row.size,
+                                            ) {
                                                 Spacer(
-                                                    modifier = Modifier.weight(
-                                                        1f,
-                                                    ),
+                                                    modifier =
+                                                        Modifier.weight(
+                                                            1f,
+                                                        ),
                                                 )
                                             }
-                                        }
-                                    }
-
-                                    if (
-                                        state.appendState
-                                                is ChallengeAppendUiState.Loading
-                                    ) {
-                                        item {
-                                            ChallengeLoadingMore()
                                         }
                                     }
                                 }
                             }
 
-                            is ChallengeUiState.Error -> {
-                                item {}
+                            is ArtistChallengeUiState.Error -> {
+                                item {
+                                    ErrorContent()
+                                }
+                            }
+                        }
+                    }
+
+                    ArtistDetailTab.Post -> {
+                        when (
+                            val noticeState =
+                                uiState.noticeState
+                        ) {
+                            ArtistNoticeUiState.Loading -> {
+                                item {
+                                    ContentLoading()
+                                }
+                            }
+
+                            is ArtistNoticeUiState.Success -> {
+                                if (
+                                    noticeState
+                                        .notices
+                                        .isEmpty()
+                                ) {
+                                    item {
+                                        EmptyContent(
+                                            text =
+                                                "등록된 게시물이 없습니다",
+                                        )
+                                    }
+                                } else {
+                                    items(
+                                        items =
+                                            noticeState.notices,
+                                        key = { notice ->
+                                            notice.id
+                                        },
+                                    ) { notice ->
+                                        NoticeCard(
+                                            notice =
+                                                notice,
+                                            onArtistClick = {},
+                                            onLikeClick =
+                                                onNoticeLikeClick,
+                                            onCommentClick = {
+                                                    noticeId,
+                                                ->
+                                                onNoticeCommentClick(
+                                                    noticeId,
+                                                )
+
+                                                selectedNoticeId =
+                                                    noticeId
+                                            },
+                                            modifier =
+                                                Modifier.padding(
+                                                    start = 16.dp,
+                                                    end = 16.dp,
+                                                    bottom = 12.dp,
+                                                ),
+                                        )
+                                    }
+
+                                    if (
+                                        noticeState.appendState
+                                                is ArtistNoticeAppendUiState.Loading
+                                    ) {
+                                        item {
+                                            LoadingMoreContent()
+                                        }
+                                    }
+                                }
+                            }
+
+                            is ArtistNoticeUiState.Error -> {
+                                item {
+                                    ErrorContent()
+                                }
                             }
                         }
                     }
@@ -348,33 +571,51 @@ internal fun ArtistDetailScreen(
             }
 
             IconButton(
-                painter = painterResource(
-                    MotifIcons.BarArrowLeft,
-                ),
-                onClick = onBackClick,
-                size = 18.dp,
-                colors = ModifIconButtonDefaults.iconButtonColors(
-                    contentColor = MotifTheme.colors.typo,
-                ),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(
-                        x = 24.dp,
-                        y = 24.dp,
+                painter =
+                    painterResource(
+                        MotifIcons.BarArrowLeft,
                     ),
+                onClick =
+                    onBackClick,
+                size =
+                    18.dp,
+                colors =
+                    ModifIconButtonDefaults
+                        .iconButtonColors(
+                            contentColor =
+                                MotifTheme
+                                    .colors
+                                    .typo,
+                        ),
+                modifier =
+                    Modifier
+                        .align(
+                            Alignment.TopStart,
+                        )
+                        .offset(
+                            x = 24.dp,
+                            y = 24.dp,
+                        ),
             )
 
             selectedNotice?.let { notice ->
                 ModalCommentBottomSheet(
-                    commentCount = notice.commentCount,
-                    state = uiState.commentUiState,
+                    commentCount =
+                        notice.commentCount,
+                    state =
+                        uiState.commentUiState,
                     onDismissRequest = {
-                        selectedNoticeId = null
+                        selectedNoticeId =
+                            null
                     },
-                    onLikeClick = onCommentLikeClick,
-                    onReplyClick = onReplyClick,
-                    onBackClick = onCommentBackClick,
-                    onCommentSendClick = onCommentSendClick,
+                    onLikeClick =
+                        onCommentLikeClick,
+                    onReplyClick =
+                        onReplyClick,
+                    onBackClick =
+                        onCommentBackClick,
+                    onCommentSendClick =
+                        onCommentSendClick,
                 )
             }
         }
@@ -382,57 +623,101 @@ internal fun ArtistDetailScreen(
 }
 
 @Composable
-private fun ChallengeLoadingMore(
+private fun ContentLoading(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                vertical = 24.dp,
-            ),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 80.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         LoadingWheel(
-            contentDescription = "불러오는 중...",
+            contentDescription =
+                "불러오는 중...",
         )
     }
 }
 
 @Composable
-private fun ChallengeEmptyContent(
+private fun LoadingMoreContent(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                vertical = 80.dp,
-            ),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 24.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
+    ) {
+        LoadingWheel(
+            contentDescription =
+                "불러오는 중...",
+        )
+    }
+}
+
+@Composable
+private fun EmptyContent(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 80.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
     ) {
         Text(
-            text = "등록된 챌린지가 없습니다",
-            style = MotifTheme.typography.bodyR14,
-            color = MotifTheme.colors.gray400,
+            text = text,
+            style =
+                MotifTheme
+                    .typography
+                    .bodyR14,
+            color =
+                MotifTheme
+                    .colors
+                    .gray400,
         )
     }
 }
 
 @Composable
-private fun ChallengeLoadingContent(
+private fun ErrorContent(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                vertical = 80.dp,
-            ),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(
+                    vertical = 80.dp,
+                ),
+        contentAlignment =
+            Alignment.Center,
     ) {
-        LoadingWheel(
-            contentDescription = "불러오는 중...",
+        Text(
+            text =
+                "정보를 불러오지 못했습니다",
+            style =
+                MotifTheme
+                    .typography
+                    .bodyR14,
+            color =
+                MotifTheme
+                    .colors
+                    .gray400,
         )
     }
 }

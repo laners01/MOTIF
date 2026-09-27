@@ -6,10 +6,9 @@ import kotlinx.serialization.Serializable
 data class ArtistSummaryResponse(
     val artistSeq: Long,
     val name: String,
-    val groupName: String?,
-    val profileImageUrl: String?,
+    val groupName: String? = null,
+    val profileImageUrl: String? = null,
 )
-
 @Serializable
 data class ArtistSubscriptionSummaryResponse(
     val artistSeq: Long,
