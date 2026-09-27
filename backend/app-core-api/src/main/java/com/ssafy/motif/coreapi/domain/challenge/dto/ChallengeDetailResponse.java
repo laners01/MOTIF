@@ -2,6 +2,8 @@ package com.ssafy.motif.coreapi.domain.challenge.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.Instant;
+
 /**
  * 명세 §7.2 성공 응답의 {@code data} — 챌린지 상세 Bottom Sheet.
  *
@@ -53,7 +55,10 @@ public record ChallengeDetailResponse(
         boolean isSubscribed,
 
         @Schema(description = "챌린지 소개글")
-        String description
+        String description,
+
+        @Schema(description = "챌린지 등록 시각 (ISO-8601 UTC)", example = "2026-09-10T00:00:00.000Z")
+        Instant regDttm
 ) {
 
     /** §7.1·§7.2 {@code artist} — {@code groupName} 은 제거됐다(회의 확정). */

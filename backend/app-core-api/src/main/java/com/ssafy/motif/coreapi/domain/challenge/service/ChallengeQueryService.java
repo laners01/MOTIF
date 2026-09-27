@@ -177,7 +177,8 @@ public class ChallengeQueryService {
                 challenge.getCommentCount(),
                 challengeRepository.isLikedBy(challengeSeq, userSeq),
                 subscriptionRepository.existsByIdUserSeqAndIdArtistSeq(userSeq, challenge.getArtistSeq()),
-                challenge.getDescription());
+                challenge.getDescription(),
+                challenge.getRegDttm());
     }
 
     /**

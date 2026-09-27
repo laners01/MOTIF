@@ -114,7 +114,8 @@ Authorization: Bearer {accessToken}
     "commentCount": 210,
     "isLiked": false,
     "isSubscribed": true,
-    "description": "같이 춰요!"
+    "description": "같이 춰요!",
+    "regDttm": "2026-09-10T00:00:00.000Z"
   },
   "timestamp": "2026-09-10T00:00:00.000Z"
 }
