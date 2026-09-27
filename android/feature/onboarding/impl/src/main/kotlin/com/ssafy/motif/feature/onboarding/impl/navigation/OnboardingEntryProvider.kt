@@ -7,11 +7,14 @@ import com.ssafy.motif.feature.onboarding.impl.onboarding.OnboardingScreen
 
 fun EntryProviderScope<NavKey>.onboardingEntry(
     onCompleteClick: () -> Unit,
+    isDemoMode: Boolean = false,
 ) {
     entry<OnboardingNavKey> {
         OnboardingScreen(
             onCompleteClick =
                 onCompleteClick,
+            isDemoMode =
+                isDemoMode,
         )
     }
 }

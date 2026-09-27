@@ -62,15 +62,12 @@ class MainActivity : ComponentActivity() {
             PushTokenManager
 
     private val notificationNavigationTarget =
-        MutableStateFlow<
-                NotificationNavigationTarget?
-                >(
+        MutableStateFlow<NotificationNavigationTarget?>(
             null,
         )
 
     private val viewModel:
-            MainActivityViewModel by
-    viewModels()
+            MainActivityViewModel by viewModels()
 
     override fun onCreate(
         savedInstanceState: Bundle?,
@@ -80,20 +77,17 @@ class MainActivity : ComponentActivity() {
         )
 
         handleNotificationIntent(
-            intent =
-                intent,
+            intent = intent,
         )
 
         enableEdgeToEdge(
             statusBarStyle =
                 SystemBarStyle.dark(
-                    scrim =
-                        Color.TRANSPARENT,
+                    scrim = Color.TRANSPARENT,
                 ),
             navigationBarStyle =
                 SystemBarStyle.dark(
-                    scrim =
-                        Color.TRANSPARENT,
+                    scrim = Color.TRANSPARENT,
                 ),
         )
 
@@ -102,8 +96,7 @@ class MainActivity : ComponentActivity() {
             authRepository
                 .authState
                 .collectAsStateWithLifecycle(
-                    initialValue =
-                        AuthState.Initializing,
+                    initialValue = AuthState.Initializing,
                 )
 
             val myProfileImageUrl by
@@ -116,25 +109,19 @@ class MainActivity : ComponentActivity() {
                 .collectAsStateWithLifecycle()
 
             val authenticated =
-                authState ==
-                        AuthState.SignedIn ||
-                        authState ==
-                        AuthState.OnboardingRequired
+                authState == AuthState.SignedIn ||
+                        authState == AuthState.OnboardingRequired
 
             NotificationPermissionEffect(
-                enabled =
-                    authenticated,
+                enabled = authenticated,
             )
 
             LaunchedEffect(
                 authState,
             ) {
-                when (
-                    authState
-                ) {
+                when (authState) {
                     AuthState.SignedIn -> {
-                        viewModel
-                            .loadUserProfile()
+                        viewModel.loadUserProfile()
 
                         registerPushToken()
                     }
@@ -144,8 +131,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     AuthState.SignedOut -> {
-                        viewModel
-                            .clearUserProfile()
+                        viewModel.clearUserProfile()
                     }
 
                     AuthState.Initializing ->
@@ -161,8 +147,7 @@ class MainActivity : ComponentActivity() {
                     AuthState.Initializing -> {
                         Box(
                             modifier =
-                                Modifier
-                                    .fillMaxSize(),
+                                Modifier.fillMaxSize(),
                             contentAlignment =
                                 Alignment.Center,
                         ) {
@@ -174,23 +159,32 @@ class MainActivity : ComponentActivity() {
                         key(
                             state,
                         ) {
+                            /*
+                             * Demo Mode에서는 실제 인증 상태와 관계없이
+                             * 로그인 화면부터 시작한다.
+                             *
+                             * 실제 Session / AccessToken / 사용자 정보는
+                             * 변경하지 않는다.
+                             */
                             val startKey =
-                                when (
-                                    state
-                                ) {
-                                    AuthState.SignedOut ->
-                                        SignInNavKey
+                                if (DEMO_MODE) {
+                                    SignInNavKey
+                                } else {
+                                    when (state) {
+                                        AuthState.SignedOut ->
+                                            SignInNavKey
 
-                                    AuthState.OnboardingRequired ->
-                                        OnboardingNavKey
+                                        AuthState.OnboardingRequired ->
+                                            OnboardingNavKey
 
-                                    AuthState.SignedIn ->
-                                        HomeNavKey
+                                        AuthState.SignedIn ->
+                                            HomeNavKey
 
-                                    AuthState.Initializing ->
-                                        error(
-                                            "Initializing state must be handled before navigation.",
-                                        )
+                                        AuthState.Initializing ->
+                                            error(
+                                                "Initializing state must be handled before navigation.",
+                                            )
+                                    }
                                 }
 
                             val appState =
@@ -207,8 +201,9 @@ class MainActivity : ComponentActivity() {
                                 appState =
                                     appState,
                                 myProfileImageUrl =
-                                    myProfileImageUrl
-                                        .orEmpty(),
+                                    myProfileImageUrl.orEmpty(),
+                                isDemoMode =
+                                    DEMO_MODE,
                                 notificationNavigationTarget =
                                     if (
                                         state ==
@@ -219,8 +214,7 @@ class MainActivity : ComponentActivity() {
                                         null
                                     },
                                 onNotificationNavigationHandled = {
-                                    notificationNavigationTarget
-                                        .value =
+                                    notificationNavigationTarget.value =
                                         null
                                 },
                             )
@@ -243,8 +237,7 @@ class MainActivity : ComponentActivity() {
         )
 
         handleNotificationIntent(
-            intent =
-                intent,
+            intent = intent,
         )
     }
 
@@ -256,12 +249,10 @@ class MainActivity : ComponentActivity() {
                 .toNotificationNavigationTarget()
                 ?: return
 
-        notificationNavigationTarget
-            .value =
+        notificationNavigationTarget.value =
             target
 
-        intent
-            .clearNotificationNavigationExtras()
+        intent.clearNotificationNavigationExtras()
     }
 
     private suspend fun registerPushToken() {
@@ -284,9 +275,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-
         const val TAG =
             "MainActivity"
+
+        /*
+         * 시연 종료 후 false로 변경하면
+         * 기존 로그인/온보딩 흐름으로 복구된다.
+         */
+        const val DEMO_MODE =
+            true
     }
 }
 

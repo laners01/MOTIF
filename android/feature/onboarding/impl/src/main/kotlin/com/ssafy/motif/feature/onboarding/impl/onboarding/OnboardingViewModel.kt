@@ -47,10 +47,15 @@ internal class OnboardingViewModel @Inject constructor(
     ) {
         _uiState.update { state ->
             val selectedArtists =
-                if (artistId in state.selectedArtists) {
-                    state.selectedArtists - artistId
+                if (
+                    artistId in
+                    state.selectedArtists
+                ) {
+                    state.selectedArtists -
+                            artistId
                 } else {
-                    state.selectedArtists + artistId
+                    state.selectedArtists +
+                            artistId
                 }
 
             val selectedArtistItems =
@@ -62,12 +67,15 @@ internal class OnboardingViewModel @Inject constructor(
                         artist.id
                     }
                     .filter { artist ->
-                        artist.id in selectedArtists
+                        artist.id in
+                                selectedArtists
                     }
 
             state.copy(
-                selectedArtists = selectedArtists,
-                selectedArtistItems = selectedArtistItems,
+                selectedArtists =
+                    selectedArtists,
+                selectedArtistItems =
+                    selectedArtistItems,
             )
         }
     }
@@ -77,7 +85,8 @@ internal class OnboardingViewModel @Inject constructor(
     ) {
         _uiState.update { state ->
             state.copy(
-                query = query,
+                query =
+                    query,
             )
         }
 
@@ -86,8 +95,10 @@ internal class OnboardingViewModel @Inject constructor(
         if (query.isBlank()) {
             _uiState.update { state ->
                 state.copy(
-                    searchResults = emptyList(),
-                    isSearching = false,
+                    searchResults =
+                        emptyList(),
+                    isSearching =
+                        false,
                 )
             }
 
@@ -101,7 +112,8 @@ internal class OnboardingViewModel @Inject constructor(
                 )
 
                 searchArtists(
-                    query = query,
+                    query =
+                        query,
                 )
             }
     }
@@ -111,9 +123,12 @@ internal class OnboardingViewModel @Inject constructor(
 
         _uiState.update { state ->
             state.copy(
-                query = "",
-                searchResults = emptyList(),
-                isSearching = false,
+                query =
+                    "",
+                searchResults =
+                    emptyList(),
+                isSearching =
+                    false,
             )
         }
     }
@@ -123,15 +138,18 @@ internal class OnboardingViewModel @Inject constructor(
     ) {
         if (
             nickname.length >
-            OnboardingUiState.MAX_NICKNAME_LENGTH
+            OnboardingUiState
+                .MAX_NICKNAME_LENGTH
         ) {
             return
         }
 
         _uiState.update { state ->
             state.copy(
-                nickname = nickname,
-                error = null,
+                nickname =
+                    nickname,
+                error =
+                    null,
             )
         }
     }
@@ -139,15 +157,20 @@ internal class OnboardingViewModel @Inject constructor(
     fun removeNickname() {
         _uiState.update { state ->
             state.copy(
-                nickname = "",
+                nickname =
+                    "",
             )
         }
     }
 
     fun goToNicknameInput() {
         if (
-            _uiState.value.selectedArtists.size <
-            OnboardingUiState.MIN_SELECTION_COUNT
+            _uiState
+                .value
+                .selectedArtists
+                .size <
+            OnboardingUiState
+                .MIN_SELECTION_COUNT
         ) {
             return
         }
@@ -155,7 +178,8 @@ internal class OnboardingViewModel @Inject constructor(
         _uiState.update { state ->
             state.copy(
                 step =
-                    OnboardingStep.NicknameInput,
+                    OnboardingStep
+                        .NicknameInput,
             )
         }
     }
@@ -164,11 +188,17 @@ internal class OnboardingViewModel @Inject constructor(
         _uiState.update { state ->
             state.copy(
                 step =
-                    OnboardingStep.ArtistSelect,
+                    OnboardingStep
+                        .ArtistSelect,
             )
         }
     }
 
+    /*
+     * 실제 온보딩 완료.
+     *
+     * 서버에 구독 아티스트와 닉네임을 저장한다.
+     */
     fun completeOnboarding() {
         val state =
             _uiState.value
@@ -197,8 +227,10 @@ internal class OnboardingViewModel @Inject constructor(
                         Result.Loading -> {
                             _uiState.update { currentState ->
                                 currentState.copy(
-                                    isSubmitting = true,
-                                    error = null,
+                                    isSubmitting =
+                                        true,
+                                    error =
+                                        null,
                                 )
                             }
                         }
@@ -213,7 +245,8 @@ internal class OnboardingViewModel @Inject constructor(
                         is Result.Error -> {
                             _uiState.update { currentState ->
                                 currentState.copy(
-                                    isSubmitting = false,
+                                    isSubmitting =
+                                        false,
                                     error =
                                         OnboardingError
                                             .SubmitFailed,
@@ -222,13 +255,43 @@ internal class OnboardingViewModel @Inject constructor(
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
+    }
+
+    /*
+     * Demo Mode 전용.
+     *
+     * 서버 API / AuthRepository / DataStore를 전혀 건드리지 않는다.
+     * 입력된 아티스트와 닉네임은 현재 OnboardingUiState에만 존재한다.
+     */
+    fun completeDemoOnboarding() {
+        val state =
+            _uiState.value
+
+        if (
+            state.isSubmitting ||
+            !state.canProceed
+        ) {
+            return
+        }
+
+        _uiState.update { currentState ->
+            currentState.copy(
+                isCompleted =
+                    true,
+                error =
+                    null,
+            )
+        }
     }
 
     fun consumeCompleteEvent() {
         _uiState.update { state ->
             state.copy(
-                isCompleted = false,
+                isCompleted =
+                    false,
             )
         }
     }
@@ -239,9 +302,12 @@ internal class OnboardingViewModel @Inject constructor(
         artistJob =
             artistRepository
                 .getArtistRanking(
-                    filter = ArtistFilter.ALL,
-                    page = FIRST_PAGE,
-                    size = ARTIST_SIZE,
+                    filter =
+                        ArtistFilter.ALL,
+                    page =
+                        FIRST_PAGE,
+                    size =
+                        ARTIST_SIZE,
                 )
                 .asResult()
                 .onEach { result ->
@@ -249,8 +315,10 @@ internal class OnboardingViewModel @Inject constructor(
                         Result.Loading -> {
                             _uiState.update { state ->
                                 state.copy(
-                                    isLoading = true,
-                                    error = null,
+                                    isLoading =
+                                        true,
+                                    error =
+                                        null,
                                 )
                             }
                         }
@@ -259,12 +327,16 @@ internal class OnboardingViewModel @Inject constructor(
                             _uiState.update { state ->
                                 state.copy(
                                     artists =
-                                        result.data.items
+                                        result
+                                            .data
+                                            .items
                                             .map { rankedArtist ->
                                                 rankedArtist.artist
                                             },
-                                    isLoading = false,
-                                    error = null,
+                                    isLoading =
+                                        false,
+                                    error =
+                                        null,
                                 )
                             }
                         }
@@ -272,7 +344,8 @@ internal class OnboardingViewModel @Inject constructor(
                         is Result.Error -> {
                             _uiState.update { state ->
                                 state.copy(
-                                    isLoading = false,
+                                    isLoading =
+                                        false,
                                     error =
                                         OnboardingError
                                             .ArtistLoadFailed,
@@ -281,7 +354,9 @@ internal class OnboardingViewModel @Inject constructor(
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     private fun searchArtists(
@@ -290,8 +365,10 @@ internal class OnboardingViewModel @Inject constructor(
         searchJob =
             artistRepository
                 .searchArtists(
-                    query = query.trim(),
-                    size = SEARCH_SIZE,
+                    query =
+                        query.trim(),
+                    size =
+                        SEARCH_SIZE,
                 )
                 .asResult()
                 .onEach { result ->
@@ -310,8 +387,10 @@ internal class OnboardingViewModel @Inject constructor(
                         Result.Loading -> {
                             _uiState.update { state ->
                                 state.copy(
-                                    isSearching = true,
-                                    error = null,
+                                    isSearching =
+                                        true,
+                                    error =
+                                        null,
                                 )
                             }
                         }
@@ -320,11 +399,17 @@ internal class OnboardingViewModel @Inject constructor(
                             _uiState.update { state ->
                                 state.copy(
                                     searchResults =
-                                        result.data.map { artistWithSubscription ->
-                                            artistWithSubscription.artist
-                                        },
-                                    isSearching = false,
-                                    error = null,
+                                        result
+                                            .data
+                                            .map {
+                                                    artistWithSubscription,
+                                                ->
+                                                artistWithSubscription.artist
+                                            },
+                                    isSearching =
+                                        false,
+                                    error =
+                                        null,
                                 )
                             }
                         }
@@ -334,7 +419,8 @@ internal class OnboardingViewModel @Inject constructor(
                                 state.copy(
                                     searchResults =
                                         emptyList(),
-                                    isSearching = false,
+                                    isSearching =
+                                        false,
                                     error =
                                         OnboardingError
                                             .SearchFailed,
@@ -343,11 +429,14 @@ internal class OnboardingViewModel @Inject constructor(
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     private fun handleOnboardingSuccess(
-        result: OnboardingCompletionResult,
+        result:
+        OnboardingCompletionResult,
     ) {
         when (result) {
             is OnboardingCompletionResult.Completed,
@@ -355,9 +444,12 @@ internal class OnboardingViewModel @Inject constructor(
                 -> {
                 _uiState.update { state ->
                     state.copy(
-                        isSubmitting = false,
-                        isCompleted = true,
-                        error = null,
+                        isSubmitting =
+                            false,
+                        isCompleted =
+                            true,
+                        error =
+                            null,
                     )
                 }
             }
@@ -366,15 +458,18 @@ internal class OnboardingViewModel @Inject constructor(
                 _uiState.update { state ->
                     state.copy(
                         step =
-                            OnboardingStep.ArtistSelect,
+                            OnboardingStep
+                                .ArtistSelect,
                         selectedArtists =
                             emptySet(),
                         selectedArtistItems =
                             emptyList(),
-                        query = "",
+                        query =
+                            "",
                         searchResults =
                             emptyList(),
-                        isSubmitting = false,
+                        isSubmitting =
+                            false,
                         error =
                             OnboardingError
                                 .ArtistNotFound,
@@ -387,7 +482,8 @@ internal class OnboardingViewModel @Inject constructor(
             OnboardingCompletionResult.InvalidParameter -> {
                 _uiState.update { state ->
                     state.copy(
-                        isSubmitting = false,
+                        isSubmitting =
+                            false,
                         error =
                             OnboardingError
                                 .InvalidParameter,
@@ -398,9 +494,16 @@ internal class OnboardingViewModel @Inject constructor(
     }
 
     private companion object {
-        const val FIRST_PAGE = 0
-        const val ARTIST_SIZE = 20
-        const val SEARCH_SIZE = 20
-        const val SEARCH_DEBOUNCE_MILLIS = 300L
+        const val FIRST_PAGE =
+            0
+
+        const val ARTIST_SIZE =
+            20
+
+        const val SEARCH_SIZE =
+            20
+
+        const val SEARCH_DEBOUNCE_MILLIS =
+            300L
     }
 }

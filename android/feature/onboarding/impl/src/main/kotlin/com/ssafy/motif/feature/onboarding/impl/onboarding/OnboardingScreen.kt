@@ -16,38 +16,59 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 internal fun OnboardingScreen(
     onCompleteClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isDemoMode: Boolean = false,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val uiState by
-    viewModel.uiState.collectAsStateWithLifecycle()
+    viewModel.uiState
+        .collectAsStateWithLifecycle()
 
-    LaunchedEffect(uiState.isCompleted) {
+    LaunchedEffect(
+        uiState.isCompleted,
+    ) {
         if (uiState.isCompleted) {
             viewModel.consumeCompleteEvent()
+
             onCompleteClick()
         }
     }
 
     BackHandler(
-        enabled = uiState.step == OnboardingStep.NicknameInput,
+        enabled =
+            uiState.step ==
+                    OnboardingStep.NicknameInput,
     ) {
         viewModel.goToArtistSelect()
     }
 
     OnboardingScreen(
-        uiState = uiState,
-        onArtistClick = viewModel::toggleArtist,
-        onQueryChange = viewModel::updateQuery,
-        onQueryRemoveClick = viewModel::removeQuery,
-        onNextClick = viewModel::goToNicknameInput,
-        onNicknameChange = viewModel::updateNickname,
-        onNicknameRemoveClick = viewModel::removeNickname,
-        onCompleteClick = viewModel::completeOnboarding,
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(
-                WindowInsets.statusBars,
-            ),
+        uiState =
+            uiState,
+        onArtistClick =
+            viewModel::toggleArtist,
+        onQueryChange =
+            viewModel::updateQuery,
+        onQueryRemoveClick =
+            viewModel::removeQuery,
+        onNextClick =
+            viewModel::goToNicknameInput,
+        onNicknameChange =
+            viewModel::updateNickname,
+        onNicknameRemoveClick =
+            viewModel::removeNickname,
+        onCompleteClick = {
+            if (isDemoMode) {
+                viewModel.completeDemoOnboarding()
+            } else {
+                viewModel.completeOnboarding()
+            }
+        },
+        modifier =
+            modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.statusBars,
+                ),
     )
 }
 
@@ -66,22 +87,33 @@ private fun OnboardingScreen(
     when (uiState.step) {
         OnboardingStep.ArtistSelect -> {
             ArtistSelectScreen(
-                uiState = uiState,
-                onArtistClick = onArtistClick,
-                onQueryChange = onQueryChange,
-                onRemoveClick = onQueryRemoveClick,
-                onNextClick = onNextClick,
-                modifier = modifier,
+                uiState =
+                    uiState,
+                onArtistClick =
+                    onArtistClick,
+                onQueryChange =
+                    onQueryChange,
+                onRemoveClick =
+                    onQueryRemoveClick,
+                onNextClick =
+                    onNextClick,
+                modifier =
+                    modifier,
             )
         }
 
         OnboardingStep.NicknameInput -> {
             NicknameInputScreen(
-                uiState = uiState,
-                onNicknameChange = onNicknameChange,
-                onRemoveClick = onNicknameRemoveClick,
-                onCompleteClick = onCompleteClick,
-                modifier = modifier,
+                uiState =
+                    uiState,
+                onNicknameChange =
+                    onNicknameChange,
+                onRemoveClick =
+                    onNicknameRemoveClick,
+                onCompleteClick =
+                    onCompleteClick,
+                modifier =
+                    modifier,
             )
         }
     }

@@ -49,6 +49,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun SignInScreen(
+    isDemoMode: Boolean = false,
+    onDemoSignInComplete: () -> Unit = {},
     viewModel: SignInViewModel = hiltViewModel(),
 ) {
     val context =
@@ -62,39 +64,52 @@ internal fun SignInScreen(
         .collectAsStateWithLifecycle()
 
     SignInScreen(
-        isLoading = uiState.isLoading,
-        isError = uiState.isError,
+        isLoading =
+            uiState.isLoading,
+        isError =
+            uiState.isError,
         onGoogleSignInClick = {
-            val activity =
-                context.findActivity()
-                    ?: return@SignInScreen
+            if (isDemoMode) {
+                /*
+                 * Demo Mode:
+                 * 실제 Google 로그인 및 서버 로그인을 수행하지 않고
+                 * 화면 Navigation만 진행한다.
+                 */
+                onDemoSignInComplete()
+            } else {
+                val activity =
+                    context.findActivity()
 
-            viewModel.clearSignInError()
+                if (activity != null) {
+                    viewModel.clearSignInError()
 
-            coroutineScope.launch {
-                when (
-                    val result =
-                        startGoogleSignIn(
-                            activity,
-                        )
-                ) {
-                    is GoogleSignInResult.Success -> {
-                        viewModel.signInWithGoogle(
-                            idToken =
-                                result.idToken,
-                        )
-                    }
+                    coroutineScope.launch {
+                        when (
+                            val result =
+                                startGoogleSignIn(
+                                    activity,
+                                )
+                        ) {
+                            is GoogleSignInResult.Success -> {
+                                viewModel.signInWithGoogle(
+                                    idToken =
+                                        result.idToken,
+                                )
+                            }
 
-                    GoogleSignInResult.Cancelled -> {
-                        Unit
-                    }
+                            GoogleSignInResult.Cancelled -> {
+                                Unit
+                            }
 
-                    is GoogleSignInResult.Failure -> {
-                        // viewModel.setSignInError()
+                            is GoogleSignInResult.Failure -> {
+                                // viewModel.setSignInError()
 
-                        viewModel.signInWithGoogle(
-                            idToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwicm9sZSI6IlVTRVIiLCJpYXQiOjE3ODk1MzMzNTgsImV4cCI6MTc5MjEyNTM1OH0.7gsFNKjdicSPTpv_iRyWCf45OSjS1foJGwMRF_9ZrjeGAy3iWlERCMM9ugIqTZv1sVGSgZsNKwqJtMv_G1ABIw",
-                        )
+                                viewModel.signInWithGoogle(
+                                    idToken =
+                                        "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwicm9sZSI6IlVTRVIiLCJpYXQiOjE3ODk1MzMzNTgsImV4cCI6MTc5MjEyNTM1OH0.7gsFNKjdicSPTpv_iRyWCf45OSjS1foJGwMRF_9ZrjeGAy3iWlERCMM9ugIqTZv1sVGSgZsNKwqJtMv_G1ABIw",
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -109,55 +124,84 @@ private fun SignInScreen(
     onGoogleSignInClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val backdropState = rememberGlassBackdropState()
+    val backdropState =
+        rememberGlassBackdropState()
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     ) {
         SignInBackground(
-            backdropState = backdropState,
+            backdropState =
+                backdropState,
         )
 
         SignInGlassArea(
-            backdropState = backdropState,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxWidth(0.5f)
-                .fillMaxHeight(),
+            backdropState =
+                backdropState,
+            modifier =
+                Modifier
+                    .align(
+                        Alignment.CenterEnd,
+                    )
+                    .fillMaxWidth(
+                        0.5f,
+                    )
+                    .fillMaxHeight(),
         )
 
         SignInLogo(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 48.dp, end = 10.dp),
+            modifier =
+                Modifier
+                    .align(
+                        Alignment.TopCenter,
+                    )
+                    .statusBarsPadding()
+                    .padding(
+                        top = 48.dp,
+                        end = 10.dp,
+                    ),
         )
 
         if (isLoading) {
             LoadingWheel()
         } else {
             GoogleSignInButton(
-                onClick = onGoogleSignInClick,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(
-                        horizontal = 60.dp,
-                        vertical = 92.dp,
-                    )
-                    .fillMaxWidth()
-                    .height(56.dp),
+                onClick =
+                    onGoogleSignInClick,
+                modifier =
+                    Modifier
+                        .align(
+                            Alignment.BottomCenter,
+                        )
+                        .navigationBarsPadding()
+                        .padding(
+                            horizontal =
+                                60.dp,
+                            vertical =
+                                92.dp,
+                        )
+                        .fillMaxWidth()
+                        .height(
+                            56.dp,
+                        ),
             )
 
             if (isError) {
                 Spacer(
-                    modifier = Modifier.height(12.dp),
+                    modifier =
+                        Modifier.height(
+                            12.dp,
+                        ),
                 )
 
                 Text(
-                    text = "로그인에 실패했습니다. 다시 시도해주세요.",
-                    color = MotifTheme.colors.white,
-                    style = MotifTheme.typography.bodyR14,
+                    text =
+                        "로그인에 실패했습니다. 다시 시도해주세요.",
+                    color =
+                        MotifTheme.colors.white,
+                    style =
+                        MotifTheme.typography.bodyR14,
                 )
             }
         }
@@ -169,12 +213,16 @@ private fun SignInBackground(
     backdropState: GlassBackdropState,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .glassBackdrop(backdropState),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .glassBackdrop(
+                    backdropState,
+                ),
     ) {
         SignInBackgroundVideo(
-            modifier = Modifier.fillMaxSize(),
+            modifier =
+                Modifier.fillMaxSize(),
         )
     }
 }
@@ -185,13 +233,22 @@ private fun SignInGlassArea(
     modifier: Modifier = Modifier,
 ) {
     GlassSurface(
-        backdropState = backdropState,
-        modifier = modifier,
-        shape = RectangleShape,
-        blurRadius = 8.dp,
-        blurAlpha = 1f,
-        tintColor = Color.White.copy(alpha = 0.08f),
-        borderWidth = 0.dp,
+        backdropState =
+            backdropState,
+        modifier =
+            modifier,
+        shape =
+            RectangleShape,
+        blurRadius =
+            8.dp,
+        blurAlpha =
+            1f,
+        tintColor =
+            Color.White.copy(
+                alpha = 0.08f,
+            ),
+        borderWidth =
+            0.dp,
     ) {}
 }
 
@@ -199,20 +256,32 @@ private fun SignInGlassArea(
 private fun SignInLogo(
     modifier: Modifier = Modifier,
 ) {
-    val strokeWidth = with(LocalDensity.current) {
-        1.5.dp.toPx()
-    }
+    val strokeWidth =
+        with(
+            LocalDensity.current,
+        ) {
+            1.5.dp.toPx()
+        }
 
     Text(
-        text = "MOTIF",
-        modifier = modifier,
-        color = MotifTheme.colors.white.copy(alpha = 0.6f),
-        fontSize = 60.sp,
-        style = MotifTheme.typography.titleSB18.copy(
-            drawStyle = Stroke(
-                width = strokeWidth,
+        text =
+            "MOTIF",
+        modifier =
+            modifier,
+        color =
+            MotifTheme.colors.white.copy(
+                alpha = 0.6f,
             ),
-        ),
+        fontSize =
+            60.sp,
+        style =
+            MotifTheme.typography.titleSB18.copy(
+                drawStyle =
+                    Stroke(
+                        width =
+                            strokeWidth,
+                    ),
+            ),
     )
 }
 
@@ -222,45 +291,76 @@ private fun GoogleSignInButton(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .clickable(
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            modifier
+                .clip(
+                    RoundedCornerShape(
+                        16.dp,
+                    ),
+                )
+                .background(
+                    Color.White,
+                )
+                .clickable(
+                    role =
+                        Role.Button,
+                    onClick =
+                        onClick,
+                )
+                .padding(
+                    horizontal =
+                        20.dp,
+                ),
+        horizontalArrangement =
+            Arrangement.Center,
+        verticalAlignment =
+            Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(
-                R.drawable.ic_google,
-            ),
-            contentDescription = null,
-            tint = Color.Unspecified,
-            modifier = Modifier.size(24.dp),
+            painter =
+                painterResource(
+                    R.drawable.ic_google,
+                ),
+            contentDescription =
+                null,
+            tint =
+                Color.Unspecified,
+            modifier =
+                Modifier.size(
+                    24.dp,
+                ),
         )
 
         Spacer(
-            modifier = Modifier.width(12.dp),
+            modifier =
+                Modifier.width(
+                    12.dp,
+                ),
         )
 
         Text(
-            text = "Sign in with Google",
-            color = Color.Black,
-            style = MotifTheme.typography.bodySB16,
+            text =
+                "Sign in with Google",
+            color =
+                Color.Black,
+            style =
+                MotifTheme.typography.bodySB16,
         )
     }
 }
 
-@Preview(name = "Sign In", showBackground = true)
+@Preview(
+    name = "Sign In",
+    showBackground = true,
+)
 @Composable
 private fun SignInScreenPreview() {
     MotifTheme {
         SignInScreen(
-            isLoading = false,
-            isError = false,
+            isLoading =
+                false,
+            isError =
+                false,
             onGoogleSignInClick = {},
         )
     }

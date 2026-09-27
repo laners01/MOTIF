@@ -35,6 +35,7 @@ import com.ssafy.motif.feature.motif.api.navigation.ProductDetailNavKey
 import com.ssafy.motif.feature.motif.impl.navigation.motifEntry
 import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.feature.mypage.impl.navigation.myPageEntry
+import com.ssafy.motif.feature.onboarding.api.navigation.OnboardingNavKey
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
 import com.ssafy.motif.feature.ranking.api.navigation.RankingNavKey
 import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
@@ -47,6 +48,7 @@ fun MotifApp(
     appState: MotifAppState,
     modifier: Modifier = Modifier,
     myProfileImageUrl: String,
+    isDemoMode: Boolean = false,
     notificationNavigationTarget:
     NotificationNavigationTarget? = null,
     onNotificationNavigationHandled:
@@ -95,7 +97,15 @@ fun MotifApp(
 
     val entryProvider =
         entryProvider {
-            signInEntry()
+            signInEntry(
+                isDemoMode =
+                    isDemoMode,
+                onDemoSignInComplete = {
+                    navigator.navigate(
+                        OnboardingNavKey,
+                    )
+                },
+            )
 
             homeEntry(
                 onOnstageClick = { videoId ->
@@ -176,8 +186,17 @@ fun MotifApp(
             )
 
             onboardingEntry(
-                onCompleteClick =
-                    appState::completeOnboarding,
+                isDemoMode =
+                    isDemoMode,
+                onCompleteClick = {
+                    if (isDemoMode) {
+                        navigator.navigate(
+                            HomeNavKey,
+                        )
+                    } else {
+                        appState.completeOnboarding()
+                    }
+                },
             )
 
             rankingEntry(
