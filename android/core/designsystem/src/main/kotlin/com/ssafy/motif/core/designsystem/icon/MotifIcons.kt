@@ -116,4 +116,9 @@ object MotifIcons {
     @DrawableRes
     val RankingLower = R.drawable.ic_ranking_lower_24
 
+    @DrawableRes
+    val Lock = R.drawable.ic_lock_24
+
+    @DrawableRes
+    val Unlock = R.drawable.ic_unlock_24
 }

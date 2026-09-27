@@ -69,4 +69,59 @@
         챌린지 둘러보기
     </string>
 
+    <string name="capture_result_upload">
+    업로드
+</string>
+
+    <string name="capture_result_delete">
+    삭제
+</string>
+
+    <string name="capture_result_description_hint">
+    소개글을 입력해주세요.
+</string>
+
+    <string name="capture_result_public">
+    전체 공개
+</string>
+
+    <string name="capture_result_private">
+    비공개
+</string>
+
+    <string name="capture_result_comment_enabled">
+    댓글 허용
+</string>
+
+    <string name="capture_result_cancel">
+    취소
+</string>
+
+    <string name="capture_result_confirm">
+    확인
+</string>
+
+    <string name="capture_result_delete_title">
+    정말 삭제하시겠어요?
+</string>
+
+    <string name="capture_result_delete_description">
+    아직 저장 전이라 지금 지우면\n촬영한 영상이 사라져요.
+</string>
+
+    <string name="capture_result_processing">
+    AI가 영상을 처리하고 있어요
+</string>
+
+    <string name="capture_result_failed">
+    영상 제작에 실패했어요
+</string>
+
+    <string name="capture_result_load_failed">
+    영상 정보를 불러오지 못했어요
+</string>
+
+    <string name="capture_result_retry">
+    다시 시도
+</string>
 </resources>

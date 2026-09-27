@@ -11,6 +11,8 @@ import com.ssafy.motif.core.data.repository.CommentRepository
 import com.ssafy.motif.core.data.repository.CommentRepositoryImpl
 import com.ssafy.motif.core.data.repository.NoticeRepository
 import com.ssafy.motif.core.data.repository.NoticeRepositoryImpl
+import com.ssafy.motif.core.data.repository.NotificationRepository
+import com.ssafy.motif.core.data.repository.NotificationRepositoryImpl
 import com.ssafy.motif.core.data.repository.UserRepository
 import com.ssafy.motif.core.data.repository.UserRepositoryImpl
 import com.ssafy.motif.core.data.util.ConnectivityManagerNetworkMonitor
@@ -68,4 +70,10 @@ abstract class DataModule {
     internal abstract fun bindAccessTokenProvider(
         provider: SessionAccessTokenProvider,
     ): AccessTokenProvider
+
+    @Binds
+    @Singleton
+    internal abstract fun bindNotificationRepository(
+        notificationRepositoryImpl: NotificationRepositoryImpl,
+    ): NotificationRepository
 }

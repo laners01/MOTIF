@@ -11,6 +11,10 @@ dependencies {
     api(projects.core.model)
 
     implementation(projects.core.common)
+    implementation(projects.core.data)
 
-    compileOnly(platform(libs.androidx.compose.bom))
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+
+    implementation(libs.androidx.dataStore.preferences)
 }
