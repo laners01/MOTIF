@@ -9,6 +9,8 @@ import com.ssafy.motif.core.data.repository.ChallengeRepository
 import com.ssafy.motif.core.data.repository.ChallengeRepositoryImpl
 import com.ssafy.motif.core.data.repository.CommentRepository
 import com.ssafy.motif.core.data.repository.CommentRepositoryImpl
+import com.ssafy.motif.core.data.repository.MotifRepository
+import com.ssafy.motif.core.data.repository.MotifRepositoryImpl
 import com.ssafy.motif.core.data.repository.NoticeRepository
 import com.ssafy.motif.core.data.repository.NoticeRepositoryImpl
 import com.ssafy.motif.core.data.repository.NotificationRepository
@@ -76,4 +78,9 @@ abstract class DataModule {
     internal abstract fun bindNotificationRepository(
         notificationRepositoryImpl: NotificationRepositoryImpl,
     ): NotificationRepository
+
+    @Binds
+    internal abstract fun bindMotifRepository(
+        motifRepositoryImpl: MotifRepositoryImpl,
+    ): MotifRepository
 }
