@@ -42,6 +42,7 @@ import com.ssafy.motif.feature.signin.api.navigation.SignInNavKey
 import com.ssafy.motif.ui.MotifApp
 import com.ssafy.motif.ui.rememberMotifAppState
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 
@@ -268,12 +269,16 @@ class MainActivity : ComponentActivity() {
             pushTokenManager
                 .registerCurrentToken()
         } catch (
-            throwable: Throwable,
+            exception: CancellationException,
+        ) {
+            throw exception
+        } catch (
+            exception: Exception,
         ) {
             Log.w(
                 TAG,
                 "Failed to register FCM token.",
-                throwable,
+                exception,
             )
         }
     }

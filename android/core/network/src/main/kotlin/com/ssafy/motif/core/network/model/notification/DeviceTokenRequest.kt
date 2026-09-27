@@ -5,11 +5,14 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class RegisterDeviceTokenRequest(
     val fcmToken: String,
-    val platform: String = PLATFORM_ANDROID,
-) {
-    private companion object {
-        const val PLATFORM_ANDROID = "ANDROID"
-    }
+    val platform: DevicePlatform,
+)
+
+@Serializable
+enum class DevicePlatform {
+    ANDROID,
+    IOS,
+    WEB,
 }
 
 @Serializable

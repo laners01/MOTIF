@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.motif.android.application)
     alias(libs.plugins.motif.android.application.compose)
     alias(libs.plugins.motif.hilt)
+    alias(libs.plugins.google.services)
 }
 
 android {
