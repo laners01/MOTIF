@@ -33,6 +33,14 @@ public record ArtistRankingResponse(
         String profileImageUrl,
 
         @Schema(description = "요청자의 구독 여부", example = "false")
-        boolean isSubscribed
+        boolean isSubscribed,
+
+        @Schema(description = "대표곡 제목 — 가장 최근 챌린지의 곡. 챌린지가 없으면 null",
+                example = "Supernova", nullable = true)
+        String songTitle,
+
+        @Schema(description = "대표곡 가수명 (songs.singer_name). 챌린지가 없으면 null",
+                example = "aespa", nullable = true)
+        String singerName
 ) {
 }

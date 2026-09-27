@@ -8,6 +8,7 @@ import com.ssafy.motif.coreapi.global.media.PublicMediaUrlResolver;
 import com.ssafy.motif.domain.core.artist.ArtistCardRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
+import com.ssafy.motif.domain.core.song.SongRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -46,6 +47,7 @@ class ArtistRankingQueryServiceTest {
     private ArtistRankingSnapshot snapshot;
     private ArtistRepository artistRepository;
     private SubscriptionRepository subscriptionRepository;
+    private SongRepository songRepository;
     private ArtistRankingQueryService service;
 
     @BeforeEach
@@ -53,6 +55,8 @@ class ArtistRankingQueryServiceTest {
         snapshot = mock(ArtistRankingSnapshot.class);
         artistRepository = mock(ArtistRepository.class);
         subscriptionRepository = mock(SubscriptionRepository.class);
+        songRepository = mock(SongRepository.class);
+        given(songRepository.findLatestSongs(any())).willReturn(List.of());
 
         given(subscriptionRepository.findSubscribedArtistSeqs(anyInt(), any()))
                 .willReturn(List.of());
@@ -67,7 +71,7 @@ class ArtistRankingQueryServiceTest {
         });
 
         service = new ArtistRankingQueryService(snapshot, artistRepository,
-                subscriptionRepository, new PublicMediaUrlResolver("https://cdn.motif.io", "profiles/default.png"));
+                subscriptionRepository, songRepository, new PublicMediaUrlResolver("https://cdn.motif.io", "profiles/default.png"));
     }
 
     private static ArtistCardRow card(Integer artistSeq) {
@@ -308,5 +312,28 @@ class ArtistRankingQueryServiceTest {
         ArtistRankingResponse item = ranking(RankingFilter.ALL, 0, 20).list().getFirst();
         assertThat(item.profileImageUrl()).isEqualTo("https://cdn.motif.io/profiles/default.png");
         assertThat(item.groupName()).isNull();
+    }
+
+    @Nested
+    @DisplayName("대표곡")
+    class Song {
+
+        @Test
+        @DisplayName("대표곡이 있으면 곡명·가수명을 싣고, 없으면 null 이다")
+        void songOrNull() {
+            snapshot(List.of(KARINA, WINTER));
+            SongRepository.ArtistSong supernova = mock(SongRepository.ArtistSong.class);
+            given(supernova.getArtistSeq()).willReturn(KARINA);
+            given(supernova.getSongTitle()).willReturn("Supernova");
+            given(supernova.getSingerName()).willReturn("aespa");
+            given(songRepository.findLatestSongs(any())).willReturn(List.of(supernova));
+
+            List<ArtistRankingResponse> list = ranking(RankingFilter.ALL, 0, 20).list();
+
+            assertThat(list).extracting(ArtistRankingResponse::songTitle)
+                    .containsExactly("Supernova", null);
+            assertThat(list).extracting(ArtistRankingResponse::singerName)
+                    .containsExactly("aespa", null);
+        }
     }
 }

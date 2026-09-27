@@ -9,6 +9,7 @@ import com.ssafy.motif.coreapi.global.response.PageResponses;
 import com.ssafy.motif.domain.core.artist.ArtistCardRow;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
 import com.ssafy.motif.domain.core.artist.SubscriptionRepository;
+import com.ssafy.motif.domain.core.song.SongRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +45,7 @@ public class ArtistRankingQueryService {
     private final ArtistRankingSnapshot snapshot;
     private final ArtistRepository artistRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final SongRepository songRepository;
     private final PublicMediaUrlResolver mediaUrlResolver;
 
     /**
@@ -52,8 +54,8 @@ public class ArtistRankingQueryService {
      * <p><b>스냅샷을 전량 꺼낸다.</b> 구간만 꺼내면 아래 필터에서 걸러진 만큼 페이지가
      * 비고, {@code totalElements} 도 낼 수 없다. 아티스트가 수백 규모라 전량이 싸다.
      *
-     * <p><b>DB 조회는 2회로 고정이다</b> — 구독 여부 1회(스냅샷 전체 대상), 메타 1회(자른
-     * 페이지 대상). 항목마다 조회하면 그대로 N+1 이다.
+     * <p><b>DB 조회는 3회로 고정이다</b> — 구독 여부 1회(스냅샷 전체 대상), 메타·대표곡 각 1회
+     * (자른 페이지 대상). 항목마다 조회하면 그대로 N+1 이다.
      */
     public PageResponse<ArtistRankingResponse> ranking(Integer userSeq, RankingFilter filter,
                                                        int page, int size) {
@@ -77,9 +79,10 @@ public class ArtistRankingQueryService {
         Pageable pageable = PageResponses.pageable(page, size);
         List<Ranked> pageRows = slice(filtered, pageable);
         Map<Integer, ArtistCardRow> cards = cardsOf(pageRows);
+        Map<Integer, SongRepository.ArtistSong> songs = songsOf(pageRows);
 
         List<ArtistRankingResponse> list = pageRows.stream()
-                .map(ranked -> toItem(ranked, cards, subscribed))
+                .map(ranked -> toItem(ranked, cards, songs, subscribed))
                 .filter(Objects::nonNull)
                 .toList();
 
@@ -120,6 +123,16 @@ public class ArtistRankingQueryService {
                 .collect(Collectors.toMap(ArtistCardRow::artistSeq, Function.identity()));
     }
 
+    /** 대표곡도 자른 페이지 분만 읽는다. 챌린지가 없는 아티스트는 맵에 없다. */
+    private Map<Integer, SongRepository.ArtistSong> songsOf(List<Ranked> pageRows) {
+        if (pageRows.isEmpty()) {
+            return Map.of();
+        }
+        List<Integer> artistSeqs = pageRows.stream().map(Ranked::artistSeq).toList();
+        return songRepository.findLatestSongs(artistSeqs).stream()
+                .collect(Collectors.toMap(SongRepository.ArtistSong::getArtistSeq, Function.identity()));
+    }
+
     /**
      * 메타가 없으면 그 항목을 뺀다 — 스냅샷이 만들어진 뒤 아티스트가 삭제된 경우다.
      *
@@ -129,11 +142,13 @@ public class ArtistRankingQueryService {
      * 지워진 아티스트를 보여주는 쪽이 훨씬 나쁘다.
      */
     private ArtistRankingResponse toItem(Ranked ranked, Map<Integer, ArtistCardRow> cards,
+                                         Map<Integer, SongRepository.ArtistSong> songs,
                                          Set<Integer> subscribed) {
         ArtistCardRow card = cards.get(ranked.artistSeq());
         if (card == null) {
             return null;
         }
+        SongRepository.ArtistSong song = songs.get(ranked.artistSeq());
         return new ArtistRankingResponse(
                 ranked.rank(),
                 ranked.rankDelta(),
@@ -141,7 +156,9 @@ public class ArtistRankingQueryService {
                 card.name(),
                 card.groupName(),
                 mediaUrlResolver.resolveProfile(card.profileImageKey()),
-                subscribed.contains(ranked.artistSeq()));
+                subscribed.contains(ranked.artistSeq()),
+                song == null ? null : song.getSongTitle(),
+                song == null ? null : song.getSingerName());
     }
 
     /** 스냅샷에서 나온 순위 정보 — 메타가 붙기 전 단계다. */

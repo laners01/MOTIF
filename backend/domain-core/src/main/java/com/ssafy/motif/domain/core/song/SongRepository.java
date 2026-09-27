@@ -57,4 +57,29 @@ public interface SongRepository extends JpaRepository<Song, Integer> {
 
         long getChallengeCount();
     }
+
+    /**
+     * 아티스트별 대표곡 (API 명세 §5.1 {@code songTitle}·{@code singerName}).
+     *
+     * <p>대표곡은 <b>가장 최근에 등록된 비삭제 챌린지의 곡</b>이다. {@code distinct on} 이
+     * 아티스트마다 {@code challenge_seq} 가 가장 큰 한 행만 남긴다(IDENTITY 라 최신순과 같다).
+     * 챌린지가 없는 아티스트는 결과에 행이 없고 호출부가 {@code null} 로 둔다.
+     */
+    @Query(value = """
+            select distinct on (c.artist_seq)
+                   c.artist_seq as artistSeq, s.title as songTitle, s.singer_name as singerName
+            from motif_core.challenges c
+              join motif_core.songs s on s.song_seq = c.song_seq
+            where c.artist_seq in (:artistSeqs) and c.is_deleted = false
+            order by c.artist_seq, c.challenge_seq desc
+            """, nativeQuery = true)
+    List<ArtistSong> findLatestSongs(@Param("artistSeqs") Collection<Integer> artistSeqs);
+
+    interface ArtistSong {
+        Integer getArtistSeq();
+
+        String getSongTitle();
+
+        String getSingerName();
+    }
 }
