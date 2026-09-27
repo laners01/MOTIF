@@ -59,14 +59,17 @@ internal fun ArtistChallengeScreen(
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: ArtistChallengeViewModel = hiltViewModel(),
+    viewModel: ArtistChallengeViewModel =
+        hiltViewModel(),
 ) {
     val uiState by
-    viewModel.uiState
+    viewModel
+        .uiState
         .collectAsStateWithLifecycle()
 
     val commentUiState by
-    viewModel.commentUiState
+    viewModel
+        .commentUiState
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(
@@ -78,10 +81,14 @@ internal fun ArtistChallengeScreen(
         )
     }
 
-    when (val state = uiState) {
+    when (
+        val state =
+            uiState
+    ) {
         ArtistChallengeUiState.Loading -> {
             ArtistChallengeLoadingScreen(
-                modifier = modifier,
+                modifier =
+                    modifier,
             )
         }
 
@@ -97,6 +104,8 @@ internal fun ArtistChallengeScreen(
                     onArtistClick,
                 onParticipationClick =
                     onParticipationClick,
+                onDescriptionClick =
+                    viewModel::loadChallengeArtists,
                 onSubscribeClick =
                     viewModel::toggleArtistSubscription,
                 onLikeClick =
@@ -144,11 +153,12 @@ private fun ArtistChallengeLoadingScreen(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Color.Black,
-            ),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(
+                    Color.Black,
+                ),
         contentAlignment =
             Alignment.Center,
     ) {
@@ -162,11 +172,12 @@ private fun ArtistChallengeErrorScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Color.Black,
-            ),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(
+                    Color.Black,
+                ),
         horizontalAlignment =
             Alignment.CenterHorizontally,
         verticalArrangement =
@@ -182,20 +193,24 @@ private fun ArtistChallengeErrorScreen(
         )
 
         Text(
-            text = "다시 시도",
+            text =
+                "다시 시도",
             color =
                 MotifTheme.colors.white,
             style =
                 MotifTheme.typography.bodySB14,
-            modifier = Modifier
-                .clickable(
-                    onClick = onRetry,
+            modifier =
+                Modifier.clickable(
+                    onClick =
+                        onRetry,
                 ),
         )
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(
+    ExperimentalLayoutApi::class,
+)
 @Composable
 private fun ArtistChallengeScreen(
     challenges: List<Challenge>,
@@ -203,6 +218,7 @@ private fun ArtistChallengeScreen(
     commentUiState: CommentUiState,
     onArtistClick: (Long) -> Unit,
     onParticipationClick: (Long) -> Unit,
+    onDescriptionClick: (Long) -> Unit,
     onSubscribeClick: (Long) -> Unit,
     onLikeClick: (Long) -> Unit,
     onCommentClick: (Long) -> Unit,
@@ -226,14 +242,16 @@ private fun ArtistChallengeScreen(
 
     val descriptionSheetState =
         rememberBottomSheetState(
-            skipPartiallyExpanded = false,
+            skipPartiallyExpanded =
+                false,
             partiallyExpandedFraction =
                 DESCRIPTION_SHEET_FRACTION,
         )
 
     val commentSheetState =
         rememberBottomSheetState(
-            skipPartiallyExpanded = false,
+            skipPartiallyExpanded =
+                false,
             partiallyExpandedFraction =
                 COMMENT_SHEET_FRACTION,
         )
@@ -333,17 +351,25 @@ private fun ArtistChallengeScreen(
                     backdropState,
                 onArtistClick = {
                     onArtistClick(
-                        challenge.artist.id,
+                        challenge
+                            .artist
+                            .id,
                     )
                 },
                 onSubscribeClick = {
                     onSubscribeClick(
-                        challenge.artist.id,
+                        challenge
+                            .artist
+                            .id,
                     )
                 },
                 onDescriptionClick = {
                     descriptionChallengeId =
                         challenge.id
+
+                    onDescriptionClick(
+                        challenge.id,
+                    )
                 },
                 onParticipationClick = {
                     onParticipationClick(
@@ -372,7 +398,9 @@ private fun ArtistChallengeScreen(
             )
         }
 
-        if (isCommentKeyboardVisible) {
+        if (
+            isCommentKeyboardVisible
+        ) {
             KeyboardBackgroundScrim(
                 onClick =
                     focusManager::clearFocus,
@@ -495,6 +523,7 @@ private fun ArtistChallengeScreenPreview() {
                 commentUiState,
             onArtistClick = {},
             onParticipationClick = {},
+            onDescriptionClick = {},
             onSubscribeClick = {},
             onLikeClick = {},
             onCommentClick = {
@@ -564,7 +593,8 @@ private fun previewChallenges(
             name = "Yeji",
             profileImageUrl =
                 profileImageUrl,
-            groupName = "ITZY",
+            groupName =
+                "ITZY",
         )
 
     val chaeryeong =
@@ -573,7 +603,8 @@ private fun previewChallenges(
             name = "Chaeryeong",
             profileImageUrl =
                 profileImageUrl,
-            groupName = "ITZY",
+            groupName =
+                "ITZY",
         )
 
     val haewon =
@@ -582,7 +613,8 @@ private fun previewChallenges(
             name = "Haewon",
             profileImageUrl =
                 profileImageUrl,
-            groupName = "NMIXX",
+            groupName =
+                "NMIXX",
         )
 
     val jennie =
@@ -591,7 +623,8 @@ private fun previewChallenges(
             name = "Jennie",
             profileImageUrl =
                 profileImageUrl,
-            groupName = "BLACKPINK",
+            groupName =
+                "BLACKPINK",
         )
 
     val challengeArtists =
@@ -613,12 +646,13 @@ private fun previewChallenges(
                 yeji,
             description =
                 "생각보다 어렵지 않으니까 같이 도전해봐요 🖤",
-            ChallengeSong(
-                artistName =
-                    "JENNIE",
-                title =
-                    "like JENNY",
-            ),
+            song =
+                ChallengeSong(
+                    artistName =
+                        "JENNIE",
+                    title =
+                        "like JENNY",
+                ),
             likeCount =
                 12_000L,
             commentCount =
@@ -628,7 +662,7 @@ private fun previewChallenges(
             viewCount =
                 617_988L,
             createdAt =
-                1_788_105_600_000L,
+                System.currentTimeMillis(),
             isLiked =
                 false,
             isSubscribed =
@@ -646,12 +680,13 @@ private fun previewChallenges(
                 chaeryeong,
             description =
                 "이번 챌린지는 마지막 포즈가 포인트예요 🔥",
-            ChallengeSong(
-                artistName =
-                    "뽀로로",
-                title =
-                    "바라밤",
-            ),
+            song =
+                ChallengeSong(
+                    artistName =
+                        "뽀로로",
+                    title =
+                        "바라밤",
+                ),
             likeCount =
                 8_421L,
             commentCount =
@@ -661,7 +696,7 @@ private fun previewChallenges(
             viewCount =
                 324_521L,
             createdAt =
-                1_788_019_200_000L,
+                System.currentTimeMillis(),
             isLiked =
                 true,
             isSubscribed =

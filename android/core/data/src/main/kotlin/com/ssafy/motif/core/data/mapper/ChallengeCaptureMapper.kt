@@ -7,6 +7,16 @@ import com.ssafy.motif.core.network.model.challenge.ChallengeCapturePositionList
 import com.ssafy.motif.core.network.model.challenge.ChallengeCapturePositionResponse
 import com.ssafy.motif.core.network.model.challenge.ChallengeCaptureVideoResponse
 
+internal fun ChallengeCapturePositionListResponse.toArtists():
+        List<Artist> =
+    list
+        .sortedBy { response ->
+            response.slotOrder
+        }
+        .map { response ->
+            response.toArtist()
+        }
+
 internal fun ChallengeCapturePositionListResponse.toCapturePositions():
         List<CapturePosition> =
     list
@@ -21,13 +31,7 @@ private fun ChallengeCapturePositionResponse.toCapturePosition():
         CapturePosition =
     CapturePosition(
         id = challengeParticipantSeq,
-        artist = Artist(
-            id = artistSeq,
-            name = name,
-            profileImageUrl =
-                profileImageUrl.orEmpty(),
-            groupName = null,
-        ),
+        artist = toArtist(),
         slotOrder = slotOrder,
         x = anchor?.x?.toFloat(),
         y = anchor?.y?.toFloat(),
@@ -35,6 +39,15 @@ private fun ChallengeCapturePositionResponse.toCapturePosition():
             initialSceneUrl,
         previewImageUrl =
             previewImageUrl,
+    )
+
+private fun ChallengeCapturePositionResponse.toArtist(): Artist =
+    Artist(
+        id = artistSeq,
+        name = name,
+        profileImageUrl =
+            profileImageUrl.orEmpty(),
+        groupName = null,
     )
 
 internal fun ChallengeCaptureVideoResponse.toCaptureGuideVideo():

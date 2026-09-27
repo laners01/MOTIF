@@ -7,12 +7,14 @@ import com.ssafy.motif.core.common.result.asResult
 import com.ssafy.motif.core.data.repository.ArtistRepository
 import com.ssafy.motif.core.data.repository.ChallengeRepository
 import com.ssafy.motif.core.data.repository.CommentRepository
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.challenge.Challenge
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentType
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +24,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @HiltViewModel
 internal class ArtistChallengeViewModel @Inject constructor(
@@ -48,9 +49,18 @@ internal class ArtistChallengeViewModel @Inject constructor(
         _commentUiState.asStateFlow()
 
     private var selectedChallengeId: Long? = null
+
     private var challengeFeedJob: Job? = null
+
     private var commentLoadJob: Job? = null
+
+    private var challengeArtistsJob: Job? = null
+
+    private val loadedChallengeArtistIds =
+        mutableSetOf<Long>()
+
     private var initialChallengeId: Long? = null
+
     private var initialized = false
 
     fun initialize(
@@ -74,37 +84,43 @@ internal class ArtistChallengeViewModel @Inject constructor(
 
     fun loadMoreChallenges() {
         val state =
-            _uiState.value as? ArtistChallengeUiState.Success
+            _uiState.value
+                    as? ArtistChallengeUiState.Success
                 ?: return
 
         if (
             !state.hasNext ||
             state.nextCursor == null ||
-            state.appendState !is ArtistChallengeAppendUiState.Idle
+            state.appendState !is
+                    ArtistChallengeAppendUiState.Idle
         ) {
             return
         }
 
         loadNextChallengePage(
-            cursor = state.nextCursor,
+            cursor =
+                state.nextCursor,
         )
     }
 
     fun retryLoadMoreChallenges() {
         val state =
-            _uiState.value as? ArtistChallengeUiState.Success
+            _uiState.value
+                    as? ArtistChallengeUiState.Success
                 ?: return
 
         if (
             !state.hasNext ||
             state.nextCursor == null ||
-            state.appendState !is ArtistChallengeAppendUiState.Error
+            state.appendState !is
+                    ArtistChallengeAppendUiState.Error
         ) {
             return
         }
 
         loadNextChallengePage(
-            cursor = state.nextCursor,
+            cursor =
+                state.nextCursor,
         )
     }
 
@@ -113,7 +129,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         val challenge =
             findChallenge(
-                challengeId = challengeId,
+                challengeId =
+                    challengeId,
             ) ?: return
 
         val previousLiked =
@@ -129,14 +146,20 @@ internal class ArtistChallengeViewModel @Inject constructor(
             if (targetLiked) {
                 previousLikeCount + 1
             } else {
-                (previousLikeCount - 1)
-                    .coerceAtLeast(0L)
+                (
+                        previousLikeCount - 1
+                        ).coerceAtLeast(
+                        0L,
+                    )
             }
 
         updateChallengeLikeState(
-            challengeId = challengeId,
-            isLiked = targetLiked,
-            likeCount = targetLikeCount,
+            challengeId =
+                challengeId,
+            isLiked =
+                targetLiked,
+            likeCount =
+                targetLikeCount,
         )
 
         challengeRepository
@@ -148,14 +171,20 @@ internal class ArtistChallengeViewModel @Inject constructor(
             .onEach { result ->
                 if (result is Result.Error) {
                     rollbackChallengeLike(
-                        challengeId = challengeId,
-                        targetLiked = targetLiked,
-                        previousLiked = previousLiked,
-                        previousLikeCount = previousLikeCount,
+                        challengeId =
+                            challengeId,
+                        targetLiked =
+                            targetLiked,
+                        previousLiked =
+                            previousLiked,
+                        previousLikeCount =
+                            previousLikeCount,
                     )
                 }
             }
-            .launchIn(viewModelScope)
+            .launchIn(
+                viewModelScope,
+            )
     }
 
     fun toggleArtistSubscription(
@@ -163,7 +192,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         val challenge =
             findChallengeByArtist(
-                artistId = artistId,
+                artistId =
+                    artistId,
             ) ?: return
 
         val previousSubscribed =
@@ -173,14 +203,17 @@ internal class ArtistChallengeViewModel @Inject constructor(
             !previousSubscribed
 
         updateArtistSubscriptionState(
-            artistId = artistId,
-            isSubscribed = targetSubscribed,
+            artistId =
+                artistId,
+            isSubscribed =
+                targetSubscribed,
         )
 
         artistRepository
             .updateArtistSubscription(
                 id = artistId,
-                isSubscribed = targetSubscribed,
+                isSubscribed =
+                    targetSubscribed,
             )
             .asResult()
             .onEach { result ->
@@ -189,22 +222,87 @@ internal class ArtistChallengeViewModel @Inject constructor(
 
                     is Result.Success -> {
                         updateArtistSubscriptionState(
-                            artistId = artistId,
+                            artistId =
+                                artistId,
                             isSubscribed =
-                                result.data.isSubscribed,
+                                result
+                                    .data
+                                    .isSubscribed,
                         )
                     }
 
                     is Result.Error -> {
                         rollbackArtistSubscription(
-                            artistId = artistId,
-                            targetSubscribed = targetSubscribed,
-                            previousSubscribed = previousSubscribed,
+                            artistId =
+                                artistId,
+                            targetSubscribed =
+                                targetSubscribed,
+                            previousSubscribed =
+                                previousSubscribed,
                         )
                     }
                 }
             }
-            .launchIn(viewModelScope)
+            .launchIn(
+                viewModelScope,
+            )
+    }
+
+    fun loadChallengeArtists(
+        challengeId: Long,
+    ) {
+        val challenge =
+            findChallenge(
+                challengeId =
+                    challengeId,
+            ) ?: return
+
+        if (
+            challengeId in
+            loadedChallengeArtistIds ||
+            challenge
+                .challengeArtists
+                .isNotEmpty()
+        ) {
+            loadedChallengeArtistIds +=
+                challengeId
+
+            return
+        }
+
+        challengeArtistsJob?.cancel()
+
+        challengeArtistsJob =
+            challengeRepository
+                .getChallengeArtists(
+                    challengeId =
+                        challengeId,
+                )
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading ->
+                            Unit
+
+                        is Result.Success -> {
+                            loadedChallengeArtistIds +=
+                                challengeId
+
+                            updateChallengeArtists(
+                                challengeId =
+                                    challengeId,
+                                artists =
+                                    result.data,
+                            )
+                        }
+
+                        is Result.Error ->
+                            Unit
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     fun loadChallengeComments(
@@ -218,7 +316,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
         commentLoadJob =
             commentRepository
                 .getChallengeComments(
-                    challengeId = challengeId,
+                    challengeId =
+                        challengeId,
                 )
                 .asResult()
                 .onEach { result ->
@@ -242,7 +341,9 @@ internal class ArtistChallengeViewModel @Inject constructor(
                                     page =
                                         CommentPage.Comments,
                                     comments =
-                                        result.data.items,
+                                        result
+                                            .data
+                                            .items,
                                     replies =
                                         emptyList(),
                                     isLoading =
@@ -264,17 +365,21 @@ internal class ArtistChallengeViewModel @Inject constructor(
                             }
                         }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     fun loadReplies(
         commentId: Long,
     ) {
         val parentComment =
-            _commentUiState.value
+            _commentUiState
+                .value
                 .comments
                 .firstOrNull { comment ->
-                    comment.id == commentId
+                    comment.id ==
+                            commentId
                 }
                 ?: return
 
@@ -284,7 +389,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
             state.copy(
                 page =
                     CommentPage.Replies(
-                        parentComment = parentComment,
+                        parentComment =
+                            parentComment,
                     ),
                 replies =
                     emptyList(),
@@ -296,44 +402,54 @@ internal class ArtistChallengeViewModel @Inject constructor(
         commentLoadJob =
             commentRepository
                 .getReplies(
-                    type = CommentType.CHALLENGE,
-                    commentId = commentId,
+                    type =
+                        CommentType.CHALLENGE,
+                    commentId =
+                        commentId,
                 )
                 .asResult()
                 .onEach { result ->
                     when (result) {
                         Result.Loading -> {
-                            _commentUiState.update { state ->
-                                state.copy(
-                                    isLoading = true,
-                                )
-                            }
+                            _commentUiState
+                                .update { state ->
+                                    state.copy(
+                                        isLoading =
+                                            true,
+                                    )
+                                }
                         }
 
                         is Result.Success -> {
-                            _commentUiState.update { state ->
-                                state.copy(
-                                    replies =
-                                        result.data.items,
-                                    isLoading =
-                                        false,
-                                )
-                            }
+                            _commentUiState
+                                .update { state ->
+                                    state.copy(
+                                        replies =
+                                            result
+                                                .data
+                                                .items,
+                                        isLoading =
+                                            false,
+                                    )
+                                }
                         }
 
                         is Result.Error -> {
-                            _commentUiState.update { state ->
-                                state.copy(
-                                    replies =
-                                        emptyList(),
-                                    isLoading =
-                                        false,
-                                )
-                            }
+                            _commentUiState
+                                .update { state ->
+                                    state.copy(
+                                        replies =
+                                            emptyList(),
+                                        isLoading =
+                                            false,
+                                    )
+                                }
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     fun backToComments() {
@@ -341,9 +457,12 @@ internal class ArtistChallengeViewModel @Inject constructor(
 
         _commentUiState.update { state ->
             state.copy(
-                page = CommentPage.Comments,
-                replies = emptyList(),
-                isLoading = false,
+                page =
+                    CommentPage.Comments,
+                replies =
+                    emptyList(),
+                isLoading =
+                    false,
             )
         }
     }
@@ -351,7 +470,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     fun dismissComments() {
         commentLoadJob?.cancel()
 
-        selectedChallengeId = null
+        selectedChallengeId =
+            null
 
         _commentUiState.value =
             CommentUiState()
@@ -362,7 +482,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         val comment =
             findComment(
-                commentId = commentId,
+                commentId =
+                    commentId,
             ) ?: return
 
         val previousLiked =
@@ -378,34 +499,49 @@ internal class ArtistChallengeViewModel @Inject constructor(
             if (targetLiked) {
                 previousLikeCount + 1
             } else {
-                (previousLikeCount - 1)
-                    .coerceAtLeast(0L)
+                (
+                        previousLikeCount - 1
+                        ).coerceAtLeast(
+                        0L,
+                    )
             }
 
         updateCommentLikeState(
-            commentId = commentId,
-            isLiked = targetLiked,
-            likeCount = targetLikeCount,
+            commentId =
+                commentId,
+            isLiked =
+                targetLiked,
+            likeCount =
+                targetLikeCount,
         )
 
         commentRepository
             .updateCommentLike(
-                type = CommentType.CHALLENGE,
-                commentId = commentId,
-                isLiked = targetLiked,
+                type =
+                    CommentType.CHALLENGE,
+                commentId =
+                    commentId,
+                isLiked =
+                    targetLiked,
             )
             .asResult()
             .onEach { result ->
                 if (result is Result.Error) {
                     rollbackCommentLike(
-                        commentId = commentId,
-                        targetLiked = targetLiked,
-                        previousLiked = previousLiked,
-                        previousLikeCount = previousLikeCount,
+                        commentId =
+                            commentId,
+                        targetLiked =
+                            targetLiked,
+                        previousLiked =
+                            previousLiked,
+                        previousLikeCount =
+                            previousLikeCount,
                     )
                 }
             }
-            .launchIn(viewModelScope)
+            .launchIn(
+                viewModelScope,
+            )
     }
 
     fun sendComment(
@@ -418,13 +554,17 @@ internal class ArtistChallengeViewModel @Inject constructor(
         val trimmedContent =
             content.trim()
 
-        if (trimmedContent.isEmpty()) {
+        if (
+            trimmedContent.isEmpty()
+        ) {
             return
         }
 
         val parentCommentId =
             (
-                    _commentUiState.value.page
+                    _commentUiState
+                        .value
+                        .page
                             as? CommentPage.Replies
                     )
                 ?.parentComment
@@ -432,39 +572,58 @@ internal class ArtistChallengeViewModel @Inject constructor(
 
         commentRepository
             .createChallengeComment(
-                challengeId = challengeId,
-                content = trimmedContent,
-                parentCommentId = parentCommentId,
+                challengeId =
+                    challengeId,
+                content =
+                    trimmedContent,
+                parentCommentId =
+                    parentCommentId,
             )
             .asResult()
             .onEach { result ->
-                if (result !is Result.Success) {
+                if (
+                    result !is
+                            Result.Success
+                ) {
                     return@onEach
                 }
 
                 incrementChallengeCommentCount(
-                    challengeId = challengeId,
+                    challengeId =
+                        challengeId,
                 )
 
-                if (parentCommentId == null) {
+                if (
+                    parentCommentId ==
+                    null
+                ) {
                     loadChallengeComments(
-                        challengeId = challengeId,
+                        challengeId =
+                            challengeId,
                     )
                 } else {
                     incrementReplyCount(
-                        commentId = parentCommentId,
+                        commentId =
+                            parentCommentId,
                     )
 
                     loadReplies(
-                        commentId = parentCommentId,
+                        commentId =
+                            parentCommentId,
                     )
                 }
             }
-            .launchIn(viewModelScope)
+            .launchIn(
+                viewModelScope,
+            )
     }
 
     private fun loadChallenges() {
         challengeFeedJob?.cancel()
+
+        challengeArtistsJob?.cancel()
+
+        loadedChallengeArtistIds.clear()
 
         challengeFeedJob =
             viewModelScope.launch {
@@ -475,35 +634,43 @@ internal class ArtistChallengeViewModel @Inject constructor(
                     val page =
                         challengeRepository
                             .getChallengeFeed(
-                                cursor = null,
-                                size = CHALLENGE_FEED_SIZE,
+                                cursor =
+                                    null,
+                                size =
+                                    CHALLENGE_FEED_SIZE,
                             )
                             .first()
 
                     val initialChallenge =
                         initialChallengeId
                             ?.let { challengeId ->
-                                page.items
+                                page
+                                    .items
                                     .firstOrNull { challenge ->
                                         challenge.id ==
                                                 challengeId
                                     }
                                     ?: challengeRepository
                                         .getChallengeDetail(
-                                            id = challengeId,
+                                            id =
+                                                challengeId,
                                         )
                                         .first()
                                         .challenge
                             }
 
                     val challenges =
-                        if (initialChallenge == null) {
+                        if (
+                            initialChallenge ==
+                            null
+                        ) {
                             page.items
                         } else {
                             listOf(
                                 initialChallenge,
                             ) +
-                                    page.items
+                                    page
+                                        .items
                                         .filterNot { challenge ->
                                             challenge.id ==
                                                     initialChallenge.id
@@ -518,16 +685,18 @@ internal class ArtistChallengeViewModel @Inject constructor(
                         hasNext =
                             page.hasNext,
                     )
-                }.onSuccess { state ->
-                    _uiState.value =
-                        state
-                }.onFailure { throwable ->
-                    _uiState.value =
-                        ArtistChallengeUiState.Error(
-                            exception =
-                                throwable,
-                        )
                 }
+                    .onSuccess { state ->
+                        _uiState.value =
+                            state
+                    }
+                    .onFailure { throwable ->
+                        _uiState.value =
+                            ArtistChallengeUiState.Error(
+                                exception =
+                                    throwable,
+                            )
+                    }
             }
     }
 
@@ -535,7 +704,10 @@ internal class ArtistChallengeViewModel @Inject constructor(
         cursor: String,
     ) {
         _uiState.update { state ->
-            if (state !is ArtistChallengeUiState.Success) {
+            if (
+                state !is
+                        ArtistChallengeUiState.Success
+            ) {
                 return@update state
             }
 
@@ -550,13 +722,16 @@ internal class ArtistChallengeViewModel @Inject constructor(
         challengeFeedJob =
             challengeRepository
                 .getChallengeFeed(
-                    cursor = cursor,
-                    size = CHALLENGE_FEED_SIZE,
+                    cursor =
+                        cursor,
+                    size =
+                        CHALLENGE_FEED_SIZE,
                 )
                 .asResult()
                 .onEach { result ->
                     when (result) {
-                        Result.Loading -> Unit
+                        Result.Loading ->
+                            Unit
 
                         is Result.Success -> {
                             _uiState.update { state ->
@@ -571,15 +746,21 @@ internal class ArtistChallengeViewModel @Inject constructor(
                                     challenges =
                                         (
                                                 state.challenges +
-                                                        result.data.items
+                                                        result
+                                                            .data
+                                                            .items
                                                 )
                                             .distinctBy {
                                                 it.id
                                             },
                                     nextCursor =
-                                        result.data.nextCursor,
+                                        result
+                                            .data
+                                            .nextCursor,
                                     hasNext =
-                                        result.data.hasNext,
+                                        result
+                                            .data
+                                            .hasNext,
                                     appendState =
                                         ArtistChallengeAppendUiState.Idle,
                                 )
@@ -606,7 +787,9 @@ internal class ArtistChallengeViewModel @Inject constructor(
                         }
                     }
                 }
-                .launchIn(viewModelScope)
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     private fun findChallenge(
@@ -617,9 +800,11 @@ internal class ArtistChallengeViewModel @Inject constructor(
                     as? ArtistChallengeUiState.Success
                 ?: return null
 
-        return state.challenges
+        return state
+            .challenges
             .firstOrNull { challenge ->
-                challenge.id == challengeId
+                challenge.id ==
+                        challengeId
             }
     }
 
@@ -631,10 +816,45 @@ internal class ArtistChallengeViewModel @Inject constructor(
                     as? ArtistChallengeUiState.Success
                 ?: return null
 
-        return state.challenges
+        return state
+            .challenges
             .firstOrNull { challenge ->
-                challenge.artist.id == artistId
+                challenge.artist.id ==
+                        artistId
             }
+    }
+
+    private fun updateChallengeArtists(
+        challengeId: Long,
+        artists: List<Artist>,
+    ) {
+        _uiState.update { state ->
+            if (
+                state !is
+                        ArtistChallengeUiState.Success
+            ) {
+                return@update state
+            }
+
+            state.copy(
+                challenges =
+                    state
+                        .challenges
+                        .map { challenge ->
+                            if (
+                                challenge.id ==
+                                challengeId
+                            ) {
+                                challenge.copy(
+                                    challengeArtists =
+                                        artists,
+                                )
+                            } else {
+                                challenge
+                            }
+                        },
+            )
+        }
     }
 
     private fun updateChallengeLikeState(
@@ -643,22 +863,32 @@ internal class ArtistChallengeViewModel @Inject constructor(
         likeCount: Long,
     ) {
         _uiState.update { state ->
-            if (state !is ArtistChallengeUiState.Success) {
+            if (
+                state !is
+                        ArtistChallengeUiState.Success
+            ) {
                 return@update state
             }
 
             state.copy(
                 challenges =
-                    state.challenges.map { challenge ->
-                        if (challenge.id == challengeId) {
-                            challenge.copy(
-                                isLiked = isLiked,
-                                likeCount = likeCount,
-                            )
-                        } else {
-                            challenge
-                        }
-                    },
+                    state
+                        .challenges
+                        .map { challenge ->
+                            if (
+                                challenge.id ==
+                                challengeId
+                            ) {
+                                challenge.copy(
+                                    isLiked =
+                                        isLiked,
+                                    likeCount =
+                                        likeCount,
+                                )
+                            } else {
+                                challenge
+                            }
+                        },
             )
         }
     }
@@ -671,7 +901,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         val currentChallenge =
             findChallenge(
-                challengeId = challengeId,
+                challengeId =
+                    challengeId,
             ) ?: return
 
         if (
@@ -682,9 +913,12 @@ internal class ArtistChallengeViewModel @Inject constructor(
         }
 
         updateChallengeLikeState(
-            challengeId = challengeId,
-            isLiked = previousLiked,
-            likeCount = previousLikeCount,
+            challengeId =
+                challengeId,
+            isLiked =
+                previousLiked,
+            likeCount =
+                previousLikeCount,
         )
     }
 
@@ -693,25 +927,32 @@ internal class ArtistChallengeViewModel @Inject constructor(
         isSubscribed: Boolean,
     ) {
         _uiState.update { state ->
-            if (state !is ArtistChallengeUiState.Success) {
+            if (
+                state !is
+                        ArtistChallengeUiState.Success
+            ) {
                 return@update state
             }
 
             state.copy(
                 challenges =
-                    state.challenges.map { challenge ->
-                        if (
-                            challenge.artist.id ==
-                            artistId
-                        ) {
-                            challenge.copy(
-                                isSubscribed =
-                                    isSubscribed,
-                            )
-                        } else {
-                            challenge
-                        }
-                    },
+                    state
+                        .challenges
+                        .map { challenge ->
+                            if (
+                                challenge
+                                    .artist
+                                    .id ==
+                                artistId
+                            ) {
+                                challenge.copy(
+                                    isSubscribed =
+                                        isSubscribed,
+                                )
+                            } else {
+                                challenge
+                            }
+                        },
             )
         }
     }
@@ -723,7 +964,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         val currentChallenge =
             findChallengeByArtist(
-                artistId = artistId,
+                artistId =
+                    artistId,
             ) ?: return
 
         if (
@@ -734,8 +976,10 @@ internal class ArtistChallengeViewModel @Inject constructor(
         }
 
         updateArtistSubscriptionState(
-            artistId = artistId,
-            isSubscribed = previousSubscribed,
+            artistId =
+                artistId,
+            isSubscribed =
+                previousSubscribed,
         )
     }
 
@@ -743,25 +987,31 @@ internal class ArtistChallengeViewModel @Inject constructor(
         challengeId: Long,
     ) {
         _uiState.update { state ->
-            if (state !is ArtistChallengeUiState.Success) {
+            if (
+                state !is
+                        ArtistChallengeUiState.Success
+            ) {
                 return@update state
             }
 
             state.copy(
                 challenges =
-                    state.challenges.map { challenge ->
-                        if (
-                            challenge.id ==
-                            challengeId
-                        ) {
-                            challenge.copy(
-                                commentCount =
-                                    challenge.commentCount + 1,
-                            )
-                        } else {
-                            challenge
-                        }
-                    },
+                    state
+                        .challenges
+                        .map { challenge ->
+                            if (
+                                challenge.id ==
+                                challengeId
+                            ) {
+                                challenge.copy(
+                                    commentCount =
+                                        challenge
+                                            .commentCount + 1,
+                                )
+                            } else {
+                                challenge
+                            }
+                        },
             )
         }
     }
@@ -779,17 +1029,22 @@ internal class ArtistChallengeViewModel @Inject constructor(
                     )
                 ?.parentComment
                 ?.takeIf { comment ->
-                    comment.id == commentId
+                    comment.id ==
+                            commentId
                 }
 
         return parentComment
-            ?: state.comments
+            ?: state
+                .comments
                 .firstOrNull { comment ->
-                    comment.id == commentId
+                    comment.id ==
+                            commentId
                 }
-            ?: state.replies
+            ?: state
+                .replies
                 .firstOrNull { comment ->
-                    comment.id == commentId
+                    comment.id ==
+                            commentId
                 }
     }
 
@@ -800,28 +1055,42 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         _commentUiState.update { state ->
             val comments =
-                state.comments.map { comment ->
-                    if (comment.id == commentId) {
-                        comment.copy(
-                            isLiked = isLiked,
-                            likeCount = likeCount,
-                        )
-                    } else {
-                        comment
+                state
+                    .comments
+                    .map { comment ->
+                        if (
+                            comment.id ==
+                            commentId
+                        ) {
+                            comment.copy(
+                                isLiked =
+                                    isLiked,
+                                likeCount =
+                                    likeCount,
+                            )
+                        } else {
+                            comment
+                        }
                     }
-                }
 
             val replies =
-                state.replies.map { comment ->
-                    if (comment.id == commentId) {
-                        comment.copy(
-                            isLiked = isLiked,
-                            likeCount = likeCount,
-                        )
-                    } else {
-                        comment
+                state
+                    .replies
+                    .map { comment ->
+                        if (
+                            comment.id ==
+                            commentId
+                        ) {
+                            comment.copy(
+                                isLiked =
+                                    isLiked,
+                                likeCount =
+                                    likeCount,
+                            )
+                        } else {
+                            comment
+                        }
                     }
-                }
 
             val page =
                 when (
@@ -836,7 +1105,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
                         if (
                             currentPage
                                 .parentComment
-                                .id == commentId
+                                .id ==
+                            commentId
                         ) {
                             CommentPage.Replies(
                                 parentComment =
@@ -871,7 +1141,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         val currentComment =
             findComment(
-                commentId = commentId,
+                commentId =
+                    commentId,
             ) ?: return
 
         if (
@@ -882,9 +1153,12 @@ internal class ArtistChallengeViewModel @Inject constructor(
         }
 
         updateCommentLikeState(
-            commentId = commentId,
-            isLiked = previousLiked,
-            likeCount = previousLikeCount,
+            commentId =
+                commentId,
+            isLiked =
+                previousLiked,
+            likeCount =
+                previousLikeCount,
         )
     }
 
@@ -893,19 +1167,22 @@ internal class ArtistChallengeViewModel @Inject constructor(
     ) {
         _commentUiState.update { state ->
             val comments =
-                state.comments.map { comment ->
-                    if (
-                        comment.id ==
-                        commentId
-                    ) {
-                        comment.copy(
-                            replyCount =
-                                comment.replyCount + 1,
-                        )
-                    } else {
-                        comment
+                state
+                    .comments
+                    .map { comment ->
+                        if (
+                            comment.id ==
+                            commentId
+                        ) {
+                            comment.copy(
+                                replyCount =
+                                    comment
+                                        .replyCount + 1,
+                            )
+                        } else {
+                            comment
+                        }
                     }
-                }
 
             val page =
                 when (
@@ -920,7 +1197,8 @@ internal class ArtistChallengeViewModel @Inject constructor(
                         if (
                             currentPage
                                 .parentComment
-                                .id == commentId
+                                .id ==
+                            commentId
                         ) {
                             CommentPage.Replies(
                                 parentComment =
@@ -947,6 +1225,7 @@ internal class ArtistChallengeViewModel @Inject constructor(
     }
 
     private companion object {
-        const val CHALLENGE_FEED_SIZE = 20
+        const val CHALLENGE_FEED_SIZE =
+            20
     }
 }

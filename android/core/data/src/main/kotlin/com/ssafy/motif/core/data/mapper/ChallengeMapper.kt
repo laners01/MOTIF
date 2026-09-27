@@ -28,18 +28,27 @@ import com.ssafy.motif.core.network.model.challenge.ParticipationVideoResponse
 import com.ssafy.motif.core.network.model.challenge.VideoVisibility
 import java.time.Instant
 
-internal fun ChallengeFeedResponse.toModel(): CursorPage<Challenge> =
-    CursorPage(
-        items = list.map { response ->
-            response.toModel()
-        },
+internal fun ChallengeFeedResponse.toModel(): CursorPage<Challenge> {
+    val receivedAt =
+        System.currentTimeMillis()
+
+    return CursorPage(
+        items =
+            list.map { response ->
+                response.toModel(
+                    createdAt = receivedAt,
+                )
+            },
         previousCursor = prevCursor,
         nextCursor = nextCursor,
         hasPrevious = hasPrevious,
         hasNext = hasNext,
     )
+}
 
-private fun ChallengeFeedItemResponse.toModel(): Challenge =
+private fun ChallengeFeedItemResponse.toModel(
+    createdAt: Long,
+): Challenge =
     Challenge(
         id = challengeSeq,
         videoUrl = videoUrl,
@@ -51,41 +60,47 @@ private fun ChallengeFeedItemResponse.toModel(): Challenge =
         commentCount = commentCount,
         participantCount = participantCount,
         viewCount = viewCount,
-        createdAt = 0L,
+        createdAt = createdAt,
         isLiked = isLiked,
         isSubscribed = isSubscribed,
         challengeArtists = emptyList(),
     )
 
 internal fun ChallengeDetailResponse.toModel(): ChallengeDetail {
-    val challengeArtists = participants.map { participant ->
-        participant.toArtistModel()
-    }
+    val challengeArtists =
+        participants.map { participant ->
+            participant.toArtistModel()
+        }
 
     return ChallengeDetail(
-        challenge = Challenge(
-            id = challengeSeq,
-            videoUrl = videoUrl,
-            thumbnailUrl = thumbnailUrl,
-            artist = artist.toModel(),
-            description = description,
-            song = song.toModel(),
-            likeCount = likeCount,
-            commentCount = commentCount,
-            participantCount = participantCount,
-            viewCount = viewCount,
-            createdAt = 0L,
-            isLiked = isLiked,
-            isSubscribed = isSubscribed,
-            challengeArtists = challengeArtists,
-        ),
+        challenge =
+            Challenge(
+                id = challengeSeq,
+                videoUrl = videoUrl,
+                thumbnailUrl = thumbnailUrl,
+                artist = artist.toModel(),
+                description = description,
+                song = song.toModel(),
+                likeCount = likeCount,
+                commentCount = commentCount,
+                participantCount = participantCount,
+                viewCount = viewCount,
+                createdAt =
+                    System.currentTimeMillis(),
+                isLiked = isLiked,
+                isSubscribed = isSubscribed,
+                challengeArtists =
+                    challengeArtists,
+            ),
         description = description,
-        participants = participants.map { participant ->
-            participant.toModel()
-        },
-        editedChallenges = editedChallenges.map { editedChallenge ->
-            editedChallenge.toModel()
-        },
+        participants =
+            participants.map { participant ->
+                participant.toModel()
+            },
+        editedChallenges =
+            editedChallenges.map { editedChallenge ->
+                editedChallenge.toModel()
+            },
     )
 }
 
@@ -93,7 +108,8 @@ private fun ChallengeArtistResponse.toModel(): Artist =
     Artist(
         id = artistSeq,
         name = name,
-        profileImageUrl = profileImageUrl.orEmpty(),
+        profileImageUrl =
+            profileImageUrl.orEmpty(),
         groupName = null,
     )
 
@@ -114,7 +130,8 @@ private fun ChallengeParticipantResponse.toArtistModel(): Artist =
     Artist(
         id = artistSeq,
         name = name,
-        profileImageUrl = profileImageUrl.orEmpty(),
+        profileImageUrl =
+            profileImageUrl.orEmpty(),
         groupName = null,
     )
 
@@ -134,9 +151,10 @@ private fun EditedChallengeResponse.toModel(): EditedChallenge =
 internal fun ParticipationVideoFeedResponse.toModel():
         CursorPage<ChallengeParticipation> =
     CursorPage(
-        items = list.map { response ->
-            response.toModel()
-        },
+        items =
+            list.map { response ->
+                response.toModel()
+            },
         previousCursor = prevCursor,
         nextCursor = nextCursor,
         hasPrevious = hasPrevious,
@@ -192,9 +210,10 @@ internal fun ParticipationVisibility.toNetwork(): VideoVisibility =
 internal fun HotChallengeParticipationFeedResponse.toModel():
         CursorPage<ChallengeParticipationSummary> =
     CursorPage(
-        items = list.map { response ->
-            response.toModel()
-        },
+        items =
+            list.map { response ->
+                response.toModel()
+            },
         previousCursor = prevCursor,
         nextCursor = nextCursor,
         hasPrevious = hasPrevious,

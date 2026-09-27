@@ -1,6 +1,7 @@
 package com.ssafy.motif.core.data.repository
 
 import com.ssafy.motif.core.data.model.CursorPage
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.challenge.CaptureGuideVideo
 import com.ssafy.motif.core.model.challenge.CapturePosition
 import com.ssafy.motif.core.model.challenge.Challenge
@@ -34,6 +35,10 @@ interface ChallengeRepository {
     fun getChallengeCapturePositions(
         challengeId: Long,
     ): Flow<List<CapturePosition>>
+
+    fun getChallengeArtists(
+        challengeId: Long,
+    ): Flow<List<Artist>>
 
     fun getChallengeCaptureVideo(
         participantId: Long,

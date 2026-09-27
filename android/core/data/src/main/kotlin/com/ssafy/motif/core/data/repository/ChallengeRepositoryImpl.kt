@@ -2,12 +2,14 @@ package com.ssafy.motif.core.data.repository
 
 import com.ssafy.motif.core.common.network.Dispatcher
 import com.ssafy.motif.core.common.network.MotifDispatcher
+import com.ssafy.motif.core.data.mapper.toArtists
 import com.ssafy.motif.core.data.mapper.toCaptureGuideVideo
 import com.ssafy.motif.core.data.mapper.toCapturePositions
 import com.ssafy.motif.core.data.mapper.toChallengeModel
 import com.ssafy.motif.core.data.mapper.toModel
 import com.ssafy.motif.core.data.mapper.toNetwork
 import com.ssafy.motif.core.data.model.CursorPage
+import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.challenge.CaptureGuideVideo
 import com.ssafy.motif.core.model.challenge.CapturePosition
 import com.ssafy.motif.core.model.challenge.Challenge
@@ -48,7 +50,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                     size = size,
                 )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun getChallengeDetail(
@@ -60,7 +64,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                     id = id,
                 )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun updateChallengeLike(
@@ -92,6 +98,22 @@ class ChallengeRepositoryImpl @Inject constructor(
             )
         }.flowOn(ioDispatcher)
 
+    override fun getChallengeArtists(
+        challengeId: Long,
+    ): Flow<List<Artist>> =
+        flow {
+            val response =
+                challengeClient
+                    .getChallengeCapturePositions(
+                        challengeId =
+                            challengeId,
+                    )
+
+            emit(
+                response.toArtists(),
+            )
+        }.flowOn(ioDispatcher)
+
     override fun getChallengeCaptureVideo(
         participantId: Long,
     ): Flow<CaptureGuideVideo> =
@@ -117,12 +139,15 @@ class ChallengeRepositoryImpl @Inject constructor(
             val response =
                 challengeClient
                     .getParticipationVideoFeed(
-                        challengeId = challengeId,
+                        challengeId =
+                            challengeId,
                         cursor = cursor,
                         size = size,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun getChallengeParticipation(
@@ -135,7 +160,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                         id = id,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun publishChallengeParticipation(
@@ -156,7 +183,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                             commentEnabled,
                     )
 
-            emit(response.videoSeq)
+            emit(
+                response.videoSeq,
+            )
         }.flowOn(ioDispatcher)
 
     override fun updateChallengeParticipation(
@@ -177,7 +206,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                             commentEnabled,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun deleteChallengeParticipation(
@@ -244,7 +275,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                         size = size,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun createChallengeCompositeJob(
@@ -264,7 +297,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                             contentLength,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun uploadChallengeCompositeVideo(
@@ -306,7 +341,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                             correctionEnabled,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     override fun getChallengeCompositeJob(
@@ -334,7 +371,9 @@ class ChallengeRepositoryImpl @Inject constructor(
                         jobUuid = jobUuid,
                     )
 
-            emit(response.toModel())
+            emit(
+                response.toModel(),
+            )
         }.flowOn(ioDispatcher)
 
     private companion object {
