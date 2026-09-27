@@ -79,6 +79,7 @@ Authorization: Bearer {accessToken}
         "groupName": "aespa",
         "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
         "isSubscribed": false,
+        "challengeSeq": 11,
         "songTitle": "Supernova",
         "singerName": "aespa"
       },
@@ -90,6 +91,7 @@ Authorization: Bearer {accessToken}
         "groupName": "aespa",
         "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
         "isSubscribed": true,
+        "challengeSeq": null,
         "songTitle": null,
         "singerName": null
       }
@@ -110,6 +112,7 @@ Authorization: Bearer {accessToken}
 | `rank` | 스냅샷 순위(1-base). **`filter` 로 걸러도 다시 매기지 않는다** — 전체 스냅샷 기준이다. "내 구독 아티스트 중 3위"가 아니라 "전체 3위"를 보여주는 것이 랭킹 화면의 의미다 |
 | `rankDelta` | **직전 스냅샷 순위 − 현재 순위**. 상승이 양수, 하락이 음수(5위→3위 = `+2`, 3위→5위 = `-2`). **신규 진입은 `null`** |
 | `isSubscribed` | 요청자의 구독 여부 |
+| `challengeSeq` | 대표곡이 나온 챌린지(= 가장 최근 비삭제 챌린지). 챌린지가 없으면 `null` *(2026-09-27 추가)* |
 | `songTitle` · `singerName` | 대표곡의 곡명·가수명(`songs.title`·`singer_name`). 대표곡 = **가장 최근에 등록된 비삭제 챌린지의 곡**. 챌린지가 없으면 둘 다 `null` *(2026-09-27 추가)* |
 | `totalElements` | **`filter` 를 적용한 뒤**의 개수다. `ALL` 이면 스냅샷 ZSET 크기와 같다 |
 

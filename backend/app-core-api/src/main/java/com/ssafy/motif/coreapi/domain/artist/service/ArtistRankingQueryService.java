@@ -157,6 +157,7 @@ public class ArtistRankingQueryService {
                 card.groupName(),
                 mediaUrlResolver.resolveProfile(card.profileImageKey()),
                 subscribed.contains(ranked.artistSeq()),
+                song == null ? null : song.getChallengeSeq(),
                 song == null ? null : song.getSongTitle(),
                 song == null ? null : song.getSingerName());
     }

@@ -324,12 +324,15 @@ class ArtistRankingQueryServiceTest {
             snapshot(List.of(KARINA, WINTER));
             SongRepository.ArtistSong supernova = mock(SongRepository.ArtistSong.class);
             given(supernova.getArtistSeq()).willReturn(KARINA);
+            given(supernova.getChallengeSeq()).willReturn(11);
             given(supernova.getSongTitle()).willReturn("Supernova");
             given(supernova.getSingerName()).willReturn("aespa");
             given(songRepository.findLatestSongs(any())).willReturn(List.of(supernova));
 
             List<ArtistRankingResponse> list = ranking(RankingFilter.ALL, 0, 20).list();
 
+            assertThat(list).extracting(ArtistRankingResponse::challengeSeq)
+                    .containsExactly(11, null);
             assertThat(list).extracting(ArtistRankingResponse::songTitle)
                     .containsExactly("Supernova", null);
             assertThat(list).extracting(ArtistRankingResponse::singerName)

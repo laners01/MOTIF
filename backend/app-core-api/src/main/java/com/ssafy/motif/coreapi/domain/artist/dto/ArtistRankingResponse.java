@@ -35,6 +35,10 @@ public record ArtistRankingResponse(
         @Schema(description = "요청자의 구독 여부", example = "false")
         boolean isSubscribed,
 
+        @Schema(description = "대표곡이 나온 챌린지 seq — 가장 최근 챌린지. 챌린지가 없으면 null",
+                example = "11", nullable = true)
+        Integer challengeSeq,
+
         @Schema(description = "대표곡 제목 — 가장 최근 챌린지의 곡. 챌린지가 없으면 null",
                 example = "Supernova", nullable = true)
         String songTitle,
