@@ -155,7 +155,7 @@ private fun ArtistSearchBar(
 ) {
     Surface(
         modifier = modifier,
-        color = MotifTheme.colors.gray700,
+        color = MotifTheme.colors.black,
         contentPadding =
             PaddingValues(
                 horizontal = 7.dp,
@@ -250,18 +250,6 @@ internal fun ArtistCard(
             model = artist.profileImageUrl,
             contentDescription = artist.name,
             contentScale = ContentScale.Crop,
-            placeholder =
-                painterResource(
-                    com.ssafy.motif.core.designsystem.R.drawable.img_profile,
-                ),
-            error =
-                painterResource(
-                    com.ssafy.motif.core.designsystem.R.drawable.img_profile,
-                ),
-            fallback =
-                painterResource(
-                    com.ssafy.motif.core.designsystem.R.drawable.img_profile,
-                ),
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)

@@ -173,7 +173,7 @@ private fun NicknameInputBar(
 ) {
     Surface(
         modifier = modifier,
-        color = MotifTheme.colors.gray700,
+        color = MotifTheme.colors.black,
         shape = RoundedCornerShape(
             10.dp,
         ),
