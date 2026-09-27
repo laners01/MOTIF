@@ -150,6 +150,63 @@ function resetThumbPick() {
 const thumbnailAtMs = () =>
     ($('thumb-pick').hidden ? undefined : Math.round(Number($('thumb-at').value) * 1000));
 
+/*
+ * ── 영상 재생 (§1.7) ─────────────────────────────────────────────────────
+ *
+ * 가공이 끝난 영상은 HLS(master.m3u8)라 Chrome 의 <video> 가 그대로 열지 못한다.
+ * hls.js 를 쓴다 — 재생하는 화면에서만 필요하니 처음 부를 때 받는다.
+ *
+ * 보호 등급(private/)은 master 주소에 프리픽스 서명이 쿼리로 붙어 온다(ADR-0012).
+ * 재생목록 안의 주소는 상대 경로라 서명이 따라가지 않으므로, 앱의 OkHttp 인터셉터처럼
+ * 같은 쿼리를 자식 요청마다 붙인다. 네이티브 HLS(Safari)는 그걸 못 해서 쓰지 않는다.
+ */
+
+const HLS_JS = 'https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.6.15/hls.min.js';
+let hlsLoading = null;
+
+function loadHls() {
+    hlsLoading ??= new Promise((resolve, reject) => {
+        const s = Object.assign(document.createElement('script'), {src: HLS_JS});
+        s.onload = resolve;
+        s.onerror = () => {
+            hlsLoading = null;
+            reject(new Error('hls.js 를 받지 못했다'));
+        };
+        document.head.append(s);
+    });
+    return hlsLoading;
+}
+
+/**
+ * <video> 에 재생 주소를 건다. MP4 는 그대로, HLS 는 hls.js 로.
+ * 치명적 재생 실패는 <video> 의 error 이벤트로 알린다 — 화면이 거기서 안내를 띄운다.
+ */
+async function playVideo(el, url) {
+    el._hls?.destroy();
+    el._hls = null;
+    if (!url || !new URL(url, location.href).pathname.endsWith('.m3u8')) {
+        el.src = url ?? '';
+        return;
+    }
+    await loadHls();
+    if (!Hls.isSupported()) {
+        el.src = url;
+        return;
+    }
+    const query = new URL(url).search;
+    const hls = new Hls({
+        xhrSetup: (xhr, u) => {
+            if (query && !u.includes('?')) xhr.open('GET', u + query, true);
+        },
+    });
+    hls.on(Hls.Events.ERROR, (_, d) => {
+        if (d.fatal) el.dispatchEvent(new Event('error'));
+    });
+    hls.loadSource(url);
+    hls.attachMedia(el);
+    el._hls = hls;
+}
+
 /** 목록 API(§1.5 offset 페이지) 를 <select> 에 채우고 항목 배열을 돌려준다. */
 async function fillSelect(select, path, valueKey, label) {
     const {list} = await api(path);

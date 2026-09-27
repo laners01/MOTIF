@@ -13,7 +13,10 @@ import java.time.Instant;
  *
  * <p><b>{@code videoKey} 를 내려준다</b> — 목록에는 없는 값이다. 수정 화면이 "영상을
  * 바꾸지 않았다" 를 표현하려면 지금 키를 알아야 한다. 공개 CDN 경로가 아니라 S3 키라
- * 그 자체로는 재생할 수 없다(미리보기는 {@code thumbnailUrl} 로 한다).
+ * 그 자체로는 재생할 수 없다 — 재생은 {@code videoUrl} 로 한다.
+ *
+ * <p>{@code videoUrl} 은 가공 전이면 원본 MP4, 가공 후면 {@code master.m3u8} 이다.
+ * 에셋은 공개 등급이라 서명이 없다.
  */
 @Schema(description = "모티프 에셋 상세")
 public record AssetDetailResponse(
@@ -23,6 +26,7 @@ public record AssetDetailResponse(
         String description,
         String thumbnailUrl,
         String videoKey,
+        String videoUrl,
         int durationMs,
         AssetType assetType,
         boolean isActive,

@@ -78,6 +78,17 @@ function refresh() {
     $('submit').disabled = !($('title').value.trim() && changed());
 }
 
+/** 지금 영상. 교체본 미리보기(#preview)와 따로 둔다 — 둘을 나란히 비교할 수 있어야 한다. */
+function showCurrent(url) {
+    const note = $('current-note');
+    $('current').hidden = !url;
+    $('current').onerror = () => {
+        note.textContent = `재생하지 못했다 — ${url}`;
+        note.hidden = false;
+    };
+    playVideo($('current'), url).catch((e) => showError($('err'), e));
+}
+
 async function load() {
     try {
         loaded = await api(`/motif-assets/${assetSeq}`);
@@ -103,6 +114,7 @@ async function load() {
         $('thumb').hidden = true;
         $('thumb-note').hidden = false;
     });
+    showCurrent(loaded.videoUrl);
     refresh();
 }
 

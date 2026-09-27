@@ -73,6 +73,25 @@ class AdminTemplateRenderTest {
     }
 
     @Test
+    @DisplayName("참여 영상 · 모티프 결과물 — 목록·재생기·행 템플릿이 들어간다 (§3.12.1 · §3.17.1)")
+    void mediaLists() {
+        for (String[] v : new String[][]{
+                {"admin/videos", "참여 영상", "/admin/videos.js"},
+                {"admin/motif-results", "모티프 결과물", "/admin/motif-results.js"}}) {
+            String html = render(v[0]);
+
+            assertThat(html)
+                    .contains("<title>MOTIF 어드민 · " + v[1] + "</title>")
+                    .contains("/admin/admin.js")
+                    .contains(v[2])
+                    .contains("id=\"player\"")
+                    .contains("id=\"rows\"")
+                    .contains("id=\"row\"");
+            assertThat(html).doesNotContain("th:replace").doesNotContain("th:fragment");
+        }
+    }
+
+    @Test
     @DisplayName("참여 영상 대행 — 목록·스레드·댓글 노드 템플릿이 들어간다")
     void actAsVideos() {
         String html = render("admin/act-as-videos");
