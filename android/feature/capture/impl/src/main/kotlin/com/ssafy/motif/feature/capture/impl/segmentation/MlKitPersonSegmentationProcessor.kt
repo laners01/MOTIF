@@ -430,7 +430,7 @@ private fun confidenceToAlpha(
 }
 
 private const val FOREGROUND_START =
-    0.6f
+    0.25f
 
 private const val FOREGROUND_END =
     0.75f
