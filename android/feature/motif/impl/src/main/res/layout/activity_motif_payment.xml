@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.tosspayments.paymentsdk.view.PaymentMethod
+            android:id="@+id/feature_motif_impl_payment_method"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.tosspayments.paymentsdk.view.Agreement
+            android:id="@+id/feature_motif_impl_payment_agreement"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/feature_motif_impl_payment_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="24dp"
+            android:enabled="false"
+            android:text="@string/feature_motif_impl_payment_button" />
+
+    </LinearLayout>
+
+</ScrollView>
