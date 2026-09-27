@@ -168,6 +168,8 @@ S15P21D104-181
 | **조회수 Redis 버퍼 전량** — §7.4·§8.5 묶음 수신 `ViewService` · `ViewBuffer`(키 독점, 대상별 빈 2개) · 20분 집계 `ViewFlushJob` · 일괄 UPDATE `ViewCounterStore` · 설정 `motif.view` | `app-core-api/.../domain/view/` | S15P21D104-130 · ADR-0016 |
 | **§6.1 랭킹 재정의** — 감쇠 제거, 누적·최근1h·증감 3항(ADR-0015) · `rankDelta` · 버전 이력 LIST · `view_count > 0` 모집단 · `keep` 상한 | `app-core-api/.../domain/video/ranking/` | 130 |
 | **§5.1 랭킹 재정의** — 같은 3항 구조(ADR-0016) · 참여 수는 누적 항에만 · 가중치 0.5/0.35/0.15 · 버전 스냅샷 통일(`:prev` 폐기) | `app-core-api/.../domain/artist/ranking/` | ADR-0016 |
+| **어드민 영상 재생 `playVideo(el, url)`** — MP4·HLS 공용, 보호 등급 서명을 조각 요청에 붙인다(hls.js). 화면마다 재생 코드를 새로 짜지 않는다 | `static/admin/admin.js` | 2026-09-27 |
+| 어드민 모티프 결과물 목록 §3.17.1 `AdminMotifResultService` · `MotifResultRepository.searchForAdmin` · 참여 영상·결과물 화면 | `app-core-api/.../admin/motif/` · `templates/admin/videos.html`·`motif-results.html` | 2026-09-27 |
 | **스케줄러 소유자** `SchedulingConfig` — 풀·`setTaskScheduler` 는 레포에 여기 하나뿐 | `app-core-api/.../global/config/` | ADR-0016 |
 
 **§5.3 `myMotifVideos` 는 지금 항상 빈 배열이다.** §1.7 보호 등급이라 CloudFront signed

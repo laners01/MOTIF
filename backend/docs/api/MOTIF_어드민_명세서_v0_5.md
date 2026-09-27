@@ -1,4 +1,4 @@
-# MOTIF 어드민 명세서 — v0.6
+# MOTIF 어드민 명세서 — v0.7
 
 | 항목 | 내용 |
 |---|---|
@@ -14,6 +14,7 @@
 > - **v0.2 (2026-09-12): API v0.11 · DB v0.15 기준 전면 재작성.** ① Thymeleaf+JSON API 형태 확정 ② 영상 메타 추출 = **어드민 요청 내 동기 ffmpeg**(인제스트 워커·EC2 워커 노드 컷) ③ 편집본·bbox = AI팀 S3 직접 업로드, 어드민은 키·좌표 입력 + 서버 완결성 검증 ④ 감사 주체 = `admins.user_seq → users(ADMIN)` (DB v0.16 요청) ⑤ 대행 = 사용자 API 서비스 재사용(전 상호작용·동일 파급) ⑥ API §16.1 어드민 반영 대기 3건(전조합 편집본·배너·title/description) 종결.
 > - **v0.3 (2026-09-12 · 팀 리뷰 R1 반영):** ① **SCG 제거** — Traefik 단일 앞단, IP 제한·JWT 검증은 core-api 필터, 레이트리밋은 Traefik 미들웨어 ② 비허용 IP **404 확정** ③ 감사 로그 **파일+볼륨 확정**(관측 도구 도입 전제) ④ 챌린지 **원본 영상 교체 금지 확정** ⑤ 곡 **불변**(수정 API·`songs` mod 컬럼 추가 **금지**) ⑥ §1.6 이벤트 발행 설명 보강 ⑦ §1.4 영상 검증 기준의 근거 보강(기준 자체는 미결 유지).
 > - **v0.6 (2026-09-20 · [ADR-0014](../adr/0014-artist-alias-search.md) 반영):** **아티스트·그룹 별칭 CRUD 신설**(§3.4.5~8 · §3.5.6~9). 팬 앱 다국어 검색(API §5.2)이 훑는 `artist_aliases`·`group_aliases`(DB v0.17)를 채우는 경로다 — 별칭을 넣을 수단이 없으면 검색 결과가 항상 0건이라 검색 API 와 짝이다. **시연 편의용이라 수정·삭제까지 열고 삭제는 하드 삭제**이며, §3.5.5 아티스트 소프트 삭제는 별칭을 건드리지 않는다(조회가 조인에서 거른다). §5 에 `ALIAS_NOT_FOUND` 추가.
+> - **v0.7 (2026-09-27):** ① §3.17 모티프 결과물 목록 신설 ② §3.8.3 응답에 `videoUrl` 추가 ③ §1.7 참여 영상·모티프 결과물 화면 추가, 에셋 수정 화면에서 현재 영상 재생.
 
 ---
 
@@ -231,7 +232,9 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 아티스트 | 소속사 · 그룹 · 아티스트 목록/등록/상세 | 3.3 · 3.4 · 3.5 |
 | 곡 | 목록/등록/수정 | 3.6 |
 | 챌린지 | 목록 · 등록(원본 업로드 → 슬롯 입력 → 편집본 키 매트릭스) · 상세(카운터·슬롯·편집본) | 3.2 · 3.7 |
-| 모티프 에셋 | 목록 · 등록(영상 업로드 + 가격) · 활성/가격 | 3.8 |
+| 모티프 에셋 | 목록 · 등록(영상 업로드 + 가격) · 수정(현재 영상 재생) · 활성/가격 | 3.8 |
+| 참여 영상 | 목록(챌린지·회원·공개·삭제 필터) · 재생 | 3.12.1 |
+| 모티프 결과물 | 목록(아티스트·에셋·회원·삭제 필터) · 재생 | 3.17.1 |
 | 패스 가격 | 아티스트별 개월 수 가격표 | 3.9 |
 | 공지 | 목록 · 작성(이미지 다중) · 수정 | 3.10 |
 | 숍 배너 | 목록 · 정렬(드래그 또는 위/아래) · 활성 | 3.11 |
@@ -240,6 +243,8 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 회원 | 검색 · 상세 · 정지/해제 | 3.14 |
 | 주문(후반) | 목록 · 상세 · 환불 | 3.15 |
 | 합성 잡(후반) | 목록 · 상세 · 재큐 · 배치 수동 실행 | 3.16 |
+
+HLS 재생은 hls.js(cdnjs)를 쓴다. 보호 등급은 master 주소의 서명 쿼리를 자식 요청마다 붙인다 — 앱 OkHttp 인터셉터와 같은 방식(`admin.js` `playVideo`).
 
 화면은 관리 효율 목적의 최소 구현(디자인 불요). 업로드는 화면의 JS 가 3.2 presign → S3 PUT → 폼 제출(키) 3단계로 처리한다.
 
@@ -726,6 +731,8 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 
 `price` 는 KR 행이 없으면 `null`. `purchaseCount` = `asset_purchases.status='ACTIVE'` 수, `resultCount` = 비삭제 `motif_results` 수(운영 지표).
 
+**3.8.3 응답** `data` = 3.8.1 항목 + `description`·`videoKey`·`videoUrl`. `videoUrl` 은 가공 전 원본 MP4, 가공 후 `master.m3u8`. 공개 등급이라 서명 없음.
+
 **3.8.2 요청**
 
 ```json
@@ -963,6 +970,28 @@ app-media 가 끝나면 `video_key` 가 `master.m3u8` 로 바뀌고 썸네일 �
 | 409 | `JOB_NOT_RETRYABLE` | `FAILED` 아님 |
 | 410 | `RAW_VIDEO_EXPIRED` | 원본 삭제 |
 | 409 | `BATCH_RUNNING` | 락 보유 중 |
+
+### 3.17 모티프 결과물 `motif_results`
+
+| # | Method | Path | 설명 |
+|---|---|---|---|
+| 3.17.1 | GET | `/motif-results?userSeq&artistSeq&assetSeq&includeDeleted&page&size` | 전 사용자 결과물 목록. 최신순(`result_seq desc`) |
+
+**3.17.1 항목**
+
+```json
+{
+  "resultSeq": 501, "userSeq": 5, "userNickname": "abc", "artistSeq": 3,
+  "assetSeq": 21, "assetTitle": "9월 신규 에셋", "description": null,
+  "videoUrl": "https://cdn…/private/motif/{jobUuid}/master.m3u8?Policy=…&Signature=…&Key-Pair-Id=…",
+  "thumbnailUrl": "signed…", "durationMs": 9800, "isDeleted": false, "regDttm": "…"
+}
+```
+
+- 필터는 전부 선택. `includeDeleted` 기본 `false`
+- `videoUrl` 은 프리픽스 서명. 조각 요청에도 같은 쿼리를 붙여야 재생된다(ADR-0012)
+- 아티스트 이름은 싣지 않는다. 화면은 3.5.1 목록으로 매핑한다
+- 도메인 에러 없음
 
 ---
 ## 4. 이벤트 계약 (module-event 추가·변경분)

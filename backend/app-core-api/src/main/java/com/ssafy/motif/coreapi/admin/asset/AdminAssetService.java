@@ -182,7 +182,8 @@ public class AdminAssetService {
         AssetListItem item = listItem(row);
         return new AssetDetailResponse(
                 item.assetSeq(), item.artist(), item.title(), row.getDescription(),
-                item.thumbnailUrl(), videoKey, item.durationMs(), item.assetType(),
+                item.thumbnailUrl(), videoKey, mediaUrlResolver.resolve(videoKey),
+                item.durationMs(), item.assetType(),
                 item.isActive(), item.price(), item.purchaseCount(), item.resultCount(),
                 item.regDttm());
     }

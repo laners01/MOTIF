@@ -3,6 +3,9 @@ package com.ssafy.motif.coreapi.domain.motif.service;
 import com.ssafy.motif.common.error.CommonErrorCode;
 import com.ssafy.motif.common.exception.BusinessException;
 import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.admin.motif.AdminMotifResultService;
+import com.ssafy.motif.coreapi.admin.motif.dto.AdminMotifResultItem;
 import com.ssafy.motif.coreapi.domain.motif.dto.MotifResultItem;
 import com.ssafy.motif.domain.core.artist.Artist;
 import com.ssafy.motif.domain.core.artist.ArtistRepository;
@@ -82,6 +85,8 @@ class MotifResultLocalDbTest {
 
     @Autowired
     private MotifResultQueryService motifResultQueryService;
+    @Autowired
+    private AdminMotifResultService adminMotifResultService;
     @Autowired
     private ArtistRepository artistRepository;
     @Autowired
@@ -303,6 +308,37 @@ class MotifResultLocalDbTest {
         setRepMotif(stranger, mine);
 
         assertThat(results(null, null, 20).list().getFirst().isRep()).isFalse();
+    }
+
+    // --- 어드민 목록 (어드민 명세 §3.17.1) ---------------------------------------
+
+    @Test
+    @DisplayName("어드민 — 필터를 전부 비운 호출이 500 이 아니고 서명된 재생 주소를 준다")
+    void adminListWithoutFilters() {
+        Long mine = newResult();
+
+        PageResponse<AdminMotifResultItem> page =
+                adminMotifResultService.list(null, null, null, false, 0, 100);
+
+        assertThat(page.list()).extracting(AdminMotifResultItem::resultSeq).contains(mine);
+        AdminMotifResultItem item = page.list().stream()
+                .filter(i -> i.resultSeq().equals(mine)).findFirst().orElseThrow();
+        assertThat(item.userNickname()).isNotBlank();
+        assertThat(item.assetTitle()).startsWith("에셋 ");
+        assertThat(item.videoUrl()).startsWith(CDN + "/private/motif/").contains("Signature=");
+    }
+
+    @Test
+    @DisplayName("어드민 — 삭제분은 includeDeleted=true 일 때만 보인다")
+    void adminListIncludesDeletedOnlyWhenAsked() {
+        Long kept = newResult();
+        Long gone = newResult();
+        softDelete(gone);
+
+        assertThat(adminMotifResultService.list(fanSeq, null, null, false, 0, 20).list())
+                .extracting(AdminMotifResultItem::resultSeq).containsExactly(kept);
+        assertThat(adminMotifResultService.list(fanSeq, artistSeq, assetSeq, true, 0, 20).list())
+                .extracting(AdminMotifResultItem::resultSeq).containsExactly(gone, kept);
     }
 
     // --- 픽스처 -------------------------------------------------------------

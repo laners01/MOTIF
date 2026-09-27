@@ -78,5 +78,9 @@ public class AdminViewConfig implements WebMvcConfigurer {
         registry.addViewController(AdminPaths.VIEW + "/act-as/notices").setViewName("admin/act-as-notices");
         // 챌린지 탐색 + 좋아요·댓글 대행 (ADMIN-11). 탐색 3종 중 마지막이다
         registry.addViewController(AdminPaths.VIEW + "/act-as/challenges").setViewName("admin/act-as-challenges");
+        // 참여 영상 전체 목록·재생 (§3.12.1). 대행 화면은 아티스트 컨텍스트 안에서만 본다
+        registry.addViewController(AdminPaths.VIEW + "/videos").setViewName("admin/videos");
+        // 모티프 결과물 목록·재생 (§3.17.1)
+        registry.addViewController(AdminPaths.VIEW + "/motif-results").setViewName("admin/motif-results");
     }
 }

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('참여 영상', ~{::main})}">
+<body>
+<!--/*
+  §3.12.1 참여 영상 목록 — API(575)는 있었는데 전체를 훑는 화면이 없었다.
+  대행 화면(/admin/act-as/videos)은 아티스트 컨텍스트 안에서만 본다.
+
+  재생기는 하나만 둔다 — 행마다 <video> 를 붙이면 20개가 동시에 재생목록을 받는다.
+  로직은 videos.js.
+*/-->
+<main>
+    <section>
+        <p>
+            <label style="display:inline">챌린지 # <input type="number" id="challenge" min="1" style="width:6em"></label>
+            <label style="display:inline">회원 # <input type="number" id="user" min="1" style="width:6em"></label>
+            <label style="display:inline">공개
+                <select id="visibility">
+                    <option value="">전체</option>
+                    <option value="PUBLIC">PUBLIC</option>
+                    <option value="PRIVATE">PRIVATE</option>
+                </select>
+            </label>
+            <label style="display:inline"><input type="checkbox" id="deleted"> 삭제분 포함</label>
+            <button type="button" id="reload">조회</button>
+        </p>
+        <p class="err" id="err" hidden></p>
+    </section>
+
+    <section id="player-box" hidden>
+        <p id="player-title"></p>
+        <video id="player" width="270" controls></video>
+        <p class="muted" id="player-note" hidden></p>
+    </section>
+
+    <section>
+        <table>
+            <thead>
+            <tr><th>#</th><th>썸네일</th><th>챌린지</th><th>작성자</th><th>설명</th><th>길이</th>
+                <th>공개</th><th>조회</th><th>좋아요</th><th>댓글</th><th>신고</th><th>등록</th><th></th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+        </table>
+        <p>
+            <button type="button" id="prev">이전</button>
+            <span class="muted" id="count"></span>
+            <button type="button" id="next">다음</button>
+        </p>
+    </section>
+
+    <template id="row">
+        <tr>
+            <td class="seq"></td>
+            <td><img class="thumb" alt="" width="60"></td>
+            <td class="challenge"></td>
+            <td class="author"></td>
+            <td class="desc"></td>
+            <td class="duration"></td>
+            <td class="visibility"></td>
+            <td class="views"></td>
+            <td class="likes"></td>
+            <td class="comments"></td>
+            <td class="reports"></td>
+            <td class="reg"></td>
+            <td><button type="button" class="play">재생</button></td>
+        </tr>
+    </template>
+
+    <script src="/admin/videos.js" defer></script>
+</main>
+</body>
+</html>

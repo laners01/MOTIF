@@ -1,7 +1,10 @@
 package com.ssafy.motif.domain.core.motif;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -66,4 +69,31 @@ public interface MotifResultRepository extends JpaRepository<MotifResult, Long> 
     /** 이어받기 — 아티스트 필터. */
     List<MotifResult> findByUserSeqAndArtistSeqAndDeletedFalseAndResultSeqLessThanOrderByResultSeqDesc(
             Integer userSeq, Integer artistSeq, Long resultSeq, Pageable pageable);
+
+    /**
+     * 어드민 결과물 목록 (어드민 명세 §3.17.1) — 전 사용자, 삭제분도 본다.
+     *
+     * <p>{@code :x is null or} 분기는 {@code ParticipationVideoRepository.searchForAdmin}
+     * 과 같다. 전부 정수·불리언이라 타입 없는 null 문제(위 보관함 주석)가 없다.
+     */
+    @Query("""
+            select new com.ssafy.motif.domain.core.motif.AdminMotifResultRow(
+                       r.resultSeq, r.userSeq, u.nickname, r.artistSeq,
+                       r.assetSeq, s.title, r.description,
+                       r.videoKey, r.thumbnailKey, r.durationMs,
+                       r.deleted, r.regDttm)
+            from MotifResult r
+              join User u on u.userSeq = r.userSeq
+              join MotifAsset s on s.assetSeq = r.assetSeq
+            where (:userSeq is null or r.userSeq = :userSeq)
+              and (:artistSeq is null or r.artistSeq = :artistSeq)
+              and (:assetSeq is null or r.assetSeq = :assetSeq)
+              and (:includeDeleted = true or r.deleted = false)
+            order by r.resultSeq desc
+            """)
+    Page<AdminMotifResultRow> searchForAdmin(@Param("userSeq") Integer userSeq,
+                                             @Param("artistSeq") Integer artistSeq,
+                                             @Param("assetSeq") Integer assetSeq,
+                                             @Param("includeDeleted") boolean includeDeleted,
+                                             Pageable pageable);
 }
