@@ -45,4 +45,9 @@
     <string name="feature_motif_impl_archive_empty_description">모티프를 만들어 나만의 순간을 보관해보세요.</string>
 
     <string name="feature_motif_impl_archive_filter_empty">이 아티스트와 만든 모티프가 없어요.</string>
+
+    <string name="feature_motif_impl_payment_button">결제하기</string>
+    <string name="feature_motif_impl_payment_error">결제 처리 중 오류가 발생했습니다.</string>
+    <string name="feature_motif_impl_payment_key_missing">토스페이먼츠 테스트 Client Key가 설정되지 않았습니다.</string>
+    <string name="feature_motif_impl_payment_invalid_order">결제 주문 정보가 올바르지 않습니다.</string>
 </resources>

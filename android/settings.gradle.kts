@@ -19,11 +19,17 @@ plugins {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(
+        RepositoriesMode.FAIL_ON_PROJECT_REPOS,
+    )
 
     repositories {
         google()
         mavenCentral()
+
+        maven {
+            url = uri("https://jitpack.io")
+        }
     }
 }
 
@@ -32,6 +38,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 rootProject.name = "motif"
 
 include(":app")
+
 include(":core:common")
 include(":core:data")
 include(":core:database")
@@ -44,21 +51,30 @@ include(":core:navigation")
 include(":core:network")
 include(":core:notifications")
 include(":core:ui")
+
 include("feature:home:api")
 include("feature:home:impl")
+
 include("feature:signin:api")
 include("feature:signin:impl")
+
 include("feature:onboarding:api")
 include("feature:onboarding:impl")
+
 include("feature:ranking:api")
 include("feature:ranking:impl")
+
 include("feature:artistdetail:api")
 include("feature:artistdetail:impl")
+
 include("feature:challenges:api")
 include("feature:challenges:impl")
+
 include("feature:mypage:api")
 include("feature:mypage:impl")
+
 include("feature:motif:api")
 include("feature:motif:impl")
+
 include("feature:capture:api")
 include("feature:capture:impl")
