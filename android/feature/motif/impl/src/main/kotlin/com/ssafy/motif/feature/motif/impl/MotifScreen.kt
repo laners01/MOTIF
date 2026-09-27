@@ -2,9 +2,13 @@ package com.ssafy.motif.feature.motif.impl
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -68,7 +72,12 @@ private fun MotifSubContent(
             AssetListScreen(
                 contentPadding = contentPadding,
                 onProductClick = onProductClick,
-                modifier = modifier,
+                modifier = modifier.windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top +
+                                WindowInsetsSides.Horizontal,
+                    ),
+                ),
             )
         }
 
@@ -77,7 +86,12 @@ private fun MotifSubContent(
                 contentPadding = contentPadding,
                 onProductClick = onProductClick,
                 onPassClick = onPassClick,
-                modifier = modifier,
+                modifier = modifier.windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top +
+                                WindowInsetsSides.Horizontal,
+                    ),
+                ),
             )
         }
 

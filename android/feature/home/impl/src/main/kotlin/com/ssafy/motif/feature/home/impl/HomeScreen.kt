@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.ClickableSurface
+import com.ssafy.motif.core.designsystem.component.GlassNavigationBarDefaults
 import com.ssafy.motif.core.designsystem.component.Text
 import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.ui.comment.CommentUiState
@@ -251,7 +252,7 @@ private fun HomeContent(
         state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(
-            bottom = 32.dp,
+            bottom = 80.dp,
         ),
         verticalArrangement =
             Arrangement.spacedBy(

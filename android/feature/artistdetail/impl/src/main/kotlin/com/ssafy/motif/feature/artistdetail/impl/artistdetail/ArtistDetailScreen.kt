@@ -49,7 +49,6 @@ import com.ssafy.motif.core.ui.comment.ModalCommentBottomSheet
 import com.ssafy.motif.core.ui.motif.MotifVideoSection
 import com.ssafy.motif.core.ui.notice.NoticeCard
 import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.ArtistDetailCard
-import com.ssafy.motif.feature.artistdetail.impl.artistdetail.component.MotifEmptyContent
 
 @Composable
 internal fun ArtistDetailScreen(
@@ -222,7 +221,7 @@ private fun ArtistDetailScreen(
                     Modifier.fillMaxSize(),
                 contentPadding =
                     PaddingValues(
-                        bottom = 12.dp,
+                        bottom = 80.dp,
                     ),
             ) {
                 when (
@@ -266,13 +265,16 @@ private fun ArtistDetailScreen(
                                 }
                             } else {
                                 item {
-                                    MotifEmptyContent(
-                                        artistName =
-                                            artistDetail
-                                                .artist
-                                                .name,
-                                        onCreateClick =
-                                            onCreateMotifClick,
+                                    val videoUri =
+                                        "android.resource://com.ssafy.motif/raw/test_video"
+
+                                    MotifVideoSection(
+                                        videoId =
+                                            "sample_motif",
+                                        videoUrl =
+                                            videoUri,
+                                        thumbnailUrl =
+                                            "",
                                         modifier =
                                             Modifier.padding(
                                                 bottom = 12.dp,

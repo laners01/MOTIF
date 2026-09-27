@@ -7,6 +7,7 @@ import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.feature.mypage.impl.mypage.MyPageScreen
 
 fun EntryProviderScope<NavKey>.myPageEntry(
+    onArtistSeeMoreClick: (Long) -> Unit,
     onChallengeClick: (Long) -> Unit,
     onLikedChallengeClick: (UserActivityTargetType, Long) -> Unit,
 ) {
@@ -25,11 +26,7 @@ fun EntryProviderScope<NavKey>.myPageEntry(
                 onChallengeClick,
             onLikedChallengeClick =
                 onLikedChallengeClick,
-            onArtistSeeMoreClick = {
-                    artistId,
-                ->
-                // TODO ArtistDetail로 이동
-            },
+            onArtistSeeMoreClick = onArtistSeeMoreClick,
         )
     }
 }

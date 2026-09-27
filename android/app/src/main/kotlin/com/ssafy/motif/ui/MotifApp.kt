@@ -246,6 +246,13 @@ fun MotifApp(
             )
 
             myPageEntry(
+                onArtistSeeMoreClick = { artistId ->
+                    navigator.navigate(
+                        ArtistDetailNavKey(
+                            artistId = artistId,
+                        ),
+                    )
+                },
                 onChallengeClick = {
                         videoId,
                     ->

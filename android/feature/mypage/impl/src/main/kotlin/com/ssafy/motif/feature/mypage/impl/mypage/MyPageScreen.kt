@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ssafy.motif.core.designsystem.component.Button
+import com.ssafy.motif.core.designsystem.component.GlassNavigationBarDefaults
 import com.ssafy.motif.core.designsystem.component.LoadingWheel
 import com.ssafy.motif.core.designsystem.component.MotifButtonDefaults
 import com.ssafy.motif.core.designsystem.component.Surface
@@ -154,11 +156,12 @@ internal fun MyPageScreen(
                 ),
             )
         },
-        modifier = modifier.windowInsetsPadding(
-            WindowInsets.safeDrawing.only(
-                WindowInsetsSides.Top,
+        modifier = modifier
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(
+                    WindowInsetsSides.Top,
+                ),
             ),
-        ),
     )
 }
 
@@ -271,6 +274,7 @@ private fun MyPageScreen(
                             it.positionInRoot().y +
                                     it.size.height
                     },
+            contentPadding = PaddingValues(bottom = 100.dp)
         ) {
             when (
                 val profileState =
@@ -789,6 +793,7 @@ private fun LikedChallengeContent(
             }
     }
 }
+
 @Composable
 private fun ProfileLoading(
     modifier: Modifier = Modifier,
