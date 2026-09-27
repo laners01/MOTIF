@@ -9,10 +9,14 @@ import com.ssafy.motif.core.data.repository.ChallengeRepository
 import com.ssafy.motif.core.data.repository.ChallengeRepositoryImpl
 import com.ssafy.motif.core.data.repository.CommentRepository
 import com.ssafy.motif.core.data.repository.CommentRepositoryImpl
+import com.ssafy.motif.core.data.repository.MotifRepository
+import com.ssafy.motif.core.data.repository.MotifRepositoryImpl
 import com.ssafy.motif.core.data.repository.NoticeRepository
 import com.ssafy.motif.core.data.repository.NoticeRepositoryImpl
 import com.ssafy.motif.core.data.repository.NotificationRepository
 import com.ssafy.motif.core.data.repository.NotificationRepositoryImpl
+import com.ssafy.motif.core.data.repository.PaymentRepository
+import com.ssafy.motif.core.data.repository.PaymentRepositoryImpl
 import com.ssafy.motif.core.data.repository.UserRepository
 import com.ssafy.motif.core.data.repository.UserRepositoryImpl
 import com.ssafy.motif.core.data.util.ConnectivityManagerNetworkMonitor
@@ -76,4 +80,14 @@ abstract class DataModule {
     internal abstract fun bindNotificationRepository(
         notificationRepositoryImpl: NotificationRepositoryImpl,
     ): NotificationRepository
+
+    @Binds
+    internal abstract fun bindMotifRepository(
+        motifRepositoryImpl: MotifRepositoryImpl,
+    ): MotifRepository
+
+    @Binds
+    internal abstract fun bindPaymentRepository(
+        paymentRepositoryImpl: PaymentRepositoryImpl,
+    ): PaymentRepository
 }

@@ -1,89 +1,198 @@
 package com.ssafy.motif.feature.motif.impl.assets
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ssafy.motif.core.common.result.Result
+import com.ssafy.motif.core.common.result.asResult
+import com.ssafy.motif.core.data.repository.MotifRepository
+import com.ssafy.motif.core.model.motif.Asset
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import javax.inject.Inject
-import com.ssafy.motif.core.model.motif.Asset
-import com.ssafy.motif.core.model.artist.Artist
 
 @HiltViewModel
-class AssetListViewModel @Inject constructor(): ViewModel() {
+internal class AssetListViewModel @Inject constructor(
+    private val motifRepository: MotifRepository,
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<AssetListUiState>(AssetListUiState.Loading)
-    internal val uiState: StateFlow<AssetListUiState> = _uiState.asStateFlow()
+    private val _uiState =
+        MutableStateFlow<AssetListUiState>(
+            AssetListUiState.Loading,
+        )
 
-    private val availableAssets: List<Asset> =  AssetListMockData.assets.filter { it.isAvailable }
+    internal val uiState:
+            StateFlow<AssetListUiState> =
+        _uiState.asStateFlow()
 
-    private val filterArtists:List<Artist> = availableAssets.map{it.artist}.distinctBy{it.id}
+    private var allAssets: List<Asset> =
+        emptyList()
 
-    init {
-        loadFirstPage(selectedArtistId = null)
+    private var loadJob: Job? =
+        null
+
+    fun refresh() {
+        loadAssets()
     }
 
-    fun selectArtist(artistId: Long?) {
-        val current = _uiState.value as? AssetListUiState.Success
-        if (current?.selectedArtistId == artistId) return   // 같은 칩 재클릭은 무시
-
-        loadFirstPage(selectedArtistId = artistId)
+    fun retry() {
+        refresh()
     }
 
-    fun loadMore() {
-        val current = _uiState.value as? AssetListUiState.Success ?: return
-        if (!current.hasNext) return
-        if (current.appendState !is AssetListAppendUiState.Idle) return
+    fun selectArtist(
+        artistId: Long?,
+    ) {
+        val current =
+            _uiState.value as?
+                    AssetListUiState.Success
+                ?: return
 
-        viewModelScope.launch {
-            _uiState.update {
-                current.copy(appendState = AssetListAppendUiState.Loading)
-            }
+        if (
+            current.selectedArtistId ==
+            artistId
+        ) {
+            return
+        }
 
-            val source = assetsOf(current.selectedArtistId)
-            val loaded = current.assets.size
-            val next = source.drop(loaded).take(PAGE_SIZE)
-
-            _uiState.update {
-                current.copy(
-                    assets = current.assets + next,
-                    hasNext = loaded + next.size < source.size,
-                    appendState = AssetListAppendUiState.Idle,
-                )
-            }
+        _uiState.update {
+            current.copy(
+                assets =
+                    allAssets.filterByArtist(
+                        artistId = artistId,
+                    ),
+                selectedArtistId =
+                    artistId,
+            )
         }
     }
 
-    fun selectAsset(assetId: Long) {
-        // TODO 에셋 바텀시트 노출 (별도 티켓)
+    fun selectAsset(
+        assetId: Long,
+    ) {
+        // TODO Asset 상세 BottomSheet 연결 시
+        // motifRepository.getAssetDetail(assetId) 사용.
     }
 
-    private fun loadFirstPage(selectedArtistId: Long?) {
-        viewModelScope.launch {
-            _uiState.update { AssetListUiState.Loading }
+    private fun loadAssets() {
+        val selectedArtistId =
+            (
+                    _uiState.value as?
+                            AssetListUiState.Success
+                    )?.selectedArtistId
 
-            val source = assetsOf(selectedArtistId)
-            val firstPage = source.take(PAGE_SIZE)
+        loadJob?.cancel()
 
-            _uiState.update {
-                AssetListUiState.Success(
-                    assets = firstPage,
-                    artists = filterArtists,
-                    selectedArtistId = selectedArtistId,
-                    hasNext = firstPage.size < source.size,
+        loadJob =
+            combine(
+                motifRepository
+                    .getPurchasedAssets(),
+                motifRepository
+                    .getShop(),
+            ) {
+                    purchasedAssets,
+                    shopSections,
+                ->
+
+                val availableShopAssets =
+                    shopSections
+                        .flatMap { section ->
+                            section.assets
+                        }
+                        .filter { asset ->
+                            asset.isAvailable
+                        }
+
+                (
+                        purchasedAssets +
+                                availableShopAssets
+                        )
+                    .distinctBy { asset ->
+                        asset.id
+                    }
+            }
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading -> {
+                            if (
+                                _uiState.value !is
+                                        AssetListUiState.Success
+                            ) {
+                                _uiState.value =
+                                    AssetListUiState.Loading
+                            }
+                        }
+
+                        is Result.Success -> {
+                            allAssets =
+                                result.data
+
+                            val artists =
+                                allAssets
+                                    .map { asset ->
+                                        asset.artist
+                                    }
+                                    .distinctBy { artist ->
+                                        artist.id
+                                    }
+
+                            val nextSelectedArtistId =
+                                selectedArtistId
+                                    ?.takeIf { id ->
+                                        artists.any { artist ->
+                                            artist.id == id
+                                        }
+                                    }
+
+                            _uiState.value =
+                                AssetListUiState.Success(
+                                    assets =
+                                        allAssets
+                                            .filterByArtist(
+                                                artistId =
+                                                    nextSelectedArtistId,
+                                            ),
+                                    artists =
+                                        artists,
+                                    selectedArtistId =
+                                        nextSelectedArtistId,
+                                )
+                        }
+
+                        is Result.Error -> {
+                            if (
+                                _uiState.value !is
+                                        AssetListUiState.Success
+                            ) {
+                                _uiState.value =
+                                    AssetListUiState.Error(
+                                        exception =
+                                            result.exception,
+                                    )
+                            }
+                        }
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
                 )
+    }
+
+    private fun List<Asset>.filterByArtist(
+        artistId: Long?,
+    ): List<Asset> =
+        if (artistId == null) {
+            this
+        } else {
+            filter { asset ->
+                asset.artist.id ==
+                        artistId
             }
         }
-    }
-
-    private fun assetsOf(artistId: Long?): List<Asset> =
-        if (artistId == null) availableAssets
-        else availableAssets.filter { it.artist.id == artistId }
-
-    private companion object {
-        const val PAGE_SIZE = 8
-    }
 }

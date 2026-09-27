@@ -9,6 +9,8 @@ android {
 }
 
 dependencies {
+    implementation(projects.feature.challenges.api)
+    implementation(projects.feature.artistdetail.api)
     implementation(projects.core.data)
     implementation(libs.androidx.lifecycle.runtimeCompose)
     implementation(libs.coil.kt.compose)

@@ -2,173 +2,567 @@ package com.ssafy.motif.feature.motif.impl.archive
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ssafy.motif.core.common.result.Result
+import com.ssafy.motif.core.common.result.asResult
+import com.ssafy.motif.core.data.repository.MotifRepository
 import com.ssafy.motif.core.model.artist.Artist
-import com.ssafy.motif.core.model.motif.SavedMotif
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @HiltViewModel
-class ArchiveViewModel @Inject constructor() : ViewModel() {
+internal class ArchiveViewModel @Inject constructor(
+    private val motifRepository: MotifRepository,
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<ArchiveUiState>(ArchiveUiState.Loading)
-    internal val uiState: StateFlow<ArchiveUiState> = _uiState.asStateFlow()
+    private val _uiState =
+        MutableStateFlow<ArchiveUiState>(
+            ArchiveUiState.Loading,
+        )
+
+    internal val uiState:
+            StateFlow<ArchiveUiState> =
+        _uiState.asStateFlow()
 
     /**
-     * 서버 스냅샷 역할. 대표 모티프 변경은 여기에 먼저 반영한 뒤 화면 상태를 다시 만든다.
-     * 그래야 필터를 바꾸거나 다음 페이지를 불러와도 변경이 유지된다.
-     *
-     * TODO Repository 도입 시 repository의 Flow로 대체된다.
+     * 서버에는 "내 보관함에 결과가 존재하는 아티스트 목록"
+     * 전용 API가 없으므로 지금까지 읽은 결과에서 누적한다.
      */
-    private var sourceMotifs: List<SavedMotif> = ArchiveMockData.savedMotifs
+    private val knownArtists =
+        linkedMapOf<Long, Artist>()
 
-    // 저장 결과물이 있는 아티스트만, 최근 저장순으로.
-    private val filterArtists: List<Artist>
-        get() = sourceMotifs.map { it.artist }.distinctBy { it.id }
+    private var pageJob: Job? = null
+    private var detailJob: Job? = null
+    private var representativeJob: Job? = null
 
     init {
         loadFirstPage(
             selectedArtistId = null,
-            selectedMotif = defaultSelection(),
+            preserveSelectedMotif = false,
         )
     }
 
-    /**
-     * 아티스트 필터를 선택한다. 이미 선택된 아티스트를 다시 누르면 해제되어 전체로 돌아간다.
-     * 재생 중인 모티프는 필터와 무관하게 유지한다.
-     */
-    fun selectArtist(artistId: Long) {
-        val current = _uiState.value as? ArchiveUiState.Success ?: return
-        val nextArtistId = if (current.selectedArtistId == artistId) null else artistId
+    fun retry() {
+        val current =
+            _uiState.value as?
+                    ArchiveUiState.Success
 
         loadFirstPage(
-            selectedArtistId = nextArtistId,
-            selectedMotif = current.selectedMotif,
+            selectedArtistId =
+                current?.selectedArtistId,
+            preserveSelectedMotif =
+                false,
         )
     }
 
-    /**
-     * 목록 항목을 선택해 상단 재생 대상으로 지정한다.
-     */
-    fun selectMotif(motifId: Long) {
-        val motif = sourceMotifs.firstOrNull { it.id == motifId } ?: return
+    fun selectArtist(
+        artistId: Long,
+    ) {
+        val current =
+            _uiState.value as?
+                    ArchiveUiState.Success
+                ?: return
 
-        _uiState.update { state ->
-            val current = state as? ArchiveUiState.Success ?: return@update state
-            current.copy(selectedMotif = motif)
-        }
+        val nextArtistId =
+            if (
+                current.selectedArtistId ==
+                artistId
+            ) {
+                null
+            } else {
+                artistId
+            }
+
+        loadFirstPage(
+            selectedArtistId =
+                nextArtistId,
+            preserveSelectedMotif =
+                true,
+        )
     }
 
-    /**
-     * 대표 모티프를 토글한다. 대표가 아니면 이 모티프만 대표로 설정하고(다른 항목은 해제),
-     * 이미 대표면 해제한다. 대표 모티프는 항상 하나 이하다.
-     * 처리 중에 다시 눌리면 무시한다.
-     *
-     * TODO Repository 도입 시 repository.setRepresentative() 호출로 교체. 마이페이지 대표 모티프와 동기화된다.
-     */
-    fun toggleRepresentative(motifId: Long) {
-        val current = _uiState.value as? ArchiveUiState.Success ?: return
-        if (current.updatingRepresentativeMotifId != null) return
+    fun selectMotif(
+        motifId: Long,
+    ) {
+        loadMotifDetail(
+            motifId = motifId,
+        )
+    }
 
-        val target = sourceMotifs.firstOrNull { it.id == motifId } ?: return
-        val makeRepresentative = !target.isRepresentative
+    fun toggleRepresentative(
+        motifId: Long,
+    ) {
+        val current =
+            _uiState.value as?
+                    ArchiveUiState.Success
+                ?: return
 
-        viewModelScope.launch {
-            _uiState.update { state ->
-                val success = state as? ArchiveUiState.Success ?: return@update state
-                success.copy(updatingRepresentativeMotifId = motifId)
-            }
-
-            // 전체를 한 번에 다시 쓰므로 두 항목이 동시에 대표가 될 경로가 없다.
-            sourceMotifs = sourceMotifs.map { motif ->
-                motif.copy(isRepresentative = makeRepresentative && motif.id == motifId)
-            }
-
-            _uiState.update { state ->
-                val success = state as? ArchiveUiState.Success ?: return@update state
-                success
-                    .refreshFromSource()
-                    .copy(updatingRepresentativeMotifId = null)
-            }
+        if (
+            current
+                .updatingRepresentativeMotifId !=
+            null
+        ) {
+            return
         }
+
+        val target =
+            current.motifs
+                .firstOrNull { motif ->
+                    motif.id ==
+                            motifId
+                }
+                ?: return
+
+        val makeRepresentative =
+            !target.isRepresentative
+
+        representativeJob?.cancel()
+
+        representativeJob =
+            motifRepository
+                .updateMotifResult(
+                    resultId =
+                        motifId,
+                    isRepresentative =
+                        makeRepresentative,
+                )
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading -> {
+                            _uiState.update {
+                                    state,
+                                ->
+                                val success =
+                                    state as?
+                                            ArchiveUiState
+                                            .Success
+                                        ?: return@update state
+
+                                success.copy(
+                                    updatingRepresentativeMotifId =
+                                        motifId,
+                                )
+                            }
+                        }
+
+                        is Result.Success -> {
+                            val updated =
+                                result.data
+
+                            _uiState.update {
+                                    state,
+                                ->
+                                val success =
+                                    state as?
+                                            ArchiveUiState
+                                            .Success
+                                        ?: return@update state
+
+                                val motifs =
+                                    success.motifs
+                                        .map {
+                                                motif,
+                                            ->
+                                            when {
+                                                motif.id ==
+                                                        updated.id -> {
+                                                    motif.copy(
+                                                        isRepresentative =
+                                                            updated
+                                                                .isRepresentative,
+                                                    )
+                                                }
+
+                                                makeRepresentative -> {
+                                                    motif.copy(
+                                                        isRepresentative =
+                                                            false,
+                                                    )
+                                                }
+
+                                                else ->
+                                                    motif
+                                            }
+                                        }
+
+                                val selected =
+                                    success
+                                        .selectedMotif
+                                        ?.let {
+                                                selectedMotif,
+                                            ->
+                                            when {
+                                                selectedMotif.id ==
+                                                        updated.id -> {
+                                                    updated
+                                                }
+
+                                                makeRepresentative &&
+                                                        selectedMotif
+                                                            .isRepresentative -> {
+                                                    selectedMotif.copy(
+                                                        isRepresentative =
+                                                            false,
+                                                    )
+                                                }
+
+                                                else -> {
+                                                    selectedMotif
+                                                }
+                                            }
+                                        }
+
+                                success.copy(
+                                    motifs = motifs,
+                                    selectedMotif =
+                                        selected,
+                                    updatingRepresentativeMotifId =
+                                        null,
+                                )
+                            }
+                        }
+
+                        is Result.Error -> {
+                            _uiState.update {
+                                    state,
+                                ->
+                                val success =
+                                    state as?
+                                            ArchiveUiState
+                                            .Success
+                                        ?: return@update state
+
+                                success.copy(
+                                    updatingRepresentativeMotifId =
+                                        null,
+                                )
+                            }
+                        }
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     fun loadMore() {
-        val current = _uiState.value as? ArchiveUiState.Success ?: return
-        if (!current.hasNext) return
-        if (current.appendState !is ArchiveAppendUiState.Idle) return
+        val current =
+            _uiState.value as?
+                    ArchiveUiState.Success
+                ?: return
 
-        viewModelScope.launch {
-            _uiState.update {
-                current.copy(appendState = ArchiveAppendUiState.Loading)
-            }
-
-            val source = motifsOf(current.selectedArtistId)
-            val loaded = current.motifs.size
-            val next = source.drop(loaded).take(PAGE_SIZE)
-
-            _uiState.update {
-                current.copy(
-                    motifs = current.motifs + next,
-                    hasNext = loaded + next.size < source.size,
-                    appendState = ArchiveAppendUiState.Idle,
-                )
-            }
+        if (
+            !current.hasNext ||
+            current.nextCursor == null ||
+            current.appendState !is
+                    ArchiveAppendUiState.Idle
+        ) {
+            return
         }
+
+        pageJob?.cancel()
+
+        _uiState.update {
+            current.copy(
+                appendState =
+                    ArchiveAppendUiState
+                        .Loading,
+            )
+        }
+
+        pageJob =
+            motifRepository
+                .getMotifResults(
+                    cursor =
+                        current.nextCursor,
+                    size =
+                        PAGE_SIZE,
+                    artistId =
+                        current.selectedArtistId,
+                )
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading -> Unit
+
+                        is Result.Success -> {
+                            val page =
+                                result.data
+
+                            rememberArtists(
+                                artists =
+                                    page.items
+                                        .map {
+                                                motif,
+                                            ->
+                                            motif.artist
+                                        },
+                            )
+
+                            _uiState.update {
+                                    state,
+                                ->
+                                val success =
+                                    state as?
+                                            ArchiveUiState
+                                            .Success
+                                        ?: return@update state
+
+                                success.copy(
+                                    motifs =
+                                        (
+                                                success.motifs +
+                                                        page.items
+                                                )
+                                            .distinctBy {
+                                                    motif,
+                                                ->
+                                                motif.id
+                                            },
+                                    artists =
+                                        knownArtists
+                                            .values
+                                            .toList(),
+                                    nextCursor =
+                                        page.nextCursor,
+                                    hasNext =
+                                        page.hasNext,
+                                    appendState =
+                                        ArchiveAppendUiState
+                                            .Idle,
+                                )
+                            }
+                        }
+
+                        is Result.Error -> {
+                            _uiState.update {
+                                    state,
+                                ->
+                                val success =
+                                    state as?
+                                            ArchiveUiState
+                                            .Success
+                                        ?: return@update state
+
+                                success.copy(
+                                    appendState =
+                                        ArchiveAppendUiState
+                                            .Error(
+                                                exception =
+                                                    result
+                                                        .exception,
+                                            ),
+                                )
+                            }
+                        }
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     private fun loadFirstPage(
         selectedArtistId: Long?,
-        selectedMotif: SavedMotif?,
+        preserveSelectedMotif: Boolean,
     ) {
-        viewModelScope.launch {
-            _uiState.update { ArchiveUiState.Loading }
+        pageJob?.cancel()
 
-            val source = motifsOf(selectedArtistId)
-            val firstPage = source.take(PAGE_SIZE)
-
-            _uiState.update {
-                ArchiveUiState.Success(
-                    motifs = firstPage,
-                    artists = filterArtists,
-                    selectedArtistId = selectedArtistId,
-                    // 이전 선택이 없으면 필터된 첫 항목을 재생한다.
-                    selectedMotif = selectedMotif ?: firstPage.firstOrNull(),
-                    hasNext = firstPage.size < source.size,
-                )
+        val previousSelectedMotif =
+            if (
+                preserveSelectedMotif
+            ) {
+                (
+                        _uiState.value as?
+                                ArchiveUiState.Success
+                        )
+                    ?.selectedMotif
+            } else {
+                null
             }
+
+        pageJob =
+            motifRepository
+                .getMotifResults(
+                    cursor = null,
+                    size =
+                        PAGE_SIZE,
+                    artistId =
+                        selectedArtistId,
+                )
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading -> {
+                            _uiState.value =
+                                ArchiveUiState
+                                    .Loading
+                        }
+
+                        is Result.Success -> {
+                            val page =
+                                result.data
+
+                            rememberArtists(
+                                artists =
+                                    page.items
+                                        .map {
+                                                motif,
+                                            ->
+                                            motif.artist
+                                        },
+                            )
+
+                            _uiState.value =
+                                ArchiveUiState
+                                    .Success(
+                                        motifs =
+                                            page.items,
+                                        artists =
+                                            knownArtists
+                                                .values
+                                                .toList(),
+                                        selectedArtistId =
+                                            selectedArtistId,
+                                        selectedMotif =
+                                            previousSelectedMotif,
+                                        nextCursor =
+                                            page.nextCursor,
+                                        hasNext =
+                                            page.hasNext,
+                                    )
+
+                            if (
+                                previousSelectedMotif ==
+                                null
+                            ) {
+                                val defaultMotif =
+                                    page.items
+                                        .firstOrNull {
+                                                motif,
+                                            ->
+                                            motif.isRepresentative
+                                        }
+                                        ?: page.items
+                                            .firstOrNull()
+
+                                defaultMotif
+                                    ?.let {
+                                            motif,
+                                        ->
+                                        loadMotifDetail(
+                                            motifId =
+                                                motif.id,
+                                        )
+                                    }
+                            }
+                        }
+
+                        is Result.Error -> {
+                            _uiState.value =
+                                ArchiveUiState
+                                    .Error(
+                                        exception =
+                                            result.exception,
+                                    )
+                        }
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
+    }
+
+    private fun loadMotifDetail(
+        motifId: Long,
+    ) {
+        detailJob?.cancel()
+
+        detailJob =
+            motifRepository
+                .getMotifResultDetail(
+                    resultId =
+                        motifId,
+                )
+                .asResult()
+                .onEach { result ->
+                    if (
+                        result !is
+                                Result.Success
+                    ) {
+                        return@onEach
+                    }
+
+                    val motif =
+                        result.data
+
+                    rememberArtists(
+                        artists =
+                            listOf(
+                                motif.artist,
+                            ),
+                    )
+
+                    _uiState.update {
+                            state,
+                        ->
+                        val success =
+                            state as?
+                                    ArchiveUiState
+                                    .Success
+                                ?: return@update state
+
+                        success.copy(
+                            motifs =
+                                success.motifs
+                                    .map {
+                                            item,
+                                        ->
+                                        if (
+                                            item.id ==
+                                            motif.id
+                                        ) {
+                                            item.copy(
+                                                isRepresentative =
+                                                    motif
+                                                        .isRepresentative,
+                                            )
+                                        } else {
+                                            item
+                                        }
+                                    },
+                            artists =
+                                knownArtists
+                                    .values
+                                    .toList(),
+                            selectedMotif =
+                                motif,
+                        )
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
+    }
+
+    private fun rememberArtists(
+        artists: List<Artist>,
+    ) {
+        artists.forEach { artist ->
+            knownArtists[
+                artist.id
+            ] = artist
         }
     }
 
-    /**
-     * 진입 시 기본 재생 대상. 대표 모티프가 있으면 그것, 없으면 가장 최근 저장물.
-     */
-    private fun defaultSelection(): SavedMotif? =
-        sourceMotifs.firstOrNull { it.isRepresentative } ?: sourceMotifs.firstOrNull()
-
-    private fun motifsOf(artistId: Long?): List<SavedMotif> =
-        if (artistId == null) sourceMotifs
-        else sourceMotifs.filter { it.artist.id == artistId }
-
-    /**
-     * [sourceMotifs]가 바뀐 뒤, 로드된 개수와 선택을 유지한 채 화면 상태를 최신 데이터로 갈아 끼운다.
-     */
-    private fun ArchiveUiState.Success.refreshFromSource(): ArchiveUiState.Success {
-        val source = motifsOf(selectedArtistId)
-
-        return copy(
-            motifs = source.take(motifs.size),
-            selectedMotif = selectedMotif?.let { selected ->
-                sourceMotifs.firstOrNull { it.id == selected.id }
-            },
-        )
-    }
-
     private companion object {
-        const val PAGE_SIZE = 6
+        const val PAGE_SIZE = 20
     }
 }

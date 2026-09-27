@@ -14,6 +14,7 @@ import com.ssafy.motif.feature.motif.impl.shop.pass.PassPurchaseScreen
 fun EntryProviderScope<NavKey>.motifEntry(
     navigator: Navigator,
     selectedMenu: () -> MotifSubMenu,
+    onMotifCaptureClick: (assetId: Long) -> Unit,
 ) {
     val openProductDetail: (
         artistId: Long,
@@ -50,6 +51,8 @@ fun EntryProviderScope<NavKey>.motifEntry(
             artistId = key.artistId,
             assetId = key.assetId,
             onPassClick = openPassPurchase,
+            onCaptureClick =
+                onMotifCaptureClick,
         )
     }
 

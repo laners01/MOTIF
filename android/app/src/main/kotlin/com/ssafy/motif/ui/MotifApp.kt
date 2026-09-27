@@ -18,9 +18,11 @@ import com.ssafy.motif.core.model.user.UserActivityTargetType
 import com.ssafy.motif.core.navigation.Navigator
 import com.ssafy.motif.core.navigation.toEntries
 import com.ssafy.motif.core.notifications.navigation.NotificationNavigationTarget
+import com.ssafy.motif.feature.artistdetail.api.navigation.ArtistDetailNavKey
 import com.ssafy.motif.feature.artistdetail.impl.navigation.artistDetailEntry
 import com.ssafy.motif.feature.capture.api.navigation.CaptureNavKey
 import com.ssafy.motif.feature.capture.api.navigation.ChallengeCompositeResultNavKey
+import com.ssafy.motif.feature.capture.api.navigation.MotifCaptureNavKey
 import com.ssafy.motif.feature.capture.impl.navigation.captureEntry
 import com.ssafy.motif.feature.challenges.api.navigation.ArtistChallengeNavKey
 import com.ssafy.motif.feature.challenges.api.navigation.ChallengeNavKey
@@ -29,10 +31,12 @@ import com.ssafy.motif.feature.challenges.impl.navigation.challengeEntry
 import com.ssafy.motif.feature.home.api.navigation.HomeNavKey
 import com.ssafy.motif.feature.home.impl.navigation.homeEntry
 import com.ssafy.motif.feature.motif.api.navigation.MotifNavKey
+import com.ssafy.motif.feature.motif.api.navigation.ProductDetailNavKey
 import com.ssafy.motif.feature.motif.impl.navigation.motifEntry
 import com.ssafy.motif.feature.mypage.api.navigation.MyPageNavKey
 import com.ssafy.motif.feature.mypage.impl.navigation.myPageEntry
 import com.ssafy.motif.feature.onboarding.impl.navigation.onboardingEntry
+import com.ssafy.motif.feature.ranking.api.navigation.RankingNavKey
 import com.ssafy.motif.feature.ranking.impl.navigation.rankingEntry
 import com.ssafy.motif.feature.signin.impl.navigation.signInEntry
 import com.ssafy.motif.navigation.AppGlassNavigationBar
@@ -97,22 +101,23 @@ fun MotifApp(
                 onOnstageClick = { videoId ->
                     navigator.navigate(
                         ChallengeParticipationNavKey(
-                            initialVideoId =
-                                videoId,
+                            initialVideoId = videoId,
                         ),
                     )
                 },
                 onFanRadarClick = {
-                    // TODO 아티스트 랭킹 화면
+                    navigator.navigate(
+                        RankingNavKey,
+                    )
                 },
-                onArtistClick = {
-                        artistId,
-                    ->
-                    // TODO 아티스트 상세 화면
+                onArtistClick = { artistId ->
+                    navigator.navigate(
+                        ArtistDetailNavKey(
+                            artistId = artistId,
+                        ),
+                    )
                 },
-                onMotifClick = {
-                        motifId,
-                    ->
+                onMotifClick = { motifId ->
                     // TODO 모티프 상세 화면
                 },
             )
@@ -135,10 +140,12 @@ fun MotifApp(
                         MotifNavKey,
                     )
                 },
-                onArtistClick = {
-                        artistId,
-                    ->
-                    // 기존 ArtistDetail 연결
+                onArtistClick = { artistId ->
+                    navigator.navigate(
+                        ArtistDetailNavKey(
+                            artistId = artistId,
+                        ),
+                    )
                 },
                 onParticipationClick = {
                         challengeId,
@@ -184,6 +191,17 @@ fun MotifApp(
                 onBrowseChallengeClick = {
                     navigator.navigate(
                         ChallengeNavKey,
+                    )
+                },
+                onBrowseMotifClick = {
+                        artistId,
+                        assetId,
+                    ->
+                    navigator.navigate(
+                        ProductDetailNavKey(
+                            artistId = artistId,
+                            assetId = assetId,
+                        ),
                     )
                 },
                 onCompositePublished = {
@@ -254,6 +272,15 @@ fun MotifApp(
                     appState
                         .selectedMotifSubMenu
                 },
+                onMotifCaptureClick = {
+                        assetId,
+                    ->
+                    navigator.navigate(
+                        MotifCaptureNavKey(
+                            assetId = assetId,
+                        ),
+                    )
+                },
             )
         }
 
@@ -276,6 +303,18 @@ fun MotifApp(
 
             currentKey is
                     ChallengeCompositeResultNavKey -> {
+                null
+            }
+
+            currentKey is ArtistDetailNavKey -> {
+                null
+            }
+
+            currentKey is ArtistChallengeNavKey -> {
+                null
+            }
+
+            currentKey is RankingNavKey -> {
                 null
             }
 

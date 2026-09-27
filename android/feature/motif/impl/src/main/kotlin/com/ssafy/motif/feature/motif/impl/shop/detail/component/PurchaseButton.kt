@@ -17,46 +17,71 @@ import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.feature.motif.impl.R
 
 /**
- * 하단 고정 MOTIF 구매 버튼. 구매 완료 상품이 선택되어 있으면 비활성화되고 문구가 구매 완료로 바뀐다.
+ * 하단 고정 MOTIF 액션 버튼.
+ *
+ * - 이용 권한 없음: 기존 구매 액션
+ * - 개별 구매/PASS로 이용 가능: Moment with {ARTIST} → 촬영 진입
  */
 @Composable
 internal fun PurchaseButton(
-    isPurchased: Boolean,
-    onClick: () -> Unit,
+    isAvailable: Boolean,
+    artistName: String,
+    onPurchaseClick: () -> Unit,
+    onMomentClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Button(
-        onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(ButtonHeight),
-        enabled = !isPurchased,
-        shape = RoundedCornerShape(ButtonCornerRadius),
-        colors = MotifButtonDefaults.buttonColors(
-            containerColor = MotifTheme.colors.pink,
-            contentColor = MotifTheme.colors.white,
-            disabledContainerColor = MotifTheme.colors.gray700,
-            disabledContentColor = MotifTheme.colors.gray400,
-        ),
+        onClick =
+            if (isAvailable) {
+                onMomentClick
+            } else {
+                onPurchaseClick
+            },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(ButtonHeight),
+        shape =
+            RoundedCornerShape(
+                ButtonCornerRadius,
+            ),
+        colors =
+            MotifButtonDefaults.buttonColors(
+                containerColor =
+                    MotifTheme.colors.pink,
+                contentColor =
+                    MotifTheme.colors.white,
+            ),
     ) {
-        if (isPurchased) {
+        if (isAvailable) {
             Text(
-                text = stringResource(R.string.feature_motif_impl_purchased),
-                style = MotifTheme.typography.bodySB16,
+                text =
+                    stringResource(
+                        R.string.feature_motif_impl_moment_with,
+                        artistName.uppercase(),
+                    ),
+                style =
+                    MotifTheme.typography.bodySB16,
             )
         } else {
-            // MOTIF는 로고 폰트, 구매는 본문 폰트
             Text(
                 text = "MOTIF",
-                style = MotifTheme.typography.rankR36.copy(
-                    fontSize = 18.sp,
-                    lineHeight = 18.sp,
-                ),
+                style =
+                    MotifTheme.typography.rankR36.copy(
+                        fontSize = 18.sp,
+                        lineHeight = 18.sp,
+                    ),
             )
 
             Text(
-                text = " " + stringResource(R.string.feature_motif_impl_product_purchase),
-                style = MotifTheme.typography.bodySB16,
+                text =
+                    " " +
+                            stringResource(
+                                R.string
+                                    .feature_motif_impl_product_purchase,
+                            ),
+                style =
+                    MotifTheme.typography.bodySB16,
             )
         }
     }
@@ -70,20 +95,27 @@ private val ButtonCornerRadius = 12.dp
 private fun PurchaseButtonPreview() {
     MotifTheme {
         PurchaseButton(
-            isPurchased = false,
-            onClick = {},
+            isAvailable = false,
+            artistName = "KARINA",
+            onPurchaseClick = {},
+            onMomentClick = {},
             modifier = Modifier.padding(16.dp),
         )
     }
 }
 
-@Preview(name = "Purchased", showBackground = true)
+@Preview(
+    name = "Available",
+    showBackground = true,
+)
 @Composable
-private fun PurchaseButtonPurchasedPreview() {
+private fun PurchaseButtonAvailablePreview() {
     MotifTheme {
         PurchaseButton(
-            isPurchased = true,
-            onClick = {},
+            isAvailable = true,
+            artistName = "KARINA",
+            onPurchaseClick = {},
+            onMomentClick = {},
             modifier = Modifier.padding(16.dp),
         )
     }

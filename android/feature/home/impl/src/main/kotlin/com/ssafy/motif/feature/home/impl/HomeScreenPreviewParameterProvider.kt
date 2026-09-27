@@ -2,8 +2,8 @@ package com.ssafy.motif.feature.home.impl
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import com.ssafy.motif.core.model.artist.Artist
-import com.ssafy.motif.core.model.artist.RankedArtist
 import com.ssafy.motif.core.model.challenge.ChallengeParticipationSummary
+import com.ssafy.motif.core.model.challenge.ChallengeRank
 import com.ssafy.motif.core.model.challenge.ChallengeSong
 import com.ssafy.motif.core.model.comment.Comment
 import com.ssafy.motif.core.model.comment.CommentAuthorType
@@ -136,49 +136,65 @@ private val previewChallengeParticipationSummaryItems =
 
 private val previewRankedArtists =
     listOf(
-        RankedArtist(
+        ChallengeRank(
+            challengeId = 101L,
+            rank = 1L,
             artist = Artist(
                 id = 1L,
                 name = "카리나",
                 profileImageUrl = "https://picsum.photos/seed/karina/200",
                 groupName = "aespa",
             ),
-            rank = 1,
-            rankDelta = 0,
-            isSubscribed = true,
+            song = ChallengeSong(
+                title = "Supernova",
+                artistName = "aespa",
+            ),
+            rankDelta = 0L,
         ),
-        RankedArtist(
+        ChallengeRank(
+            challengeId = 102L,
+            rank = 2L,
             artist = Artist(
                 id = 2L,
                 name = "지수",
                 profileImageUrl = "https://picsum.photos/seed/jisoo/200",
                 groupName = "BLACKPINK",
             ),
-            rank = 2,
-            rankDelta = 1,
-            isSubscribed = false,
+            song = ChallengeSong(
+                title = "earthquake",
+                artistName = "JISOO",
+            ),
+            rankDelta = 1L,
         ),
-        RankedArtist(
+        ChallengeRank(
+            challengeId = 103L,
+            rank = 3L,
             artist = Artist(
                 id = 3L,
                 name = "이채영",
                 profileImageUrl = "https://picsum.photos/seed/chaeyoung/200",
                 groupName = "프로미스나인",
             ),
-            rank = 3,
-            rankDelta = -1,
-            isSubscribed = true,
+            song = ChallengeSong(
+                title = "LIKE YOU BETTER",
+                artistName = "프로미스나인",
+            ),
+            rankDelta = -1L,
         ),
-        RankedArtist(
+        ChallengeRank(
+            challengeId = 104L,
+            rank = 4L,
             artist = Artist(
                 id = 4L,
                 name = "오해원",
                 profileImageUrl = "https://picsum.photos/seed/haewon/200",
                 groupName = "NMIXX",
             ),
-            rank = 4,
-            rankDelta = null,
-            isSubscribed = false,
+            song = ChallengeSong(
+                title = "DASH",
+                artistName = "NMIXX",
+            ),
+            rankDelta = 0,
         ),
     )
 

@@ -23,6 +23,13 @@ data class RequestCompositeJobRequest(
     val correctionEnabled: Boolean? = null,
 )
 
+/**
+ * MOTIF 합성 요청은 body가 반드시 빈 JSON({})이어야 한다.
+ * correctionEnabled는 CHALLENGE 전용이다.
+ */
+@Serializable
+class RequestMotifCompositeJobRequest
+
 @Serializable
 data class RequestCompositeJobResponse(
     val jobUuid: String,

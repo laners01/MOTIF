@@ -7,6 +7,7 @@ import com.ssafy.motif.core.network.model.composite.CreateCompositeJobRequest
 import com.ssafy.motif.core.network.model.composite.CreateCompositeJobResponse
 import com.ssafy.motif.core.network.model.composite.RequestCompositeJobRequest
 import com.ssafy.motif.core.network.model.composite.RequestCompositeJobResponse
+import com.ssafy.motif.core.network.model.composite.RequestMotifCompositeJobRequest
 import com.ssafy.motif.core.network.model.composite.RetryCompositeJobResponse
 import java.io.File
 import java.io.IOException
@@ -31,14 +32,25 @@ class CompositeJobClient @Inject constructor(
             .createCompositeJob(
                 request =
                     CreateCompositeJobRequest(
-                        jobType =
-                            CompositeJobType.CHALLENGE,
-                        challengeSeq =
-                            challengeId,
-                        challengeParticipantSeq =
-                            challengeParticipantId,
-                        contentLength =
-                            contentLength,
+                        jobType = CompositeJobType.CHALLENGE,
+                        challengeSeq = challengeId,
+                        challengeParticipantSeq = challengeParticipantId,
+                        contentLength = contentLength,
+                    ),
+            )
+            .data
+
+    suspend fun createMotifJob(
+        assetId: Long,
+        contentLength: Long,
+    ): CreateCompositeJobResponse =
+        compositeJobService
+            .createCompositeJob(
+                request =
+                    CreateCompositeJobRequest(
+                        jobType = CompositeJobType.MOTIF,
+                        assetSeq = assetId,
+                        contentLength = contentLength,
                     ),
             )
             .data
@@ -48,21 +60,15 @@ class CompositeJobClient @Inject constructor(
         videoFile: File,
         onProgress: (Int) -> Unit = {},
     ) {
-        require(
-            videoFile.exists(),
-        ) {
+        require(videoFile.exists()) {
             "Video file does not exist."
         }
 
-        require(
-            videoFile.isFile,
-        ) {
+        require(videoFile.isFile) {
             "Video path is not a file."
         }
 
-        require(
-            videoFile.length() > 0L,
-        ) {
+        require(videoFile.length() > 0L) {
             "Video file is empty."
         }
 
@@ -73,45 +79,32 @@ class CompositeJobClient @Inject constructor(
 
         val requestBody =
             ProgressRequestBody(
-                delegate =
-                    fileRequestBody,
-                onProgress =
-                    onProgress,
+                delegate = fileRequestBody,
+                onProgress = onProgress,
             )
 
         val request =
             Request
                 .Builder()
-                .url(
-                    uploadUrl,
-                )
-                .put(
-                    requestBody,
-                )
+                .url(uploadUrl)
+                .put(requestBody)
                 .header(
                     CONTENT_TYPE_HEADER,
                     VIDEO_MP4,
                 )
                 .header(
                     CONTENT_LENGTH_HEADER,
-                    videoFile
-                        .length()
-                        .toString(),
+                    videoFile.length().toString(),
                 )
                 .build()
 
         uploadHttpClient
-            .newCall(
-                request,
-            )
+            .newCall(request)
             .execute()
             .use { response ->
-                if (
-                    !response.isSuccessful
-                ) {
+                if (!response.isSuccessful) {
                     throw IOException(
-                        "Video upload failed. " +
-                                "HTTP ${response.code}",
+                        "Video upload failed. HTTP ${response.code}",
                     )
                 }
             }
@@ -123,13 +116,21 @@ class CompositeJobClient @Inject constructor(
     ): RequestCompositeJobResponse =
         compositeJobService
             .requestCompositeJob(
-                jobUuid =
-                    jobUuid,
+                jobUuid = jobUuid,
                 request =
                     RequestCompositeJobRequest(
-                        correctionEnabled =
-                            correctionEnabled,
+                        correctionEnabled = correctionEnabled,
                     ),
+            )
+            .data
+
+    suspend fun requestMotifJob(
+        jobUuid: String,
+    ): RequestCompositeJobResponse =
+        compositeJobService
+            .requestMotifCompositeJob(
+                jobUuid = jobUuid,
+                request = RequestMotifCompositeJobRequest(),
             )
             .data
 
@@ -138,8 +139,7 @@ class CompositeJobClient @Inject constructor(
     ): CompositeJobResponse =
         compositeJobService
             .getCompositeJob(
-                jobUuid =
-                    jobUuid,
+                jobUuid = jobUuid,
             )
             .data
 
@@ -148,20 +148,14 @@ class CompositeJobClient @Inject constructor(
     ): RetryCompositeJobResponse =
         compositeJobService
             .retryCompositeJob(
-                jobUuid =
-                    jobUuid,
+                jobUuid = jobUuid,
             )
             .data
 
     private companion object {
-        const val VIDEO_MP4 =
-            "video/mp4"
-
-        const val CONTENT_TYPE_HEADER =
-            "Content-Type"
-
-        const val CONTENT_LENGTH_HEADER =
-            "Content-Length"
+        const val VIDEO_MP4 = "video/mp4"
+        const val CONTENT_TYPE_HEADER = "Content-Type"
+        const val CONTENT_LENGTH_HEADER = "Content-Length"
 
         val VIDEO_MP4_MEDIA_TYPE =
             VIDEO_MP4.toMediaType()

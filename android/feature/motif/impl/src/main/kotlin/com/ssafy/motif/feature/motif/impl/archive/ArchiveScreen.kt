@@ -32,12 +32,8 @@ import com.ssafy.motif.feature.motif.impl.archive.component.ArchivePlayer
 import com.ssafy.motif.feature.motif.impl.archive.component.SavedMotifItem
 import com.ssafy.motif.feature.motif.impl.archive.component.WithArtistFilter
 import com.ssafy.motif.feature.motif.impl.component.LoadingFooter
+import com.ssafy.motif.feature.motif.impl.component.MotifEmptyContent
 
-/**
- * 모티프 서브 네비게이션의 보관함 화면.
- *
- * @param contentPadding 서브 네비게이션 바에 가려지지 않도록 콘텐츠에 적용할 여백.
- */
 @Composable
 internal fun ArchiveScreen(
     contentPadding: PaddingValues,
@@ -80,21 +76,52 @@ private fun ArchiveScreen(
         }
 
         is ArchiveUiState.Success -> {
-            ArchiveContent(
-                uiState = uiState,
-                contentPadding = contentPadding,
-                onArtistClick = onArtistClick,
-                onMotifClick = onMotifClick,
-                onRepresentativeClick = onRepresentativeClick,
-                onLoadMore = onLoadMore,
-                modifier = modifier,
-            )
+            if (uiState.isGlobalEmpty) {
+                ArchiveEmptyContent(
+                    contentPadding = contentPadding,
+                    modifier = modifier,
+                )
+            } else {
+                ArchiveContent(
+                    uiState = uiState,
+                    contentPadding = contentPadding,
+                    onArtistClick = onArtistClick,
+                    onMotifClick = onMotifClick,
+                    onRepresentativeClick = onRepresentativeClick,
+                    onLoadMore = onLoadMore,
+                    modifier = modifier,
+                )
+            }
         }
 
         is ArchiveUiState.Error -> {
-            // TODO 에러 상태 UI. Mock 데이터는 실패하지 않으므로 이번 티켓에서는 빈 화면
-            Box(modifier = modifier.fillMaxSize())
+            Box(
+                modifier = modifier.fillMaxSize(),
+            )
         }
+    }
+}
+
+@Composable
+private fun ArchiveEmptyContent(
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(
+                bottom = contentPadding.calculateBottomPadding(),
+            ),
+    ) {
+        MotifEmptyContent(
+            title = stringResource(
+                R.string.feature_motif_impl_archive_empty_title,
+            ),
+            description = stringResource(
+                R.string.feature_motif_impl_archive_empty_description,
+            ),
+        )
     }
 }
 
@@ -110,23 +137,39 @@ private fun ArchiveContent(
 ) {
     val listState = rememberLazyListState()
 
-    val canLoadMore = uiState.hasNext &&
-            uiState.appendState is ArchiveAppendUiState.Idle
+    val canLoadMore =
+        uiState.hasNext &&
+                uiState.appendState is ArchiveAppendUiState.Idle
 
-    val shouldLoadMore by remember(listState, canLoadMore) {
+    val shouldLoadMore by remember(
+        listState,
+        canLoadMore,
+    ) {
         derivedStateOf {
-            if (!canLoadMore) return@derivedStateOf false
+            if (!canLoadMore) {
+                return@derivedStateOf false
+            }
 
-            val layoutInfo = listState.layoutInfo
-            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                ?: return@derivedStateOf false
+            val layoutInfo =
+                listState.layoutInfo
+
+            val lastVisible =
+                layoutInfo
+                    .visibleItemsInfo
+                    .lastOrNull()
+                    ?.index
+                    ?: return@derivedStateOf false
 
             layoutInfo.totalItemsCount > 0 &&
-                    lastVisible >= layoutInfo.totalItemsCount - LOAD_MORE_THRESHOLD
+                    lastVisible >=
+                    layoutInfo.totalItemsCount -
+                    LOAD_MORE_THRESHOLD
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(
+        shouldLoadMore,
+    ) {
         if (shouldLoadMore) {
             onLoadMore()
         }
@@ -135,9 +178,10 @@ private fun ArchiveContent(
     Column(
         modifier = modifier.fillMaxSize(),
     ) {
-        // 재생 영역은 목록 밖에 두어 스크롤해도 화면 상단에 고정된다.
         uiState.selectedMotif?.let { motif ->
-            ArchivePlayer(motif = motif)
+            ArchivePlayer(
+                motif = motif,
+            )
         }
 
         LazyColumn(
@@ -145,7 +189,9 @@ private fun ArchiveContent(
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
         ) {
-            item(key = "filter") {
+            item(
+                key = "filter",
+            ) {
                 WithArtistFilter(
                     artists = uiState.artists,
                     selectedArtistId = uiState.selectedArtistId,
@@ -160,12 +206,18 @@ private fun ArchiveContent(
             }
 
             if (uiState.motifs.isEmpty()) {
-                item(key = "empty") {
+                item(
+                    key = "filtered-empty",
+                ) {
                     Text(
-                        text = stringResource(R.string.feature_motif_impl_archive_empty),
+                        text = stringResource(
+                            R.string.feature_motif_impl_archive_filter_empty,
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 48.dp),
+                            .padding(
+                                vertical = 48.dp,
+                            ),
                         color = MotifTheme.colors.gray500,
                         style = MotifTheme.typography.bodyR14,
                         textAlign = TextAlign.Center,
@@ -175,13 +227,17 @@ private fun ArchiveContent(
 
             items(
                 items = uiState.motifs,
-                key = { it.id },
+                key = { motif ->
+                    motif.id
+                },
             ) { motif ->
                 SavedMotifItem(
                     motif = motif,
                     onClick = onMotifClick,
                     onRepresentativeClick = onRepresentativeClick,
-                    isRepresentativeUpdating = uiState.updatingRepresentativeMotifId == motif.id,
+                    isRepresentativeUpdating =
+                        uiState.updatingRepresentativeMotifId ==
+                                motif.id,
                     modifier = Modifier.padding(
                         horizontal = 16.dp,
                         vertical = ItemVerticalSpacing,
@@ -189,8 +245,13 @@ private fun ArchiveContent(
                 )
             }
 
-            if (uiState.appendState is ArchiveAppendUiState.Loading) {
-                item(key = "footer") {
+            if (
+                uiState.appendState is
+                        ArchiveAppendUiState.Loading
+            ) {
+                item(
+                    key = "footer",
+                ) {
                     LoadingFooter()
                 }
             }
@@ -198,28 +259,39 @@ private fun ArchiveContent(
     }
 }
 
+private val ArchiveUiState.Success.isGlobalEmpty: Boolean
+    get() =
+        motifs.isEmpty() &&
+                artists.isEmpty() &&
+                selectedArtistId == null &&
+                selectedMotif == null
+
 private const val LOAD_MORE_THRESHOLD = 2
 
 private val FilterTopSpacing = 8.dp
 private val FilterBottomSpacing = 12.dp
 private val ItemVerticalSpacing = 8.dp
 
-@Preview(showBackground = true, heightDp = 900)
+@Preview(
+    name = "Empty",
+    showBackground = true,
+    heightDp = 900,
+)
 @Composable
-private fun ArchiveScreenPreview() {
-    val motifs = ArchiveMockData.savedMotifs.take(6)
-
+private fun ArchiveScreenEmptyPreview() {
     MotifTheme {
         ArchiveScreen(
             uiState = ArchiveUiState.Success(
-                motifs = motifs,
-                artists = motifs.map { it.artist }.distinctBy { it.id },
+                motifs = emptyList(),
+                artists = emptyList(),
                 selectedArtistId = null,
-                selectedMotif = motifs.first(),
-                hasNext = true,
-                appendState = ArchiveAppendUiState.Loading,
+                selectedMotif = null,
+                nextCursor = null,
+                hasNext = false,
             ),
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
             onArtistClick = {},
             onMotifClick = {},
             onRepresentativeClick = {},
@@ -228,21 +300,90 @@ private fun ArchiveScreenPreview() {
     }
 }
 
-/**
- * 실기기 Run Preview용. 항목 선택·필터·대표 모티프 토글이 실제로 바뀐다.
- * 영상 재생과 추가 로드는 ViewModel이 담당하므로 여기서는 동작하지 않는다.
- */
-@Preview(name = "Interactive", showBackground = true, heightDp = 900)
+@Preview(
+    showBackground = true,
+    heightDp = 900,
+)
+@Composable
+private fun ArchiveScreenPreview() {
+    val motifs =
+        ArchiveMockData
+            .savedMotifs
+            .take(6)
+
+    MotifTheme {
+        ArchiveScreen(
+            uiState = ArchiveUiState.Success(
+                motifs = motifs,
+                artists = motifs
+                    .map { motif ->
+                        motif.artist
+                    }
+                    .distinctBy { artist ->
+                        artist.id
+                    },
+                selectedArtistId = null,
+                selectedMotif = motifs.first(),
+                nextCursor = "next",
+                hasNext = true,
+                appendState = ArchiveAppendUiState.Loading,
+            ),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
+            onArtistClick = {},
+            onMotifClick = {},
+            onRepresentativeClick = {},
+            onLoadMore = {},
+        )
+    }
+}
+
+@Preview(
+    name = "Interactive",
+    showBackground = true,
+    heightDp = 900,
+)
 @Composable
 private fun ArchiveScreenInteractivePreview() {
-    val allMotifs = ArchiveMockData.savedMotifs.take(8)
-    val artists = allMotifs.map { it.artist }.distinctBy { it.id }
+    val allMotifs =
+        ArchiveMockData
+            .savedMotifs
+            .take(8)
 
-    var motifs by remember { mutableStateOf(allMotifs) }
-    var selectedArtistId by remember { mutableStateOf<Long?>(null) }
-    var selectedMotifId by remember { mutableStateOf(allMotifs.first().id) }
+    val artists =
+        allMotifs
+            .map { motif ->
+                motif.artist
+            }
+            .distinctBy { artist ->
+                artist.id
+            }
 
-    val visibleMotifs = motifs.filter { selectedArtistId == null || it.artist.id == selectedArtistId }
+    var motifs by remember {
+        mutableStateOf(
+            allMotifs,
+        )
+    }
+
+    var selectedArtistId by remember {
+        mutableStateOf<Long?>(
+            null,
+        )
+    }
+
+    var selectedMotifId by remember {
+        mutableStateOf(
+            allMotifs.first().id,
+        )
+    }
+
+    val visibleMotifs =
+        motifs.filter { motif ->
+            selectedArtistId == null ||
+                    motif.artist.id ==
+                    selectedArtistId
+        }
 
     MotifTheme {
         ArchiveScreen(
@@ -250,30 +391,67 @@ private fun ArchiveScreenInteractivePreview() {
                 motifs = visibleMotifs,
                 artists = artists,
                 selectedArtistId = selectedArtistId,
-                selectedMotif = motifs.firstOrNull { it.id == selectedMotifId },
+                selectedMotif = motifs
+                    .firstOrNull { motif ->
+                        motif.id ==
+                                selectedMotifId
+                    },
+                nextCursor = null,
                 hasNext = false,
             ),
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
             onArtistClick = { artistId ->
-                selectedArtistId = if (selectedArtistId == artistId) null else artistId
+                selectedArtistId =
+                    if (
+                        selectedArtistId ==
+                        artistId
+                    ) {
+                        null
+                    } else {
+                        artistId
+                    }
             },
-            onMotifClick = { selectedMotifId = it },
+            onMotifClick = {
+                selectedMotifId = it
+            },
             onRepresentativeClick = { motifId ->
-                val makeRepresentative = !motifs.first { it.id == motifId }.isRepresentative
-                motifs = motifs.map { it.copy(isRepresentative = makeRepresentative && it.id == motifId) }
+                val makeRepresentative =
+                    !motifs
+                        .first { motif ->
+                            motif.id ==
+                                    motifId
+                        }
+                        .isRepresentative
+
+                motifs = motifs.map { motif ->
+                    motif.copy(
+                        isRepresentative =
+                            makeRepresentative &&
+                                    motif.id ==
+                                    motifId,
+                    )
+                }
             },
             onLoadMore = {},
         )
     }
 }
 
-@Preview(name = "Loading", showBackground = true, heightDp = 400)
+@Preview(
+    name = "Loading",
+    showBackground = true,
+    heightDp = 400,
+)
 @Composable
 private fun ArchiveScreenLoadingPreview() {
     MotifTheme {
         ArchiveScreen(
             uiState = ArchiveUiState.Loading,
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(
+                0.dp,
+            ),
             onArtistClick = {},
             onMotifClick = {},
             onRepresentativeClick = {},
