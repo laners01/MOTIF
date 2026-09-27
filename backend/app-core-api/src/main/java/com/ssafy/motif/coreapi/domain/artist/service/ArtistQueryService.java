@@ -200,12 +200,14 @@ public class ArtistQueryService {
                 List.of());
     }
 
-    /** §5.4 아티스트 챌린지 그리드 — 비페이지 전량, 최신순. */
+    /** §5.4 아티스트 챌린지 그리드 — 비페이지 전량, 참여 수 내림차순(동수면 최신순). */
     public ListResponse<ArtistChallengeResponse> challenges(Integer artistSeq) {
         requireArtist(artistSeq);
 
         return ListResponse.of(
-                challengeRepository.findByArtistSeqAndDeletedFalseOrderByChallengeSeqDesc(artistSeq)
+                challengeRepository
+                        .findByArtistSeqAndDeletedFalseOrderByParticipantCountDescChallengeSeqDesc(
+                                artistSeq)
                         .stream()
                         .map(this::toChallengeItem)
                         .toList());

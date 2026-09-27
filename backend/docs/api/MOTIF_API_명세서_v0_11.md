@@ -758,7 +758,7 @@ signed URL 은 URL 단위 서명이라 소유자를 경로에 새길 필요가 �
 
 ### 5.4 GET /artists/{artistSeq}/challenges · 5.5 /notices
 
-- 5.4: **비페이지 — 전량 반환** **(회의 확정 R2)**, 최신순. `data`: `{ "list": [ { "challengeSeq": 11, "thumbnailUrl": "...", "viewCount": 120000 } ] }` (그리드 경량 + 조회수. `title` 없음).
+- 5.4: **비페이지 — 전량 반환** **(회의 확정 R2)**, 참여 수 내림차순(동수면 최신순). `data`: `{ "list": [ { "challengeSeq": 11, "thumbnailUrl": "...", "viewCount": 120000 } ] }` (그리드 경량 + 조회수. `title` 없음).
 
 - 5.5: **커서** `?cursor&size` — 해당 아티스트의 공지를 **최신순 고정**으로 반환한다. 별도 공지 상세 API(구 §10.1)는 사용하지 않으며, 공지 화면에 필요한 내용을 목록 항목에서 모두 제공한다.
 

@@ -147,13 +147,18 @@ public interface ChallengeRepository extends JpaRepository<Challenge, Integer> {
      * <p>페이지를 두지 않는 것은 회의 확정(R2)이다. 어드민 목록(§3.7.1)과 달리 필터가
      * 없고 한 아티스트의 챌린지는 운영상 수십 건 규모라, 그리드가 한 번에 받는다.
      *
-     * <p>{@code reg_dttm} 이 아니라 PK 역순으로 정렬한다 — IDENTITY 라 단조 증가라서
-     * 최신순과 결과가 같은데, 같은 초에 등록된 챌린지들이 호출마다 순서를 바꿔 가며
-     * 나오는 일이 없다({@code NoticeRepository.findAdminPage} 와 같은 근거).
+     * <p><b>참여 수 내림차순, 동수면 최신순</b>이다. 그리드는 "이 아티스트에서 뭐가
+     * 도는가" 를 먼저 보여주는 자리라 등록 시각보다 참여가 앞선다.
+     *
+     * <p>동수 보조 키가 {@code reg_dttm} 이 아니라 PK 역순인 것은 IDENTITY 라 단조
+     * 증가해 최신순과 결과가 같으면서, 같은 초에 등록된 챌린지들이 호출마다 순서를
+     * 바꿔 가며 나오는 일이 없기 때문이다({@code NoticeRepository.findAdminPage} 와
+     * 같은 근거). 참여 0건이 흔해 동수는 실제로 자주 난다.
      *
      * <p>삭제된 챌린지는 뺀다 (§1.8 공통 비노출).
      */
-    List<Challenge> findByArtistSeqAndDeletedFalseOrderByChallengeSeqDesc(Integer artistSeq);
+    List<Challenge> findByArtistSeqAndDeletedFalseOrderByParticipantCountDescChallengeSeqDesc(
+            Integer artistSeq);
 
     /**
      * 챌린지 상세의 {@code isLiked} (API 명세 §7.2).
