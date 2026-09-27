@@ -28,6 +28,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.compose.ContentFrame
+import coil.compose.AsyncImage
 import com.ssafy.motif.feature.capture.impl.camera.CaptureCameraController
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureStage
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiState
@@ -285,6 +286,11 @@ internal fun CaptureShootingScreen(
         }
     }
 
+    val isShootingReady =
+        cameraReady &&
+                playerReady &&
+                segmentationReady
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -321,6 +327,22 @@ internal fun CaptureShootingScreen(
                         },
                 )
             }
+
+        if (
+            !isShootingReady &&
+            uiState.previewImageUrl.isNotBlank()
+        ) {
+            AsyncImage(
+                model =
+                    uiState.previewImageUrl,
+                contentDescription =
+                    null,
+                contentScale =
+                    ContentScale.Crop,
+                modifier =
+                    Modifier.fillMaxSize(),
+            )
+        }
 
         when (
             uiState.stage

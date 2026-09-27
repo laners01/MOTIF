@@ -18,8 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +39,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.ssafy.motif.core.designsystem.component.Text
+import com.ssafy.motif.core.designsystem.theme.MotifTheme
 import com.ssafy.motif.core.model.artist.Artist
 import com.ssafy.motif.core.model.challenge.CapturePosition
 import com.ssafy.motif.feature.capture.impl.R
@@ -107,53 +111,56 @@ internal fun CapturePositionSelectionScreen(
                     },
                     modifier =
                         Modifier.offset(
-                            x = (
-                                    maxWidth *
-                                            x.coerceIn(
-                                                0f,
-                                                1f,
-                                            ) -
-                                            CaptureProfileSize /
-                                            2
-                                    )
-                                .coerceIn(
-                                    minimumValue =
-                                        0.dp,
-                                    maximumValue =
-                                        maxProfileX,
-                                ),
-                            y = (
-                                    maxHeight *
-                                            y.coerceIn(
-                                                0f,
-                                                1f,
-                                            ) -
-                                            CaptureProfileSize /
-                                            2
-                                    )
-                                .coerceIn(
-                                    minimumValue =
-                                        0.dp,
-                                    maximumValue =
-                                        maxProfileY,
-                                ),
+                            x =
+                                (
+                                        maxWidth *
+                                                x.coerceIn(
+                                                    0f,
+                                                    1f,
+                                                ) -
+                                                CaptureProfileSize /
+                                                2
+                                        )
+                                    .coerceIn(
+                                        minimumValue =
+                                            0.dp,
+                                        maximumValue =
+                                            maxProfileX,
+                                    ),
+                            y =
+                                (
+                                        maxHeight *
+                                                y.coerceIn(
+                                                    0f,
+                                                    1f,
+                                                ) -
+                                                CaptureProfileSize /
+                                                2
+                                        )
+                                    .coerceIn(
+                                        minimumValue =
+                                            0.dp,
+                                        maximumValue =
+                                            maxProfileY,
+                                    ),
                         ),
                 )
             }
 
         CapturePositionGuide(
-            modifier = Modifier
-                .align(
-                    Alignment.TopCenter,
-                )
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing,
-                )
-                .padding(
-                    start = 16.dp,
-                    top = 88.dp,
-                    end = 16.dp,
-                ),
+            modifier =
+                Modifier
+                    .align(
+                        Alignment.TopCenter,
+                    )
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing,
+                    )
+                    .padding(
+                        start = 16.dp,
+                        top = 60.dp,
+                        end = 16.dp,
+                    ),
         )
 
         StartChallengeButton(
@@ -161,18 +168,19 @@ internal fun CapturePositionSelectionScreen(
                 uiState.canStartChallenge,
             onClick =
                 onStartChallengeClick,
-            modifier = Modifier
-                .align(
-                    Alignment.BottomCenter,
-                )
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing,
-                )
-                .padding(
-                    start = 48.dp,
-                    end = 48.dp,
-                    bottom = 32.dp,
-                ),
+            modifier =
+                Modifier
+                    .align(
+                        Alignment.BottomCenter,
+                    )
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing,
+                    )
+                    .padding(
+                        start = 48.dp,
+                        end = 48.dp,
+                        bottom = 32.dp,
+                    ),
         )
     }
 }
@@ -182,27 +190,169 @@ private fun CapturePreviewImage(
     imageUrl: String,
     modifier: Modifier = Modifier,
 ) {
-    if (imageUrl.isBlank()) {
-        Box(
-            modifier =
-                modifier.background(
-                    Color.Gray,
-                ),
+    /*
+     * 두 개의 이미지 레이어를 번갈아 사용한다.
+     *
+     * 현재 보이는 이미지는 그대로 유지하고,
+     * 반대쪽 레이어에서 새 이미지를 먼저 로드한다.
+     *
+     * 새 이미지의 로딩이 성공한 뒤에만
+     * visible layer를 변경하므로 이미지 변경 시
+     * 검은 화면이 노출되지 않는다.
+     */
+    var primaryImageUrl by
+    remember {
+        mutableStateOf(
+            imageUrl,
         )
-
-        return
     }
 
-    AsyncImage(
-        model =
-            imageUrl,
-        contentDescription =
+    var secondaryImageUrl by
+    remember {
+        mutableStateOf<String?>(
             null,
-        contentScale =
-            ContentScale.Crop,
+        )
+    }
+
+    var showPrimaryImage by
+    remember {
+        mutableStateOf(
+            true,
+        )
+    }
+
+    LaunchedEffect(
+        imageUrl,
+    ) {
+        if (
+            imageUrl.isBlank()
+        ) {
+            return@LaunchedEffect
+        }
+
+        val displayedImageUrl =
+            if (
+                showPrimaryImage
+            ) {
+                primaryImageUrl
+            } else {
+                secondaryImageUrl
+            }
+
+        /*
+         * 이미 현재 화면에 표시 중인 이미지라면
+         * 다시 로드하지 않는다.
+         */
+        if (
+            displayedImageUrl ==
+            imageUrl
+        ) {
+            return@LaunchedEffect
+        }
+
+        /*
+         * 현재 보이지 않는 레이어에
+         * 다음 이미지를 먼저 로드한다.
+         */
+        if (
+            showPrimaryImage
+        ) {
+            secondaryImageUrl =
+                imageUrl
+        } else {
+            primaryImageUrl =
+                imageUrl
+        }
+    }
+
+    Box(
         modifier =
-            modifier,
-    )
+            modifier.background(
+                Color.Gray,
+            ),
+    ) {
+        if (
+            primaryImageUrl.isNotBlank()
+        ) {
+            AsyncImage(
+                model =
+                    primaryImageUrl,
+                contentDescription =
+                    null,
+                contentScale =
+                    ContentScale.Crop,
+                onSuccess = {
+                    /*
+                     * Primary가 새로 로딩 중인 레이어였고
+                     * 현재 필요한 이미지가 맞다면,
+                     * 성공한 순간 화면에 노출한다.
+                     */
+                    if (
+                        !showPrimaryImage &&
+                        primaryImageUrl ==
+                        imageUrl
+                    ) {
+                        showPrimaryImage =
+                            true
+                    }
+                },
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .alpha(
+                            if (
+                                showPrimaryImage
+                            ) {
+                                1f
+                            } else {
+                                0f
+                            },
+                        ),
+            )
+        }
+
+        secondaryImageUrl
+            ?.takeIf { url ->
+                url.isNotBlank()
+            }
+            ?.let { url ->
+                AsyncImage(
+                    model =
+                        url,
+                    contentDescription =
+                        null,
+                    contentScale =
+                        ContentScale.Crop,
+                    onSuccess = {
+                        /*
+                         * Secondary가 새로 로딩 중인 레이어였고
+                         * 현재 필요한 이미지가 맞다면,
+                         * 성공한 순간 화면에 노출한다.
+                         */
+                        if (
+                            showPrimaryImage &&
+                            url ==
+                            imageUrl
+                        ) {
+                            showPrimaryImage =
+                                false
+                        }
+                    },
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .alpha(
+                                if (
+                                    showPrimaryImage
+                                ) {
+                                    0f
+                                } else {
+                                    1f
+                                },
+                            ),
+                )
+            }
+    }
 }
 
 @Composable
@@ -219,48 +369,56 @@ private fun CapturePositionMarker(
         }
 
     Box(
-        modifier = modifier
-            .size(
-                CaptureProfileSize,
-            )
-            .alpha(
-                if (enabled) {
-                    1f
-                } else {
-                    DisabledAlpha
-                },
-            ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(
-                    CircleShape,
+        modifier =
+            modifier
+                .size(
+                    CaptureProfileSize,
                 )
-                .background(
-                    if (selected) {
-                        CaptureAccentColor
+                .alpha(
+                    if (
+                        enabled
+                    ) {
+                        1f
                     } else {
-                        Color.White
-                    },
-                )
-                .clickable(
-                    enabled =
-                        enabled,
-                    interactionSource =
-                        interactionSource,
-                    indication =
-                        null,
-                    onClick =
-                        onClick,
-                )
-                .padding(
-                    if (selected) {
-                        CaptureSelectedBorderWidth
-                    } else {
-                        CaptureDefaultBorderWidth
+                        DisabledAlpha
                     },
                 ),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clip(
+                        CircleShape,
+                    )
+                    .background(
+                        if (
+                            selected
+                        ) {
+                            CaptureAccentColor
+                        } else {
+                            Color.White
+                        },
+                    )
+                    .clickable(
+                        enabled =
+                            enabled,
+                        interactionSource =
+                            interactionSource,
+                        indication =
+                            null,
+                        onClick =
+                            onClick,
+                    )
+                    .padding(
+                        if (
+                            selected
+                        ) {
+                            CaptureSelectedBorderWidth
+                        } else {
+                            CaptureDefaultBorderWidth
+                        },
+                    ),
         ) {
             AsyncImage(
                 model =
@@ -271,26 +429,30 @@ private fun CapturePositionMarker(
                     position.artist.name,
                 contentScale =
                     ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(
-                        CircleShape,
-                    )
-                    .background(
-                        Color.DarkGray,
-                    ),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .clip(
+                            CircleShape,
+                        )
+                        .background(
+                            Color.DarkGray,
+                        ),
             )
         }
 
-        if (selected) {
+        if (
+            selected
+        ) {
             CaptureHereBadge(
-                modifier = Modifier
-                    .align(
-                        Alignment.TopCenter,
-                    )
-                    .offset(
-                        y = (-14).dp,
-                    ),
+                modifier =
+                    Modifier
+                        .align(
+                            Alignment.TopCenter,
+                        )
+                        .offset(
+                            y = (-14).dp,
+                        ),
             )
         }
     }
@@ -301,19 +463,20 @@ private fun CaptureHereBadge(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .clip(
-                RoundedCornerShape(
-                    12.dp,
+        modifier =
+            modifier
+                .clip(
+                    RoundedCornerShape(
+                        12.dp,
+                    ),
+                )
+                .background(
+                    CaptureAccentColor,
+                )
+                .padding(
+                    horizontal = 10.dp,
+                    vertical = 4.dp,
                 ),
-            )
-            .background(
-                CaptureAccentColor,
-            )
-            .padding(
-                horizontal = 10.dp,
-                vertical = 4.dp,
-            ),
         contentAlignment =
             Alignment.Center,
     ) {
@@ -342,43 +505,32 @@ private fun CapturePositionGuide(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(
-                56.dp,
-            )
-            .clip(
-                RoundedCornerShape(
-                    20.dp,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(
+                    56.dp,
+                )
+                .clip(
+                    RoundedCornerShape(
+                        20.dp,
+                    ),
+                )
+                .background(
+                    Color.Black.copy(
+                        alpha = 0.68f,
+                    ),
+                )
+                .padding(
+                    horizontal = 20.dp,
                 ),
-            )
-            .background(
-                Color.Black.copy(
-                    alpha = 0.68f,
-                ),
-            )
-            .padding(
-                horizontal = 20.dp,
-            ),
         contentAlignment =
             Alignment.Center,
     ) {
-        BasicText(
-            text =
-                stringResource(
-                    R.string.capture_select_position,
-                ),
-            style =
-                TextStyle(
-                    color =
-                        Color.White,
-                    fontSize =
-                        18.sp,
-                    fontWeight =
-                        FontWeight.SemiBold,
-                    textAlign =
-                        TextAlign.Center,
-                ),
+        Text(
+            text = stringResource(R.string.capture_select_position),
+            style = MotifTheme.typography.titleSB18,
+            color = MotifTheme.colors.white
         )
     }
 }
@@ -395,36 +547,39 @@ private fun StartChallengeButton(
         }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(
-                64.dp,
-            )
-            .clip(
-                RoundedCornerShape(
-                    18.dp,
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(
+                    64.dp,
+                )
+                .clip(
+                    RoundedCornerShape(
+                        18.dp,
+                    ),
+                )
+                .background(
+                    Color.Black.copy(
+                        alpha =
+                            if (
+                                enabled
+                            ) {
+                                0.72f
+                            } else {
+                                0.4f
+                            },
+                    ),
+                )
+                .clickable(
+                    enabled =
+                        enabled,
+                    interactionSource =
+                        interactionSource,
+                    indication =
+                        null,
+                    onClick =
+                        onClick,
                 ),
-            )
-            .background(
-                Color.Black.copy(
-                    alpha =
-                        if (enabled) {
-                            0.72f
-                        } else {
-                            0.4f
-                        },
-                ),
-            )
-            .clickable(
-                enabled =
-                    enabled,
-                interactionSource =
-                    interactionSource,
-                indication =
-                    null,
-                onClick =
-                    onClick,
-            ),
         contentAlignment =
             Alignment.Center,
     ) {
