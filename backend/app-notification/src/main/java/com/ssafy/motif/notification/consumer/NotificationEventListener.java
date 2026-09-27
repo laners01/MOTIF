@@ -98,7 +98,8 @@ public class NotificationEventListener {
                     CommentCreatedEvent event = read(message, CommentCreatedEvent.class);
                     handle(event.eventId(), routingKey, () -> toOne(event.recipientUserSeq(),
                             PushMessage.newReply(event.targetType(), event.targetSeq(),
-                                    event.commentSeq(), event.actorNickname(),
+                                    event.commentSeq(), event.parentCommentSeq(),
+                                    event.actorNickname(),
                                     event.contentPreview())));
                 }
                 // §13 합성 완료·실패 — 잡 주인에게 (S15P21D104-319)

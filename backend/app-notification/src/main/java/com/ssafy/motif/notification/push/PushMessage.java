@@ -68,12 +68,18 @@ public record PushMessage(String type, String title, String body,
                 targetKey(targetType), targetSeq, commentSeq);
     }
 
-    /** §9.3 답글 — 부모 댓글 작성자에게. */
+    /**
+     * §9.3 답글 — 부모 댓글 작성자에게.
+     *
+     * <p>{@code parentCommentSeq} 를 싣는다 — 앱이 알림에서 바로 원본 댓글 스레드를 연다.
+     */
     public static PushMessage newReply(String targetType, Long targetSeq, Long commentSeq,
+                                       Long parentCommentSeq,
                                        String actorNickname, String contentPreview) {
         return new PushMessage(TYPE_NEW_REPLY,
                 actorNickname + "님이 답글을 남겼어요", contentPreview,
-                targetKey(targetType), targetSeq, commentSeq);
+                targetKey(targetType), targetSeq, commentSeq,
+                Map.of("parentCommentSeq", String.valueOf(parentCommentSeq)));
     }
 
     /**

@@ -112,7 +112,8 @@ class NotificationEventListenerTest {
         PushMessage sent = captureSent();
         assertThat(sent.type()).isEqualTo(PushMessage.TYPE_NEW_REPLY);
         assertThat(sent.title()).isEqualTo("팬1님이 답글을 남겼어요");
-        assertThat(sent.data()).containsEntry("commentSeq", "900");
+        assertThat(sent.data()).containsEntry("commentSeq", "900")
+                .containsEntry("parentCommentSeq", "800");
     }
 
     @Test
