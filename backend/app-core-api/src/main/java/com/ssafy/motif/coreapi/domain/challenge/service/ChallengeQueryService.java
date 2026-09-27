@@ -141,7 +141,8 @@ public class ChallengeQueryService {
                 c.getCommentCount(),
                 liked,
                 subscribed,
-                c.getDescription());
+                c.getDescription(),
+                c.getRegDttm());
     }
 
     /** §7.2 챌린지 상세. */

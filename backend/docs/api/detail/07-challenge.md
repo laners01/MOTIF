@@ -55,7 +55,8 @@ Authorization: Bearer {accessToken}
         "commentCount": 210,
         "isLiked": false,
         "isSubscribed": true,
-        "description": "같이 춰요!"
+        "description": "같이 춰요!",
+        "regDttm": "2026-09-10T00:00:00.000Z"
       }
     ],
     "prevCursor": null,
@@ -75,6 +76,7 @@ Authorization: Bearer {accessToken}
 | `isSubscribed` | 피드 오버레이의 구독 버튼 상태 — 이 항목에 속한다 |
 | `description` | 챌린지 소개글 *(2026-09-22 추가)* — 피드 오버레이가 바로 쓴다. 소개글 때문에 §7.2 를 부르지 않는다 |
 | `participantCount` | **PUBLIC·PRIVATE 를 모두 포함**한 게시 참여 수 |
+| `regDttm` | 챌린지 등록 시각(ISO-8601 UTC) — 피드의 날짜 표시용 *(2026-09-27 추가)* |
 
 `participantCount` 가 PRIVATE 를 포함하는 것은 의도된 결정이다 — **PRIVATE 영상의 조회 비노출(§1.8)과 카운트 집계는 분리**한다. 그래서 참여 수가 340 인데 목록에는 그보다 적게 보일 수 있다.
 

@@ -2,6 +2,8 @@ package com.ssafy.motif.coreapi.domain.challenge.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.Instant;
+
 /**
  * 숏폼 피드 항목 (API 명세 §7.1).
  *
@@ -37,7 +39,10 @@ public record ChallengeFeedItem(
         boolean isSubscribed,
 
         @Schema(description = "챌린지 소개글")
-        String description
+        String description,
+
+        @Schema(description = "챌린지 등록 시각 (ISO-8601 UTC)", example = "2026-09-10T00:00:00.000Z")
+        Instant regDttm
 ) {
 
     public record Artist(Integer artistSeq, String name, String profileImageUrl) {
