@@ -12,6 +12,7 @@ import com.ssafy.motif.core.network.model.challenge.PublishParticipationVideoRes
 import com.ssafy.motif.core.network.model.challenge.ReportParticipationVideoRequest
 import com.ssafy.motif.core.network.model.challenge.UpdateParticipationVideoRequest
 import com.ssafy.motif.core.network.model.challenge.VideoVisibility
+import com.ssafy.motif.core.network.model.challenge.ViewCountRequest
 import javax.inject.Inject
 
 class ChallengeClient @Inject constructor(
@@ -51,6 +52,14 @@ class ChallengeClient @Inject constructor(
                 challengeSeq = id,
             )
         }
+    }
+
+    suspend fun recordChallengeViews(
+        views: Map<Long, Int>,
+    ) {
+        challengeService.postChallengeViews(
+            request = views.toViewCountRequest(),
+        )
     }
 
     suspend fun getChallengeCapturePositions(
@@ -93,6 +102,14 @@ class ChallengeClient @Inject constructor(
                 videoSeq = id,
             )
             .data
+
+    suspend fun recordParticipationVideoViews(
+        views: Map<Long, Int>,
+    ) {
+        challengeService.postParticipationVideoViews(
+            request = views.toViewCountRequest(),
+        )
+    }
 
     suspend fun publishParticipationVideo(
         jobUuid: String,
@@ -192,7 +209,34 @@ class ChallengeClient @Inject constructor(
             )
             .data
 
+    private fun Map<Long, Int>.toViewCountRequest(): ViewCountRequest {
+        require(size in 1..MAX_VIEW_TARGETS) {
+            "views size must be between 1 and $MAX_VIEW_TARGETS"
+        }
+
+        forEach { (id, count) ->
+            require(id > 0L) {
+                "view target id must be greater than 0"
+            }
+
+            require(count in 1..MAX_VIEW_COUNT_PER_TARGET) {
+                "view count must be between 1 and $MAX_VIEW_COUNT_PER_TARGET"
+            }
+        }
+
+        return ViewCountRequest(
+            views =
+                mapKeys { (id, _) ->
+                    id.toString()
+                },
+        )
+    }
+
     private companion object {
         const val DEFAULT_FEED_SIZE = 20
+
+        const val MAX_VIEW_TARGETS = 50
+
+        const val MAX_VIEW_COUNT_PER_TARGET = 100
     }
 }

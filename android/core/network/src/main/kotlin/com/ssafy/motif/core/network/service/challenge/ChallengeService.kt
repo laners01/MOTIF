@@ -12,6 +12,8 @@ import com.ssafy.motif.core.network.model.challenge.PublishParticipationVideoReq
 import com.ssafy.motif.core.network.model.challenge.PublishParticipationVideoResponse
 import com.ssafy.motif.core.network.model.challenge.ReportParticipationVideoRequest
 import com.ssafy.motif.core.network.model.challenge.UpdateParticipationVideoRequest
+import com.ssafy.motif.core.network.model.challenge.ViewCountRequest
+import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -43,6 +45,11 @@ interface ChallengeService {
         @Path("challengeSeq") challengeSeq: Long,
     )
 
+    @POST("/api/v1/challenges/view")
+    suspend fun postChallengeViews(
+        @Body request: ViewCountRequest,
+    ): BaseResponse<JsonElement>
+
     @GET("/api/v1/challenges/{challengeSeq}/participants")
     suspend fun getChallengeCapturePositions(
         @Path("challengeSeq") challengeSeq: Long,
@@ -68,6 +75,11 @@ interface ChallengeService {
     suspend fun getParticipationVideo(
         @Path("videoSeq") videoSeq: Long,
     ): BaseResponse<ParticipationVideoResponse>
+
+    @POST("/api/v1/videos/view")
+    suspend fun postParticipationVideoViews(
+        @Body request: ViewCountRequest,
+    ): BaseResponse<JsonElement>
 
     @POST("/api/v1/videos")
     suspend fun publishParticipationVideo(

@@ -255,6 +255,22 @@ internal class ChallengeParticipationViewModel @Inject constructor(
                 )
     }
 
+    fun recordParticipationView(
+        videoId: Long,
+    ) {
+        challengeRepository
+            .recordChallengeParticipationViews(
+                views =
+                    mapOf(
+                        videoId to 1,
+                    ),
+            )
+            .asResult()
+            .launchIn(
+                viewModelScope,
+            )
+    }
+
     fun loadVideoComments(
         videoId: Long,
     ) {
@@ -705,8 +721,7 @@ internal class ChallengeParticipationViewModel @Inject constructor(
                                 initialParticipation
                                     ?.let { initial ->
                                         participations
-                                            .indexOfFirst {
-                                                    participation ->
+                                            .indexOfFirst { participation ->
                                                 participation.id ==
                                                         initial.id
                                             }
@@ -800,8 +815,7 @@ internal class ChallengeParticipationViewModel @Inject constructor(
                                                 state.participations +
                                                         result.data.items
                                                 )
-                                            .distinctBy {
-                                                    participation ->
+                                            .distinctBy { participation ->
                                                 participation.id
                                             },
                                     nextCursor =
@@ -852,8 +866,7 @@ internal class ChallengeParticipationViewModel @Inject constructor(
         }
 
         if (
-            participations.any {
-                    participation ->
+            participations.any { participation ->
                 participation.id ==
                         initialParticipation.id
             }
@@ -875,8 +888,7 @@ internal class ChallengeParticipationViewModel @Inject constructor(
                 ?: return null
 
         return state.participations
-            .firstOrNull {
-                    participation ->
+            .firstOrNull { participation ->
                 participation.id ==
                         videoId
             }

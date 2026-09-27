@@ -32,6 +32,10 @@ interface ChallengeRepository {
         isLiked: Boolean,
     ): Flow<Unit>
 
+    fun recordChallengeViews(
+        views: Map<Long, Int>,
+    ): Flow<Unit>
+
     fun getChallengeCapturePositions(
         challengeId: Long,
     ): Flow<List<CapturePosition>>
@@ -53,6 +57,10 @@ interface ChallengeRepository {
     fun getChallengeParticipation(
         id: Long,
     ): Flow<ChallengeParticipation>
+
+    fun recordChallengeParticipationViews(
+        views: Map<Long, Int>,
+    ): Flow<Unit>
 
     fun publishChallengeParticipation(
         jobUuid: String,

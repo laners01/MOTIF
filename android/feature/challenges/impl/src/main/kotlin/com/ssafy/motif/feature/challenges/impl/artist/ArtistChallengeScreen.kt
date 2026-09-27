@@ -132,6 +132,8 @@ internal fun ArtistChallengeScreen(
                     onMotifClick,
                 onLoadMore =
                     viewModel::loadMoreChallenges,
+                onVideoPlaybackStarted =
+                    viewModel::recordChallengeView,
                 modifier =
                     modifier,
             )
@@ -235,6 +237,7 @@ private fun ArtistChallengeScreen(
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
     onLoadMore: () -> Unit,
+    onVideoPlaybackStarted: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val focusManager =
@@ -338,6 +341,8 @@ private fun ArtistChallengeScreen(
                 onMotifClick,
             onLoadMore =
                 onLoadMore,
+            onVideoPlaybackStarted =
+                onVideoPlaybackStarted,
             modifier =
                 Modifier.fillMaxSize(),
         ) { index, backdropState ->

@@ -127,6 +127,8 @@ internal fun ChallengeParticipationScreen(
                     onMotifClick,
                 onLoadMore =
                     viewModel::loadMoreParticipations,
+                onVideoPlaybackStarted =
+                    viewModel::recordParticipationView,
                 modifier =
                     modifier,
             )
@@ -157,8 +159,7 @@ internal fun ChallengeParticipationScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChallengeParticipationScreen(
-    participations:
-    List<ChallengeParticipation>,
+    participations: List<ChallengeParticipation>,
     initialPage: Int,
     myProfileImageUrl: String,
     commentUiState: CommentUiState,
@@ -177,6 +178,7 @@ private fun ChallengeParticipationScreen(
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
     onLoadMore: () -> Unit,
+    onVideoPlaybackStarted: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val focusManager =
@@ -201,8 +203,7 @@ private fun ChallengeParticipationScreen(
         commentVideoId
             ?.let { videoId ->
                 participations
-                    .firstOrNull {
-                            participation ->
+                    .firstOrNull { participation ->
                         participation.id ==
                                 videoId
                     }
@@ -266,6 +267,8 @@ private fun ChallengeParticipationScreen(
                 onMotifClick,
             onLoadMore =
                 onLoadMore,
+            onVideoPlaybackStarted =
+                onVideoPlaybackStarted,
             modifier =
                 Modifier.fillMaxSize(),
         ) { index, _ ->

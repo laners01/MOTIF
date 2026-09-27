@@ -14,7 +14,6 @@ import com.ssafy.motif.core.model.comment.CommentType
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +23,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltViewModel
 internal class ArtistChallengeViewModel @Inject constructor(
@@ -243,6 +243,23 @@ internal class ArtistChallengeViewModel @Inject constructor(
                     }
                 }
             }
+            .launchIn(
+                viewModelScope,
+            )
+    }
+
+    fun recordChallengeView(
+        challengeId: Long,
+    ) {
+
+        challengeRepository
+            .recordChallengeViews(
+                views =
+                    mapOf(
+                        challengeId to 1,
+                    ),
+            )
+            .asResult()
             .launchIn(
                 viewModelScope,
             )

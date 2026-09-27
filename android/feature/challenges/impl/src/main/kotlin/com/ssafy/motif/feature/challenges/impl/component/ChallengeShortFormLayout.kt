@@ -28,6 +28,7 @@ internal fun ChallengeShortFormLayout(
     onMyClick: () -> Unit,
     onMotifClick: () -> Unit,
     onLoadMore: () -> Unit,
+    onVideoPlaybackStarted: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
     initialPage: Int = 0,
     overlay: @Composable (
@@ -65,6 +66,13 @@ internal fun ChallengeShortFormLayout(
                 captureBackdrop = true,
                 userScrollEnabled =
                     !isBottomSheetVisible,
+                onPlaybackStarted = { mediaId ->
+                    mediaId
+                        .toLongOrNull()
+                        ?.let(
+                            onVideoPlaybackStarted,
+                        )
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .scaleForBottomSheet(

@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import com.ssafy.motif.core.designsystem.component.Icon
 import com.ssafy.motif.core.designsystem.glass.GlassBackdropState
 import com.ssafy.motif.core.designsystem.icon.MotifIcons
@@ -54,6 +56,7 @@ fun VideoShortsFeed(
     repeat: Boolean = true,
     captureBackdrop: Boolean = false,
     userScrollEnabled: Boolean = true,
+    onPlaybackStarted: (videoId: String) -> Unit = {},
     decoration: @Composable BoxScope.(
         index: Int,
         selected: Boolean,
@@ -94,6 +97,25 @@ fun VideoShortsFeed(
             repeat = repeat,
         )
 
+    val currentOnPlaybackStarted by
+    rememberUpdatedState(
+        onPlaybackStarted,
+    )
+
+    var pendingPlaybackMediaId by
+    remember {
+        mutableStateOf<String?>(
+            null,
+        )
+    }
+
+    var lastPlaybackRequestedMediaId by
+    remember {
+        mutableStateOf<String?>(
+            null,
+        )
+    }
+
     DisposableEffect(
         state,
         mediaController,
@@ -112,6 +134,60 @@ fun VideoShortsFeed(
         }
     }
 
+    DisposableEffect(
+        mediaController,
+    ) {
+        val player =
+            mediaController?.player
+
+        if (player == null) {
+            return@DisposableEffect onDispose {}
+        }
+
+        val listener =
+            object : Player.Listener {
+
+                override fun onIsPlayingChanged(
+                    isPlaying: Boolean,
+                ) {
+                    
+                    if (!isPlaying) {
+                        return
+                    }
+
+                    val currentMediaId =
+                        player
+                            .currentMediaItem
+                            ?.mediaId
+                            ?: return
+
+                    if (
+                        pendingPlaybackMediaId !=
+                        currentMediaId
+                    ) {
+                        return
+                    }
+
+                    pendingPlaybackMediaId =
+                        null
+
+                    currentOnPlaybackStarted(
+                        currentMediaId,
+                    )
+                }
+            }
+
+        player.addListener(
+            listener,
+        )
+
+        onDispose {
+            player.removeListener(
+                listener,
+            )
+        }
+    }
+
     LaunchedEffect(
         pagerState.settledPage,
         mediaController,
@@ -120,14 +196,37 @@ fun VideoShortsFeed(
             mediaController
                 ?: return@LaunchedEffect
 
+        val page =
+            pagerState.settledPage
+
+        val targetMediaId =
+            videoId(page)
+
         state.clearPlaybackFeedback()
 
         state.playbackProgress =
             0f
 
+        /*
+         * pagination 등으로 mediaController만 재생성된 경우
+         * 같은 영상을 조회수로 다시 기록하지 않는다.
+         *
+         * A -> B -> A처럼 실제 페이지가 다시 변경된 경우에는
+         * targetMediaId가 변경되므로 새로운 재생으로 기록된다.
+         */
+        if (
+            lastPlaybackRequestedMediaId !=
+            targetMediaId
+        ) {
+            pendingPlaybackMediaId =
+                targetMediaId
+        }
+
+        lastPlaybackRequestedMediaId =
+            targetMediaId
+
         controller.play(
-            index =
-                pagerState.settledPage,
+            index = page,
         )
     }
 

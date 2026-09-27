@@ -23,14 +23,14 @@ import com.ssafy.motif.core.model.composite.CompositeJobRetryResult
 import com.ssafy.motif.core.model.composite.CompositeJobUpload
 import com.ssafy.motif.core.network.service.challenge.ChallengeClient
 import com.ssafy.motif.core.network.service.composite.CompositeJobClient
-import java.io.File
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import java.io.File
+import javax.inject.Inject
 
 class ChallengeRepositoryImpl @Inject constructor(
     private val challengeClient: ChallengeClient,
@@ -374,6 +374,28 @@ class ChallengeRepositoryImpl @Inject constructor(
             emit(
                 response.toModel(),
             )
+        }.flowOn(ioDispatcher)
+
+    override fun recordChallengeViews(
+        views: Map<Long, Int>,
+    ): Flow<Unit> =
+        flow {
+            challengeClient.recordChallengeViews(
+                views = views,
+            )
+
+            emit(Unit)
+        }.flowOn(ioDispatcher)
+
+    override fun recordChallengeParticipationViews(
+        views: Map<Long, Int>,
+    ): Flow<Unit> =
+        flow {
+            challengeClient.recordParticipationVideoViews(
+                views = views,
+            )
+
+            emit(Unit)
         }.flowOn(ioDispatcher)
 
     private companion object {
