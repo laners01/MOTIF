@@ -141,6 +141,23 @@ notification 페이로드를 쓰면 앱이 백그라운드일 때 시스템이 �
 
 합성 완료·실패 알림(MOTIF·CHALLENGE)은 **`jobUuid`** 를 싣고, 앱은 진입 시 §13.3 을 1회 조회한다.
 
+### 알림 종류
+
+| `type` | 발송 시점 | 수신자 | 대상 키 | 추가 키 |
+|---|---|---|---|---|
+| `NEW_CHALLENGE` | 아티스트 신규 챌린지 등록 | 그 아티스트 구독자 전원 | `challengeSeq` | — |
+| `NEW_NOTICE` | 아티스트 신규 공지 등록 | 그 아티스트 구독자 전원 | `noticeSeq` | — |
+| `NEW_COMMENT` | 내 게시물에 댓글 | 게시물 주인 | `challengeSeq` \| `videoSeq` \| `noticeSeq` | `commentSeq` |
+| `NEW_REPLY` | 내 댓글에 답글 | 원댓글 작성자 | `challengeSeq` \| `videoSeq` \| `noticeSeq` | `commentSeq` |
+| `COMPOSITE_DONE` | 합성 완료 | 잡 주인 | `jobUuid` | `jobType` |
+| `COMPOSITE_FAILED` | 합성 실패 | 잡 주인 | `jobUuid` | `jobType`, `failCode` |
+
+- 댓글·답글의 대상 키는 댓글이 달린 게시물 종류를 따른다. `commentSeq` 는 스레드 안 해당 댓글 위치로 이동할 때 쓴다
+- `jobType` 은 `MOTIF` \| `CHALLENGE`
+- 수신자의 활성 기기가 여럿이면 전부 발송한다
+- data 메시지라 **모든 값이 문자열**이다. `challengeSeq` 등 숫자도 문자열로 온다
+- 좋아요 알림은 없다
+
 ### 알림 설정도 로컬이다
 
 SETTING-02(전체 / 아티스트 / 게시물 / 서비스 ON·OFF)는 **Android DataStore 등 로컬에만** 저장한다. **서버에 설정 테이블도 설정 API 도 없다.**
