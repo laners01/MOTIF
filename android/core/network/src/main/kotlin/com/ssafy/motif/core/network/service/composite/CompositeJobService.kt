@@ -6,6 +6,7 @@ import com.ssafy.motif.core.network.model.composite.CreateCompositeJobRequest
 import com.ssafy.motif.core.network.model.composite.CreateCompositeJobResponse
 import com.ssafy.motif.core.network.model.composite.RequestCompositeJobRequest
 import com.ssafy.motif.core.network.model.composite.RequestCompositeJobResponse
+import com.ssafy.motif.core.network.model.composite.RequestMotifCompositeJobRequest
 import com.ssafy.motif.core.network.model.composite.RetryCompositeJobResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -23,6 +24,12 @@ interface CompositeJobService {
     suspend fun requestCompositeJob(
         @Path("jobUuid") jobUuid: String,
         @Body request: RequestCompositeJobRequest,
+    ): BaseResponse<RequestCompositeJobResponse>
+
+    @POST("/api/v1/composite-jobs/{jobUuid}/request")
+    suspend fun requestMotifCompositeJob(
+        @Path("jobUuid") jobUuid: String,
+        @Body request: RequestMotifCompositeJobRequest,
     ): BaseResponse<RequestCompositeJobResponse>
 
     @GET("/api/v1/composite-jobs/{jobUuid}")
