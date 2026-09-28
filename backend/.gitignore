@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
+
+# macOS
+.DS_Store
+
+# 로컬 비밀 — 하이브리드(local-remote) 모드 서버 자격증명 (.env.example 참조)
+.env

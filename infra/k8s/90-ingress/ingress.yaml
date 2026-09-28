@@ -1,0 +1,24 @@
+# 외부 진입점.
+#
+# 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> Service
+#
+# 경로 분배는 앱 쪽 Ingress 가 각자 들고 있다 — `/api` 는 40-core-api/ingress.yaml,
+# `/admin` 은 40-core-api/ingress-admin.yaml(IP 제한 포함), `/project/` 는
+# 50-jenkins-webhook/. **애플리케이션 게이트웨이(SCG)는 두지 않는다** — Traefik 이
+# core-api 로 직결하고 인증은 앱의 Spring Security 가 한다(ADR-0009).
+# `/` 를 받는 캐치올은 두지 않는다. Walking Skeleton 검증용 whoami(hello)가
+# 2026-09-13 까지 `/` 를 잡고 있었는데, 그 탓에 요청 헤더를 그대로 되돌려주는
+# 디버그 서비스가 공인 도메인에 열려 있었고 /admin 도 앱이 아니라 그쪽으로
+# 갔다(ingress-admin.yaml 이 apply 되지 않은 상태였다). 경로는 각 앱 Ingress 가
+# 명시적으로만 가져간다.
+#
+# 인증서는 cert-manager가 letsencrypt-prod로 발급해 motif-tls Secret에 저장하며,
+# 만료 30일 전 자동 갱신한다.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

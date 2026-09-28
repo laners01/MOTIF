@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('모티프 에셋 등록', ~{::main})}">
+<body>
+<!--/*
+  §3.8.2 에셋 등록. API 는 396·568 로 이미 있었는데 화면만 없었다 — 어드민 UI 로
+  에셋을 등록할 길이 아예 없던 상태다(S15P21D104-400).
+
+  챌린지 등록과 갈라 둔다. 겹치는 것은 presign 업로드뿐이고 나머지가 전부 다르다:
+  에셋은 슬롯도 편집본도 없고, 대신 KR 가격이 등록과 한 트랜잭션에 묶인다(§3.8.2).
+  로직은 asset-new.js.
+*/-->
+<main>
+    <p class="err" id="err" hidden></p>
+
+    <section>
+        <h2>1. 아티스트</h2>
+        <label>아티스트 <select id="artist"><option value="">선택</option></select></label>
+    </section>
+
+    <section>
+        <h2>2. 영상 <span class="muted">— 가로 · 3분 이내</span></h2>
+        <p>
+            <input type="file" id="file" accept="video/mp4,video/quicktime">
+        </p>
+        <!--/* videoMeta 에 이 요소를 넘겨 첫 프레임까지 보여준다 — 잘못 고른 파일을 여기서 알아챈다 */-->
+        <video id="preview" width="360" controls muted hidden></video>
+        <p class="muted" id="meta"></p>
+        <!--/* 썸네일 시각 — 이미지를 따로 올리지 않는다. 여기서 고른 지점을 워커가
+               원본에서 뽑으므로 화질이 원본 그대로다(§4.8). 규격 검증하려고 이미
+               띄워둔 그 <video> 를 그대로 스크럽한다 — 챌린지 등록과 같은 UI. */-->
+        <div id="thumb-pick" hidden>
+            <label>썸네일 시각
+                <input type="range" id="thumb-at" min="0" step="0.1" value="1.5">
+                <span class="muted" id="thumb-at-label">1.50초</span>
+            </label>
+            <p class="muted">비워두면 1.5초 지점을 쓴다 — 도입부가 페이드인·검은 화면이면 옮겨라.</p>
+        </div>
+        <ol class="progress">
+            <li data-step="upload">S3 업로드</li>
+        </ol>
+    </section>
+
+    <section>
+        <h2>3. 정보</h2>
+        <p><label>표시명 <input type="text" id="title" maxlength="100" placeholder="숍에 노출되는 이름"></label></p>
+        <p><label>소개 <input type="text" id="description" placeholder="선택"></label></p>
+        <p>
+            <label>타입
+                <select id="asset-type">
+                    <option value="NORMAL">NORMAL</option>
+                    <option value="PREMIUM">PREMIUM</option>
+                    <option value="SECRET">SECRET</option>
+                </select>
+            </label>
+        </p>
+    </section>
+
+    <section>
+        <h2>4. 가격 <span class="muted">— KR, 필수</span></h2>
+        <p>
+            <label>판매가 <input type="number" id="amount" min="1" step="1" placeholder="3900"></label>
+            <span class="muted">KRW</span>
+        </p>
+        <!--/*
+          가격이 필수인 것은 AssetCreateRequest 의 @NotNull 이다(568) — 가격 없는 에셋이
+          활성으로 남는 것을 막는다. 명세 §3.8.2 는 선택으로 적혀 있고 §8 #7 이 미결이라,
+          "허용" 으로 확정되면 이 칸과 서버의 @NotNull 을 같이 뗀다.
+        */-->
+    </section>
+
+    <section>
+        <h2>5. 등록</h2>
+        <button type="button" id="submit" disabled>등록</button>
+        <a href="/admin/assets">목록</a>
+        <p id="result"></p>
+    </section>
+
+    <script src="/admin/asset-new.js" defer></script>
+</main>
+</body>
+</html>

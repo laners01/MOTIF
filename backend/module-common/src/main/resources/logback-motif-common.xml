@@ -1,0 +1,12 @@
+<!--
+  전 모듈 공통 콘솔 어펜더 (requestId 추적 — ADR-0005).
+  각 앱의 logback-spring.xml 에서 <include resource="logback-motif-common.xml"/> 로 쓴다.
+  %X{requestId:-} : HTTP는 RequestIdFilter, MQ 컨슈머는 x-request-id 헤더에서 MDC 복원.
+-->
+<included>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Seoul} %-5level [%thread] [%X{requestId:-}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+</included>

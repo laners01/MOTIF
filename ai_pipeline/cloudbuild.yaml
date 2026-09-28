@@ -1,0 +1,35 @@
+# 메인 GPU 워커 이미지(precompute+compose 공유) 빌드.
+# `gcloud builds submit --tag` 은 --no-cache 를 강제해 매번 풀빌드(~17분)가 된다.
+# 이 config 는 이전 이미지(:cache)를 BuildKit inline cache 로 재사용한다. Dockerfile 레이어가
+# [무거운 model-env → 앱 소스] 순서라, 앱 코드만 바뀐 빌드는 model-env 레이어를 캐시 히트해
+# pull+COPY+검증+push 만 남는다(대략 ~5분). model-env/requirements 를 바꾸면 그 지점부터
+# 재빌드(불가피).
+#
+# 사용:
+#   gcloud builds submit --config=cloudbuild.yaml --substitutions=_TAG=v7 --project=ssafy-motif .
+#
+# 첫 실행은 :cache 시드가 없어 풀빌드지만, 그 실행이 :cache 를 만들어 다음 빌드부터 빨라진다.
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/ssafy-motif/video-workers/motif-compose
+  _TAG: latest
+steps:
+  # 이전 캐시 이미지를 받아 둔다(첫 빌드엔 없으므로 실패를 무시).
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args: ['-c', 'docker pull ${_IMAGE}:cache || true']
+  # BuildKit inline cache 로 빌드하고, 결과를 요청 태그와 :cache 양쪽에 단다.
+  - name: gcr.io/cloud-builders/docker
+    env: ['DOCKER_BUILDKIT=1']
+    args:
+      - build
+      - --build-arg=BUILDKIT_INLINE_CACHE=1
+      - --cache-from=${_IMAGE}:cache
+      - -t=${_IMAGE}:${_TAG}
+      - -t=${_IMAGE}:cache
+      - .
+images:
+  - ${_IMAGE}:${_TAG}
+  - ${_IMAGE}:cache
+options:
+  machineType: E2_HIGHCPU_32
+timeout: 7200s

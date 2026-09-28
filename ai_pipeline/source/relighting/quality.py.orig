@@ -1,0 +1,81 @@
+"""Conservative same-subject illumination transfer, not a physical lighting metric."""
+import cv2
+import numpy as np
+from source.relighting import automatic as a
+from source.util import removal_experiments as ex
+
+POLICY = 'same-subject-color-v4'
+
+
+def gray(image):
+    return cv2.cvtColor(image,cv2.COLOR_BGR2GRAY).astype(np.float32)/255
+
+
+def structure(first,second,valid):
+    """Gradient cosine ignores uniform exposure scaling, unlike raw Laplacian error."""
+    gradients = []
+    for image in (first,second):
+        im = gray(image)
+        gradients.append(np.stack([cv2.Sobel(im,cv2.CV_32F,1,0),
+                                   cv2.Sobel(im,cv2.CV_32F,0,1)],axis=-1)[valid].ravel())
+    x,y = gradients
+    norm = float(np.linalg.norm(x)*np.linalg.norm(y))
+    return float(np.clip(np.dot(x,y)/norm,0,1)) if norm>1e-8 else 0.
+
+
+def evaluate(plan,folder):
+    # Sixteen distributed adjacent pairs instead of three pairs. No other person's RGB target.
+    count = plan['probe_frames'];start = plan['probe_start']
+    indices = sorted({min(count-1,int(i)+j) for i in np.linspace(0,max(0,count-2),min(16,count)) for j in (0,1)})
+    samples = []
+    for i in indices:
+        original = a.small(a.frame(plan['source'],start+i))
+        alpha = a.small(a.mask_at(plan['alpha_dir'],start+i))
+        valid = cv2.erode((alpha>240).astype(np.uint8),np.ones((3,3),np.uint8))>0
+        if valid.sum()<16: continue
+        reference = a.small(a.frame(ex.local(folder)/'relit_0000.mp4',i))
+        confidence = structure(original,reference,valid)
+        gain = a.gain_map(original,reference,alpha)
+        samples.append((i,original,alpha,valid,confidence,gain))
+    if not samples: raise ValueError('조명 평가에 필요한 전경 내부 영역이 없습니다.')
+    rows = []
+    for strength in (0.,.25,.5,.75):
+        values = [];flicker = [];last = None
+        for i,original,alpha,valid,confidence,gain in samples:
+            adjusted = a.apply_gain(original,alpha,gain,strength)
+            # Do not encourage matching a reference that changed the subject's structure.
+            trust = float(np.clip((confidence-.25)/.5,0,1))
+            target = np.log(1+trust*(gain-1))
+            correction = np.log(1+strength*(gain-1))
+            fidelity = float(np.mean(np.abs(correction[valid]-target[valid])))
+            detail = 1-structure(original,adjusted,valid)
+            # Only newly introduced clipping is penalized; original dark clothing is not.
+            new_clip = ((adjusted<3)|(adjusted>252)) & ~((original<3)|(original>252))
+            clipping = float(np.mean(new_clip[valid]))
+            unreliable = (1-trust)*float(np.mean(np.abs(correction[valid])))
+            values.append([fidelity,.25*detail,5*clipping,unreliable])
+            if last is not None and i==last[0]+1:
+                # Backward flow maps current coordinates to the previous original frame.
+                current_gray=cv2.cvtColor(original,cv2.COLOR_BGR2GRAY)
+                prior_gray=cv2.cvtColor(last[1],cv2.COLOR_BGR2GRAY)
+                flow = cv2.calcOpticalFlowFarneback(current_gray,prior_gray,None,.5,3,15,3,5,1.2,0)
+                yy,xx = np.indices(valid.shape,dtype=np.float32)
+                mx,my = xx+flow[...,0],yy+flow[...,1]
+                prior = cv2.remap(last[2],mx,my,cv2.INTER_LINEAR)
+                prior_mask = cv2.remap(last[3].astype(np.uint8),mx,my,cv2.INTER_NEAREST)>0
+                overlap = valid&prior_mask&(mx>=0)&(mx<valid.shape[1]-1)&(my>=0)&(my<valid.shape[0]-1)
+                if overlap.any(): flicker.append(float(np.mean(np.abs(correction[overlap]-prior[overlap]))))
+            last = (i,original,correction,valid)
+        mean = np.mean(values,axis=0)
+        components = dict(zip(('illumination_residual','normalized_detail','new_clipping','unreliable_reference'),map(float,mean)))
+        components['motion_aligned_flicker'] = float(np.mean(flicker or [0]))
+        rows.append(dict(candidate=0 if strength else None,strength=strength,
+                         score=sum(components.values()),components=components))
+    best = min(rows,key=lambda row:row['score'])
+    improvement = rows[0]['score']-best['score']
+    if improvement<max(1e-4,.01*rows[0]['score']): best=rows[0]
+    return dict(policy=POLICY,selected=best,evaluations=rows,baseline_score=rows[0]['score'],
+                evaluation_frames=[s[0]+start for s in samples],
+                reference_structure_confidence=float(np.mean([s[4] for s in samples])),
+                reason='원본 대비 신뢰 가능한 개선 부족' if not best['strength'] else '같은 전경의 안정적인 조명 변화량 채택',
+                metric='confidence-weighted model illumination transfer + exposure-normalized structure + new clipping + motion-aligned flicker; heuristic')

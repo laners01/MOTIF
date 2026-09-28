@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('활동 대행', ~{::main})}">
+<body>
+<!--/* 대행 컨텍스트 선택(ADMIN-11 · §1.7 "이 아티스트로 활동"). 로직은 act-as.js. */-->
+<main>
+    <section class="frame">
+        <p id="current" class="ok">활동 중인 아티스트가 없습니다.</p>
+        <p>
+            <a href="/admin/act-as/challenges">챌린지 대행</a>
+            <a href="/admin/act-as/videos">참여 영상 대행</a>
+            <a href="/admin/act-as/notices">공지 댓글 대행</a>
+            <button type="button" id="clear" hidden>대행 해제</button>
+        </p>
+    </section>
+
+    <p>
+        <label style="display:inline">아티스트
+            <input type="search" id="q" placeholder="이름 부분 일치">
+        </label>
+        <button type="button" id="reload">조회</button>
+    </p>
+    <p class="err" id="err" hidden></p>
+
+    <table>
+        <thead>
+        <tr><th>#</th><th>이름</th><th>그룹</th><th>소속사</th><th>구독자</th><th></th></tr>
+        </thead>
+        <tbody id="artists"></tbody>
+    </table>
+    <p class="muted" id="page-hint"></p>
+    <p>
+        <button type="button" id="prev" disabled>이전</button>
+        <button type="button" id="next" disabled>다음</button>
+    </p>
+
+    <p class="muted">
+        고른 아티스트는 <strong>이 브라우저에만</strong> 저장되고 헤더에 계속 표시된다.
+        서버는 요청마다 경로로 아티스트를 받으므로 "지금 누구로 활동 중"을 알지 못한다.
+        로그아웃하면 해제된다 — 같은 브라우저를 다른 어드민이 쓸 때 남의 컨텍스트로
+        댓글이 달리는 것을 막는다.
+        <strong>삭제된 아티스트는 목록에 나오지 않는다</strong>(대행 대상이 아니라 404다).
+    </p>
+
+    <template id="artist-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="name"></td>
+            <td class="group"></td>
+            <td class="company"></td>
+            <td class="subs"></td>
+            <td><button type="button" class="pick">이 아티스트로 활동</button></td>
+        </tr>
+    </template>
+
+    <script src="/admin/act-as.js" defer></script>
+</main>
+</body>
+</html>

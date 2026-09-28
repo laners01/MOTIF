@@ -1,0 +1,13 @@
+# GCS 버킷 마운트로 채울 가중치 경로 (repo-상대). link_weight_mounts.sh와
+# upload_weights_to_gcs.sh가 함께 읽는다. 끝에 / = 디렉터리, 없으면 단일 파일.
+# 단일 파일 항목은 코드와 같은 디렉터리에 사는 가중치라서 파일 단위로만 링크한다.
+models/rfdetr/
+models/sam2.1_hiera_large.pt
+vendor/svor/models/
+vendor/RelightVid/models/
+vendor/GVHMR/inputs/checkpoints/
+vendor/GVHMR/hmr4d/utils/body_model/smplx2smpl_sparse.pt
+vendor/GVHMR/hmr4d/utils/body_model/smpl_coco17_J_regressor.pt
+vendor/GVHMR/hmr4d/utils/body_model/smplx_verts437.pt
+vendor/MimicMotion/models/DWPose/
+vendor/Video-Depth-Anything/checkpoints/

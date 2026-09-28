@@ -1,0 +1,64 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencies {
+    implementation project(':domain-notif')   // domain-core 금지 — 스키마 경계 (ADR-0004)
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'  // Boot 4 신설 스타터
+
+    // 멱등 가드 — notifications 테이블을 두지 않기로 해(§14) "이미 보냈다" 를 적을
+    // DB 행이 없다. ADR-0005 의 두 방식 중 DB 유니크가 사라져 Redis SETNX 만 남는다
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // FCM HTTP v1. 레거시 서버 키는 2024 에 종료돼 서비스 계정 자격증명만 쓴다
+    implementation libs.firebase.admin
+
+    // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
+    implementation libs.jackson2.databind
+    implementation libs.jackson2.jsr310
+
+    implementation libs.micrometer.prometheus
+
+    runtimeOnly libs.postgresql
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
+}
+
+// 기본 test 는 외부 의존이 없는 것만 돈다 — Jenkinsfile 이 이 태스크를 실행하며
+// 그 에이전트에는 DB·MQ·Redis 가 없다. app-core-api 와 같은 규약이다.
+tasks.named('test', Test) {
+    useJUnitPlatform {
+        excludeTags 'local-db'
+    }
+}
+
+// 로컬 compose(ADR-0003 격리 모드)가 떠 있을 때만 도는 통합 테스트.
+//   cd backend/local-infra && docker compose up -d --wait
+//   ./gradlew :app-notification:localDbTest
+//
+// 이 모듈은 DB 에 더해 **Redis 도** 필요하다 — 멱등 가드가 SETNX 를 쓴다.
+tasks.register('localDbTest', Test) {
+    group = 'verification'
+    description = '로컬 compose DB·Redis 를 쓰는 통합 테스트 (@Tag("local-db"))'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    // 컨텍스트마다 Hikari 풀이 따로 뜬다 — @SpringBootTest 가 58개이고 그중 19개가
+    // @RecordApplicationEvents·@TestPropertySource 처럼 컨텍스트를 가르는 것을 달고 있어
+    // 기본 풀(10)로는 compose Postgres 의 max_connections(100) 를 넘긴다. 넘는 순간
+    // 그 컨텍스트가 "remaining connection slots" 으로 죽는데, 실패가 그때 로드되던
+    // 아무 테스트에 찍혀서 실행할 때마다 다른 클래스가 깨진 것처럼 보인다.
+    systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
+    systemProperty 'spring.datasource.hikari.minimum-idle', '0'
+    useJUnitPlatform {
+        includeTags 'local-db'
+    }
+}

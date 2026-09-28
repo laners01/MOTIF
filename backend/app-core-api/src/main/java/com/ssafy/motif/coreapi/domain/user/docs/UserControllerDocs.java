@@ -1,0 +1,763 @@
+package com.ssafy.motif.coreapi.domain.user.docs;
+
+import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.ActivityItem;
+import com.ssafy.motif.coreapi.domain.user.dto.MotifPassItem;
+import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateRequest;
+import com.ssafy.motif.coreapi.domain.user.dto.NicknameUpdateResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignRequest;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImagePresignResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateRequest;
+import com.ssafy.motif.coreapi.domain.user.dto.ProfileImageUpdateResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.SubscriptionCardItem;
+import com.ssafy.motif.coreapi.domain.user.dto.UserMeResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.UserProfileResponse;
+import com.ssafy.motif.coreapi.domain.user.dto.VideoPreviewItem;
+import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * 사용자·마이페이지 API 문서 계약 (명세 §4 · §11.9).
+ *
+ * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
+ * (팀 표준, {@code backend/README.md}).
+ *
+ * <p>§4.2 예시의 닉네임 오류 문구는 {@link com.ssafy.motif.coreapi.global.validation.Nickname}
+ * 가 소유한다 — 텍스트 블록 안이라 상수를 끼워 넣지 못해 옮겨 적은 사본이다.
+ */
+@Tag(name = "사용자 (USER)", description = "명세 §4 — 마이페이지 · §11.9 내 패스 일람")
+public interface UserControllerDocs {
+
+    @Operation(
+            summary = "마이페이지 원콜 (§4.1)",
+            description = """
+                    마이페이지 첫 화면에 필요한 것을 **한 번의 호출**로 내려준다
+                    (회의 확정 2026-09-02 개편) — 프로필 + 대표 모티프 + 내 영상 3×3 프리뷰.
+
+                    - `profileImageUrl` — 공개 CDN URL. **미설정이면 기본 프로필 이미지 URL**
+                    - `repMotif` — **미설정·삭제·부재면 `null`**. 설정·해제·문구 수정은
+                      이 API 가 아니라 **§11.8 `PATCH /motif/results/{resultSeq}`** 다(R4 통합)
+                    - `videos` — 내 참여 영상 **최신 9건**. **없으면 빈 배열 `[]`**.
+                      전체 목록·더보기는 **§4.8**
+                    - `videoCount` 는 불요로 철회됐다(R2)
+
+                    ### 영상 주소에 서명이 붙는 이유 *(ADR-0012)*
+                    `repMotif.videoUrl` 은 **CDN 절대 주소 + 프리픽스 서명**
+                    (`Policy`·`Signature`·`Key-Pair-Id`)이다. 모티프 결과물은 §1.7 **보호
+                    등급**이고, HLS 는 재생목록 안에서 조각을 추가로 요청하는데 상대 경로에는
+                    서명이 따라붙지 않는다 — 그래서 **영상 하나의 프리픽스 전체에 통하는**
+                    서명을 한 벌 낸다. **클라이언트(OkHttp 인터셉터)가 조각·자식 재생목록
+                    요청에 같은 파라미터를 붙여야 한다.** 만료(10분) 시 403 이면
+                    `POST /api/v1/media/{jobUuid}/signature` 로 새 파라미터를 받는다.
+
+                    ### 썸네일
+                    `thumb.jpg` 는 그 자체로 끝나는 단일 파일이라 리라이팅 없이 서명 URL 을
+                    바로 낸다. **공개/보호는 S3 키의 프리픽스가 정한다** — `private/` 로
+                    시작하면 서명된 URL, 아니면 무서명 CDN URL 이다. `visibility` 로
+                    판정하지 않는다: 참여 영상 산출물은 게시 여부와 무관하게 **전부
+                    `private/` 한 곳에 머물기** 때문이다(ADR-0013 — `public/` 공개 사본
+                    트리는 폐기됐다). `visibility` 로 가르면 `PUBLIC` 영상에 무서명 URL 이
+                    나가 403 이 된다.
+
+                    이미지 서명 만료는 **6시간**이다(재생목록·조각은 10분). 이미지는 만료돼도
+                    다시 받아 복구되는 경로가 없어 길게 잡는다.
+
+                    ### 실패
+                    **도메인 분기가 없다.** 공통 분기(401 등)만 적용된다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "마이페이지",
+                    content = @Content(mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "대표 모티프·영상이 있는 경우", value = """
+                                            {
+                                              "result": "SUCCESS",
+                                              "code": "SUCCESS",
+                                              "message": "요청이 성공했습니다.",
+                                              "data": {
+                                                "userSeq": 1,
+                                                "nickname": "모티프러버",
+                                                "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                                "repMotif": {
+                                                  "resultSeq": 10,
+                                                  "videoUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                                  "thumbnailUrl": "https://cdn.motif.io/private/motif/9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
+                                                },
+                                                "videos": [
+                                                  {
+                                                    "videoSeq": 88,
+                                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                                    "viewCount": 3400,
+                                                    "visibility": "PUBLIC"
+                                                  },
+                                                  {
+                                                    "videoSeq": 87,
+                                                    "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                                    "viewCount": 120,
+                                                    "visibility": "PRIVATE"
+                                                  }
+                                                ]
+                                              },
+                                              "timestamp": "2026-09-16T00:00:00.000Z"
+                                            }"""),
+                                    @ExampleObject(name = "대표 모티프 미설정 · 영상 0건", value = """
+                                            {
+                                              "result": "SUCCESS",
+                                              "code": "SUCCESS",
+                                              "message": "요청이 성공했습니다.",
+                                              "data": {
+                                                "userSeq": 1,
+                                                "nickname": "모티프러버",
+                                                "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
+                                                "repMotif": null,
+                                                "videos": []
+                                              },
+                                              "timestamp": "2026-09-16T00:00:00.000Z"
+                                            }""")
+                            }))
+    })
+    ApiResponse<UserMeResponse> me(@Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "내 챌린지 그리드 (§4.8)",
+            description = """
+                    내 참여 영상을 **전량** 내려준다(회의 확정 R4 — 커서에서 전환).
+                    **§4.1 로 첫 화면을 그린 뒤 "더보기/전체" 진입 시 1회 호출**한다.
+
+                    - 항목 형태는 **§4.1 `videos[]` 와 같다** — 같은 그리드를 그리는 카드다
+                    - **본인 화면이라 `PUBLIC`·`PRIVATE` 전부 포함**하고 항목마다
+                      `visibility` 로 구분한다
+                    - 삭제 영상은 제외한다. **삭제된 챌린지에 속한 영상도 뺀다**(§1.8)
+                    - 0건이면 `"list": []`
+                    - 정렬은 최신순
+
+                    항목을 고르면 **§8.2 단건 조회**로 뷰어에 진입한다. 연속 스와이프 재생이
+                    필요해지면 `?view=FULL` 확장을 예약해 뒀다(원본 §16 #12).
+
+                    ### 페이지가 없는 이유와 그 전제
+                    전량 반환의 전제는 **"본인 영상 수가 크지 않다"** 이다. 수백 건이 쌓이면
+                    커서 전환 재검토 대상이고, 서버는 그 시점을 알 수 있도록 일정 건수를
+                    넘으면 로그로 남긴다 — **응답을 자르지는 않는다.** 조용히 자르면
+                    사용자에게는 영상이 사라진 것으로 보인다.
+
+                    ### 썸네일
+                    공개/보호는 **S3 키의 프리픽스**가 정한다 — `private/` 로 시작하면 서명된
+                    URL, 아니면 무서명 CDN URL 이다. `visibility` 로 판정하지 않는다(§4.1 참고).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "내 참여 영상 전량",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "videoSeq": 88,
+                                            "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                            "viewCount": 3400,
+                                            "visibility": "PUBLIC"
+                                          },
+                                          {
+                                            "videoSeq": 87,
+                                            "thumbnailUrl": "https://cdn.motif.io/private/challenge/7c9e1d20-8b3a-4f51-9c6d-0e2f4a6b8c10/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                            "viewCount": 120,
+                                            "visibility": "PRIVATE"
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<VideoPreviewItem>> myVideos(
+            @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "내 활동 (§4.9)",
+            description = """
+                    마이페이지 **"내 활동"** 화면(회의 확정 R2 재설계). **커서 페이지**(§1.9)이며
+                    **대상 하나가 카드 하나**다 — 탭 분리는 없다(구 `type` 필터 삭제).
+
+                    대상은 **참여 영상과 챌린지 원본 둘**이고 **한 목록에 섞여** 내려온다.
+                    내가 **좋아요를 눌렀거나 댓글을 단** 것이 카드가 되고, 카드에 하트 표시·
+                    내 댓글·**내 댓글에 달린 답글**이 붙는다. 정렬은 **마지막 상호작용 최신순**
+                    (`lastInteractedDttm` = 좋아요·댓글 중 나중), 같은 시각이면
+                    `target.type` → `target.seq` 내림차순이다.
+
+                    | 필드 | 규칙 |
+                    |---|---|
+                    | `target.type` | `VIDEO` \\| `CHALLENGE` — **`seq` 가 어느 것인지 정한다** |
+                    | `target.seq` | `VIDEO` 면 `videoSeq`, `CHALLENGE` 면 `challengeSeq` |
+                    | `target.likeCount` | 화면의 "♥ 1.2만" |
+                    | `liked` | 내가 좋아요를 눌렀는가 = 카드의 하트 표시 |
+                    | `myComment` | 내가 단 댓글. **좋아요만 했으면 `null`** |
+                    | `myComment.replyCount` | **노출되는** 답글 수. 프리뷰보다 많으면 게시물 댓글 화면으로 보낸다 |
+                    | `myComment.parentComment` | 내 댓글이 **답글**이면 부모 요약, 루트면 `null` |
+                    | `replies` | 내 댓글에 달린 답글 프리뷰 **2건**. 없으면 `[]` |
+                    | `lastInteractedDttm` | 정렬 기준. 대상의 등록 시각이 아니다 |
+
+                    ### `type` 없이 `seq` 만 쓰지 않는다
+                    `video_seq`(BIGINT)와 `challenge_seq`(INTEGER)는 **서로 다른 seq 공간**이라
+                    12번이 양쪽에 다 있을 수 있다. 카드를 눌렀을 때의 이동도 이 값이 정한다 —
+                    `VIDEO` 는 **§8.2 참여 영상 단건**, `CHALLENGE` 는 **§7.3 챌린지 단건**이다.
+                    `myComment.commentSeq` 도 마찬가지로 대상 종류와 짝이다(`video_comments` ↔
+                    `challenge_comments`).
+
+                    ### 카드 한 장으로 합쳐지는 것들
+                    같은 대상에 좋아요와 댓글을 **둘 다** 했으면 카드는 하나다. 같은 대상에
+                    내 댓글이 **여러 개**면 **최신 1개**만 싣는다(기본안 — 클라 확인 대기).
+
+                    ### 답글 프리뷰의 선별과 순서
+                    **최신 2건을 고르고 등록순으로 싣는다.** 고르는 기준은 최신이어야 새 답글이
+                    보이고, 싣는 순서는 대화 순서여야 읽힌다. 내 댓글이 **답글이면 `replies` 는
+                    항상 `[]`** 다 — 답글에는 답글을 달 수 없다(깊이 2).
+
+                    ### 목록에서 빠지는 카드 *(ACTIVITY-02)* — **대상마다 다르다**
+
+                    `VIDEO`
+                    - 영상이 **삭제**됐거나 작성자가 탈퇴했거나 **삭제된 챌린지** 소속
+                    - **본인 게시물** — 내 영상은 §4.8 그리드가 맡는다
+                    - **타인의 `PRIVATE`** 영상
+                    - **댓글 사용 중지**(`comment_enabled=FALSE`)된 영상 — **좋아요만 눌렀어도
+                      카드째 뺀다.** 카드의 본체가 댓글 스레드라 열어도 보여 줄 것이 없다
+
+                    `CHALLENGE`
+                    - **삭제된 챌린지뿐이다.** 챌린지는 어드민이 등록하는 콘텐츠라 게시자
+                      `user_seq`·`visibility`·`comment_enabled` 가 아예 없다 — 위의 세 조건은
+                      적용 대상 자체가 없다(조건을 맞추려고 칼럼을 더하지 않는다)
+
+                    `video_hides`(관심 없음)는 **어느 쪽도 제외하지 않는다** — 피드를 덜 보기
+                    위한 신호지 "내가 한 일" 을 지우는 조작이 아니다.
+
+                    내 댓글이 삭제된 경우는 다르다 — **좋아요가 남아 있으면 카드는 남고**
+                    `myComment` 만 `null` 이 된다. 카드까지 지우면 "좋아요는 그대로인데 활동에서
+                    없어졌다" 가 된다.
+
+                    ### 썸네일·프로필
+                    공개/보호는 **S3 키의 프리픽스**가 정한다 — `private/` 로 시작하면 서명된
+                    URL, 아니면 무서명 CDN URL 이다(§4.1 참고).
+
+                    ### 최근 검색어는 이 API 와 무관하다
+                    서버 API·DB 없이 **Android 로컬**에서만 처리한다. 서버 검색(§5.2·§5.9)과
+                    최근 검색어 저장은 분리한다.
+
+                    ### 실패
+                    **도메인 분기가 없다.** 공통 분기(401 등)와, 망가진 `cursor` 의 400 뿐이다 —
+                    조용히 첫 페이지로 되돌리지 않는다(무한 스크롤이 원인 없이 맨 위로 점프한다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "내 활동 한 페이지",
+                    content = @Content(mediaType = "application/json",
+                            examples = {
+                                    @ExampleObject(name = "좋아요 + 내 댓글 + 답글", value = """
+                                            {
+                                              "result": "SUCCESS",
+                                              "code": "SUCCESS",
+                                              "message": "요청이 성공했습니다.",
+                                              "data": {
+                                                "list": [
+                                                  {
+                                                    "target": {
+                                                      "type": "VIDEO",
+                                                      "seq": 88,
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                                      "viewCount": 3400,
+                                                      "likeCount": 12000
+                                                    },
+                                                    "liked": true,
+                                                    "myComment": {
+                                                      "commentSeq": 501,
+                                                      "content": "이 챌린지 예지랑 너무 잘 어울린다 🔥",
+                                                      "likeCount": 742,
+                                                      "replyCount": 8,
+                                                      "regDttm": "2026-08-28T12:00:00.000Z",
+                                                      "parentComment": null
+                                                    },
+                                                    "replies": [
+                                                      {
+                                                        "commentSeq": 530,
+                                                        "author": { "userSeq": 9, "nickname": "dancing_mandu", "profileImageUrl": "https://cdn.motif.io/profiles/1f6b8c0e.jpg" },
+                                                        "content": "😂😂😂",
+                                                        "regDttm": "2026-08-28T13:00:00.000Z"
+                                                      },
+                                                      {
+                                                        "commentSeq": 531,
+                                                        "author": { "userSeq": 1, "nickname": "kkongdance", "profileImageUrl": "https://cdn.motif.io/profiles/default.png" },
+                                                        "content": "이거 보고 바로 챌린지 찍으러 갑니다",
+                                                        "regDttm": "2026-08-28T14:00:00.000Z"
+                                                      }
+                                                    ],
+                                                    "lastInteractedDttm": "2026-08-28T12:00:00.000Z"
+                                                  }
+                                                ],
+                                                "prevCursor": null,
+                                                "nextCursor": "MTc4NzkxODQwMDAwMDpWSURFTzo4OA",
+                                                "hasPrevious": false,
+                                                "hasNext": true
+                                              },
+                                              "timestamp": "2026-09-18T00:00:00.000Z"
+                                            }"""),
+                                    @ExampleObject(name = "좋아요만 한 챌린지 · 내 댓글이 답글인 영상", value = """
+                                            {
+                                              "result": "SUCCESS",
+                                              "code": "SUCCESS",
+                                              "message": "요청이 성공했습니다.",
+                                              "data": {
+                                                "list": [
+                                                  {
+                                                    "target": {
+                                                      "type": "CHALLENGE",
+                                                      "seq": 12,
+                                                      "thumbnailUrl": "https://cdn.motif.io/challenges/8b2c1d40-5e6f-4a71-9c8d-1e3f5a7b9c20/thumb.jpg",
+                                                      "viewCount": 120,
+                                                      "likeCount": 8
+                                                    },
+                                                    "liked": true,
+                                                    "myComment": null,
+                                                    "replies": [],
+                                                    "lastInteractedDttm": "2026-08-27T09:00:00.000Z"
+                                                  },
+                                                  {
+                                                    "target": {
+                                                      "type": "VIDEO",
+                                                      "seq": 89,
+                                                      "thumbnailUrl": "https://cdn.motif.io/private/challenge/5d1e2f30-7a8b-4c91-9d2e-3f4a5b6c7d80/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+                                                      "viewCount": 940,
+                                                      "likeCount": 77
+                                                    },
+                                                    "liked": false,
+                                                    "myComment": {
+                                                      "commentSeq": 612,
+                                                      "content": "저도 그렇게 생각해요",
+                                                      "likeCount": 3,
+                                                      "replyCount": 0,
+                                                      "regDttm": "2026-08-26T18:00:00.000Z",
+                                                      "parentComment": {
+                                                        "commentSeq": 610,
+                                                        "author": { "userSeq": 7, "nickname": "motif_fan", "profileImageUrl": "https://cdn.motif.io/profiles/9a8b7c6d.jpg" },
+                                                        "content": "이 구간 안무가 진짜 어렵던데"
+                                                      }
+                                                    },
+                                                    "replies": [],
+                                                    "lastInteractedDttm": "2026-08-26T18:00:00.000Z"
+                                                  }
+                                                ],
+                                                "prevCursor": null,
+                                                "nextCursor": null,
+                                                "hasPrevious": false,
+                                                "hasNext": false
+                                              },
+                                              "timestamp": "2026-09-18T00:00:00.000Z"
+                                            }""")
+                            })),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = """
+                            **망가진 `cursor`** — 서버가 발급하지 않은 토큰이거나 형식이 깨졌다.
+                            칸 수가 3이 아니거나 모르는 `type` 이름이 담긴 토큰도 같은 400 이다.
+                            커서는 opaque 토큰이라 클라이언트가 만들거나 고치지 않는다(§1.9).
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-18T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<CursorResponse<ActivityItem>> myActivities(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "직전 응답의 nextCursor. 최초 호출은 생략한다")
+            String cursor,
+            @Parameter(description = "페이지 크기 — 기본 20, 최대 100", example = "20") int size);
+
+    @Operation(
+            summary = "타 사용자 프로필 (§4.6)",
+            description = """
+                    참여 영상 뷰어에서 **작성자를 눌렀을 때 뜨는 Bottom Sheet** 데이터다.
+                    닉네임·프로필과 그 사람이 구독 중인 아티스트를 함께 내린다.
+
+                    - `subscribedArtists[]` 는 **공통 아티스트 요약**(상세 명세 README §3.5)
+                      그대로다. 구독 **최신순**, 0건이면 `[]`
+                    - `groupName` 은 솔로 아티스트면 `null`. 원본 §4.6 은 이 필드를 뺐지만
+                      **타입 통일을 위해 되살렸다** — 아티스트를 참조하는 응답은 상황마다
+                      필드를 빼지 않는다
+                    - **삭제된 아티스트는 목록에서 뺀다.** 남겨 두면 눌러도 404 가 나는
+                      카드가 생긴다(§1.8 — 삭제 아티스트는 없는 것으로 답한다)
+                    - `participationCount` 는 제거됐다(회의 확정 R2)
+
+                    본인 `userSeq` 로 불러도 막지 않는다. 마이페이지는 **§4.1** 로 따로 있다.
+
+                    ### 스키마 주의
+                    아티스트 이름은 `artists` 에 없다 — `artists.user_seq → users.nickname`
+                    조인으로 얻는다(`artists` 는 `role='ARTIST'` 사용자의 도메인 확장).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "사용자 프로필",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "userSeq": 5,
+                                        "nickname": "팬123",
+                                        "profileImageUrl": "https://cdn.motif.io/profiles/aa11bb22.jpg",
+                                        "subscribedArtists": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = """
+                            미존재 **또는 삭제된 사용자** — 둘을 구분하지 않는다.
+                            **삭제 사용자는 존재를 숨긴다**(§1.8): 403 으로 갈라 내면
+                            "그 사람은 있는데 탈퇴했다"가 응답에서 읽힌다.
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "USER_NOT_FOUND",
+                                      "message": "존재하지 않는 사용자입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<UserProfileResponse> profile(
+            @Parameter(description = "조회할 사용자 seq", example = "5") Integer userSeq);
+
+    @Operation(
+            summary = "구독 아티스트 카드 (§4.7)",
+            description = """
+                    구독 중인 아티스트를 **전량** 내린다(회의 확정 — 규모상 페이지 불요).
+                    정렬은 **구독 최신순**. **카드 앞면·뒷면 데이터를 한 번에** 담으므로
+                    뒤집을 때 다시 부르지 않는다.
+
+                    **마이페이지뿐 아니라 숍 화면의 아티스트 섹션도 이 API 로 구성한다**
+                    (구 §11.3 집계 API 는 삭제됐다). 아티스트별 에셋은 **§11.1** 의
+                    `artistSeq` 필터로 따로 조회한다.
+
+                    ### 집계 필드
+                    | 필드 | 규칙 |
+                    |---|---|
+                    | `passActive` | 유효 패스 보유 여부. **거짓이면** 클라이언트가 "모티프 패스 알아보기"(→ §11.4)를 노출한다 |
+                    | `passExpiresDttm` | 유효할 때의 만료 시각. 아니면 `null` |
+                    | `subscribedDays` | 구독 경과일 |
+                    | `challengeCount` | **이름과 달리 참여 영상 수**다. 그 아티스트에 올린 내 영상 |
+                    | `purchasedAssetCount` | **개별 구매한** 수만. **패스로 열린 것은 제외** — 패스만 있으면 `0/m` |
+                    | `totalAssetCount` | **판매 중**(`is_active=TRUE`)인 에셋 수. `SECRET` 포함 |
+
+                    카드의 `n/m` 표기가 `purchasedAssetCount`/`totalAssetCount` 다.
+
+                    ### `n` 이 `m` 보다 클 수 있다
+                    **판매 중단된 에셋을 이미 구매한 경우다** — 구매는 남고
+                    `is_active=FALSE` 라 분모에서 빠진다. 산 것은 판매가 중단돼도 산 것이라
+                    서버가 보정하지 않는다. **표시 방법은 클라 협의 대상**이다(원본 §16 #6).
+
+                    ### `challengeCount` 와 §4.8 그리드는 같은 것을 센다
+                    삭제된 챌린지에 속한 영상은 **양쪽 다** 빠진다. 숫자와 목록이 어긋나면
+                    "5개라는데 4개만 보인다"가 되고 사용자는 어느 쪽이 맞는지 알 수 없다.
+
+                    구독이 0건이면 `"list": []` 로 200 이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "구독 아티스트 카드 전량",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "passActive": true,
+                                            "passExpiresDttm": "2026-10-01T00:00:00.000Z",
+                                            "subscribedDays": 41,
+                                            "challengeCount": 5,
+                                            "purchasedAssetCount": 2,
+                                            "totalAssetCount": 12
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<SubscriptionCardItem>> mySubscriptions(
+            @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(summary = "내 패스 일람 (§11.9)", description = """
+            내가 보유했거나 보유했던 모티프 패스 **전량**이다. 결제 이력 성격이라
+            **만료·환불된 것도 함께** 온다.
+
+            - **인증 필요.** 본인 것만.
+            - 파라미터가 없고 페이지네이션도 없다. 봉투는 `ListResponse` 다.
+            - 정렬은 **만료 늦은 순**(`expires_dttm DESC`) — 유효한 패스가 자연히 위로 온다.
+            - 회원×아티스트당 한 행이다(`uq_motif_passes_user_artist`). 같은 아티스트의
+              패스를 다시 사면 기존 행을 재활성한다.
+
+            ### status 는 실효 상태다
+
+            이용 가능 판정은 **`status='ACTIVE' AND expiresDttm > now`** 다. `ACTIVE →
+            EXPIRED` 전이 배치가 없어 **기간이 지난 `ACTIVE` 행**이 DB 에 정상적으로
+            존재하는데, 이 API 는 그 행을 **`EXPIRED` 로 내려준다** — DB 원시값이 아니다.
+
+            그래서 `status` 를 그대로 믿어도 된다. 판정 자체는 §11.4(아티스트별 패스)·
+            §4.7(구독 카드)의 `passActive` 와 **같은 조회**가 DB 시각으로 답한 것이라,
+            세 화면이 같은 패스를 두고 다른 말을 하지 않는다.
+
+            ### canceledDttm
+
+            **취소 의사 기록**이고 이용 판정에 참여하지 않는다. 패스 취소 API 는 현재 구현
+            범위가 아니다(§11.10).
+
+            ### 삭제된 아티스트
+
+            그 아티스트의 패스도 **나온다**. §4.6·§4.7 은 삭제 아티스트를 빼지만 그쪽은
+            "지금 갈 수 있는 곳" 목록이고, 여기는 돈을 낸 기록이다.
+            """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공 — 패스가 없으면 빈 배열",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "artist": {
+                                              "artistSeq": 3,
+                                              "name": "카리나",
+                                              "groupName": "aespa",
+                                              "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg"
+                                            },
+                                            "status": "ACTIVE",
+                                            "startedDttm": "2026-09-01T00:00:00.000Z",
+                                            "expiresDttm": "2026-10-01T00:00:00.000Z",
+                                            "durationMonths": 1,
+                                            "canceledDttm": null
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ListResponse<MotifPassItem>> myMotifPasses(
+            @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "닉네임 수정 (§4.2)",
+            description = """
+                    마이페이지에서 닉네임을 바꾼다.
+
+                    - **형식 검증만 한다. 중복 확인은 하지 않는다** — `users.nickname` 에
+                      UNIQUE 가 없다(C1 회의 확정). 같은 닉네임을 쓰는 사용자가 여럿일 수 있다
+                    - 규칙은 **온보딩(§3.3)과 같다**: 영문·한글·**숫자**·`.`·`_` 2~20자.
+                      같은 제약 애너테이션을 공유하므로 한쪽만 달라지지 않는다
+                    - 숫자가 허용 목록에 있는 이유는 §2.1 이 가입 시 발급하는 임시 닉네임이
+                      `user_{seq}` 라, 막으면 **서버가 만든 값이 서버의 검증을 통과하지 못하기**
+                      때문이다
+                    - **앞뒤 공백을 다듬지 않는다.** `" 닉"` 은 400 이다 — 서버가 조용히 고치면
+                      보낸 값과 저장된 값이 달라진다
+                    - 같은 값으로 바꿔도 **200** 이다. 변경 없음을 오류로 돌려줄 실익이 없다
+
+                    응답은 확정된 닉네임 하나다. 마이페이지 전체를 다시 그려야 하면 **§4.1** 을 부른다.
+
+                    설정·해제가 아니라 **수정**이므로 `users.mod_usr_seq` 에 본인 seq 가 기록된다
+                    (온보딩의 최초 확정은 기록하지 않는다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "수정된 닉네임",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "nickname": "새닉네임" },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = """
+                            형식 위반 — **이 API 의 유일한 도메인 실패다.**
+                            `data` 에 필드 오류가 실리며 닉네임 오류는 항상 **1건**이다
+                            (`null` 이면 필수, 그 밖은 형식).
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": [
+                                        { "field": "nickname", "message": "2~20자의 영문·한글·숫자·마침표·언더바만 허용합니다." }
+                                      ],
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<NicknameUpdateResponse> updateNickname(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            NicknameUpdateRequest request);
+
+    @Operation(
+            summary = "프로필 이미지 업로드 URL 발급 (§4.3)",
+            description = """
+                    이미지를 **S3 에 직접 올리기 위한** presigned PUT URL 을 받는다.
+                    이미지 바이트는 **API 서버를 통과하지 않는다**(설계 원칙 ①).
+
+                    ### 순서
+                    1. 이 API 로 `uploadUrl`·`imageKey` 수령
+                    2. `PUT {uploadUrl}` — 본문은 이미지 바이너리,
+                       `Content-Type`·`Content-Length` 는 **이 요청에 보낸 값과 같아야 한다**
+                    3. **§4.4** 로 `imageKey` 를 보내 반영
+
+                    ### 왜 요청 본문이 있나 (원본 명세는 본문 없음)
+                    보낸 `contentType`·`contentLength` 가 **서명에 박힌다.** 다른 값으로
+                    PUT 하면 S3 가 거부한다. 이게 없으면 발급된 URL 로 **아무 타입이든
+                    아무 크기든 올릴 수 있고**, 바이트가 서버를 지나가지 않으므로 사후에
+                    확인할 방법도 없다. 어드민 §1.4 가 같은 근거로 이미 그렇게 한다.
+
+                    허용: `image/jpeg` · `image/png` · `image/webp`, 최대 10MB.
+
+                    ### 만료
+                    `expiresIn` 초가 지나면 URL 과 함께 **발급 기록도 사라져 §4.4 가 403**
+                    이다. 그때는 이 API 부터 다시 부른다.
+
+                    ### 참고 — MY-08 모티프 프레임 프로필
+                    "모티프 영상의 한 프레임을 프로필로" 는 **클라이언트가 재생 중 프레임을
+                    캡처해 같은 흐름으로 업로드**한다. 서버가 영상에서 프레임을 뽑지 않는다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "업로드 URL",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "uploadUrl": "https://motif-media.s3.ap-northeast-2.amazonaws.com/profiles/3f9c1a2b.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=...",
+                                        "imageKey": "profiles/3f9c1a2b.jpg",
+                                        "expiresIn": 300
+                                      },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "허용되지 않는 `contentType` · 크기 상한 초과",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": { "allowedContentTypes": ["image/jpeg", "image/png", "image/webp"] },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ProfileImagePresignResponse> presignProfileImage(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            ProfileImagePresignRequest request);
+
+    @Operation(
+            summary = "프로필 이미지 반영 (§4.4)",
+            description = """
+                    §4.3 → `PUT` 업로드를 **마친 뒤** 호출한다. 서버가 S3 에 오브젝트가
+                    실제로 있는지 확인(HEAD)하고 `users.profile_image_key` 를 갱신한다.
+
+                    응답의 `profileImageUrl` 은 **무서명 공개 CDN URL** 이다. 프로필은 공개
+                    등급이라 서명이 붙지 않는다 — S3 presigned 로 내보내지 않는 이유는 서명
+                    쿼리스트링이 오리진까지 전달돼 **CDN 캐시 적중률을 0% 로 만들기** 때문이다
+                    (§1.7 · ADR-0010 D5).
+
+                    설정이 아니라 **수정**이므로 `users.mod_usr_seq` 에 본인 seq 가 기록된다.
+
+                    **이전 이미지는 지우지 않는다.** 1년 `immutable` 로 서빙 중이라 S3 에서
+                    지워도 엣지가 계속 내보내고, 무효화까지 걸면 이 API 가 무거워진다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "반영된 프로필 이미지",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = """
+                            본인에게 발급된 키가 아니다 — **발급 기록 만료도 여기로 떨어진다**
+                            (§4.3 의 `expiresIn` 경과). 남의 `imageKey` 를 보낸 경우도 같다.
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "FORBIDDEN",
+                                      "message": "권한이 없습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = """
+                            발급은 받았지만 **S3 에 오브젝트가 없다** — 업로드를 하지 않았거나
+                            PUT 이 실패했다. `PUT` 부터 다시 한다(URL 이 아직 살아 있으면
+                            §4.3 을 다시 부를 필요는 없다).
+                            """,
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "IMAGE_NOT_UPLOADED",
+                                      "message": "업로드되지 않은 이미지입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-16T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ProfileImageUpdateResponse> updateProfileImage(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            ProfileImageUpdateRequest request);
+}

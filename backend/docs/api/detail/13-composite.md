@@ -1,0 +1,354 @@
+# §13 합성 파이프라인 (COMPOSITE) — 상세 명세
+
+공통 규약은 [`README.md`](README.md)에 있다. 이 문서는 **도메인 분기만** 적는다.
+
+원본: [`MOTIF_API_명세서_v0_11.md`](../MOTIF_API_명세서_v0_11.md) §13 · DB 명세서 v0.15 §29.
+
+| # | Method | Path | 인증 | 비고 |
+|---|---|---|---|---|
+| 13.1 | POST | `/api/v1/composite-jobs` | 필요 | 잡 생성 + 업로드 URL 발급 |
+| 13.2 | POST | `/api/v1/composite-jobs/{jobUuid}/request` | 필요 | 업로드 완료 → 합성 요청 |
+| 13.3 | GET | `/api/v1/composite-jobs/{jobUuid}` | 필요 | 잡 상태·결과 조회 |
+| 13.4 | POST | `/api/v1/composite-jobs/{jobUuid}/retry` | 필요 | 실패 잡 재시도 |
+
+## 챌린지와 모티프가 같은 파이프라인을 쓴다
+
+| `jobType` | 무엇을 합성하나 | 결과의 행선지 |
+|---|---|---|
+| `CHALLENGE` | 챌린지 원본 위에 내 촬영본 | 프리뷰 확인 후 **§8.8 게시** |
+| `MOTIF` | 구매/패스로 연 에셋 + 내 촬영본 | **서버가 `motif_results` 자동 생성** → 보관함(§11.6) |
+
+**잡 식별자만 UUID 다** — FCM 푸시 페이로드에 실리는 외부 잔존 식별자이기 때문이다(§1.1).
+
+## 전체 흐름
+
+```
+① POST /composite-jobs            잡 생성(UPLOADED) + presigned PUT URL 발급
+② PUT {uploadUrl}                 클라이언트가 S3 로 원본 직행 업로드 (동기·로딩 UI)
+③ POST /{jobUuid}/request         S3 원본 확인 → QUEUED + 큐 발행
+④ (워커)                          PROCESSING → DONE | FAILED, 완료·실패 시 FCM 발송
+⑤ GET /{jobUuid}                  FCM 수신 후 결과 화면 진입 시 1회 조회
+```
+
+**폴링하지 않는다**(§1.6). 상태 확인은 ④의 FCM 을 받고 ⑤를 **한 번** 호출하는 것뿐이다.
+
+---
+
+## 13.1 POST /api/v1/composite-jobs — 잡 생성
+
+### 요청 — MOTIF
+
+```json
+{ "jobType": "MOTIF", "assetSeq": 21, "contentLength": 20971520 }
+```
+
+### 요청 — CHALLENGE
+
+```json
+{ "jobType": "CHALLENGE", "challengeSeq": 11, "challengeParticipantSeq": 31, "contentLength": 20971520 }
+```
+
+| 필드 | 필수 | 설명 |
+|---|:---:|---|
+| `jobType` | Y | `CHALLENGE` \| `MOTIF` |
+| `challengeSeq` | CHALLENGE | 대상 챌린지 |
+| `assetSeq` | MOTIF | 대상 에셋 |
+| `challengeParticipantSeq` | **Y (CHALLENGE)** | 교체할 슬롯 — §7.5 가 준 값 *(2026-09-21 — 구 `participantMask`)*. **필수다** *(2026-09-22 — 무교체 폐기)* |
+| `contentLength` | Y | 올릴 촬영본의 **바이트 수** |
+
+### `contentLength` 를 왜 보내나 (2026-09-19 추가)
+
+**서명된 `Content-Length` 는 상한이 아니라 정확한 값이다.** presigned URL 은 이 값을
+서명에 박고, S3 는 PUT 의 `Content-Length` 가 다르면 **403 `SignatureDoesNotMatch`** 로
+거부한다. 서버가 상한(300MB)을 대신 박아 두면 그 크기 파일만 올라간다.
+
+어드민 업로드(어드민 명세 §1.4)·프로필 업로드(§4.3)가 처음부터 같은 방식이다 —
+클라이언트가 크기를 선언하고, 서버가 상한을 넘는지 보고, 통과한 값이 서명에 박힌다.
+
+상한을 넘으면 **400 `INVALID_PARAMETER`** 이고 `data.maxBytes` 에 한도가 실린다.
+`Content-Type` 은 `video/mp4` 고정이라 보내지 않는다.
+
+### `challengeParticipantSeq` — 교체할 슬롯 *(2026-09-21 개정)*
+
+§7.5 가 준 `challengeParticipantSeq` 를 **그대로** 보낸다.
+
+**비트 마스크를 받지 않는다.** 앱이 `1 << slotOrder` 같은 연산을 하게 두지 않으려는 것이고, 조합 교체가 없어져(편집본이 슬롯 1개당 1개) 마스크가 표현할 것도 없다. 마스크는 AI 접수 페이로드 안에만 남고 서버가 파생한다.
+
+**합성은 언제나 슬롯 한 자리를 대체한다** *(2026-09-22)*. 무교체(원본 위 합성)는 폐기됐다 — 편집본이 슬롯 1개당 1개이고 사용자가 고르는 것도 한 명이라, 아무도 지워지지 않은 영상을 베이스로 쓸 자리가 없다. API 명세 §16 잔여 3번이 이걸로 닫혔다.
+
+| 값 | 서버 동작 |
+|---|---|
+| 슬롯 seq | 그 슬롯을 조회해 잡에 기록. 슬롯이 없거나 **다른 챌린지의 슬롯**이거나 편집본이 없으면 **404** |
+| 생략 | **400** `INVALID_PARAMETER` — `data` 에 `challengeParticipantSeq`. `ck_composite_jobs_type_shape`(0021)가 DB 에서도 막는다 |
+
+### 검증
+
+- **CHALLENGE** — 챌린지가 비삭제인지 + **슬롯이 그 챌린지 것인지 대조**. 잡 행이 `challenge_seq` 와 슬롯 seq 를 함께 들고 있어 둘이 어긋나면 합성 베이스와 챌린지가 다른 잡이 만들어진다 — FK 는 각자만 본다
+- **MOTIF** — **이용 권한 필수**(개별 구매 ACTIVE ∪ 유효 PASS). 선결제 원칙이라 권한 없이는 촬영을 시작할 수 없다. `challengeParticipantSeq` 는 쓰지 않는다
+
+### 성공 응답 (201)
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "uploadUrl": "https://motif-media.s3.ap-northeast-2.amazonaws.com/raw/3fa85f64.mp4?X-Amz-Algorithm=...&X-Amz-Signature=...",
+    "expiresIn": 600
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+잡은 `UPLOADED` 상태로 만들어지고, 클라이언트는 `uploadUrl` 로 **원본을 S3 에 직행 업로드**한다(동기·로딩 UI). 영상 바이트는 API 서버를 통과하지 않는다.
+
+### 실패 응답
+
+| HTTP | code | 조건 |
+|---|---|---|
+| 400 | `INVALID_PARAMETER` | 형태 불일치, 또는 `contentLength` 가 상한 초과 (`data.maxBytes`) |
+| 404 | `CHALLENGE_NOT_FOUND` / `ASSET_NOT_FOUND` | 대상 없음 |
+| 404 | `EDITED_CHALLENGE_NOT_FOUND` | 슬롯 없음 · 다른 챌린지의 슬롯 · 편집본 미등록 |
+| 403 | `ASSET_ACCESS_DENIED` | MOTIF 이용 권한 없음 — 클라이언트는 **구매 화면으로 유도** |
+
+```json
+{
+  "result": "FAIL",
+  "code": "ASSET_ACCESS_DENIED",
+  "message": "구매 후 이용할 수 있습니다.",
+  "data": null,
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+`EDITED_CHALLENGE_NOT_FOUND` 는 세 경우를 묶는다 *(2026-09-21 개정)* — 슬롯 없음 · 다른 챌린지의 슬롯 · 편집본 미등록. 가르면 남의 챌린지 슬롯 seq 를 넣어 보고 존재를 읽을 수 있다(§1.8).
+
+**편집본 미등록은 정상 상태다**(전 조합 등록 전제 폐기). 그래서 §7.5 가 슬롯마다 `initialSceneUrl` 을 내려 주며, 클라이언트는 그 값이 `null` 인 슬롯을 **미리 잠가** 사용자가 촬영 직전에 막히는 일을 없앤다.
+
+---
+
+## 13.2 POST /api/v1/composite-jobs/{jobUuid}/request — 합성 요청
+
+업로드를 마친 뒤 호출한다. 여기서 잡이 큐에 들어간다.
+
+### 요청 — CHALLENGE
+
+```json
+{ "correctionEnabled": true }
+```
+
+### 요청 — MOTIF
+
+```json
+{}
+```
+
+**MOTIF 는 `correctionEnabled` 를 받지 않는다.** 보정을 쓰지 않으며 서버 내부 값은 `FALSE` 고정이다.
+
+`correctionEnabled` 는 촬영 후 사용자가 보정 여부를 고르는 값이다(CHALLENGE 전용).
+
+### 서버 처리
+
+1. **S3 원본 존재 확인(HEAD)** — 업로드가 실제로 끝났는지 본다
+2. `UPLOADED → QUEUED` 전이
+3. `job.composite` 큐 발행 — **우선순위: 모티프 5 / 챌린지 0**(유료 경로를 먼저 처리)
+
+이후 `PROCESSING → DONE | FAILED` 는 워커와 이벤트가 처리하며, 완료·실패 시 FCM 을 발송한다.
+
+### 성공 응답 (202)
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": { "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "status": "QUEUED" },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+**202 Accepted** — 접수했다는 뜻이며 합성은 아직 끝나지 않았다.
+
+### 실패 응답
+
+| HTTP | code | 조건 |
+|---|---|---|
+| 404 | `JOB_NOT_FOUND` | 잡 없음·타인 잡 |
+| 409 | `RAW_NOT_UPLOADED` | **S3 원본 부재** — 업로드 미완료 또는 URL 만료 |
+| 409 | `JOB_NOT_REQUESTABLE` | 상태가 `UPLOADED` 가 아님(중복 요청 포함) |
+
+---
+
+## 13.3 GET /api/v1/composite-jobs/{jobUuid} — 잡 상태·결과 조회
+
+FCM 을 받고 결과 화면에 진입할 때 **1회** 호출한다. **폴링 금지.**
+
+응답은 **공통부 + `jobType` 별 분기 필드**로 구성된다.
+
+### 성공 응답 (200) — `jobType=CHALLENGE`
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "jobType": "CHALLENGE",
+    "status": "DONE",
+    "attempt": 1,
+    "failCode": null,
+    "resultVideoUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/master.m3u8?Policy=eyJTdGF0ZW1lbnQiOlt7...&Signature=...&Key-Pair-Id=K27QE85H6DLYDD",
+    "resultThumbnailUrl": "https://cdn.motif.io/private/challenge/3fa85f64-5717-4562-b3fc-2c963f66afa6/thumb.jpg?Expires=1789000000&Signature=...&Key-Pair-Id=K27QE85H6DLYDD"
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+**게시 전 프리뷰라 보호 등급**이다(§1.7) — `resultVideoUrl` 은 **CDN 절대 주소의 HLS 마스터 재생목록 + 프리픽스 서명**(`Policy`·`Signature`·`Key-Pair-Id`)이고, 조각·자식 재생목록 요청에 같은 파라미터를 붙이는 것은 클라이언트 몫이다(ADR-0012). 산출물은 게시 여부와 무관하게 `private/challenge/{jobUuid}/` 에 있다(ADR-0013). 이 화면에서 확인 후 **§8.8 로 게시**한다.
+
+### 성공 응답 (200) — `jobType=MOTIF`
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "jobUuid": "9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
+    "jobType": "MOTIF",
+    "status": "DONE",
+    "attempt": 1,
+    "failCode": null,
+    "resultSeq": 10
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+**URL 을 싣지 않는다.** 재생과 문구 입력은 §11.6·§11.8 이 담당하므로, `resultSeq` 로 **보관함 상세로 이동**한다(R8 확정).
+
+### 성공 응답 (200) — 진행 중
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "jobType": "CHALLENGE",
+    "status": "PROCESSING",
+    "attempt": 1,
+    "failCode": null,
+    "resultVideoUrl": null,
+    "resultThumbnailUrl": null
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+`QUEUED`·`PROCESSING` 이면 **분기 필드가 전부 `null`** 이다.
+
+### 성공 응답 (200) — 실패
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "jobType": "CHALLENGE",
+    "status": "FAILED",
+    "attempt": 2,
+    "failCode": "FACE_NOT_DETECTED",
+    "resultVideoUrl": null,
+    "resultThumbnailUrl": null
+  },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+**잡이 실패해도 조회 자체는 성공(200)이다** — `status` 로 판단한다. 클라이언트는 `failCode` 로 안내하고 "다시 시도"(§13.4)를 노출한다.
+
+| 필드 | 설명 |
+|---|---|
+| `status` | `UPLOADED` \| `QUEUED` \| `PROCESSING` \| `DONE` \| `FAILED` |
+| `attempt` | 시도 횟수. 재시도할 때마다 증가한다 |
+| `failCode` | 실패 사유. **코드표 미결**(원본 §16 #4) |
+
+### MOTIF 잡의 완료 순서
+
+```
+합성 결과 업로드 → motif_results(description=NULL, isRep=false) 자동 생성 → 잡 DONE 확정 → FCM 발송
+```
+
+**결과 행 생성에 실패하면 DONE 으로 만들지 않고 FCM 도 보내지 않는다.** 그래서 `status=DONE` 인 MOTIF 응답에는 **`resultSeq` 가 항상 존재한다**.
+
+### FCM 페이로드
+
+**`jobUuid` 만 전달한다.** 앱은 알림을 눌러 진입할 때 이 API 를 1회 호출해 나머지를 받는다.
+
+### 실패 응답
+
+| HTTP | code | 조건 |
+|---|---|---|
+| 404 | `JOB_NOT_FOUND` | 잡 없음·**타인 잡** |
+
+---
+
+## 13.4 POST /api/v1/composite-jobs/{jobUuid}/retry — 재시도
+
+대상은 **본인의 `FAILED` 잡**이다.
+
+**같은 잡 행을 재큐한다** — 새 잡을 만들지 않으므로 `jobUuid` 가 유지된다. 클라이언트가 들고 있던 식별자를 계속 쓸 수 있다.
+
+### 서버 처리
+
+1. `status: FAILED → QUEUED`
+2. `fail_code = NULL` 초기화(상태별 CHECK 유지)
+3. `attempt + 1`
+4. 잡 행에서 큐 메시지를 재구성해 `job.composite` 재발행
+
+결과 프리픽스가 `private/{challenge|motif}/{jobUuid}/` 로 **멱등**하게 정해져 있어, 재합성은 같은 경로를 덮어쓴다(워커가 올리는 중간 산출물 `results/{kind}/{jobUuid}.mp4` 도 같은 이름이라 함께 덮인다).
+
+### 성공 응답 (202)
+
+```json
+{
+  "result": "SUCCESS",
+  "code": "SUCCESS",
+  "message": "요청이 성공했습니다.",
+  "data": { "jobUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "status": "QUEUED", "attempt": 2 },
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+### 실패 응답
+
+| HTTP | code | 조건 |
+|---|---|---|
+| 404 | `JOB_NOT_FOUND` | 잡 없음·타인 잡 |
+| 409 | `JOB_NOT_RETRYABLE` | `FAILED` 상태가 아님 |
+| 410 | `RAW_VIDEO_EXPIRED` | **원본이 수명주기로 삭제됨** — 재촬영을 유도한다 |
+
+```json
+{
+  "result": "FAIL",
+  "code": "RAW_VIDEO_EXPIRED",
+  "message": "원본 영상이 만료되었습니다. 다시 촬영해 주세요.",
+  "data": null,
+  "timestamp": "2026-09-10T00:00:00.000Z"
+}
+```
+
+410 Gone 을 쓰는 이유는 "있었지만 이제 없다"이기 때문이다 — 클라이언트는 재시도 버튼을 숨기고 재촬영을 안내해야 한다.
+
+### 트레이드오프
+
+**직전 실패 사유(`fail_code`)는 재큐 시 행에서 지워진다.** 실패 이력이 필요하면 로그·이벤트로 남긴다(행 보존이 아니다).
+
+**수동 재시도에는 시도 상한이 없다**(기본안). 스윕 배치의 자동 재큐에 있는 `attempt < 3` 상한은 무한 루프 방지용으로 별개다.

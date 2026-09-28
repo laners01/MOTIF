@@ -1,0 +1,38 @@
+# Let's Encrypt 발급기 2종
+#
+# staging: 리허설용. production은 발급 실패가 주당 5회로 제한되므로
+#          설정 변경 시 staging으로 먼저 검증한 뒤 전환한다.
+#          staging 인증서는 브라우저가 신뢰하지 않는다.
+# prod   : 실제 서비스용.
+#
+# 선행 조건: cert-manager 설치
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ksh000624@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          ingress:
+            class: traefik
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ksh000624@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: traefik

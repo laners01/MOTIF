@@ -1,0 +1,24 @@
+.git
+.git/**
+**/__pycache__
+**/*.py[cod]
+.ipynb_checkpoints
+work
+output
+.cache
+
+# 라이선스 모델·비밀은 이미지에 굽지 않는다 (SMPLX 등은 GCS 마운트로 주입).
+licenses
+secrets
+
+# Runtime GCS-mounted weights (must match docker/weight_mounts.txt).
+models/rfdetr
+models/sam2.1_hiera_large.pt
+vendor/svor/models
+vendor/RelightVid/models
+vendor/GVHMR/inputs/checkpoints
+vendor/GVHMR/hmr4d/utils/body_model/smplx2smpl_sparse.pt
+vendor/GVHMR/hmr4d/utils/body_model/smpl_coco17_J_regressor.pt
+vendor/GVHMR/hmr4d/utils/body_model/smplx_verts437.pt
+vendor/MimicMotion/models/DWPose
+vendor/Video-Depth-Anything/checkpoints

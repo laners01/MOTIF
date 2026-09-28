@@ -1,0 +1,57 @@
+# core-api 어드민 진입 — /admin 을 IP 제한과 함께 앱으로 보낸다.
+#
+# 흐름: 인터넷 -> Traefik(TLS 종단, 443) -> ipAllowList -> core-api Service:8081
+#
+# ── 왜 ingress.yaml 과 파일이 갈리는가 ──────────────────────────────────────
+# Traefik 의 미들웨어 애너테이션은 **라우터(=Ingress) 단위**이지 path 단위가
+# 아니다. `/api` 와 `/admin` 을 한 Ingress 에 넣으면 ipAllowList 가 `/api` 에도
+# 걸려 사용자 API 가 팀 IP 밖에서 막힌다. 그래서 Ingress 를 둘로 나눈다.
+#
+# ── ipAllowList 를 라우터에 걸지 않는다 (2026-09-13 결정) ───────────────────
+# `90-ingress/middleware-admin-ipallowlist.yaml` 은 남겨 뒀지만 여기서 참조하지
+# 않는다. Traefik `ipAllowList` 는 **403 밖에 내지 못하고**, 403 은 "경로는 있는데
+# 못 들어온다"를 알려줘 어드민 화면의 존재 자체를 드러낸다. §1.1 요건은 **404** 다.
+#
+# 실측(2026-09-13): 미들웨어를 걸었을 때 공인망에서 `/admin/login` 이 403 이었다.
+# 떼고 나니 404 로 바뀌었고 테일넷에서는 200 그대로다. 즉 접근 제한은 그대로이고
+# 노출만 사라진다 — 앱의 `AdminIpFilter` 가 같은 판정을 404 로 내기 때문이다.
+#
+# 이게 성립하는 전제는 **클라이언트 IP 가 앱까지 도달하는 것**이다.
+# `90-ingress/helmchartconfig-traefik.yaml` 의 hostPort 직결이 그 전제를 만든다.
+# 그 설정이 되돌아가면 앱이 보는 IP 가 클러스터 내부 IP 가 되어 어드민이 전원
+# 차단된다(fail-closed — 열리는 쪽으로는 깨지지 않는다).
+#
+# ── 동작 확인 (2026-09-13) ──────────────────────────────────────────────────
+#   공인망  /admin/login 404 · /api/v1/admin/* 404 · /api/health 200
+#   테일넷  /admin/login 200 · /api/v1/admin/notices 401(로그인 필요)
+#
+# 인증서는 `ingress.yaml` 과 같은 host·같은 secretName(motif-tls)을 쓴다 —
+# cert-manager 는 secretName 기준으로 Certificate 를 하나만 만들므로 발급
+# 요청이 늘지 않는다. 자세한 주의점은 `ingress.yaml` 헤더에 있다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: core-api-admin
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # https 리다이렉트만. IP 제한은 앱의 AdminIpFilter 가 404 로 낸다(위 주석).
+    # `default-` 는 네임스페이스, `@kubernetescrd` 는 Traefik 프로바이더 접미사다.
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - j15d104.p.ssafy.io
+      secretName: motif-tls
+  rules:
+    - host: j15d104.p.ssafy.io
+      http:
+        paths:
+          # 앱이 /admin/... 을 직접 들고 있어 경로를 다시 쓰지 않는다(StripPrefix 미사용).
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8081

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('챌린지 등록', ~{::main})}">
+<body>
+<!--/* 부록 A 시퀀스 1~6 을 그대로 세로로 편 화면. 로직은 전부 challenge-new.js. */-->
+<main>
+    <p class="err" id="err" hidden></p>
+
+    <section>
+        <h2>1. 원본 영상</h2>
+        <input type="file" id="file" accept="video/mp4,video/quicktime">
+        <p class="muted" id="meta-line">파일을 고르면 길이·해상도를 읽어(§1.4) presign → S3 업로드까지 진행한다.</p>
+        <div class="frame" id="frame-wrap" hidden>
+            <video id="frame" muted playsinline></video>
+            <div id="dots"></div>
+        </div>
+        <!--/* 썸네일 시각 — 이미지를 따로 올리지 않는다. 여기서 고른 지점을 워커가
+               원본에서 뽑으므로 화질이 원본 그대로다(§4.8). 앵커를 찍으려고 이미
+               띄워둔 그 <video> 를 그대로 스크럽한다 — 앵커는 썸네일 위에 앉으니
+               썸네일로 쓸 프레임을 보면서 찍는 것이 맞다. */-->
+        <div id="thumb-pick" hidden>
+            <label>썸네일 시각
+                <input type="range" id="thumb-at" min="0" step="0.1" value="1.5">
+                <span class="muted" id="thumb-at-label">1.50초</span>
+            </label>
+            <p class="muted">비워두면 1.5초 지점을 쓴다 — 첫 프레임은 페이드인·모션블러가 흔해 피한다.</p>
+        </div>
+    </section>
+
+    <section>
+        <h2>2. 기본 정보</h2>
+        <label>메인 아티스트 <select id="artist"><option value="">선택</option></select></label>
+        <label>곡 <select id="song"><option value="">선택</option></select></label>
+        <label>소개글 <textarea id="description" rows="3" placeholder="Supernova 챌린지"></textarea></label>
+    </section>
+
+    <section>
+        <!--/* 편집본 칸이 없어졌다(2026-09-22) — 편집본 키가 슬롯 seq 를 품고 있어
+               등록 시점에는 정할 수 없다. 등록 뒤 상세 화면에서 슬롯별로 올린다(§3.7.6). */-->
+        <h2>3. 슬롯 <span class="muted">— 화면 좌→우 순서, 0~4개. 순서가 곧 slotOrder 다(§3.7.2). 메인 아티스트도 슬롯이 될 수 있다 — 영상에 나오는 사람이면 넣는다. <b>편집본은 등록 뒤 상세 화면에서 올린다</b>(§3.7.6) — 키가 슬롯 번호를 품고 있어 슬롯이 나기 전에는 자리를 정할 수 없다</span></h2>
+        <table>
+            <thead>
+            <tr><th>#</th><th>아티스트</th><th>x</th><th>y</th><th>반지름</th><th></th></tr>
+            </thead>
+            <tbody id="slots"></tbody>
+        </table>
+        <p>
+            <button type="button" id="add-slot">슬롯 추가</button>
+            <span class="muted">슬롯 행을 클릭해 지정한 뒤 위 프레임을 <b>클릭</b>하면 프로필 원이 그 자리에 앉는다. 값은 썸네일 대비 0~1 비율이다 — 시안(402 폭·지름 80)의 반지름이 기본값 0.0995.</span>
+        </p>
+        <p id="matrix-status" class="muted">슬롯을 추가하면 행이 생긴다.</p>
+    </section>
+
+    <section>
+        <h2>4. 등록</h2>
+        <ol class="progress">
+            <li data-step="upload">업로드</li>
+            <li data-step="validate">검증</li>
+            <li data-step="create">등록</li>
+        </ol>
+        <!--/* 부록 A 시퀀스가 두 단계로 갈렸다 — 여기서 슬롯까지 만들고, 편집본은
+               상세 화면에서 §3.7.6 으로 채운다(2026-09-22). */-->
+        <button type="button" id="validate">사전 검증</button>
+        <button type="button" id="submit" disabled>등록</button>
+        <p id="result"></p>
+        <ul id="issues"></ul>
+    </section>
+
+    <!--/* 행 뼈대 — innerHTML 로 짓지 않는다(아티스트명이 그대로 들어간다) */-->
+    <template id="slot-row">
+        <tr>
+            <td class="idx"></td>
+            <td><select class="slot-artist"><option value="">선택</option></select></td>
+            <td><input type="number" min="0" max="1" step="0.001" data-k="x"></td>
+            <td><input type="number" min="0" max="1" step="0.001" data-k="y"></td>
+            <td><input type="range" min="0.02" max="0.3" step="0.005" value="0.0995" data-k="r"> <span class="muted r-label">0.0995</span></td>
+            <td><button type="button" class="del">삭제</button></td>
+        </tr>
+    </template>
+
+    <script src="/admin/challenge-new.js" defer></script>
+</main>
+</body>
+</html>

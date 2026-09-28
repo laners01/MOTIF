@@ -1,0 +1,31 @@
+# Cloud Build 소스 업로드에서 제외할 것.
+# (.gcloudignore가 있으면 gcloud는 .gitignore를 무시하고 이 파일만 본다)
+
+.git
+.git/**
+**/__pycache__
+**/*.py[cod]
+.ipynb_checkpoints
+.DS_Store
+
+# 로컬 개발 잔재
+.cache
+.model-envs
+work
+output
+
+# 라이선스 모델과 비밀
+licenses
+secrets
+
+# 모델 가중치 — 런타임에 GCS 마운트로 주입. 이미지·빌드컨텍스트에 불필요.
+models/rfdetr
+models/sam2.1_hiera_large.pt
+vendor/svor/models
+vendor/RelightVid/models
+vendor/GVHMR/inputs/checkpoints
+vendor/GVHMR/hmr4d/utils/body_model/smplx2smpl_sparse.pt
+vendor/GVHMR/hmr4d/utils/body_model/smpl_coco17_J_regressor.pt
+vendor/GVHMR/hmr4d/utils/body_model/smplx_verts437.pt
+vendor/MimicMotion/models/DWPose
+vendor/Video-Depth-Anything/checkpoints

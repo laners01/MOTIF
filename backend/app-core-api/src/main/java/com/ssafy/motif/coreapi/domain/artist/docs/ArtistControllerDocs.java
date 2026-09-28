@@ -1,0 +1,634 @@
+package com.ssafy.motif.coreapi.domain.artist.docs;
+
+import com.ssafy.motif.common.response.ApiResponse;
+import com.ssafy.motif.common.response.CursorResponse;
+import com.ssafy.motif.common.response.ListResponse;
+import com.ssafy.motif.common.response.PageResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistCardResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistChallengeResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistDetailResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistMotifPassResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistNoticeResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistRankingResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.ArtistSearchResponse;
+import com.ssafy.motif.coreapi.domain.artist.dto.RankingFilter;
+import com.ssafy.motif.coreapi.domain.artist.dto.SubscriptionResponse;
+import com.ssafy.motif.coreapi.global.docs.FailResponseSchema;
+import com.ssafy.motif.coreapi.global.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * 팬 앱 아티스트 API 문서 계약
+ * (명세 §5.1 · §5.2 · §5.3 · §5.4 · §5.5 · §5.6 · §5.7 · §5.10 · §11.4).
+ *
+ * <p>Swagger 애너테이션만 여기 둔다 — 매핑은 구현 클래스가 갖는다
+ * (팀 표준, {@code backend/README.md}).
+ *
+ * <p>§11.4 패스는 §11 도메인이지만 경로가 {@code /artists/{artistSeq}} 아래라 여기 있다 —
+ * 근거는 {@code ArtistController} javadoc.
+ */
+@Tag(name = "아티스트 (ARTIST)",
+        description = "명세 §5 — 전체 목록·랭킹·상세·챌린지 그리드·공지 목록·구독 · §11.4 모티프 패스")
+public interface ArtistControllerDocs {
+
+    @Operation(
+            summary = "아티스트 랭킹 (§5.1)",
+            description = """
+                    Redis 스냅샷 기반의 **서버 고정 정렬**이다. `sort` 파라미터를 받지 않는다.
+
+                    홈 "Who's On TOP4"(§6.2)는 `size=4`, 온보딩 인기 아티스트 목록(§3.1)도
+                    **같은 API 를 재사용**한다 — 필드도 캐시 정책도 같아 나눌 실익이 없다.
+
+                    - `rank` 는 **전체 스냅샷 기준**이다. `filter` 로 걸러도 다시 매기지 않는다 —
+                      "내 구독 아티스트 중 3위"가 아니라 "전체 3위"를 보여준다.
+                    - `rankDelta` = 직전 스냅샷 순위 − 현재 순위. **상승이 양수·하락이 음수**
+                      (5위→3위 = `2`, 3위→5위 = `-2`). **신규 진입은 `null`** 이다.
+                    - `totalElements` 는 **`filter` 를 적용한 뒤**의 개수다.
+                    - `name` 은 `users.nickname`, `groupName` 은 솔로면 `null` 이다.
+                    - 스냅샷이 비어 있으면 **빈 목록 200** 이다(에러가 아니다).
+
+                    ### 점수 공식 *(2026-09-21 재정의 — ADR-0016)*
+                    ```
+                    reaction_total  = Σ_c ( view_count_c + Wp × participant_count_c )
+                    reaction_recent = Σ_c ( 최근 3버킷 조회수_c )
+                    reaction_prev   = Σ_c ( 그 이전 3버킷 조회수_c )
+
+                    tScore = log10(1 + reaction_total)  / log10(1 + T0)
+                    rScore = log10(1 + reaction_recent) / log10(1 + R0)
+                    dRel   = (reaction_recent − reaction_prev) / (reaction_prev + K)
+                    dScore = 0.5 + 0.5 × clamp(dRel / D0, −1, +1)
+
+                    score  = Wt·tScore + Wr·rScore + Wd·dScore      (기본 0.5 / 0.35 / 0.15)
+                    ```
+                    대상은 해당 아티스트의 **비삭제 챌린지**뿐이다. 챌린지를 올리는 행위 자체에는
+                    점수를 주지 않는다 — 주면 반응 없는 챌린지를 여러 개 올리는 것만으로 순위가
+                    올라 인기 랭킹이 아니게 된다.
+
+                    - **시간 감쇠가 없다.** 감쇠 기준이 챌린지 등록 시각이라 오래된 챌린지는 지금
+                      아무리 돌아도 올라올 수 없었다. 20분 버킷이 "지금 얼마나 보고 있는가" 를
+                      직접 준다.
+                    - **참여 영상 수(`Wp`=100)는 누적 항에만 들어간다.** 1시간 창에서는 0~2건이라
+                      환산비가 아니라 on/off 스위치가 되어 순위가 동전 던지기가 된다.
+                    - **정규화 기준은 그 틱의 최대값이 아니라 고정 상수**(`T0`·`R0`·`D0`)다. 최대값으로
+                      나누면 다른 아티스트의 등락이 내 순위를 바꿔 `rankDelta` 에 거짓 변동이 뜬다.
+                    - 가중치가 §6.1 영상 HOT(0.3/0.5/0.2)보다 **누적 쪽으로 기울어 있다** — 이
+                      스냅샷을 §3.1 온보딩 인기 목록이 함께 쓰므로 무명이 1위로 뜨면 곤란하다.
+                    - **비삭제 아티스트는 챌린지가 0개여도 0점으로 넣는다.** §6.1 의
+                      `view_count > 0` 모집단 필터를 여기에 복사하면 온보딩 목록에서 신인이 사라진다.
+
+                    값은 전부 `motif.ranking.*` 설정이다. 실트래픽 없이 자릿수만 맞춘 추정값이라,
+                    배치가 상위 10건의 항별 점수를 로그에 남긴다.
+
+                    ### 갱신과 캐싱 (§1.6)
+                    스냅샷 갱신은 **20분**이다 — 조회수 집계 배치의 마지막 단계로 돈다(ADR-0016).
+                    `rankDelta` 의 대비 대상은 **3틱 전(=1시간)** 버전이며, 구 `rank:artist:prev` 와
+                    `prev-interval` 설정은 폐기됐다. 랭킹이 처음 만들어진 틱은 전원 `0` 이라
+                    `null` 은 **진짜 신규 진입** 전용이다.
+
+                    **서버는 갱신을 push 하지 않는다** — SSE·WebSocket 을 쓰지 않고 FCM 은 §14
+                    전용이다. 클라이언트는 **화면 진입·포그라운드 복귀·당겨서 새로고침** 시점에만
+                    호출하고, 마지막 응답이 **5분** 안이면 요청하지 않는다
+                    (stale-while-revalidate). 클라 TTL 5분은 배치 주기와 더 이상 같지 않다 — 20분으로
+                    올리면 최대 지연이 배치 20분 + 캐시 20분 = 40분이 된다. **타이머 폴링 금지.**
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "아티스트 랭킹",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "rank": 1,
+                                            "rankDelta": 2,
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "isSubscribed": false
+                                          },
+                                          {
+                                            "rank": 2,
+                                            "rankDelta": null,
+                                            "artistSeq": 7,
+                                            "name": "윈터",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
+                                            "isSubscribed": true
+                                          }
+                                        ],
+                                        "page": 0,
+                                        "size": 20,
+                                        "totalElements": 58,
+                                        "totalPages": 3,
+                                        "hasNext": true,
+                                        "hasPrevious": false
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "인증 실패 (§1.4 공통)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<PageResponse<ArtistRankingResponse>> ranking(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "구독 여부 필터", example = "ALL") RankingFilter filter,
+            @Parameter(description = "0-base 페이지 번호", example = "0") int page,
+            @Parameter(description = "페이지 크기 — 최대 100. 홈 TOP4 는 4", example = "20") int size);
+
+    @Operation(
+            summary = "전체 아티스트 목록 (§5.10) — 구독자 수순 전량",
+            description = """
+                    아티스트 탭의 전체 목록이다. **비페이지 전량 반환**이고 정렬은
+                    `artists.subscriber_count` **내림차순**이다.
+
+                    - **인증 필요.** `isSubscribed` 가 호출자 기준이다.
+                    - **파라미터가 없다** — `page`·`size`·`cursor` 도, `sort` 도 받지 않는다.
+                      정렬은 서버 고정이다.
+                    - **동점은 `artistSeq` 오름차순**이다. tie-break 가 없으면 구독자 0인 신인들의
+                      순서가 요청마다 달라져 같은 화면이 새로고침마다 뒤바뀐다.
+                    - 항목은 **아티스트 요약 + `isSubscribed`** 다. `name` 은 `users.nickname`,
+                      `groupName` 은 솔로면 `null` 이고, `profileImageUrl` 은 공개 등급이라
+                      서명하지 않는다(§1.7).
+                    - **`subscriberCount` 는 싣지 않는다** — 정렬 기준일 뿐이다. 개별 아티스트의
+                      구독자 수는 §5.3 상세가 준다.
+                    - 삭제된 아티스트는 빠진다(§1.8). 아티스트가 0명이면 **빈 배열 200** 이다.
+
+                    ### §5.1 랭킹과 다른 API 다
+                    | | §5.1 랭킹 | §5.10 목록 |
+                    |---|---|---|
+                    | 1차 출처 | Redis 스냅샷(배치가 20분마다) | **DB 직조회** |
+                    | 정렬 | 챌린지 반응 점수(누적·최근1h·증감) | **구독자 수** |
+                    | 페이지 | offset | **없음 — 전량** |
+
+                    §5.1 을 `size` 만 키워 재사용하면 **구독자 수순이 되지 않는다** — 랭킹 점수는
+                    구독을 보지 않는다(§5.6).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "아티스트 전량 (구독자 수 내림차순)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "isSubscribed": true
+                                          },
+                                          {
+                                            "artistSeq": 7,
+                                            "name": "윈터",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/default.png",
+                                            "isSubscribed": false
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-18T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "인증 실패 (§1.4 공통)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<ListResponse<ArtistCardResponse>> list(
+            @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "아티스트 검색 (§5.2) — 자동완성 겸용",
+            description = """
+                    **타이핑 중이든 엔터 실행이든 같은 API 를 부른다.** v0.7 이 나눴던
+                    §5.9 `/artists/autocomplete` 는 v0.13 에서 여기로 통합돼 삭제됐다 —
+                    두 응답의 차이가 `isSubscribed` 한 칸뿐이었다. 온보딩 §3.2 도 이 경로를 쓴다.
+
+                    ### 무엇을 훑나
+                    이름이 아니라 **별칭 테이블**(`artist_aliases`·`group_aliases`)을 `ILIKE` 로
+                    훑는다. 언어별 별칭을 저장하므로 "Karina" 로 치든 "카리나" 로 치든 같은
+                    아티스트가 나온다.
+
+                    - **응답의 `name` 은 `users.nickname` 고정이다** — 별칭으로 찾았어도 별칭을
+                      싣지 않는다. 어느 질의로 걸렸든 화면에는 같은 이름이 뜬다.
+                    - **언어로 거르지 않는다.** 한국어 UI 사용자도 "aespa" 를 영문으로 치는 일이
+                      흔해서, 요청 언어로 필터링하면 오히려 안 나온다.
+                    - **오타 보정이 없다.** v0.12 까지의 pg_trgm 유사도 검색을 버렸다 —
+                      "카리다" 는 0건이다. 대신 순서가 결정적이다.
+                    - `q` 의 LIKE 메타문자(`%`·`_`·`\\`)는 **이스케이프해 글자 그대로** 찾는다.
+
+                    ### 그룹 매치
+                    검색어가 **그룹 별칭**에 걸리면 그 그룹의 **비삭제 멤버 전원**을 결과 목록에
+                    포함한다. 결과는 **항상 멤버 단위**이며 그룹으로 묶은 중첩 구조를 만들지 않는다.
+
+                    ### 정렬
+                    **본인 별칭으로 걸린 아티스트가 그룹 확장으로 딸려온 멤버보다 항상 앞**이다.
+                    각 덩어리 안에서는:
+
+                    | 순위 | 기준 |
+                    |---|---|
+                    | 1 | 완전 일치 (대소문자 무시) |
+                    | 2 | 접두 일치 |
+                    | 3 | 별칭 길이 오름차순 |
+                    | 4 | `subscriber_count` 내림차순 |
+                    | 5 | `artistSeq` 오름차순 |
+
+                    - 한 아티스트가 별칭 여러 개로 걸리면 **1건으로 합치고 가장 높은 매치**를
+                      정렬 키로 쓴다.
+                    - `size` 는 정렬·중복 제거를 **마친 뒤의 단순 상한**이다. 경계에서 그룹 멤버
+                      일부가 잘려 나가는 것을 허용한다 — 그룹을 통째로 넣으면 `size` 가 상한이
+                      아니게 된다.
+                    - 삭제된 아티스트·그룹은 빠진다. 별칭 행은 소프트 삭제를 따라가지 않으므로
+                      조회 시 조인에서 거른다.
+                    - 0건도 **빈 배열 200** 이다.
+
+                    ### 클라이언트 규약
+                    입력 **디바운스 300ms** + **직전 요청 취소 후 최신 질의만 반영**
+                    (`Flow.debounce` + `collectLatest`). 응답 역전으로 옛 결과가 새 결과를
+                    덮어쓰는 것을 막는다. 빈 문자열이면 호출하지 않고 목록을 비운다 —
+                    서버도 400 으로 막지만 왕복을 낭비하지 않는다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "검색 결과 (상위 size 건)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "artistSeq": 3,
+                                            "name": "카리나",
+                                            "groupName": "aespa",
+                                            "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                            "isSubscribed": true
+                                          }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-21T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "검색어가 비었거나 공백뿐 (INVALID_PARAMETER)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "인증 실패 (§1.4 공통)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<ListResponse<ArtistSearchResponse>> search(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "검색어 — 비었거나 공백뿐이면 400", example = "카리나") String q,
+            @Parameter(description = "상위 N 건 — 최대 100", example = "20") int size);
+
+    @Operation(
+            summary = "아티스트 상세 (§5.3)",
+            description = """
+                    아티스트 상세 화면 1회 진입 시 호출한다 (명세 §5.3).
+
+                    - **인증 필요.** 응답의 `isSubscribed`·`subscribedDays`·`pass` 가 호출자 기준이다.
+                    - `name` 은 `users.nickname` 이다 — `artists` 테이블에 이름 칸이 없다.
+                    - `groupName` 은 솔로 아티스트면 `null`.
+                    - `challengeCount` 는 **비삭제** 챌린지 수다.
+                    - `subscribedDays` 는 구독 경과일("WITH n days")이며 **미구독이면 `null`** 이다.
+                    - `pass.active=false` 면 클라이언트는 "모티프 패스 알아보기"(→ §11.4)를 노출한다.
+                    - 삭제된 아티스트는 **없는 것으로 답한다**(404) — §1.8 공통 비노출.
+
+                    ### `myMotifVideos` 는 현재 항상 빈 배열이다
+                    이 필드는 §1.7 **보호 등급**(모티프 결과물)이라 CloudFront **프리픽스 서명**이
+                    붙어야 하는데(ADR-0012 — signed 쿠키는 쓰지 않는다), 이 API 에서 채우는 것은
+                    후속 티켓이다. 공개 URL 로 대신 내보내면 유료·비공개 결과물이 무기명 링크로
+                    새므로 빈 배열로 둔다 — 명세대로 **빈 배열이면 클라이언트는 상단 자동재생
+                    영역을 노출하지 않는다.** 개수·만료 정책은 명세 §16 #23 미결 안건이다.
+
+                    지금 보관함 결과물을 재생해야 하면 **§11.5 목록 · §11.6 상세**를 쓴다 —
+                    그쪽은 서명된 `videoUrl` 을 내려준다.
+
+                    전체 목록·더보기는 §5.8(`GET /users/me/motif-results?artistSeq=`)을 재사용한다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "아티스트 상세",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "artistSeq": 3,
+                                        "name": "카리나",
+                                        "groupName": "aespa",
+                                        "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg",
+                                        "bio": "aespa의 카리나입니다.",
+                                        "subscriberCount": 15230,
+                                        "challengeCount": 121,
+                                        "isSubscribed": true,
+                                        "subscribedDays": 492,
+                                        "pass": { "active": true, "expiresDttm": "2026-10-01T00:00:00.000Z" },
+                                        "myMotifVideos": []
+                                      },
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "ARTIST_NOT_FOUND",
+                                      "message": "존재하지 않는 아티스트입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ArtistDetailResponse> detail(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(
+            summary = "아티스트 챌린지 그리드 (§5.4)",
+            description = """
+                    해당 아티스트의 챌린지를 **페이지 없이 전량** 최신순으로 반환한다 (회의 확정 R2).
+
+                    - **인증 필요.**
+                    - 그리드 경량 항목이다 — `title` 도 `videoUrl` 도 없다.
+                      (R3 에서 `challenges.title` 컬럼 자체가 삭제됐다. 화면 식별은 곡명·아티스트로 한다.)
+                    - 재생에 필요한 정보는 항목을 탭한 뒤 §7.2 상세에서 받는다.
+                    - 삭제된 챌린지는 빠진다 (§1.8).
+                    - `page`·`cursor` 파라미터가 **없다** — 전량 반환이다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "챌린지 전량 (최신순)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          { "challengeSeq": 11, "thumbnailUrl": "https://cdn.motif.io/challenges/7e2a1b9c-3d4e-5f60-8a1b-2c3d4e5f6071/thumb.jpg", "viewCount": 120000 }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<ListResponse<ArtistChallengeResponse>> challenges(
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(
+            summary = "아티스트 공지 목록 (§5.5) — 커서 페이지네이션",
+            description = """
+                    해당 아티스트의 공지를 **최신순 고정**으로 반환한다 (명세 §5.5).
+
+                    - **인증 필요.** `isLiked` 가 호출자 기준이다.
+                    - **커서 방식이다**(§1.9) — 어드민 목록(§1.5 offset)과 다르다. `page` 파라미터가 없다.
+                      최초 호출은 `cursor` 를 **생략**하고, 이후에는 직전 응답의 `nextCursor` 를 그대로 넣는다.
+                    - `nextCursor: null`(= `hasNext: false`)이면 끝이다.
+                    - **커서는 opaque 토큰이다** — 해석·조작하지 않는다. 망가진 값은 400 이다.
+                    - `prevCursor`/`hasPrevious` 는 자리만 잡아 둔 칸으로 **항상 `null`·`false`** 다.
+                      역방향 조회 제공 여부는 §16 미결 안건이고, 현재 계약은 `nextCursor` 순방향뿐이다.
+                    - **별도의 공지 상세 API 가 없다**(구 §10.1 삭제) — 목록 항목이 본문(`content`)과
+                      이미지 배열을 전부 싣는다. `title` 은 없다.
+                    - `images` 는 `displayOrder` 오름차순 **전체 배열**이며, 대표 이미지 전용 필드는 쓰지 않는다.
+                    - `artist` 는 `{artistSeq, name, profileImageUrl}` 까지다 — `groupName` 은 제외.
+                    - 삭제된 공지는 빠진다 (§1.8).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "공지 한 페이지 (최신순)",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "list": [
+                                          {
+                                            "noticeSeq": 5,
+                                            "artist": { "artistSeq": 3, "name": "카리나", "profileImageUrl": "https://cdn.motif.io/profiles/3f9c1a2b.jpg" },
+                                            "content": "전체 본문...",
+                                            "images": [
+                                              { "imageUrl": "https://cdn.motif.io/notices/9f3b2a71.jpg", "displayOrder": 0 },
+                                              { "imageUrl": "https://cdn.motif.io/notices/4c8d5e02.jpg", "displayOrder": 1 }
+                                            ],
+                                            "likeCount": 200,
+                                            "commentCount": 14,
+                                            "isLiked": true,
+                                            "regDttm": "2026-09-01T09:00:00.000Z"
+                                          }
+                                        ],
+                                        "prevCursor": null,
+                                        "nextCursor": "NQ",
+                                        "hasPrevious": false,
+                                        "hasNext": true
+                                      },
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "해석할 수 없는 cursor",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "INVALID_PARAMETER",
+                                      "message": "요청 값이 올바르지 않습니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-14T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<CursorResponse<ArtistNoticeResponse>> notices(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq,
+            @Parameter(description = "직전 응답의 nextCursor. 최초 호출은 생략한다") String cursor,
+            @Parameter(description = "페이지 크기 — 기본 20 · 최대 100", example = "20") int size);
+
+    @Operation(
+            summary = "구독 (§5.6)",
+            description = """
+                    아티스트를 구독한다. **무료 팔로우이며 모티프 패스 구매(§11.4)와 완전히 별개**다.
+
+                    **요청 본문이 없다.** 토글이 아니라 "구독 상태로 만들어라"는 단언이라 보낼 값이 없다.
+
+                    ### 멱등하다
+                    **이미 구독 중인데 다시 호출해도 200 이고 `subscriberCount` 는 변하지 않는다.**
+                    서버는 삽입이 실제로 행을 만들었을 때만 카운터를 올린다(복합 PK 가 판정한다).
+                    동시에 두 번 들어와도 카운터는 한 번만 움직인다.
+
+                    ### 연타 처리는 클라이언트 몫이다 (§5.6)
+                    서버가 멱등이라 정합성은 항상 유지되므로, 방어는 클라이언트가 한다.
+                    1. 버튼을 누르면 **즉시 낙관적으로 UI 를 반전**한다
+                    2. **디바운스(약 500ms) 후 최종 상태만 1회 전송**한다
+                    3. 응답의 `isSubscribed`·`subscriberCount` 로 UI 를 **보정**한다
+                    4. 요청이 진행 중이면 중복 탭을 무시한다
+
+                    **좋아요와 달리 204 가 아니라 200 이다** — §1.2 의 "성공만 204" 예외는
+                    좋아요 토글 전용이고, 이쪽은 위 3번의 보정 값을 돌려줘야 한다.
+
+                    ### 랭킹 순위는 움직이지 않는다
+                    §5.1 랭킹 점수는 **챌린지 활동**(조회·참여)만 본다. 구독해도 순위는 그대로이며,
+                    바뀌는 것은 §5.1 의 `SUBSCRIBED`/`UNSUBSCRIBED` **필터 결과**와
+                    §5.3 `isSubscribed`·§4.6 구독 목록·§4.7 구독 카드다.
+
+                    **삭제된 아티스트는 구독할 수 없다** — 404 다(§1.8 없는 것으로 답한다).
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "구독 상태",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "isSubscribed": true, "subscriberCount": 15231 },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재·삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<SubscriptionResponse> subscribe(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(
+            summary = "구독 취소 (§5.7)",
+            description = """
+                    구독을 해제한다. **하드 삭제**이며 구독 기록이 남지 않는다 —
+                    다시 구독하면 `subscribedDays`(§5.3)가 0부터 다시 센다.
+
+                    ### 멱등하다
+                    **구독하지 않은 상태에서 호출해도 200 이고 `subscriberCount` 는 변하지 않는다.**
+                    서버는 삭제가 실제로 행을 지웠을 때만 카운터를 내린다.
+
+                    ### 404 범위가 §5.6 과 다르다
+                    | 대상 | §5.6 구독 | §5.7 취소 |
+                    |---|---|---|
+                    | 존재하지 않는 `artistSeq` | 404 | 404 |
+                    | **삭제된 아티스트** | 404 | **200 — 해제할 수 있다** |
+
+                    삭제된 아티스트 구독은 §4.6 목록에서 이미 숨겨지는데 해제까지 막으면
+                    사용자가 그 구독을 **영원히 정리할 수 없다.**
+
+                    연타 규약·204 아닌 이유는 §5.6 과 같다.
+                    """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "구독 상태",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": { "isSubscribed": false, "subscriberCount": 15230 },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "존재하지 않는 아티스트 (삭제된 아티스트는 200)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class)))
+    })
+    ApiResponse<SubscriptionResponse> unsubscribe(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+
+    @Operation(summary = "아티스트별 모티프 패스 (§11.4)", description = """
+            패스 구매 화면의 데이터다 — **배너 · 내 보유 상태 · 지금 파는 가격**.
+            구 경로 `/motif/shop/artists/{artistSeq}` 를 REST 관점에 맞게 바꾼 것이다.
+
+            - **인증 필요.** `passActive`·`expiresDttm` 이 호출자 기준이다.
+            - `prices` 는 **판매 중인** 개월 수별 가격이고 **개월 오름차순**이다. 꺼진
+              가격은 나오지 않는다 — 내보내면 눌러도 결제가 시작되지 않는 버튼이 생긴다.
+            - 가격이 0건이어도 200 이다(빈 배열). 판매 준비 중인 아티스트가 그렇다.
+
+            ### 보유 중이면 prices 가 빈 배열이다
+
+            현재 구현은 **만료 전 연장 구매를 지원하지 않는다**. 필드가 빠지지는 않는다 —
+            두 응답에 같은 타입을 쓸 수 있어야 한다.
+
+            ### 유효 판정
+
+            `status='ACTIVE' AND expires_dttm > now` 이고 **비교는 DB 가 한다**. `status`
+            만 보면 만료 배치가 돌기 전 구간에서 틀린다. §5.3 아티스트 상세의 `pass` 칸과
+            **같은 판정**이라 두 화면이 다른 말을 하지 않는다.
+
+            ### bannerImageUrl
+
+            `artists.motif_bg_image_key` 를 공개 CDN URL 로 바꾼 값이고 미설정이면 `null`
+            이다. **숍 공용 배너(§11.11)와는 별개**다.
+            """)
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "성공 — 미보유면 prices, 보유 중이면 빈 배열",
+                    content = @Content(mediaType = "application/json",
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "SUCCESS",
+                                      "code": "SUCCESS",
+                                      "message": "요청이 성공했습니다.",
+                                      "data": {
+                                        "artistSeq": 3,
+                                        "bannerImageUrl": "https://cdn.motif.io/artists/3f9c1a2b/motif-bg.jpg",
+                                        "passActive": false,
+                                        "expiresDttm": null,
+                                        "prices": [
+                                          { "durationMonths": 1, "amount": "9900.00", "currency": "KRW" },
+                                          { "durationMonths": 3, "amount": "27900.00", "currency": "KRW" }
+                                        ]
+                                      },
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }"""))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "미존재 · 삭제 아티스트",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = FailResponseSchema.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "result": "FAIL",
+                                      "code": "ARTIST_NOT_FOUND",
+                                      "message": "존재하지 않는 아티스트입니다.",
+                                      "data": null,
+                                      "timestamp": "2026-09-10T00:00:00.000Z"
+                                    }""")))
+    })
+    ApiResponse<ArtistMotifPassResponse> motifPass(
+            @Parameter(hidden = true) AuthenticatedUser user,
+            @Parameter(description = "아티스트 seq", example = "3") Integer artistSeq);
+}

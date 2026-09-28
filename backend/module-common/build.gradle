@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.boot:spring-boot-dependencies:${libs.versions.spring.boot.get()}"
+    }
+}
+
+dependencies {
+    // BaseTimeEntity(@MappedSuperclass)가 노출하는 유일한 외부 API — 컨슈머도 필요하므로 api
+    api 'jakarta.persistence:jakarta.persistence-api'
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+}

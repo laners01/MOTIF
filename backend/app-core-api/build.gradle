@@ -1,0 +1,113 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencies {
+    implementation project(':domain-core')
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
+    // 어드민 화면 (어드민 명세 §1.1 — /admin/** 은 Thymeleaf, 데이터는 /api/v1/admin/** fetch)
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'  // Boot 4 신설 스타터
+
+    // 인증·인가 — SCG 제거로 core-api가 소유 (ADR-0009 D2). 필터 체인은 이 티켓에서 최초 구성
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // 레이트리밋·랭킹·캐시 — 유저당 token bucket 을 앱 필터로 (ADR-0009 D4).
+    // 구현은 후속 티켓이지만 접속·기동 영향이 있어 설정과 함께 먼저 붙인다
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // 구글 ID 토큰 검증 — Nimbus 디코더 + JWKS(googleapis /oauth2/v3/certs). 키 롤링·캐싱 내장.
+    // google-api-client(GoogleIdTokenVerifier) 대신 선택: Guava·google-http-client 전이 의존을
+    // 끌어오지 않고, spring-security 트레인과 버전이 함께 간다 (램 제약 — ADR-0009 근거 2)
+    implementation libs.spring.security.oauth2.jose
+
+    // 서비스 access/refresh JWT 발급·검증
+    implementation libs.jjwt.api
+    runtimeOnly libs.jjwt.impl
+    runtimeOnly libs.jjwt.jackson    // 직렬화는 Jackson 2 — 아래 MQ 선언과 같은 트레인을 공유한다
+
+    // S3 presigned PUT 서명 전용 (어드민 명세 §3.2). S3Client 는 만들지 않는다 —
+    // 바이트는 브라우저 → S3 로 직행하고 core-api 는 서명만 한다(원칙 ①)
+    implementation libs.aws.s3
+
+    // CloudFront signed URL 발급 (API 명세 §1.7 보호 등급). 서명만 하고 바이트는
+    // 여전히 CDN 이 낸다 — 원칙 ① 유지
+    implementation libs.aws.cloudfront
+
+    implementation libs.springdoc.webmvc.ui
+
+    // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
+    implementation libs.jackson2.databind
+    implementation libs.jackson2.jsr310
+
+    implementation libs.micrometer.prometheus
+
+    runtimeOnly libs.postgresql
+
+    // QueryDSL(openfeign 포크) — Phase 0에는 엔티티가 없어 생성물도 없지만 wiring을 먼저 통과시킨다
+    implementation libs.querydsl.core
+    implementation libs.querydsl.jpa
+    annotationProcessor variantOf(libs.querydsl.apt) { classifier('jpa') }
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+
+    // MapStruct — 사용 코드 없음, 프로세서 체인(lombok → binding → mapstruct)만 구성
+    implementation libs.mapstruct
+    annotationProcessor libs.mapstruct.processor
+    annotationProcessor libs.lombok.mapstruct.binding
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
+    testImplementation libs.spring.security.test
+}
+
+// 기본 test 는 외부 의존이 없는 것만 돈다 — Jenkinsfile 이 :app-core-api:test 를
+// 실행하며 그 에이전트에는 DB·MQ·Redis 가 없다.
+tasks.named('test', Test) {
+    useJUnitPlatform {
+        excludeTags 'local-db'
+    }
+}
+
+// 로컬 compose(ADR-0003 격리 모드)가 떠 있을 때만 도는 통합 테스트.
+//   cd backend/local-infra && docker compose up -d --wait
+//   ./gradlew :app-core-api:localDbTest
+tasks.register('localDbTest', Test) {
+    group = 'verification'
+    description = '로컬 compose DB 를 쓰는 통합 테스트 (@Tag("local-db"))'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    // 컨텍스트마다 Hikari 풀이 따로 뜬다 — @SpringBootTest 가 58개이고 그중 19개가
+    // @RecordApplicationEvents·@TestPropertySource 처럼 컨텍스트를 가르는 것을 달고 있어
+    // 기본 풀(10)로는 compose Postgres 의 max_connections(100) 를 넘긴다. 넘는 순간
+    // 그 컨텍스트가 "remaining connection slots" 으로 죽는데, 실패가 그때 로드되던
+    // 아무 테스트에 찍혀서 실행할 때마다 다른 클래스가 깨진 것처럼 보인다.
+    systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
+    systemProperty 'spring.datasource.hikari.minimum-idle', '0'
+    useJUnitPlatform {
+        includeTags 'local-db'
+    }
+}
+
+// QueryDSL Q클래스 생성 디렉터리 wiring (MODERA 방식)
+def querydslDir = layout.buildDirectory.dir('generated/querydsl').get().asFile
+
+sourceSets {
+    main.java.srcDirs += [querydslDir]
+}
+
+tasks.named('compileJava', JavaCompile).configure {
+    options.generatedSourceOutputDirectory.set(file(querydslDir))
+}
+
+clean {
+    delete file(querydslDir)
+}

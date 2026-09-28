@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('공지 목록', ~{::main})}">
+<body>
+<!--/* §3.10.1 목록. 최신순은 서버 기본 정렬을 그대로 쓴다. 로직은 notice-list.js. */-->
+<main>
+    <section>
+        <p>
+            <label style="display:inline">아티스트
+                <select id="artist"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline"><input type="checkbox" id="include-deleted"> 삭제분 포함</label>
+            <button type="button" id="reload">조회</button>
+            <a href="/admin/notices/new">+ 공지 작성</a>
+        </p>
+        <p class="err" id="err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>#</th><th>아티스트</th><th>본문</th><th>이미지</th><th>좋아요</th>
+                <th>댓글</th><th>등록</th><th></th></tr>
+            </thead>
+            <tbody id="notices"></tbody>
+        </table>
+        <p class="muted" id="count"></p>
+    </section>
+
+    <template id="notice-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="artist"></td>
+            <td class="preview"></td>
+            <td class="images"></td>
+            <td class="likes"></td>
+            <td class="comments"></td>
+            <td class="reg"></td>
+            <td class="actions"><a class="edit">수정</a> <button type="button" class="del">삭제</button></td>
+        </tr>
+    </template>
+
+    <script src="/admin/notice-list.js" defer></script>
+</main>
+</body>
+</html>

@@ -1,0 +1,248 @@
+{
+  "rabbit_version": "3.13.0",
+  "users": [
+    {
+      "name": "motif",
+      "password_hash": "CimCQNDakx1gZo0jD/t2+SWLwfJKp7nDpFzzJhxc9LBHralH",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "permissions": [
+    {
+      "user": "motif",
+      "vhost": "/motif",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/motif"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "motif.topic",
+      "vhost": "/motif",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "motif.dlx",
+      "vhost": "/motif",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "job.composite",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-max-priority": 10,
+        "x-dead-letter-exchange": "motif.dlx",
+        "x-dead-letter-routing-key": "dlq.job.composite"
+      }
+    },
+    {
+      "name": "job.media",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "motif.dlx",
+        "x-dead-letter-routing-key": "dlq.job.media"
+      }
+    },
+    {
+      "name": "evt.core",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "motif.dlx",
+        "x-dead-letter-routing-key": "dlq.evt.core"
+      }
+    },
+    {
+      "name": "evt.notification",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "motif.dlx",
+        "x-dead-letter-routing-key": "dlq.evt.notification"
+      }
+    },
+    {
+      "name": "evt.ranking",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "motif.dlx",
+        "x-dead-letter-routing-key": "dlq.evt.ranking"
+      }
+    },
+    {
+      "name": "dlq.job.composite",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.job.media",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.evt.core",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.evt.notification",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dlq.evt.ranking",
+      "vhost": "/motif",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "job.composite",
+      "destination_type": "queue",
+      "routing_key": "job.composite",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "job.media",
+      "destination_type": "queue",
+      "routing_key": "job.media",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.core",
+      "destination_type": "queue",
+      "routing_key": "composite.*",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.notification",
+      "destination_type": "queue",
+      "routing_key": "composite.*",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.notification",
+      "destination_type": "queue",
+      "routing_key": "comment.*",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.notification",
+      "destination_type": "queue",
+      "routing_key": "notice.created",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.notification",
+      "destination_type": "queue",
+      "routing_key": "challenge.created",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.ranking",
+      "destination_type": "queue",
+      "routing_key": "video.*",
+      "arguments": {}
+    },
+    {
+      "source": "motif.topic",
+      "vhost": "/motif",
+      "destination": "evt.ranking",
+      "destination_type": "queue",
+      "routing_key": "comment.*",
+      "arguments": {}
+    },
+    {
+      "source": "motif.dlx",
+      "vhost": "/motif",
+      "destination": "dlq.job.composite",
+      "destination_type": "queue",
+      "routing_key": "dlq.job.composite",
+      "arguments": {}
+    },
+    {
+      "source": "motif.dlx",
+      "vhost": "/motif",
+      "destination": "dlq.job.media",
+      "destination_type": "queue",
+      "routing_key": "dlq.job.media",
+      "arguments": {}
+    },
+    {
+      "source": "motif.dlx",
+      "vhost": "/motif",
+      "destination": "dlq.evt.core",
+      "destination_type": "queue",
+      "routing_key": "dlq.evt.core",
+      "arguments": {}
+    },
+    {
+      "source": "motif.dlx",
+      "vhost": "/motif",
+      "destination": "dlq.evt.notification",
+      "destination_type": "queue",
+      "routing_key": "dlq.evt.notification",
+      "arguments": {}
+    },
+    {
+      "source": "motif.dlx",
+      "vhost": "/motif",
+      "destination": "dlq.evt.ranking",
+      "destination_type": "queue",
+      "routing_key": "dlq.evt.ranking",
+      "arguments": {}
+    }
+  ],
+  "policies": [],
+  "parameters": [],
+  "global_parameters": []
+}
