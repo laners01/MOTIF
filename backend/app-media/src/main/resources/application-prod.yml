@@ -1,0 +1,56 @@
+# 서버 모드 — k8s 클러스터 (ADR-0003)
+# 비밀값(password)은 Secret 주입 필수, fallback 금지 (placeholder 규율, ADR-0004).
+# 접속 정보(호스트·계정명)만 fallback 을 둔다 — 기본값이 클러스터 Service 이름과
+# 이미 일치해 실제로는 주입하지 않는다.
+#
+# ── DB 계정이 core_app 인 이유 ──────────────────────────────────────────────
+# 이 워커가 UPDATE 하는 challenges·composite_jobs 는 motif_core 스키마이고 그
+# 소유자가 core_app 이다. MediaJobProcessor 의 SQL 이 스키마를 한정하지 않는데도
+# 풀리는 것은 core_app 의 search_path(motif_core, public) 덕이다
+# (infra/k8s/10-postgres/configmap-init.yaml 의 ALTER ROLE — 롤 단위라 접속하는
+# 앱이 무엇이든 적용된다). notif_app 은 motif_core 에서 REVOKE 돼 있어 못 쓴다.
+#
+# ── Liquibase 를 켜지 않는다 ────────────────────────────────────────────────
+# 의존성 자체가 없다(build.gradle). core 스키마 마이그레이션은 core-api 소유이고,
+# 워커가 같은 changelog 를 또 돌리면 changelog 잠금을 두고 경쟁한다.
+#
+# ── AWS 자격증명은 여기 없다 ────────────────────────────────────────────────
+# AWS_ACCESS_KEY_ID·AWS_SECRET_ACCESS_KEY 는 yml 이 참조하지 않는다 — SDK 가
+# 환경변수에서 직접 읽는다(MediaConfig 는 기본 자격증명 체인을 쓴다). 그래서
+# **빠져도 파드는 정상 기동하고** 첫 잡에서 AccessDenied 로만 드러난다.
+# 운영 서버(Lightsail)의 IMDS 는 SSAFY 계정 역할을 흘리므로 우리 버킷에
+# 쓸 수 없다 — 우리 계정 IAM 사용자 키를 Secret 으로 덮어써야 한다
+# (backend/CLAUDE.md "S3 자격증명 — IMDS 를 믿지 마라",
+#  infra/k8s/45-app-media/secret.example.yaml.txt).
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/motif}
+    username: ${DB_USERNAME:core_app}
+    password: ${DB_PASSWORD}
+  rabbitmq:
+    host: ${MQ_HOST:rabbitmq}
+    port: 5672
+    username: ${MQ_USERNAME:media}
+    password: ${MQ_PASSWORD}
+    virtual-host: /motif
+
+# ── 프로브가 실제 의존성을 보게 한다 ────────────────────────────────────────
+# 실측(2026-09-14, 빈 설정으로 기동): DB_PASSWORD 없이, MQ 도 없이
+# "Started MediaApplication in 4.035 seconds" 가 찍힌다. 워커에는 Liquibase 가
+# 없고 Hikari 는 첫 쿼리까지 접속하지 않아 DB 설정이 틀려도 기동에서 드러나지
+# 않는다. MQ 는 리스너 컨테이너가 조용히 무한 재시도한다.
+#
+# 그대로 두면 MQ 사용자·비밀번호가 틀렸을 때 파드가 1/1 Ready 인 채로
+# job.media consumers 가 0 으로 남는다 — 명세 §5.1 이 손으로 확인하라고 적어둔
+# 바로 그 상태이고, 화면에는 아무 증상이 없다(함정 4).
+#
+# readiness 에 db·rabbit 을 넣어 그 거짓 초록을 없앤다. HTTP 트래픽이 없어
+# Service 엔드포인트에서 빠지는 부작용도 없다 — NotReady 는 순수하게 신호다.
+# liveness 는 건드리지 않는다: MQ 가 잠깐 끊겼다고 인코딩 중인 파드를 죽이면
+# 진행 중인 잡만 날아간다.
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db,rabbit

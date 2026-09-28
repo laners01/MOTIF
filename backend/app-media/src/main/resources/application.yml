@@ -1,0 +1,46 @@
+# 공통 설정 — 프로파일별 접속 정보는 application-{local,local-remote,prod}.yml (ADR-0003)
+spring:
+  application:
+    name: app-media
+  profiles:
+    default: local          # 프로파일 미지정 = 격리 모드
+  rabbitmq:
+    listener:
+      simple:
+        # 한 번에 한 건만 처리한다. 인코딩은 코어를 갈아 쓰는 작업이고(영상 길이의
+        # 0.1배속), 지금은 core-api 와 같은 노드에서 돈다 — 동시 처리가 늘면
+        # 사용자 요청 응답이 같이 느려진다. 큐가 밀리는 편이 API 가 느린 것보다 낫다.
+        # GPU 서버로 파드를 옮기면 그때 올린다
+        concurrency: 1
+        max-concurrency: 1
+        prefetch: 1
+
+  # JPA·Liquibase 를 쓰지 않는다 — 엔티티가 없고, core 스키마의 마이그레이션은
+  # core-api 소유다. 산출물 키 기록은 JdbcTemplate UPDATE 한 문장이다
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: 8083
+  shutdown: graceful
+
+management:
+  server:
+    port: 9083              # 관리 포트 분리 — 전 모듈 통일 (ADR-0004)
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+motif:
+  media:
+    ffmpeg: ffmpeg          # 컨테이너 이미지에 설치된 경로 (PATH 기준)
+    ffprobe: ffprobe
+    work-dir: ${MOTIF_MEDIA_WORK_DIR:/var/tmp/motif-media}
+    s3:
+      bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
+      region: ${AWS_REGION:ap-northeast-2}

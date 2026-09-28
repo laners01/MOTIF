@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('챌린지 목록', ~{::main})}">
+<body>
+<!--/*
+  §3.7.1 목록. 등록은 이미 있는 /admin/challenges/new 로 보낸다 — 원본 업로드·슬롯·
+  편집본 매트릭스가 붙는 화면이라 여기에 겹쳐 놓지 않는다. 로직은 challenges.js.
+*/-->
+<main>
+    <section>
+        <p>
+            <label style="display:inline">아티스트
+                <select id="artist"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline">곡
+                <select id="song"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline"><input type="checkbox" id="include-deleted"> 삭제분 포함</label>
+            <button type="button" id="reload">조회</button>
+            <a href="/admin/challenges/new">+ 챌린지 등록</a>
+        </p>
+        <p class="err" id="err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>#</th><th>썸네일</th><th>아티스트</th><th>곡</th><th>길이</th><th>슬롯</th><th>편집본</th>
+                <th>조회</th><th>참여</th><th>좋아요</th><th>댓글</th><th>등록</th><th></th></tr>
+            </thead>
+            <tbody id="challenges"></tbody>
+        </table>
+        <p class="muted" id="count"></p>
+    </section>
+
+    <template id="challenge-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="thumb-cell"></td>
+            <td class="artist"></td>
+            <td class="song"></td>
+            <td class="duration"></td>
+            <td class="slots"></td>
+            <td class="edited"></td>
+            <td class="views"></td>
+            <td class="participants"></td>
+            <td class="likes"></td>
+            <td class="comments"></td>
+            <td class="reg"></td>
+            <td class="actions"><button type="button" class="del">삭제</button></td>
+        </tr>
+    </template>
+
+    <script src="/admin/challenges.js" defer></script>
+</main>
+</body>
+</html>

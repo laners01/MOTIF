@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('챌린지 상세', ~{::main})}">
+<body>
+<!--/*
+  §3.7.3 상세 + 같은 행을 고치는 두 통로 — 슬롯 앵커(§3.7.9)·편집본 키(§3.7.6).
+  둘 다 슬롯 표 한 곳에서 한다: 편집본이 슬롯 1개당 1개라 행이 1:1 이다(0019).
+  삭제는 별도 티켓이라 버튼을 두지 않는다.
+
+  등록 직후 "무엇이 들어갔나"를 확인하는 용도가 크다. 그래서 원본 영상을 실제로 재생해
+  보여준다 — 키만 맞고 파일이 엉뚱한 경우가 목록 숫자로는 드러나지 않는다.
+
+  앵커·선택 화면이 비어 있는 챌린지는 0017 이전에 등록된 것이다. 여기서 채운다.
+  로직은 challenge-detail.js.
+*/-->
+<main>
+    <p class="err" id="err" hidden></p>
+
+    <section>
+        <h2>1. 원본 · 썸네일</h2>
+        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap">
+            <div class="frame">
+                <video id="video" controls playsinline width="270"></video>
+            </div>
+            <div>
+                <!--/* 썸네일이 곧 앵커 좌표계다 — 슬롯 행을 고른 뒤 여기를 클릭하면 원이 앉는다 */-->
+                <div class="frame thumb-frame" id="thumb-wrap"></div>
+                <p class="muted" id="thumb-note"></p>
+            </div>
+        </div>
+        <p class="muted" id="video-note"></p>
+    </section>
+
+    <section>
+        <h2>2. 기본 정보 <span class="muted">— 곡·소개글만 고칠 수 있다(§3.7.4). 원본 영상·메인 아티스트·길이는 등록 후 불변이다(R1)</span></h2>
+        <table>
+            <tbody>
+            <tr><th>챌린지</th><td id="seq"></td></tr>
+            <tr><th>메인 아티스트</th><td id="artist"></td></tr>
+            <tr><th>곡</th><td><select id="song"></select></td></tr>
+            <tr><th>소개글</th><td><textarea id="description" rows="3"></textarea></td></tr>
+            <tr><th>길이</th><td id="duration"></td></tr>
+            <tr><th>지표</th><td id="counts"></td></tr>
+            <tr><th>후처리 잡</th><td id="jobs"></td></tr>
+            </tbody>
+        </table>
+        <p>
+            <button type="button" id="save" disabled>저장</button>
+            <span class="muted" id="save-note">고친 곳이 없다</span>
+        </p>
+    </section>
+
+    <section>
+        <!--/* 슬롯과 편집본이 한 표다 — 편집본이 슬롯 1개당 1개라 행이 1:1 로 대응한다(0019). */-->
+        <h2>3. 슬롯 · 편집본 <span class="muted">— 순서 오름차순이 화면 좌→우다. 행을 클릭해 고른 뒤 썸네일을 클릭하면 앵커가 그 자리로 저장된다(§3.7.9). 파일을 고르면 그 행의 편집본 키가 바뀐다(§3.7.6) — 합성 잡이 참조 중이어도 된다</span></h2>
+        <table>
+            <thead>
+            <!--/* 슬롯 seq 를 띄운다 — 편집본 키가 private/edited/{challengeSeq}/{슬롯 seq}/
+                   라 이 값이 곧 파일이 놓이는 자리다. §7.5·§7.6 이 앱에 주는 식별자도
+                   이것이라, 앱 문의가 왔을 때 어느 행인지 화면에서 바로 짚는다 */-->
+            <tr><th>순서</th><th>슬롯 seq</th><th>아티스트</th><th>앵커 (x, y)</th><th>반지름</th>
+                <th>편집본 영상</th><th>첫 장면</th><th>선택 화면</th><th>길이</th><th>참조 잡</th></tr>
+            </thead>
+            <tbody id="slots"></tbody>
+        </table>
+        <p class="muted" id="slot-note"></p>
+        <!--/* 아티스트 교체는 §3.7.5 다 — 슬롯을 통째로 다시 쓴다. 편집본 키는
+               지금 것을 그대로 돌려보내므로 파일은 그대로고 행 seq 만 새로 난다.
+               합성 잡이 참조 중이면 409 EDITED_IN_USE 로 막힌다. */-->
+        <p>
+            <button type="button" id="add-slot">슬롯 추가</button>
+            <button type="button" id="save-slots" disabled>슬롯 저장</button>
+            <span class="muted" id="slot-save-note">고친 곳이 없다</span>
+        </p>
+        <p class="muted">
+            추가한 슬롯은 <b>맨 뒤에</b> 붙는다 — 순서가 뒤에서 늘어나야 앞 슬롯의 순서·마스크가
+            그대로 유지된다. 중간에 끼우면 이미 합성된 영상이 가리키던 자리가 다른 사람이 된다.
+            앵커와 편집본은 저장 뒤에 채운다.
+        </p>
+    </section>
+
+    <template id="slot-row">
+        <tr>
+            <td class="order"></td>
+            <td class="seq muted"></td>
+            <td><select class="artist"></select></td>
+            <td class="xy"></td>
+            <td><input type="range" min="0.02" max="0.3" step="0.005" class="r"> <span class="muted r-label"></span></td>
+            <td class="media video"><span class="link"></span><input type="file" accept="video/mp4,video/quicktime" data-kind="EDITED_VIDEO" data-for="editedChallengeKey"></td>
+            <td class="media scene"><span class="link"></span><input type="file" accept="image/jpeg,image/png" data-kind="EDITED_SCENE" data-for="initialSceneKey"></td>
+            <td class="media preview"><span class="link"></span><input type="file" accept="image/jpeg,image/png" data-kind="EDITED_PREVIEW" data-for="previewImageKey"></td>
+            <td class="dur"></td>
+            <td class="jobs"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/challenge-detail.js" defer></script>
+</main>
+</body>
+</html>

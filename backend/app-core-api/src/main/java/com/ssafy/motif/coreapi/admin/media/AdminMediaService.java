@@ -1,0 +1,159 @@
+package com.ssafy.motif.coreapi.admin.media;
+
+import com.ssafy.motif.common.error.AdminErrorCode;
+import com.ssafy.motif.common.exception.BusinessException;
+import com.ssafy.motif.coreapi.admin.media.dto.PresignRequest;
+import com.ssafy.motif.coreapi.admin.media.dto.PresignResponse;
+import com.ssafy.motif.coreapi.global.media.MediaObjectStore;
+import com.ssafy.motif.coreapi.global.media.MediaUploadProperties;
+import com.ssafy.motif.domain.core.challenge.ChallengeParticipantRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * presigned PUT 발급 (어드민 명세 §3.2) — S15P21D104-588.
+ *
+ * <p>바이트는 브라우저 → S3 로 직행하고 서버는 키만 받는다(Valet Key · Claim-Check).
+ * 어드민 업로드 전 과정(챌린지 원본·편집본·에셋·프로필·공지·배너)이 이 한 API 를 쓴다.
+ *
+ * <p><b>허용 조건은 서명에 박는다.</b> {@code Content-Type} 과 {@code Content-Length} 를
+ * {@link PutObjectRequest} 에 넣으면 서명 대상 헤더가 되어, 클라이언트가 다른 값으로
+ * PUT 하면 S3 가 거부한다 — 앱에서 한 번 더 확인할 필요가 없고 확인할 방법도 없다
+ * (바이트가 서버를 통과하지 않는다).
+ *
+ * <p>업로드가 실제로 끝났는지는 {@link #requireUploaded} 가 HEAD 로 확인한다 —
+ * presign 은 "올려도 된다"는 허가일 뿐 "올렸다"는 증거가 아니다.
+ *
+ * <p><b>S3 를 직접 만지지 않는다.</b> 서명 발급과 HEAD 는 {@link MediaObjectStore} 가
+ * 한다 — 팬 프로필 업로드(API §4.3·§4.4)가 같은 연산을 쓰기 때문이다. 여기 남는 것은
+ * <b>어드민 정책</b>이다: 업로드 종류별 키 규약({@link AdminMediaKind}), 어드민 실패
+ * 코드, 그리고 부재 키를 모아서 던지는 방식.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AdminMediaService {
+
+    private final MediaObjectStore objectStore;
+    private final AdminMediaProperties properties;
+    private final MediaUploadProperties uploadProperties;
+    /** {@code EDITED_*} 키가 실재하는 슬롯을 가리키는지 대조한다 ({@link #requireSlot}). */
+    private final ChallengeParticipantRepository participantRepository;
+
+    /**
+     * 키가 전부 S3 에 올라와 있는지 확인한다 (명세 §1.4 검증 1항 · §3.7.2 검증 4항).
+     *
+     * <p>부재 키를 <b>전부 모아</b> 한 번에 던진다 — 편집본 매트릭스는 키가 여러 개라
+     * 하나씩 알려 주면 어드민이 같은 폼을 여러 번 제출하게 된다. {@code data} 의
+     * {@code missingKeys} 를 화면이 그대로 표시한다.
+     *
+     * <p>이미지 키도 여기로 보낸다. 명세 §5 는 이미지 부재에 {@code IMAGE_NOT_UPLOADED}
+     * 를 배정했지만 그것은 공지·프로필 등 기존 이미지 경로 얘기고, §3.7 실패표는
+     * 편집본 첫 장면을 포함해 {@code MEDIA_NOT_UPLOADED} 하나로 적었다.
+     */
+    public void requireUploaded(Collection<String> keys) {
+        // ponytail: 키마다 순차 HEAD. n=4 면 1 + 2*15 = 31 회 — 어드민 등록은 초당 1건도
+        // 아니라 충분하다. 체감될 만큼 느려지면 그때 병렬로 돌린다
+        List<String> missing = keys.stream().distinct().filter(key -> !exists(key)).toList();
+        if (!missing.isEmpty()) {
+            throw new BusinessException(AdminErrorCode.MEDIA_NOT_UPLOADED,
+                    "업로드되지 않은 키: " + missing, Map.of("missingKeys", missing));
+        }
+    }
+
+    /**
+     * 키 하나의 존재 여부. 실패 코드가 경로마다 다를 때 쓴다 — 공지 이미지는 §5 가
+     * {@code IMAGE_NOT_UPLOADED} 를 배정했고, 챌린지 등록은 §3.7 실패표대로
+     * {@code MEDIA_NOT_UPLOADED} 하나로 모은다({@link #requireUploaded}).
+     *
+     * <p>403 을 "없음"으로 삼키지 않는 이유는 {@link MediaObjectStore#exists} 에 있다.
+     */
+    public boolean exists(String key) {
+        return objectStore.exists(key);
+    }
+
+    public PresignResponse presign(PresignRequest request) {
+        MediaUploadProperties.Upload limits = limitsFor(request.kind());
+        verify(request, limits);
+        if (request.kind().isSlotScoped()) {
+            requireSlot(request);
+        }
+
+        String objectKey = request.kind().objectKey(UUID.randomUUID().toString(),
+                request.challengeSeq(), request.challengeParticipantSeq());
+        String uploadUrl = objectStore.presignPut(
+                objectKey, request.contentType(), request.contentLength(), limits.presignTtl());
+
+        log.info("presign 발급: kind={} key={} size={}", request.kind(), objectKey, request.contentLength());
+        return new PresignResponse(uploadUrl, objectKey, limits.presignTtl().toSeconds());
+    }
+
+    /**
+     * {@code EDITED_*} 의 두 seq 를 확인한다 — <b>실재하는 슬롯이어야 키를 내준다</b>.
+     *
+     * <p>presign 은 원래 seq 를 검증 없이 경로에 박았다. 키가 슬롯까지 내려가면서 오타
+     * 하나에 <b>없는 슬롯 폴더로 파일이 올라가고</b>, 그 뒤 §3.7.6 이 404 를 주는데 파일은
+     * 이미 엉뚱한 자리에 남는다 — 아무도 참조하지 않는 오브젝트라 지워지지도 않는다.
+     * 조회 한 번으로 막는다.
+     *
+     * <p>챌린지 소속까지 보는 이유는 {@code AdminChallengeService} 가 §3.7.6 에서 하는
+     * 대조와 같다 — 두 seq 가 어긋나면 키는 A 챌린지 아래인데 슬롯은 B 것이 된다.
+     *
+     * <p>위반을 모아서 던진다({@code PARTICIPANT_INVALID} + {@code data}) — {@code SlotRules}
+     * 와 같은 봉투다. 어드민 화면이 어느 칸이 틀렸는지 그대로 표시한다.
+     */
+    private void requireSlot(PresignRequest request) {
+        List<String> violations = new ArrayList<>();
+        if (request.challengeSeq() == null) {
+            violations.add("CHALLENGE_SEQ_REQUIRED");
+        }
+        if (request.challengeParticipantSeq() == null) {
+            violations.add("PARTICIPANT_SEQ_REQUIRED");
+        }
+        if (violations.isEmpty()
+                && participantRepository.findById(request.challengeParticipantSeq())
+                        .filter(slot -> slot.getChallengeSeq().equals(request.challengeSeq()))
+                        .isEmpty()) {
+            // 없는 슬롯과 남의 챌린지 슬롯을 가르지 않는다 — 어드민 경로라 열거 위험은
+            // 없지만, 화면이 할 일이 "두 값을 다시 확인하라" 로 같다
+            violations.add("SLOT_NOT_FOUND");
+        }
+        if (!violations.isEmpty()) {
+            throw new BusinessException(AdminErrorCode.PARTICIPANT_INVALID,
+                    "편집본 presign 슬롯 정보가 올바르지 않다: kind=%s challengeSeq=%s challengeParticipantSeq=%s"
+                            .formatted(request.kind(), request.challengeSeq(),
+                                    request.challengeParticipantSeq()),
+                    violations);
+        }
+    }
+
+    private MediaUploadProperties.Upload limitsFor(AdminMediaKind kind) {
+        return kind.category() == AdminMediaKind.Category.VIDEO
+                ? properties.video()
+                : uploadProperties.image();
+    }
+
+    /** 형식·크기 위반은 한 코드로 묶는다 — 명세 §3.2 실패 표가 그렇게 적혀 있다. */
+    private void verify(PresignRequest request, MediaUploadProperties.Upload limits) {
+        long maxBytes = limits.maxSize().toBytes();
+        if (!limits.contentTypes().contains(request.contentType())) {
+            throw new BusinessException(AdminErrorCode.MEDIA_TYPE_NOT_ALLOWED,
+                    "허용되지 않는 Content-Type: kind=%s contentType=%s"
+                            .formatted(request.kind(), request.contentType()),
+                    Map.of("allowedContentTypes", limits.contentTypes()));
+        }
+        if (request.contentLength() > maxBytes) {
+            throw new BusinessException(AdminErrorCode.MEDIA_TYPE_NOT_ALLOWED,
+                    "크기 상한 초과: kind=%s contentLength=%d max=%d"
+                            .formatted(request.kind(), request.contentLength(), maxBytes),
+                    Map.of("maxBytes", maxBytes));
+        }
+    }
+}

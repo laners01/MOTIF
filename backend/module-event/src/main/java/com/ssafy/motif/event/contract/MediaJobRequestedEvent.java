@@ -1,0 +1,48 @@
+package com.ssafy.motif.event.contract;
+
+import java.time.Instant;
+
+/**
+ * 미디어 후처리 요청 — core-api → {@code motif.topic}(rk {@code job.media}) → app-media.
+ *
+ * <p>합성 워커 결과와 어드민이 올린 챌린지 원본이 <b>같은 이 이벤트</b>로 들어온다.
+ * 인코딩 파라미터를 한 곳에서만 관리하기 위한 구조다 (ADR-0010 D1).
+ *
+ * <p>직렬화 규약(ADR-0005, README.md): snake_case / ISO-8601 UTC / additive-only.
+ * Jackson 애너테이션 금지 — 네이밍은 각 앱의 MQ 컨버터 ObjectMapper가 전담한다.
+ *
+ * @param eventId      이벤트 자체의 uuid (중복 전달 방어용)
+ * @param occurredAt   발생 시각 (ISO-8601 UTC)
+ * @param mediaJobUuid 이 후처리 잡의 uuid — 전 구간 멱등 키
+ * @param sourceType   {@code COMPOSITE_RESULT}(합성 결과) | {@code CHALLENGE_ORIGIN}(어드민 업로드)
+ *                     | {@code ASSET_PREVIEW}(모티프 에셋 미리보기)
+ * @param sourceSeq    갱신할 행의 PK — sourceType 에 따라 composite_jobs · challenges · motif_assets
+ * @param sourceKey    S3 원본 키. 재생용이 아니라 <b>입력</b>이므로 MP4 그대로다
+ * @param outputPrefix S3 산출물 프리픽스. 이 아래에 master.m3u8·thumb.jpg·화질별 디렉터리가 깔린다
+ * @param thumbnailAtMs 썸네일을 뽑을 시각(ms). <b>선택 — null 이면 워커 기본값(1.5초)</b>.
+ *                      2026-09-14 추가(계약은 additive-only 라 필드 추가가 허용된다).
+ *                      어드민이 등록 화면에서 원본을 스크럽해 고른 값이고, 영상 길이를
+ *                      넘지 않는지는 core-api 가 durationMs 와 대조해 막는다 — 넘으면
+ *                      ffmpeg 가 빈 프레임을 뱉는다
+ */
+public record MediaJobRequestedEvent(
+        String eventId,
+        Instant occurredAt,
+        String mediaJobUuid,
+        String sourceType,
+        Long sourceSeq,
+        String sourceKey,
+        String outputPrefix,
+        Long thumbnailAtMs
+) {
+    public static final String SOURCE_COMPOSITE_RESULT = "COMPOSITE_RESULT";
+    public static final String SOURCE_CHALLENGE_ORIGIN = "CHALLENGE_ORIGIN";
+
+    /**
+     * 모티프 에셋 미리보기 — 2026-09-17 추가(계약은 additive-only 라 상수 추가가 허용된다).
+     *
+     * <p>에셋도 앱에서 재생되므로 HLS 다(API 명세 §1.7). 가로 영상이지만 사다리 값이
+     * 짧은 변이라 챌린지 원본과 <b>같은 파라미터</b>로 간다 — 가로 전용 사다리는 없다.
+     */
+    public static final String SOURCE_ASSET_PREVIEW = "ASSET_PREVIEW";
+}

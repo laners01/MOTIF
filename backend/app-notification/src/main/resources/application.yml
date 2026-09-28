@@ -1,0 +1,45 @@
+# 공통 설정 — 프로파일별 접속 정보는 application-{local,local-remote,prod}.yml (ADR-0003)
+spring:
+  application:
+    name: app-notification
+  profiles:
+    default: local          # 프로파일 미지정 = 격리 모드
+  jpa:
+    hibernate:
+      ddl-auto: validate    # 전 프로파일 고정 — DDL은 Liquibase 소유 (ADR-0004)
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: motif_notif
+        query:
+          in_clause_parameter_padding: true
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: motif_notif
+    liquibase-schema: motif_notif   # DATABASECHANGELOG도 자기 스키마에
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: 8082
+  shutdown: graceful
+
+# 가상 스레드는 켜지 않는다 — Phase 4 부하 테스트에서 결정 (ADR-0004)
+
+management:
+  server:
+    port: 9082              # 관리 포트 분리 — 전 모듈 통일 (ADR-0004)
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+# 알림 서비스 설정. 자격증명 경로는 프로파일별로 갈린다(ADR-0004 — 비밀에 fallback 금지).
+motif:
+  notification:
+    # 어드민 명세 §4 가 24h 로 고정했다 — 브로커 재전달 창보다 훨씬 길어야 한다
+    dedup-ttl: 24h

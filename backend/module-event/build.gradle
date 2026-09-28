@@ -1,0 +1,8 @@
+plugins {
+    id 'java-library'
+}
+
+// 계약 모듈 — 의존성 0 (ADR-0005).
+// jackson 포함 금지: 네이밍(snake_case)·직렬화는 각 앱의 MQ 컨버터 ObjectMapper가 전담한다.
+dependencies {
+}

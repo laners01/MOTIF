@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+}
+
+dependencies {
+    implementation project(':module-event')
+
+    // 도메인 엔티티를 쓰지 않는다 — composite_jobs·challenges 는 각 도메인 티켓의
+    // 소유다. 여기서는 산출물 키를 UPDATE 한 문장으로 기록할 뿐이라 JDBC 면 된다
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'    // Boot 4 명칭 (구 -web)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+    // MQ 직렬화 전용 Jackson 2 — spring-amqp 4.x에서 optional이라 명시 필수 (ADR-0004/0005)
+    implementation libs.jackson2.databind
+    implementation libs.jackson2.jsr310
+
+    implementation libs.aws.s3
+
+    implementation libs.micrometer.prometheus
+
+    runtimeOnly libs.postgresql
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'  // Boot 4 명칭
+}
+
+// 실제 영상 검사(RealVideoPackagingTest)에 -D 를 넘긴다. 지정하지 않으면 그 테스트는
+// 스스로 건너뛰므로 평소 빌드에는 영향이 없다.
+tasks.named('test') {
+    ['motif.test.video', 'motif.test.out'].each { k ->
+        if (System.getProperty(k)) {
+            systemProperty k, System.getProperty(k)
+        }
+    }
+}
