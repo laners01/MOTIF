@@ -1,0 +1,15 @@
+# 접수 서비스(CPU) 이미지 빌드 — Dockerfile.intake 지정용.
+# gcloud builds submit --tag 은 기본 Dockerfile만 보므로 config로 -f 를 넘긴다.
+substitutions:
+  _TAG: v1
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.intake
+      - -t
+      - us-central1-docker.pkg.dev/ssafy-motif/video-workers/motif-intake:${_TAG}
+      - .
+images:
+  - us-central1-docker.pkg.dev/ssafy-motif/video-workers/motif-intake:${_TAG}
