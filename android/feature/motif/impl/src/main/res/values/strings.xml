@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_motif_impl_assets">에셋 목록</string>
+    <string name="feature_motif_impl_shop">샵</string>
+    <string name="feature_motif_impl_archive">보관함</string>
+    <string name="feature_motif_impl_back">뒤로가기</string>
+
+    <string name="feature_motif_impl_pass_purchase">Pass 구매</string>
+    <string name="feature_motif_impl_pass_owned">구독권 보유</string>
+    <string name="feature_motif_impl_purchased">구매 완료</string>
+    <string name="feature_motif_impl_moment_with">Moment with %1$s</string>
+
+    <string name="feature_motif_impl_archive_empty">저장한 모티프가 없습니다</string>
+    <string name="feature_motif_impl_representative_set">대표 모티프로 설정</string>
+    <string name="feature_motif_impl_representative_clear">대표 모티프 해제</string>
+
+    <string name="feature_motif_impl_product_pass_title">MOTIF ARTIST PASS</string>
+    <string name="feature_motif_impl_product_pass_banner">아티스트 PASS 배너</string>
+    <string name="feature_motif_impl_product_purchase">구매</string>
+    <string name="feature_motif_impl_product_guide_intro_title">소개</string>
+    <string name="feature_motif_impl_product_guide_intro_body">최애 아티스트와 함께 특별한 순간을 만들어보세요.\nMOTIF 에셋을 활용해 아티스트와 한 화면에 있는 듯한 영상을 직접 촬영하고\n나만의 모티프로 남길 수 있습니다.</string>
+    <string name="feature_motif_impl_product_guide_usage_title">이용 안내</string>
+    <string name="feature_motif_impl_product_guide_usage_body">에셋을 구매하거나 해당 아티스트의 PASS를 보유하면 이용할 수 있습니다.\n일부 프리미엄 에셋은 PASS 보유 여부와 관계없이 별도 구매가 필요합니다.\n구매한 개별 에셋 및 프리미엄 에셋은 영구적으로 이용할 수 있습니다.\nPASS를 통해 제공되는 에셋은 구독 기간 동안 이용할 수 있습니다.\n촬영이 완료된 영상은 앱 내 보관함에 저장됩니다.\n저장된 모티프 중 하나를 대표 모티프로 설정할 수 있습니다.</string>
+    <string name="feature_motif_impl_pass_purchase_with">WITH %1$s</string>
+    <string name="feature_motif_impl_pass_plan_month">%1$d month</string>
+    <string name="feature_motif_impl_pass_plan_months">%1$d months</string>
+    <string name="feature_motif_impl_pass_plan_per_month">/ 월</string>
+    <string name="feature_motif_impl_pass_benefit_title">MOTIF PASS 혜택</string>
+    <string name="feature_motif_impl_pass_benefit_1">해당 아티스트의 일반 에셋 자유롭게 이용</string>
+    <string name="feature_motif_impl_pass_benefit_2">구독 기간 중 새롭게 추가되는 일반 에셋 이용 가능</string>
+    <string name="feature_motif_impl_pass_benefit_3">PASS 전용 에셋 제공 가능</string>
+    <string name="feature_motif_impl_pass_benefit_4">PASS 이용 에셋으로 만든 결과물은 보관함에 계속 유지</string>
+    <string name="feature_motif_impl_pass_guide_body">PASS는 아티스트별로 제공되는 월간 구독 상품입니다.\n일부 프리미엄 에셋은 PASS에 포함되지 않으며 별도 구매가 필요합니다.\nPASS가 만료되면 PASS로 이용하던 에셋은 새롭게 촬영할 수 없습니다.\n이미 제작하여 보관함에 저장한 영상은 PASS 만료 후에도 유지됩니다.\n개별 구매한 에셋은 PASS 만료 여부와 관계없이 계속 이용할 수 있습니다.</string>
+    <string name="feature_motif_impl_product_guide_notice_title">콘텐츠 관련 유의사항</string>
+    <string name="feature_motif_impl_product_guide_notice_body">에셋은 아티스트가 MOTIF 콘텐츠 제작을 위해 제공한 전용 영상입니다.\n에셋을 활용해 제작한 결과물은 MOTIF 서비스 내에서만 이용할 수 있습니다.\n완성된 영상은 갤러리로 다운로드하거나 외부 서비스로 내보낼 수 없습니다.\n에셋의 무단 복제, 녹화, 재배포 및 상업적 이용은 제한됩니다.\n제공되는 에셋은 아티스트 또는 서비스 운영 정책에 따라 변경될 수 있습니다.\nPASS가 만료되면 PASS로만 이용 가능했던 에셋은\n더 이상 새롭게 촬영할 수 없으며, 기존에 보관함에 저장한 결과물은 유지됩니다.</string>
+
+    <!-- MOTIF Asset Empty -->
+    <string name="feature_motif_impl_assets_empty_title">아직 구매한 모티프가 없어요.</string>
+    <string name="feature_motif_impl_assets_empty_description">SHOP에서 원하는 모티프를 만나보세요.</string>
+
+    <string name="feature_motif_impl_assets_filter_empty">구매한 모티프가 없어요.</string>
+    <string name="feature_motif_impl_assets_filter_empty_description">다른 아티스트의 모티프를 확인해보세요.</string>
+
+    <!-- MOTIF Archive Empty -->
+    <string name="feature_motif_impl_archive_empty_title">아직 만든 모티프가 없어요.</string>
+    <string name="feature_motif_impl_archive_empty_description">모티프를 만들어 나만의 순간을 보관해보세요.</string>
+
+    <string name="feature_motif_impl_archive_filter_empty">이 아티스트와 만든 모티프가 없어요.</string>
+
+    <string name="feature_motif_impl_payment_button">결제하기</string>
+    <string name="feature_motif_impl_payment_error">결제 처리 중 오류가 발생했습니다.</string>
+    <string name="feature_motif_impl_payment_key_missing">토스페이먼츠 테스트 Client Key가 설정되지 않았습니다.</string>
+    <string name="feature_motif_impl_payment_invalid_order">결제 주문 정보가 올바르지 않습니다.</string>
+</resources>

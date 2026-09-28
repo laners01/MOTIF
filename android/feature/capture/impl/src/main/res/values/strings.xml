@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="capture_select_position">
+        참여할 위치를 선택해주세요
+    </string>
+
+    <string name="capture_start_challenge">
+        Start Challenge
+    </string>
+
+    <string name="capture_back">
+        뒤로가기
+    </string>
+
+    <string name="capture_here">
+        Here!
+    </string>
+
+    <string name="capture_retry">
+        Retry
+    </string>
+
+    <string name="capture_upload_preparing_title">
+        영상을 준비하고 있어요
+    </string>
+
+    <string name="capture_upload_preparing_description">
+        잠시만 기다려주세요
+    </string>
+
+    <string name="capture_upload_title">
+        영상을 업로드하고 있어요
+    </string>
+
+    <string name="capture_upload_progress">
+        %1$d%%
+    </string>
+
+    <string name="capture_upload_description">
+        업로드가 완료될 때까지 잠시만 기다려주세요
+    </string>
+
+    <string name="capture_requesting_title">
+        업로드가 완료됐어요
+    </string>
+
+    <string name="capture_requesting_description">
+        AI 영상 제작을 요청하고 있어요
+    </string>
+
+    <string name="capture_processing_title">
+        AI가 영상을 만들고 있어요
+    </string>
+
+    <string name="capture_processing_description">
+        완성되는 동안 다른 챌린지를 둘러보세요\n영상이 완성되면 알림으로 알려드릴게요
+    </string>
+
+    <string name="capture_upload_failed_title">
+        영상 업로드에 실패했어요
+    </string>
+
+    <string name="capture_upload_failed_description">
+        네트워크 상태를 확인한 후 다시 시도해주세요
+    </string>
+
+    <string name="capture_browse_challenge">
+        챌린지 둘러보기
+    </string>
+
+    <string name="capture_result_upload">
+    업로드
+</string>
+
+    <string name="capture_result_delete">
+    삭제
+</string>
+
+    <string name="capture_result_description_hint">
+    소개글을 입력해주세요.
+</string>
+
+    <string name="capture_result_public">
+    전체 공개
+</string>
+
+    <string name="capture_result_private">
+    비공개
+</string>
+
+    <string name="capture_result_comment_enabled">
+    댓글 허용
+</string>
+
+    <string name="capture_result_cancel">
+    취소
+</string>
+
+    <string name="capture_result_confirm">
+    확인
+</string>
+
+    <string name="capture_result_delete_title">
+    정말 삭제하시겠어요?
+</string>
+
+    <string name="capture_result_delete_description">
+    아직 저장 전이라 지금 지우면\n촬영한 영상이 사라져요.
+</string>
+
+    <string name="capture_result_processing">
+    AI가 영상을 처리하고 있어요
+</string>
+
+    <string name="capture_result_failed">
+    영상 제작에 실패했어요
+</string>
+
+    <string name="capture_result_load_failed">
+    영상 정보를 불러오지 못했어요
+</string>
+
+    <string name="capture_result_retry">
+    다시 시도
+</string>
+
+    <!-- MOTIF Capture -->
+    <string name="motif_capture_start">촬영 시작</string>
+    <string name="motif_capture_retry">다시 촬영</string>
+    <string name="motif_capture_review_title">촬영 완료!</string>
+    <string name="motif_capture_review_question">이 영상으로 MOTIF를 만들어볼까요?</string>
+    <string name="motif_capture_review_description">완성된 영상은 AI가 아티스트 영상과 자연스럽게 합성해드려요.</string>
+    <string name="motif_capture_make">MOTIF 만들기</string>
+    <string name="motif_capture_processing_title">AI가 영상을 만들고 있어요</string>
+    <string name="motif_capture_processing_browse">완성되는 동안 다른 모티프를 둘러보세요</string>
+    <string name="motif_capture_processing_notification">영상이 완성되면 알림으로 알려드릴게요</string>
+
+</resources>

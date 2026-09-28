@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">motif</string>
+
+    <string name="navigation_home">홈</string>
+    <string name="navigation_challenge">챌린지</string>
+    <string name="navigation_my">MY</string>
+    <string name="navigation_motif">모티프</string>
+    <string name="navigation_shop">SHOP</string>
+    <string name="navigation_archive">보관함</string>
+    <string name="navigation_back">뒤로가기</string>
+</resources>

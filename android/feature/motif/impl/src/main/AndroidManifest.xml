@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+
+        <!-- MOTIF에서 직접 사용하는 결제 화면 -->
+        <activity
+            android:name=".payment.TossPaymentActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
+        <!-- Toss SDK 내부 결제 Activity -->
+        <activity
+            android:name="com.tosspayments.paymentsdk.activity.TossPaymentActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            tools:replace="android:theme" />
+
+    </application>
+
+</manifest>
