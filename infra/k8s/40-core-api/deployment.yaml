@@ -1,0 +1,170 @@
+# core-api — Spring Boot 4 애플리케이션 (backend/app-core-api).
+#
+# 이미지는 레지스트리에서 받지 않는다. Jenkins 호스트에서 빌드한 뒤
+# `docker save | k3s ctr images import` 로 containerd 에 직접 넣는다(ADR-0007).
+#
+# ── image 줄 주의 ────────────────────────────────────────────────────────────
+# 아래 태그는 `REPLACE_ME` 라는 자리표시자다. **최초 apply 전에 사람이 실제
+# 빌드번호로 치환해야 한다**(infra/setup/jenkins-setup.md §9). 치환하지 않고
+# apply 하면 파드가 ErrImageNeverPull 로 영원히 기동하지 않는다.
+#
+# 그리고 이 파일은 배포 이후 **다시 apply 하면 안 된다**. Jenkins 가
+# `kubectl set image` 로 태그를 올려두기 때문에, 파일을 그대로 apply 하면
+# 운영 중인 이미지가 REPLACE_ME 로 되돌아간다. 이 파일의 다른 필드를 고쳐야
+# 할 때는 먼저 현재 태그를 읽어 image 줄에 반영하고 apply 한다.
+#
+#   kubectl get deployment core-api -o jsonpath='{.spec.template.spec.containers[0].image}'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  labels:
+    app: core-api
+spec:
+  # Phase 0 은 1이다. ShedLock 이 들어오기 전까지 배치가 중복 실행될 수 있어
+  # 2로 올리지 않는다(ADR-0004 "ShedLock — replica 2 배치 중복 방지").
+  replicas: 1
+  # 무중단 배포. blue-green(MODERA의 수제 Nginx 전환 스크립트 94줄)을 쓰지 않고
+  # 오케스트레이터 내장 롤링으로 대체한 지점이다(ADR-0004).
+  #   maxUnavailable: 0  새 파드가 Ready 가 되기 전에는 기존 파드를 죽이지 않는다.
+  #   maxSurge: 1        교체 중 순간적으로 파드 2개 = 램 최대 2Gi. 15Gi 안에서 감당된다.
+  # 이 조합이라 배포가 실패해도 서비스는 이전 파드로 계속 살아 있다.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: core-api
+  template:
+    metadata:
+      labels:
+        app: core-api
+    spec:
+      # graceful shutdown(application.yml: server.shutdown=graceful,
+      # timeout-per-shutdown-phase=30s)이 끝날 시간을 준다. 기본 30s 면
+      # 30s 짜리 종료 단계가 끝나기 전에 SIGKILL 이 들어올 수 있다.
+      terminationGracePeriodSeconds: 45
+      # 이미지가 uid/gid 1001(app) 비루트로 돈다(Dockerfile). fsGroup 을 주면
+      # kubelet 이 마운트한 볼륨을 그 그룹 소유로 바꾸고 g+w 를 붙인다. 없으면
+      # 아래 감사 로그 볼륨에 쓰지 못해 파드가 기동하지 않는다(pvc.yaml 참조).
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: core-api
+          image: registry.local/motif/core-api:REPLACE_ME
+          # 로컬 containerd 에 이미지가 없으면 즉시 실패시킨다. IfNotPresent 로
+          # 두면 임포트 누락이 ImagePullBackOff 로 나타나 원인이 네트워크 문제처럼
+          # 보인다. registry.local 은 실재하지 않는 호스트다(ADR-0007 D2/D3).
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8081
+            - name: management
+              containerPort: 9081
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            # 로그 시각을 KST 로 출력한다(Traefik·Redis 와 같은 규율).
+            # 저장 계층인 PostgreSQL 은 UTC 를 유지하므로, 엔티티가 생기면
+            # 시각 컬럼은 timestamptz 여야 한다 — 그래야 앱 TZ 와 무관하게
+            # 저장값이 UTC 로 고정된다.
+            - name: TZ
+              value: "Asia/Seoul"
+            # 컨테이너 메모리 인식은 JVM 이 알아서 하지만 기본 상한이 25%(=256Mi)라
+            # 너무 낮다. 50%(=512Mi)로 올리되 그 이상은 두지 않는다 — 나머지는
+            # 메타스페이스·스레드 스택·다이렉트 버퍼 몫이고, 이걸 넘기면 힙이
+            # 아니라 컨테이너가 OOMKilled 된다(파드가 조용히 재시작한다).
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=50.0"
+          # 종료 직전 유예. maxUnavailable 0 만으로는 무중단이 되지 않는다.
+          #
+          # 실측(2026-09-02, 배포 중 0.2초 간격 122회 요청): 502 1회 + 연결실패
+          # 1회가 났다. 새 파드가 Ready 라 rollout status 는 성공을 반환하지만,
+          # 그 시점에 Traefik 은 아직 종료되는 파드를 엔드포인트에서 지우지
+          # 못했다. 그 짧은 창에 들어온 요청이 죽은 파드로 가서 502 가 된다.
+          #
+          # preStop 은 SIGTERM 보다 먼저 실행된다. 여기서 10초를 버는 동안
+          # 엔드포인트 컨트롤러와 Traefik 이 이 파드를 목록에서 뺀다. 그 뒤에야
+          # SIGTERM 이 가고 Spring 의 graceful shutdown 이 시작된다.
+          #
+          # 시간 예산: preStop 10s + graceful 최대 30s = 40s
+          #            < terminationGracePeriodSeconds 45s. 이 부등식이 깨지면
+          #            종료 도중 SIGKILL 이 들어와 처리 중이던 요청이 끊긴다.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+          # DB_PASSWORD / MQ_PASSWORD — secret.example.yaml.txt 참조.
+          # 나머지 접속 정보(DB_URL·DB_USERNAME·MQ_HOST·MQ_USERNAME)는
+          # application-prod.yml 의 기본값이 클러스터 Service 이름과 이미 일치해
+          # 주입하지 않는다. 비밀값만 fallback 없이 필수다(ADR-0004 placeholder 규율).
+          envFrom:
+            - secretRef:
+                name: core-api-secret
+            # 비밀 아닌 설정(ADMIN_ALLOWED_CIDRS) — configmap.yaml.
+            - configMapRef:
+                name: core-api-config
+          # 어드민 감사 로그(어드민 명세 §1.3). 경로는 application-prod.yml 의
+          # motif.admin.audit.dir 과 같아야 한다 — 어긋나면 파드가 기동하지 않는다.
+          volumeMounts:
+            - name: admin-audit
+              mountPath: /var/log/motif
+          resources:
+            requests:
+              memory: "640Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          # 프로브는 전부 관리 포트(9081)다. 서비스 포트(8081)의 /api/health 는
+          # Traefik 이 보는 얇은 계약이고, 의존성 상태 판단은 actuator 몫이다.
+          #
+          # startupProbe 가 성공하기 전에는 readiness/liveness 가 돌지 않는다.
+          # 여유가 필요한 이유: 기동 시 Liquibase 가 DB 에 붙어 changelog 를
+          # 적용한다. 5s * 30 = 150s 예산이며, 이 안에 못 뜨면 파드를 죽여
+          # rollout status(180s)가 실패로 끝나게 한다.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 9081
+            periodSeconds: 5
+            failureThreshold: 30
+          # readiness 그룹은 readinessState 만 본다. DOWN 이면 Service 에서
+          # 엔드포인트가 빠질 뿐 파드는 살아 있다.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9081
+            periodSeconds: 10
+            failureThreshold: 3
+          # liveness 그룹은 livenessState 만 본다. DB 가 죽었다고 파드를
+          # 재시작하면 안 되므로 여기에 의존성 검사를 넣지 않는다.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9081
+            periodSeconds: 20
+            failureThreshold: 3
+      volumes:
+        - name: admin-audit
+          persistentVolumeClaim:
+            claimName: core-api-audit-pvc
+---
+# 클러스터 내부 접근용. 외부 진입은 Ingress 가 담당한다.
+#
+# 관리 포트(9081)는 노출하지 않는다. actuator 와 prometheus 엔드포인트가
+# 붙어 있어 Service 로 열면 클러스터 안 아무 파드나 조회할 수 있다.
+# Phase 4 에서 Prometheus 가 붙을 때는 파드를 직접 스크랩하게 한다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-api
+spec:
+  selector:
+    app: core-api
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081

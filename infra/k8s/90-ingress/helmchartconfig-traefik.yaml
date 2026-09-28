@@ -1,0 +1,71 @@
+# Traefik 설정 덮어쓰기.
+#
+# k3s 는 Traefik 을 Helm 차트로 자동 설치·관리한다. Deployment 를 직접 고치면
+# k3s 가 원래 값으로 되돌려 놓으므로, HelmChartConfig 로 값을 덮어써야 한다.
+# 이 리소스를 apply 하면 k3s 가 감지해 Traefik 을 재배포한다.
+#
+# name/namespace 는 k3s 가 만든 HelmChart 와 정확히 일치해야 한다(traefik/kube-system).
+#
+# ── 1) 로그 시각 KST ────────────────────────────────────────────────────────
+# Traefik 은 시각을 저장하지 않고 로그에 표시만 하므로 안전하다. 저장 계층인
+# PostgreSQL 은 UTC 를 유지한다.
+#
+# ── 2) ServiceLB 우회 — 클라이언트 IP 보존 ─────────────────────────────────
+# 기본 구성에서는 Traefik 이 보는 출발지가 실제 클라이언트가 아니라 클러스터
+# 내부 IP(10.42.x.x)다. k3s servicelb(klipper-lb) 파드가 hostPort 로 받은 뒤
+# `DNAT -> hostIP:NodePort` + `MASQUERADE` 로 넘기기 때문이다. 그러면 IP 기반
+# 접근 제한이 두 군데에서 동시에 무너진다:
+#
+#   · Traefik ipAllowList (90-ingress/middleware-admin-ipallowlist.yaml)
+#   · 앱 AdminIpFilter (X-Forwarded-For 첫 값으로 판정, 어드민 명세 §1.1)
+#
+# 2026-09-13 실측: 외부에서 /api/v1/admin/* 을 때리면 앱 로그에
+# `비허용 IP — 404: ip=10.42.0.8` 이 찍혔다. 공인망이든 테일넷이든 같은 값이라
+# 어드민이 아무에게도 열리지 않았다(fail-closed 라 사고는 아니나 기능은 죽어
+# 있었다). 여기서 위험한 것은 "안 열리네" 하고 10.42.0.0/16 을 허용 목록에
+# 넣는 것이다 — SNAT 된 모든 외부 요청을 허용하는 것과 같다.
+#
+# **externalTrafficPolicy: Local 로는 고쳐지지 않는다.** 같은 날 실제로 넣어
+# 봤고 Service 에 반영까지 됐지만, klipper-lb 는 그 값과 무관하게 MASQUERADE 를
+# 건다. 출발지가 svclb 파드 IP 로 바뀔 뿐이었다(10.42.0.8 -> 10.42.0.81).
+# 문서만 보고 되돌리지 말 것 — 측정으로 배제된 선택지다.
+#
+# 그래서 servicelb 자체를 우회한다:
+#   · service.type: ClusterIP  -> LoadBalancer 가 아니므로 svclb 데몬셋이 뜨지
+#                                 않는다. 80/443 hostPort 경합도 사라진다.
+#   · ports.*.hostPort         -> 노드의 80/443 이 CNI portmap 으로 Traefik 파드에
+#                                 직결된다. 외부 트래픽의 출발지가 보존된다.
+# 컨테이너 포트는 8000/8443 그대로다 — 특권 포트 바인딩이 필요 없다.
+#
+# 적용하면 80/443 이 수 초간 비어 사이트가 잠깐 끊긴다. 되돌리기:
+#   kubectl -n kube-system patch helmchartconfig traefik --type=merge \
+#     -p '{"spec":{"valuesContent":"env:\n  - name: TZ\n    value: Asia/Seoul\n"}}'
+#
+# 검증 (조용히 실패하는 종류의 설정이다 — 반드시 한다):
+#   curl -s -o /dev/null https://j15d104.p.ssafy.io/api/v1/admin/notices
+#   kubectl logs deploy/core-api --tail=20 | grep '비허용 IP'
+#   curl -s https://ifconfig.me; echo
+# 로그의 ip= 와 내 공인 IP 가 같아야 한다. 10.42.x.x 면 아직 안 된 것이다.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    env:
+      - name: TZ
+        value: Asia/Seoul
+    service:
+      # 키는 service.type 이 아니라 service.spec.type 이다. 이 차트(traefik 40.x)는
+      # Service 필드를 service.spec.* 로 받아 그대로 병합한다 — k3s 자신도
+      # service.spec.ipFamilyPolicy 를 그렇게 넣는다. service.type 으로 쓰면
+      # 차트가 읽지 않아 Service 가 LoadBalancer 로 남고, svclb 가 80/443 을 계속
+      # 쥔 채 새 Traefik 파드만 FailedScheduling(Pending) 이 된다. 2026-09-13 실측.
+      spec:
+        type: ClusterIP
+    ports:
+      web:
+        hostPort: 80
+      websecure:
+        hostPort: 443
