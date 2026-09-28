@@ -135,5 +135,7 @@
     <string name="motif_capture_processing_title">AI가 영상을 만들고 있어요</string>
     <string name="motif_capture_processing_browse">완성되는 동안 다른 모티프를 둘러보세요</string>
     <string name="motif_capture_processing_notification">영상이 완성되면 알림으로 알려드릴게요</string>
-
+    <string name="camera_permission_title">카메라 권한이 필요해요</string>
+    <string name="camera_permission_description">챌린지 촬영을 위해 카메라 권한을 허용해주세요.</string>
+    <string name="camera_permission_allow">카메라 권한 허용</string>
 </resources>

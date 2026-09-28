@@ -39,6 +39,8 @@ import com.ssafy.motif.feature.capture.impl.motif.model.MotifCaptureProcessingSt
 import com.ssafy.motif.feature.capture.impl.motif.model.MotifCaptureStage
 import com.ssafy.motif.feature.capture.impl.motif.model.MotifCaptureUiEffect
 import com.ssafy.motif.feature.capture.impl.motif.model.MotifCaptureUiState
+import com.ssafy.motif.feature.capture.impl.permission.CameraPermissionGate
+import com.ssafy.motif.feature.capture.impl.permission.rememberCameraPermissionState
 import com.ssafy.motif.feature.capture.impl.segmentation.rememberPersonSegmentationProcessor
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
@@ -58,16 +60,24 @@ internal fun MotifCaptureScreen(
     LockLandscapeOrientation()
 
     val uiState by
-        viewModel.uiState
-            .collectAsStateWithLifecycle()
+    viewModel.uiState
+        .collectAsStateWithLifecycle()
 
-    LaunchedEffect(assetId) {
+    val cameraPermissionState =
+        rememberCameraPermissionState()
+
+    LaunchedEffect(
+        assetId,
+    ) {
         viewModel.initialize(
-            assetId = assetId,
+            assetId =
+                assetId,
         )
     }
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(
+        viewModel,
+    ) {
         viewModel.uiEffect
             .collect { effect ->
                 when (effect) {
@@ -80,29 +90,43 @@ internal fun MotifCaptureScreen(
             }
     }
 
-    MotifCaptureScreen(
-        uiState = uiState,
-        onBackClick = onBackClick,
-        onStartClick = viewModel::startCapture,
-        onShootingReady =
-            viewModel::onShootingReady,
-        onRecordingProgress =
-            viewModel::onRecordingProgress,
-        onRecordingFinished =
-            viewModel::onRecordingFinished,
-        onRecordingRetryReady =
-            viewModel::onRecordingRetryReady,
-        onReviewRetryClick =
-            viewModel::retryRecording,
-        onMakeMotifClick =
-            viewModel::makeMotif,
-        onRetryTransferClick =
-            viewModel::retryTransfer,
-        onBrowseMotifClick =
-            onBrowseMotifClick,
-        onError = viewModel::onError,
-        modifier = modifier,
-    )
+    CameraPermissionGate(
+        permissionState =
+            cameraPermissionState,
+        onBackClick =
+            onBackClick,
+        modifier =
+            modifier,
+    ) {
+        MotifCaptureScreen(
+            uiState =
+                uiState,
+            onBackClick =
+                onBackClick,
+            onStartClick =
+                viewModel::startCapture,
+            onShootingReady =
+                viewModel::onShootingReady,
+            onRecordingProgress =
+                viewModel::onRecordingProgress,
+            onRecordingFinished =
+                viewModel::onRecordingFinished,
+            onRecordingRetryReady =
+                viewModel::onRecordingRetryReady,
+            onReviewRetryClick =
+                viewModel::retryRecording,
+            onMakeMotifClick =
+                viewModel::makeMotif,
+            onRetryTransferClick =
+                viewModel::retryTransfer,
+            onBrowseMotifClick =
+                onBrowseMotifClick,
+            onError =
+                viewModel::onError,
+            modifier =
+                Modifier.fillMaxSize(),
+        )
+    }
 }
 
 @Composable
@@ -126,13 +150,15 @@ internal fun MotifCaptureScreen(
     mediaSourceFactory: MediaSource.Factory? = null,
 ) {
     val isCaptureInProgress =
-        uiState.stage == MotifCaptureStage.Countdown ||
-            uiState.stage == MotifCaptureStage.Recording
+        uiState.stage ==
+                MotifCaptureStage.Countdown ||
+                uiState.stage ==
+                MotifCaptureStage.Recording
 
     BackHandler(
         enabled =
             isCaptureInProgress ||
-                uiState.isTransferInProgress,
+                    uiState.isTransferInProgress,
     ) {
         // 촬영 중 또는 서버 인계 중에는 화면 이탈을 막는다.
     }
@@ -141,26 +167,34 @@ internal fun MotifCaptureScreen(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(Color.Black),
+                .background(
+                    Color.Black,
+                ),
     ) {
         val asset =
             uiState.asset
 
-        when (uiState.stage) {
+        when (
+            uiState.stage
+        ) {
             MotifCaptureStage.Ready,
             MotifCaptureStage.Countdown,
             MotifCaptureStage.Recording,
             MotifCaptureStage.Review,
                 -> {
-                if (asset != null) {
+                if (
+                    asset != null
+                ) {
                     val segmentationProcessor =
                         rememberPersonSegmentationProcessor()
 
                     MotifCaptureShootingScreen(
-                        uiState = uiState,
+                        uiState =
+                            uiState,
                         segmentationProcessor =
                             segmentationProcessor,
-                        onStartClick = onStartClick,
+                        onStartClick =
+                            onStartClick,
                         onShootingReady =
                             onShootingReady,
                         onRecordingProgress =
@@ -173,7 +207,8 @@ internal fun MotifCaptureScreen(
                             onReviewRetryClick,
                         onMakeMotifClick =
                             onMakeMotifClick,
-                        onError = onError,
+                        onError =
+                            onError,
                         mediaSourceFactory =
                             mediaSourceFactory,
                         modifier =
@@ -202,12 +237,16 @@ internal fun MotifCaptureScreen(
             }
         }
 
-        if (uiState.isLoading) {
+        if (
+            uiState.isLoading
+        ) {
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Black),
+                        .background(
+                            Color.Black,
+                        ),
                 contentAlignment =
                     Alignment.Center,
             ) {
@@ -217,20 +256,25 @@ internal fun MotifCaptureScreen(
 
         val showBackButton =
             uiState.stage ==
-                MotifCaptureStage.Processing &&
-                (
-                    uiState.processingState ==
-                        MotifCaptureProcessingState.Queued ||
-                        uiState.processingState ==
-                        MotifCaptureProcessingState.Failed
-                    )
+                    MotifCaptureStage.Processing &&
+                    (
+                            uiState.processingState ==
+                                    MotifCaptureProcessingState.Queued ||
+                                    uiState.processingState ==
+                                    MotifCaptureProcessingState.Failed
+                            )
 
-        if (showBackButton) {
+        if (
+            showBackButton
+        ) {
             MotifCaptureBackButton(
-                onClick = onBackClick,
+                onClick =
+                    onBackClick,
                 modifier =
                     Modifier
-                        .align(Alignment.TopStart)
+                        .align(
+                            Alignment.TopStart,
+                        )
                         .windowInsetsPadding(
                             WindowInsets.safeDrawing,
                         )
@@ -256,14 +300,19 @@ private fun MotifCaptureBackButton(
     Box(
         modifier =
             modifier
-                .size(48.dp)
+                .size(
+                    48.dp,
+                )
                 .clickable(
                     interactionSource =
                         interactionSource,
-                    indication = null,
-                    onClick = onClick,
+                    indication =
+                        null,
+                    onClick =
+                        onClick,
                 ),
-        contentAlignment = Alignment.Center,
+        contentAlignment =
+            Alignment.Center,
     ) {
         Image(
             painter =
@@ -276,8 +325,13 @@ private fun MotifCaptureBackButton(
                     R.string.capture_back,
                 ),
             colorFilter =
-                ColorFilter.tint(Color.White),
-            modifier = Modifier.size(32.dp),
+                ColorFilter.tint(
+                    Color.White,
+                ),
+            modifier =
+                Modifier.size(
+                    32.dp,
+                ),
         )
     }
 }
@@ -288,12 +342,18 @@ private fun LockLandscapeOrientation() {
         LocalContext.current
 
     val activity =
-        remember(context) {
+        remember(
+            context,
+        ) {
             context.findActivity()
         }
 
-    DisposableEffect(activity) {
-        if (activity == null) {
+    DisposableEffect(
+        activity,
+    ) {
+        if (
+            activity == null
+        ) {
             return@DisposableEffect onDispose { }
         }
 
@@ -308,7 +368,9 @@ private fun LockLandscapeOrientation() {
              * 가로 전환으로 Activity가 재생성되는 중에는 복원하지 않는다.
              * 실제 Navigation으로 MOTIF Capture를 벗어날 때만 기존 설정으로 되돌린다.
              */
-            if (!activity.isChangingConfigurations) {
+            if (
+                !activity.isChangingConfigurations
+            ) {
                 activity.requestedOrientation =
                     previousOrientation
             }

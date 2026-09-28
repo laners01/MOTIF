@@ -283,7 +283,7 @@ class MainActivity : ComponentActivity() {
          * 기존 로그인/온보딩 흐름으로 복구된다.
          */
         const val DEMO_MODE =
-            true
+            false
     }
 }
 

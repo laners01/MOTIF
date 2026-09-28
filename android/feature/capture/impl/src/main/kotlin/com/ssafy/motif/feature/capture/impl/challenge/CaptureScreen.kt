@@ -31,6 +31,8 @@ import com.ssafy.motif.feature.capture.impl.R
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureStage
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiEffect
 import com.ssafy.motif.feature.capture.impl.challenge.model.CaptureUiState
+import com.ssafy.motif.feature.capture.impl.permission.CameraPermissionGate
+import com.ssafy.motif.feature.capture.impl.permission.rememberCameraPermissionState
 import com.ssafy.motif.feature.capture.impl.segmentation.rememberPersonSegmentationProcessor
 import com.ssafy.motif.core.designsystem.R as DesignSystemR
 
@@ -49,6 +51,9 @@ internal fun CaptureScreen(
     viewModel.uiState
         .collectAsStateWithLifecycle()
 
+    val cameraPermissionState =
+        rememberCameraPermissionState()
+
     LaunchedEffect(
         challengeId,
         challengeThumbnailUrl,
@@ -66,9 +71,7 @@ internal fun CaptureScreen(
     ) {
         viewModel.uiEffect
             .collect { effect ->
-                when (
-                    effect
-                ) {
+                when (effect) {
                     is CaptureUiEffect.Error -> {
                         onError(
                             effect.throwable,
@@ -78,30 +81,39 @@ internal fun CaptureScreen(
             }
     }
 
-    CaptureScreen(
-        uiState =
-            uiState,
+    CameraPermissionGate(
+        permissionState =
+            cameraPermissionState,
         onBackClick =
             onBackClick,
-        onPositionClick =
-            viewModel::selectPosition,
-        onStartChallengeClick =
-            viewModel::startChallenge,
-        onShootingReady =
-            viewModel::onShootingReady,
-        onRecordingProgress =
-            viewModel::onRecordingProgress,
-        onRecordingFinished =
-            viewModel::onRecordingFinished,
-        onRetryReady =
-            viewModel::onRetryReady,
-        onBrowseChallengeClick =
-            onBrowseChallengeClick,
-        onError =
-            viewModel::onError,
         modifier =
             modifier,
-    )
+    ) {
+        CaptureScreen(
+            uiState =
+                uiState,
+            onBackClick =
+                onBackClick,
+            onPositionClick =
+                viewModel::selectPosition,
+            onStartChallengeClick =
+                viewModel::startChallenge,
+            onShootingReady =
+                viewModel::onShootingReady,
+            onRecordingProgress =
+                viewModel::onRecordingProgress,
+            onRecordingFinished =
+                viewModel::onRecordingFinished,
+            onRetryReady =
+                viewModel::onRetryReady,
+            onBrowseChallengeClick =
+                onBrowseChallengeClick,
+            onError =
+                viewModel::onError,
+            modifier =
+                Modifier.fillMaxSize(),
+        )
+    }
 }
 
 @Composable
@@ -217,17 +229,18 @@ internal fun CaptureScreen(
             CaptureBackButton(
                 onClick =
                     onBackClick,
-                modifier = Modifier
-                    .align(
-                        Alignment.TopStart,
-                    )
-                    .windowInsetsPadding(
-                        WindowInsets.safeDrawing,
-                    )
-                    .padding(
-                        top = 8.dp,
-                        start = 12.dp,
-                    ),
+                modifier =
+                    Modifier
+                        .align(
+                            Alignment.TopStart,
+                        )
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing,
+                        )
+                        .padding(
+                            top = 8.dp,
+                            start = 12.dp,
+                        ),
             )
         }
     }
@@ -244,18 +257,18 @@ private fun CaptureBackButton(
         }
 
     Box(
-        modifier = modifier
-            .size(
-                48.dp,
-            )
-            .clickable(
-                interactionSource =
-                    interactionSource,
-                indication =
-                    null,
-                onClick =
-                    onClick,
-            ),
+        modifier =
+            modifier
+                .size(
+                    48.dp,
+                )
+                .clickable(
+                    interactionSource =
+                        interactionSource,
+                    indication = null,
+                    onClick =
+                        onClick,
+                ),
         contentAlignment =
             Alignment.Center,
     ) {
