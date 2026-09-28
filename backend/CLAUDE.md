@@ -99,8 +99,8 @@ S15P21D104-181
 - 대상은 해당 파트의 `develop/*`.
 - **MR 제목·설명에 도구 서명을 남기지 않는다.** 머지 커밋 본문은 MR 제목·설명으로
   만들어지므로, 서명이 섞이면 통합 브랜치 이력까지 따라온다.
-  `.claude/settings.json` 의 `attribution.commit`·`attribution.pr` 이 둘 다 빈 값이라
-  Claude 가 쓰는 커밋·MR 어디에도 서명이 붙지 않는다.
+  각자 사용자 설정(`~/.claude/settings.json`)의 `attribution.commit`·`attribution.pr` 을
+  빈 값으로 둔다. 그러면 Claude 가 쓰는 커밋·MR 어디에도 서명이 붙지 않는다.
 
 ## 구현 시 주의 — 이미 있는 것을 다시 만들지 않는다
 
