@@ -1,0 +1,262 @@
+# 공통 설정 — 프로파일별 접속 정보는 application-{local,local-remote,prod}.yml (ADR-0003)
+spring:
+  application:
+    name: app-core-api
+  profiles:
+    default: local          # 프로파일 미지정 = 격리 모드
+  jpa:
+    hibernate:
+      ddl-auto: validate    # 전 프로파일 고정 — DDL은 Liquibase 소유 (ADR-0004)
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: motif_core
+        query:
+          in_clause_parameter_padding: true
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: motif_core
+    liquibase-schema: motif_core   # DATABASECHANGELOG도 자기 스키마에
+    parameters:
+      # 어드민 시드 BCrypt 해시 (0015-admin-seed.sql, 부록 B). fallback 을 두지 않는다 —
+      # 기본값을 두면 전 배포가 같은 비밀번호로 뜨고, 그게 리포지토리에 남는다.
+      # 로컬 프로파일이 개발용 더미로 덮는다.
+      adminSeedHash: ${ADMIN_SEED_HASH}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+# 인증 (명세 §2, ADR-0009 D2). 비밀값은 프로파일별 파일에서 주입한다.
+motif:
+  auth:
+    jwt:
+      # 테스트용 30일 (2026-09-14). 명세 §2.1 은 1h(expiresIn: 3600)다.
+      #
+      # 안드로이드 연동 중 재발급 흐름을 아직 안 붙인 상태라 1시간마다 끊겨
+      # 테스트가 막혔다. 그래서 한시적으로 늘린다.
+      #
+      # 시연 전에 1h 로 되돌린다. 액세스 토큰은 stateless JWT 라 폐기 수단이 없다 —
+      # 유출되면 만료까지 그대로 살아 있고, 회원 정지(어드민 §3.14.3)도 refresh
+      # 토큰만 폐기한다. 짧은 수명이 그 유일한 방어선이다.
+      #
+      # 되돌릴 때 재배포가 필요 없도록 환경변수로 뺀다 — configmap 의
+      # MOTIF_ACCESS_TOKEN_TTL 을 1h 로 넣고 롤아웃 재시작하면 된다.
+      access-token-ttl: ${MOTIF_ACCESS_TOKEN_TTL:30d}
+      # 명세에 값이 없다 — 기본안. 확정되면 이 줄만 고친다
+      refresh-token-ttl: 14d
+
+  # 미디어 — 버킷은 app-media 와 같은 곳을 본다. core-api 는 presign 서명만 하고
+  # 바이트는 다루지 않는다(원칙 ① — 브라우저 → S3 직행)
+  media:
+    # 보호 등급 signed URL (§1.7). key-pair-id 는 서명 URL 에 실려 나가는 공개
+    # 식별자라 기본값을 둔다. private-key 는 비밀이라 fallback 이 없다 —
+    # 없으면 기동은 되고 보호 URL 발급만 실패한다(CloudFrontUrlSigner).
+    signing:
+      key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:K27QE85H6DLYDD}
+      private-key: ${CLOUDFRONT_PRIVATE_KEY:}
+      # HLS 프리픽스 서명(재생목록·조각). 자동재생이라 사후 복구가 성립하지 않는다 —
+      # 403 을 만난 뒤 재발급받는 왕복이 카드마다 보이는 스톨이 되고, 서명 범위가 영상
+      # 하나라 재발급도 영상당 1회다(ADR-0012). 그래서 목록이 살아 있는 최대 구간
+      # = motif.view.video-ranking.retain(커서 시퀀스가 죽는 시점)에 맞춘다. 둘은 같은
+      # 것을 재므로 한쪽만 바꾸면 다시 어긋난다. 늘린 대가는 권한 회수 지연이 이 값이
+      # 된다는 것이다 — 목록·조회는 즉시 닫히고 이미 받아 간 URL 만 남는다 (ADR-0017)
+      playlist-ttl: 2h
+      # 단일 영상 파일(§7.6 편집본). 여기는 복구 경로가 실제로 있다 — 만료되면 앱이
+      # §7.6 을 다시 부르고 새 URL 을 받는다. 재생목록과 같이 늘릴 이유가 없다
+      video-file-ttl: 10m
+      # 이미지(썸네일·프로필)는 그 복구 경로가 없다 — <img> 가 403 이면 깨진 채로
+      # 남는다. 마이페이지를 열어둔 채 돌아왔을 때 3×3 이 통째로 깨지지 않을 만큼
+      image-ttl: 6h
+    # 업로드 presign 조건 중 경로를 공유하는 것. 이미지는 어드민 아티스트 프로필과
+    # 사용자 프로필(§4.3)이 같은 profiles/ 에 쓰므로 한 곳에 둔다 — 영상은 어드민만
+    # 올리므로 motif.admin.media 에 남아 있다
+    upload:
+      image:
+        content-types: image/jpeg,image/png,image/webp
+        max-size: 10MB
+        # 어드민 §1.4 이미지 300초 · API 명세 §4.3 expiresIn 300 — 같은 값이다
+        presign-ttl: 300s
+    # 프로필 미설정(사용자·아티스트) 때 앱 API 가 내려줄 이미지. 공개 프리픽스라 무서명이다.
+    # 어드민 API 는 "미등록" 을 봐야 하므로 여전히 null 을 준다
+    default-profile-key: profiles/default.png
+    s3:
+      bucket: ${MOTIF_MEDIA_BUCKET:motif-media}
+      region: ${AWS_REGION:ap-northeast-2}
+
+  # 아티스트 랭킹 (API 명세 §5.1 · ADR-0016). 조회수 집계 배치의 마지막 단계로 돈다 —
+  # 갱신 주기는 motif.view.interval 이고 여기에 주기 설정이 없다. 점수는
+  #   0.5·log(누적)/log(T0) + 0.35·log(최근1h)/log(R0) + 0.15·모멘텀
+  # 이고 시간 감쇠가 없다 — 오래된 챌린지도 지금 돌면 아티스트가 올라온다
+  ranking:
+    # 조회와 참여를 한 축으로 합칠 때의 환산비. 참여는 촬영·업로드를 요구하는 행위라 무겁다.
+    # 참여는 누적 항에만 곱해진다 — 1시간 창에서는 0~2건이라 환산비가 아니라 on/off
+    # 스위치가 되어 "최근 한 시간에 누가 올렸나" 가 순위를 결정해 버린다 (ADR-0016)
+    reaction:
+      view: 1
+      participant: 100
+    # 세 항의 비율. §6.1(0.3/0.5/0.2)보다 누적 비중이 크다 — 이 스냅샷을 §3.1 온보딩
+    # 인기 목록이 함께 쓰므로, 처음 앱을 켠 사람에게 무명이 1위로 뜨면 곤란하다.
+    # 순위가 너무 안 움직이면 total 을 먼저 내린다
+    weight:
+      total: 0.5
+      recent: 0.35
+      delta: 0.15
+    # 각 항이 1.0 이 되는 기준값. 그 틱의 최대값이 아니다 — 최대값으로 나누면 다른
+    # 아티스트의 등락이 내 순위를 바꿔 rankDelta 에 거짓 변동이 뜬다.
+    # 실측 없이 자릿수만 맞춘 추정값이다: 배치가 상위 10명의 항별 점수를 로그에 남기므로
+    # 하루치를 보고 "상위권이 1.0 근처" 가 되게 맞춘다
+    scale:
+      total: 500000
+      recent: 5000
+      delta: 5.0
+    # 증감 분모의 완충 상수 K. §6.1(10)보다 크다 — 여기 반응량은 아티스트의 챌린지 합이라
+    # 자릿수가 다르다. 없으면 작은 분모에서 비율이 발산해 노이즈가 1위를 가져간다
+    delta-floor: 100
+    # 버전 키 TTL. §5.1 은 커서가 없어 이 값의 역할은 rankDelta 대비 버전의 보존뿐이다 —
+    # interval × rank-delta-buckets(=1시간)보다 짧으면 변동이 조용히 전원 null 이 된다
+    retain: 2h
+    # 순위 변동을 몇 틱 전과 견줄지. 3틱 = 1시간. 1틱이면 20분마다 값이 바뀌어 깜빡인다
+    rank-delta-buckets: 3
+
+  # 조회수 집계 (API 명세 §7.4·§8.5 · ADR-0015·0016). 참여 영상과 챌린지가 같은
+  # 파이프라인을 쓴다 — 조회 이벤트는 DB 를 건드리지 않고 Redis 에 쌓이며, 20분 주기
+  # 배치가 대상별로 집계해 DB·버킷·랭킹에 반영한다. 상한은 두 대상에 공통이다
+  view:
+    # 한 요청에 담을 수 있는 대상 수. 뷰어가 한 세션에 소비하는 수를 넉넉히 덮는 값
+    max-targets-per-request: 50
+    # 대상 하나에 실을 수 있는 조회수. 1회 인정 기준이 미결이라(원본 §16 #3) 서버는 보낸
+    # 값을 믿는다 — 지금은 이 상한이 유일한 어뷰징 방어선이다. 의심되면 먼저 조인다
+    max-count-per-target: 100
+    # 집계 주기. 버킷이 "개수" 기반이라 이 값만 내리면 최근 조회수 구간이 함께 줄어든다 —
+    # 시연에서 1m 로 내린다면 recent-buckets 도 60 으로 같이 올려야 "최근 1시간" 이 유지된다
+    interval: 20m
+    # 버킷 수명. 최근 3 + 이전 3 = 2시간을 덮고도 재처리·관찰 여유가 남는 값
+    bucket-ttl: 6h
+    # 버킷 인덱스 보존 개수 — 약 4시간분. 여기서 밀려나면 TTL 이 남아 있어도 조회 대상이 아니다
+    bucket-keep: 12
+    # "이 구간은 DB 에 넣었다" 는 멱등 마커의 수명. 재처리가 이보다 늦으면 같은 조회수가
+    # 두 번 반영된다 — 하루면 사람이 손대는 복구까지 덮는다
+    flush-marker-ttl: 24h
+    # "최근 조회수" 로 볼 버킷 개수. interval(20m) × 3 = 1시간. 이전 구간은 그 다음 3개다
+    recent-buckets: 3
+
+    # 홈 HOT 참여 영상 랭킹 (API 명세 §6.1). 집계 배치의 마지막 단계로 돈다 — 주기를
+    # 따로 두면 버킷이 저장되기 전에 랭킹이 돈다. 점수는
+    #   0.3·log(누적)/log(T0) + 0.5·log(최근1h)/log(R0) + 0.2·모멘텀
+    # 이고 시간 감쇠가 없다 — 오래된 영상도 지금 뜨면 1위에 오른다 (ADR-0015)
+    video-ranking:
+      # 스냅샷에 담을 상위 개수. 점수 임계로 자르지 않는다 — 정규화가 고정 기준이라
+      # 임계를 둘 수는 있지만, 트래픽이 적은 시간대에 목록이 통째로 비는 편이 나쁘다
+      keep: 500
+      # 버전 키 TTL. 커서 시퀀스의 유효 기간이자 rankDelta 대비 버전의 보존 기간이다.
+      # interval × rank-delta-buckets(=1시간)보다 넉넉해야 한다 — 짧으면 순위 변동이
+      # 예외도 로그도 없이 전원 null 이 된다
+      retain: 2h
+      # 순위 변동을 몇 틱 전과 견줄지. 3틱 = 1시간. 1틱으로 두면 20분마다 값이 바뀌어
+      # 앱의 변동 표시가 깜빡인다
+      rank-delta-buckets: 3
+      # 증감 분모의 완충 상수 K. 없으면 0→3 같은 노이즈가 1000→2000 을 이긴다
+      delta-floor: 10
+      # 세 항의 비율. 합이 1일 필요는 없다 — 상수배는 순위를 바꾸지 않는다.
+      # 순위가 잘 안 움직이면 total 을 먼저 의심한다(누적은 줄지 않는 값이라 관성이다)
+      weight:
+        total: 0.3
+        recent: 0.5
+        delta: 0.2
+      # 각 항이 1.0 이 되는 기준값. 그 틱의 최대값이 아니다 — 최대값으로 나누면 다른
+      # 영상의 등락이 내 순위를 바꾸고 rankDelta 에 거짓 변동이 뜬다.
+      # 실측 없이 정한 값이라 순위가 기대와 다르면 여기를 먼저 본다
+      scale:
+        total: 10000
+        recent: 300
+        delta: 3.0
+
+  # 결제 — 토스페이먼츠 승인형 (API 명세 §12, 웹훅 없음). 서버가 토스를 부르는 곳은
+  # 결제 승인(§12.2) 하나다. 테스트 키(test_sk_…)도 같은 호스트를 쓴다
+  payment:
+    toss:
+      base-url: https://api.tosspayments.com
+      # 시크릿 키. fallback 이 빈 값인 이유 — 미설정이면 기동은 되고 결제 승인만 호출 시점에
+      # 500 으로 막힌다(RestClientTossPaymentClient). CLOUDFRONT_PRIVATE_KEY 와 같은 규칙이다:
+      # 결제 키가 없다고 앱 전체가 뜨지 않으면 결제와 무관한 개발·시연이 함께 막힌다.
+      # 운영 값은 core-api-secret 의 TOSS_SECRET_KEY 다(application-prod.yml 주석)
+      secret-key: ${TOSS_SECRET_KEY:}
+      connect-timeout: 3s
+      # 승인은 카드사 왕복이 있어 길다. 넘기면 결과 불명으로 보고 주문을 PENDING 에 둔다 —
+      # 클라이언트가 같은 paymentKey 로 다시 부르면 토스가 멱등하게 답한다
+      read-timeout: 10s
+
+  # 합성 파이프라인의 AI 경계 (작업명세 §4.2·§4.3). 접수는 우리가 부르고 콜백은 AI 가
+  # 부른다 — 둘이 같은 비밀 하나를 쓴다
+  composite:
+    # AI 접수 서비스 URL. 비어 있으면 접수를 건너뛰고 잡은 QUEUED 로 남는다(스윕이
+    # 되살린다). 운영 값은 configmap 의 AI_SUBMIT_URL — Cloud Run 주소는 배포마다 바뀐다
+    submit-url: ${AI_SUBMIT_URL:}
+    # 콜백 인증 토큰(X-Motif-Worker-Token). 비어 있으면 콜백을 전부 401 로 막는다
+    # (fail-closed — WorkerTokenFilter). 운영 값은 core-api-secret 의 MOTIF_WORKER_TOKEN
+    worker-token: ${MOTIF_WORKER_TOKEN:}
+    connect-timeout: 3s
+    # 접수 서비스는 Job 을 띄우기만 하고 기다리지 않아 1~3초 안에 답한다(AI 명세 §3.2).
+    # 넘기면 결과 불명으로 보고 QUEUED 에 남긴다
+    read-timeout: 15s
+    # 디스패처 (작업명세 §4.7). 큐가 없어졌으니 재전달해 주는 브로커도 없다 —
+    # 접수 실패와 콜백 없는 죽음을 되살리는 것이 전부 이 배치다
+    sweep-interval: 1m
+    # QUEUED 를 재접수 대상으로 보기까지. 13.2 가 방금 만든 잡을 즉시 집지 않게 한다
+    requeue-after: 2m
+    # AI Job 최대 실행 시간 — AI 팀이 준 값이다(§8 #5 미결, 실측 후 조정).
+    # PROCESSING 정체 판정은 여기에 5분을 더한다
+    task-timeout: 30m
+
+  # 어드민 (어드민 명세 §1.1·§1.2·§1.3·§1.4). 비밀값·허용 IP 는 프로파일별 파일에서 주입한다
+  admin:
+    # §1.2 — motif_admin 쿠키의 Secure 플래그. 기본은 켬이고 로컬만 끈다(http 개발 서버).
+    # TLS 를 Traefik 이 끊어 앱이 보는 스킴은 운영에서도 http 라, 요청으로 판단하지 않는다.
+    cookie-secure: true
+    jwt:
+      # §1.2 — 12시간, refresh 없음(기본안). 만료되면 재로그인
+      ttl: 12h
+    audit:
+      # §1.3 보존 90일(기본안). 경로는 prod 가 PVC 마운트 지점으로 덮는다
+      history-days: 90
+    media:
+      # presign 조건은 서명에 박힌다 — 다른 값으로 PUT 하면 S3 가 거부한다 (§1.4)
+      video:
+        content-types: video/mp4,video/quicktime
+        max-size: 300MB
+        presign-ttl: 600s
+      # 업로드 화면이 보낸 길이·해상도를 대조하는 규칙 (§1.4 2항, §8 #3 미결 — 값만 고친다)
+      rules:
+        challenge-max-duration: 60s
+        asset-max-duration: 3m
+        edited-tolerance: 500ms
+
+server:
+  port: 8081
+  shutdown: graceful
+
+# 가상 스레드는 켜지 않는다 — Phase 4 부하 테스트에서 결정 (ADR-0004)
+# spring:
+#   threads:
+#     virtual:
+#       enabled: true
+
+management:
+  server:
+    port: 9081              # 관리 포트 분리 — 전 모듈 통일 (ADR-0004)
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+# springdoc은 기본 경로 유지 (/v3/api-docs/{group}, /swagger-ui.html)
+springdoc:
+  # 그룹(user·admin)을 나눈 뒤에도 켜 두면 /v3/api-docs 가 둘을 합친 문서를 그대로 뱉는다 —
+  # 공인망에 어드민 경로를 흘리던 구멍이 그것이라 끈다. 문서는 그룹 경로로만 나간다.
+  enable-default-api-docs: false
+  swagger-ui:
+    # 그룹 목록의 기본 선택. 끄면 사전순으로 admin 이 먼저 잡혀 공인망에서 401 을 본다
+    urls-primary-name: user

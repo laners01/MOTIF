@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('곡 관리', ~{::main})}">
+<body>
+<!--/*
+  §3.6 목록·등록. 수정 화면은 없다 — 3.6.3 이 명세에서 삭제됐다(R1, 곡은 불변).
+  오류는 새 곡을 등록하고 챌린지를 재연결(3.7.4)해서 고친다. 로직은 songs.js.
+*/-->
+<main>
+    <section>
+        <h2>목록</h2>
+        <p>
+            <label style="display:inline">검색
+                <input type="search" id="q" placeholder="곡명·가수명 부분 일치">
+            </label>
+            <button type="button" id="reload">조회</button>
+        </p>
+        <p class="err" id="list-err" hidden></p>
+        <table>
+            <thead>
+            <tr><th>#</th><th>곡명</th><th>가수명</th><th>챌린지</th><th>등록</th></tr>
+            </thead>
+            <tbody id="songs"></tbody>
+        </table>
+        <p class="muted" id="count"></p>
+    </section>
+
+    <section>
+        <h2>곡 등록</h2>
+        <p class="err" id="form-err" hidden></p>
+        <label>곡명 <input id="title" maxlength="100"></label>
+        <label>가수명 <input id="singer-name" maxlength="100"></label>
+        <p>
+            <button type="button" id="save">등록</button>
+            <span class="msg ok" id="msg"></span>
+        </p>
+        <!--/* 중복 곡명을 DB 가 막지 않는다(리믹스·재녹음) — 화면이 경고만 한다(§3.6.2). */-->
+        <p class="muted" id="dup" hidden></p>
+    </section>
+
+    <template id="song-row">
+        <tr>
+            <td class="seq"></td>
+            <td class="title"></td>
+            <td class="singer"></td>
+            <td class="challenges"></td>
+            <td class="reg"></td>
+        </tr>
+    </template>
+
+    <script src="/admin/songs.js" defer></script>
+</main>
+</body>
+</html>

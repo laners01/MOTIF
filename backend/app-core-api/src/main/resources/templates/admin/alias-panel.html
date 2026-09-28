@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/*
+  별칭 패널 (어드민 명세 §3.4.5~8 · §3.5.6~9) — 아티스트 화면과 그룹 화면이 함께 쓴다.
+
+  끼우는 쪽: <div th:replace="~{admin/alias-panel :: aliasPanel}"></div> + aliases.js 로드
+  여는 쪽:   openAliases('/artists/3', '아티스트 #3 카리나') — 경로만 다르고 계약은 같다
+
+  layout.html 에 두지 않는다 — 거기 두면 page 프래그먼트에 섞여 모든 화면에 딸려 들어가고,
+  끼워 쓰는 화면에서는 같은 id 가 두 번 나온다.
+
+  두 화면에 마크업을 복붙하지도 않는다. 칸이 {언어, 별칭} 둘뿐이라 짧아 보이지만 한쪽만
+  고치면 그 화면에서만 다른 요청이 나간다(언어 코드 maxlength 가 대표적이다).
+*/-->
+<section th:fragment="aliasPanel" id="alias-panel" hidden>
+    <h2>별칭 — <span id="alias-target"></span></h2>
+    <p class="muted">
+        팬 앱 검색(§5.2)이 이름 대신 이 별칭을 훑는다. 한 언어에 여러 개를 달 수 있고
+        중복도 막지 않는다. <b>별칭은 검색에만 쓰이고 화면에 보이는 이름은 바뀌지 않는다.</b>
+    </p>
+    <p class="err" id="alias-err" hidden></p>
+    <p>
+        <label style="display:inline">언어
+            <input type="text" id="alias-lang" maxlength="2" size="2" placeholder="en"></label>
+        <label style="display:inline">별칭
+            <input type="text" id="alias-text" maxlength="100" placeholder="Karina"></label>
+        <button type="button" id="alias-add">추가</button>
+        <span class="msg ok" id="alias-msg"></span>
+    </p>
+    <table>
+        <thead>
+        <tr><th>#</th><th>언어</th><th>별칭</th><th>등록</th><th></th><th>결과</th></tr>
+        </thead>
+        <tbody id="aliases"></tbody>
+    </table>
+    <p class="muted" id="alias-count"></p>
+
+    <template id="alias-row">
+        <tr>
+            <td class="seq"></td>
+            <td><input type="text" class="lang" maxlength="2" size="2"></td>
+            <td><input type="text" class="alias" maxlength="100"></td>
+            <td class="reg"></td>
+            <td><button type="button" class="save">저장</button>
+                <button type="button" class="delete">삭제</button></td>
+            <td class="msg muted"></td>
+        </tr>
+    </template>
+</section>
+</body>
+</html>

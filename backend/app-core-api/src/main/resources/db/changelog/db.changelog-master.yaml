@@ -1,0 +1,62 @@
+# motif_core 스키마 마이그레이션 master (MODERA 관례 — ADR-0004).
+#
+# 번호 붙은 raw SQL changelog를 순서대로 include 한다:
+#
+#   databaseChangeLog:
+#     - include:
+#         file: db/changelog/sql/0001-create-composite-jobs.sql
+#     - include:
+#         file: db/changelog/sql/0002-....sql
+#
+# 규칙:
+#   - 파일명은 0001부터 증가. 한 번 배포된 파일은 수정하지 않는다(새 번호로 추가).
+#   - 전역 오브젝트(pg_trgm 등)는 여기 두지 않는다 — DB init 스크립트 소유.
+#   - 팬아웃 GRANT(subscriptions SELECT to notif_app)는 subscriptions 생성
+#     직후의 changeSet으로 이 changelog에 들어온다 (configmap-init.yaml 참조).
+# 스키마 계약: backend/docs/erd/MOTIF_DB_SPEC_v0_15.md
+# 수동 선행 SQL(스키마·계정·GRANT USAGE·pg_trgm): backend/docs/db/manual-prereq.sql
+databaseChangeLog:
+  - include:
+      file: db/changelog/sql/0001-reference.sql
+  - include:
+      file: db/changelog/sql/0002-users-auth.sql
+  - include:
+      file: db/changelog/sql/0003-artists.sql
+  - include:
+      file: db/changelog/sql/0004-challenges.sql
+  - include:
+      file: db/changelog/sql/0005-videos.sql
+  - include:
+      file: db/changelog/sql/0006-comments.sql
+  - include:
+      file: db/changelog/sql/0007-notices.sql
+  - include:
+      file: db/changelog/sql/0008-reports.sql
+  - include:
+      file: db/changelog/sql/0009-motif-commerce.sql
+  - include:
+      file: db/changelog/sql/0010-motif-results-jobs.sql
+  - include:
+      file: db/changelog/sql/0011-shop-banners.sql
+  - include:
+      file: db/changelog/sql/0012-indexes.sql
+  - include:
+      file: db/changelog/sql/0013-seed.sql
+  - include:
+      file: db/changelog/sql/0014-admin-user-seq.sql
+  - include:
+      file: db/changelog/sql/0015-admin-seed.sql
+  - include:
+      file: db/changelog/sql/0016-activity-index.sql
+  - include:
+      file: db/changelog/sql/0017-slot-anchor-preview.sql
+  - include:
+      file: db/changelog/sql/0018-artist-aliases.sql
+  - include:
+      file: db/changelog/sql/0019-participant-edited-merge.sql
+  - include:
+      file: db/changelog/sql/0020-edited-private-duration.sql
+  - include:
+      file: db/changelog/sql/0021-composite-require-slot.sql
+  - include:
+      file: db/changelog/sql/0022-challenge-activity-index.sql

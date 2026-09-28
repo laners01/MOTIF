@@ -1,5 +1,13 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
 
-# secrets
+# macOS
+.DS_Store
+
+# secrets (infra)
 *.pem
 *.key
 secret.yaml
@@ -7,5 +15,4 @@ secret-*.yaml
 !secret.example.yaml
 .env
 
-# macOS
-.DS_Store
+# Gradle 등 백엔드 전용 항목은 backend/.gitignore 에 둔다

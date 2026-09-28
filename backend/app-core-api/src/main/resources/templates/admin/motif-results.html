@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('모티프 결과물', ~{::main})}">
+<body>
+<!--/*
+  §3.17.1 모티프 결과물 목록 — 전 사용자·삭제분. 재생기는 하나만 둔다(videos.html 과 같은 이유).
+  로직은 motif-results.js.
+*/-->
+<main>
+    <section>
+        <p>
+            <label style="display:inline">아티스트
+                <select id="artist"><option value="">전체</option></select>
+            </label>
+            <label style="display:inline">에셋 # <input type="number" id="asset" min="1" style="width:6em"></label>
+            <label style="display:inline">회원 # <input type="number" id="user" min="1" style="width:6em"></label>
+            <label style="display:inline"><input type="checkbox" id="deleted"> 삭제분 포함</label>
+            <button type="button" id="reload">조회</button>
+        </p>
+        <p class="err" id="err" hidden></p>
+    </section>
+
+    <section id="player-box" hidden>
+        <p id="player-title"></p>
+        <video id="player" width="270" controls></video>
+        <p class="muted" id="player-note" hidden></p>
+    </section>
+
+    <section>
+        <table>
+            <thead>
+            <tr><th>#</th><th>썸네일</th><th>회원</th><th>아티스트</th><th>에셋</th><th>문구</th>
+                <th>길이</th><th>등록</th><th></th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+        </table>
+        <p>
+            <button type="button" id="prev">이전</button>
+            <span class="muted" id="count"></span>
+            <button type="button" id="next">다음</button>
+        </p>
+    </section>
+
+    <template id="row">
+        <tr>
+            <td class="seq"></td>
+            <td><img class="thumb" alt="" width="60"></td>
+            <td class="user"></td>
+            <td class="artist"></td>
+            <td class="asset"></td>
+            <td class="desc"></td>
+            <td class="duration"></td>
+            <td class="reg"></td>
+            <td>
+                <button type="button" class="play">재생</button>
+                <button type="button" class="thumb-change">썸네일 교체</button>
+                <input type="file" class="thumb-file" accept="image/jpeg,image/png,image/webp" hidden>
+            </td>
+        </tr>
+    </template>
+
+    <script src="/admin/motif-results.js" defer></script>
+</main>
+</body>
+</html>

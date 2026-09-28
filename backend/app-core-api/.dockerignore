@@ -1,0 +1,5 @@
+# 빌드 컨텍스트는 backend/app-core-api 전체다. 그대로 두면 build/classes,
+# build/generated, src 까지 데몬으로 전송된다(수백 MB). Dockerfile 이 실제로
+# 쓰는 것은 bootJar 하나뿐이므로 전부 막고 그것만 되살린다.
+**
+!build/libs/app-core-api-*-SNAPSHOT.jar

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: page('공지 작성', ~{::main})}">
+<body>
+<!--/*
+  §3.10.2 공지 작성. API 는 402 로 이미 있었는데 화면만 없었다.
+
+  수정 화면(notice-edit)과 갈라 둔다 — 수정은 이미지가 "손댔을 때만 전체 교체" 라는
+  까다로운 규칙을 지고 있고(§3.10.4), 작성은 그냥 지금 목록이 곧 최종이다.
+  한 화면에 합치면 그 분기가 폼 안에 들어온다. 로직은 notice-new.js.
+*/-->
+<main>
+    <p class="err" id="err" hidden></p>
+
+    <section>
+        <h2>1. 아티스트</h2>
+        <label>아티스트 <select id="artist"><option value="">선택</option></select></label>
+        <p class="muted">공지는 아티스트에 속한다 — 구독자에게 알림이 나간다.</p>
+    </section>
+
+    <section>
+        <h2>2. 본문</h2>
+        <textarea id="content" rows="12" maxlength="5000" placeholder="공지 내용을 입력한다"></textarea>
+        <p class="muted" id="count">0 / 5000자</p>
+    </section>
+
+    <section>
+        <h2>3. 이미지 <span class="muted">— 0~10장, 선택. 끌어서 순서를 바꾼다. 위에서부터 displayOrder 0</span></h2>
+        <ul id="images" class="images"></ul>
+        <p>
+            <input type="file" id="file" accept="image/jpeg,image/png,image/webp" multiple>
+            <span class="muted" id="image-count">0 / 10장</span>
+        </p>
+    </section>
+
+    <section>
+        <h2>4. 등록</h2>
+        <button type="button" id="submit" disabled>등록</button>
+        <a href="/admin/notices">목록</a>
+        <p id="result"></p>
+    </section>
+
+    <template id="image-item">
+        <li draggable="true">
+            <img alt="">
+            <span class="order muted"></span>
+            <button type="button" class="del">삭제</button>
+        </li>
+    </template>
+
+    <script src="/admin/notice-new.js" defer></script>
+</main>
+</body>
+</html>

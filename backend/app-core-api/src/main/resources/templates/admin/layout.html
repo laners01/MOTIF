@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<!--/*
+  어드민 공통 껍데기 (어드민 명세 §1.7 — "관리 효율 목적의 최소 구현, 디자인 불요").
+  화면 템플릿은 <html th:replace="~{admin/layout :: page('제목', ~{::main})}"> 로 끼운다.
+*/-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" th:fragment="page(heading, content)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="'MOTIF 어드민 · ' + ${heading}">MOTIF 어드민</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+    <script src="/admin/admin.js" defer></script>
+</head>
+<body>
+<nav>
+    <strong>MOTIF 어드민</strong>
+    <a href="/admin/orgs">소속사 · 그룹</a>
+    <a href="/admin/challenges/new">챌린지 등록</a>
+    <a href="/admin/prices">가격 관리</a>
+    <a href="/admin/notices">공지</a>
+    <a href="/admin/artists">아티스트</a>
+    <a href="/admin/challenges">챌린지</a>
+    <a href="/admin/assets">에셋</a>
+    <a href="/admin/videos">참여 영상</a>
+    <a href="/admin/motif-results">모티프 결과물</a>
+    <a href="/admin/songs">곡</a>
+    <a href="/admin/banners">숍 배너</a>
+    <a href="/admin/reports">신고</a>
+    <a href="/admin/users">회원</a>
+    <a href="/admin/act-as">활동 대행</a>
+    <span class="spacer"></span>
+    <span class="acting" id="acting" hidden></span>
+    <span class="who" id="who"></span>
+    <button type="button" id="logout">로그아웃</button>
+</nav>
+<h1 th:text="${heading}">제목</h1>
+<main th:replace="${content}">내용</main>
+</body>
+</html>

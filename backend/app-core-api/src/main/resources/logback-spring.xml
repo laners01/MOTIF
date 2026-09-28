@@ -1,0 +1,35 @@
+<configuration>
+    <include resource="logback-motif-common.xml"/>
+
+    <!--
+      어드민 감사 로그 전용 JSON 파일 (어드민 명세 §1.3, 회의 확정 R1 — S15P21D104-555).
+
+      · 파일명에 HOSTNAME(파드명)을 넣는다 — 파드 2개가 같은 PVC 를 쓰면 한 파일에
+        두 프로세스가 쓰게 되고, 롤링 시점에 서로의 파일을 옮겨 로그가 유실된다.
+      · 경로는 k3s PVC(local-path) 마운트 지점이다. 로컬은 application-local.yml 이
+        build/logs 로 덮는다 — /var/log 는 개발 머신에서 쓸 수 없다.
+      · additivity 기본값(true)을 유지해 stdout(CONSOLE)에도 같은 줄이 나간다.
+      · JsonEncoder 는 logback-classic 1.5 내장이다 — logstash-encoder 의존을 더하지 않는다.
+    -->
+    <springProperty scope="context" name="AUDIT_DIR" source="motif.admin.audit.dir"
+                    defaultValue="/var/log/motif"/>
+    <springProperty scope="context" name="AUDIT_HISTORY_DAYS" source="motif.admin.audit.history-days"
+                    defaultValue="90"/>
+
+    <appender name="ADMIN_AUDIT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${AUDIT_DIR}/admin-audit-${HOSTNAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${AUDIT_DIR}/admin-audit-${HOSTNAME}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>${AUDIT_HISTORY_DAYS}</maxHistory>
+        </rollingPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+    </appender>
+
+    <logger name="motif.admin.audit" level="INFO">
+        <appender-ref ref="ADMIN_AUDIT"/>
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
