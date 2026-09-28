@@ -1,0 +1,16 @@
+accelerate>=0.25.0
+dataclasses-json
+decord
+diffusers==0.30.1
+einops
+flask
+imageio[ffmpeg]
+numpy<2
+omegaconf
+opencv-python-headless
+protobuf
+pycocotools
+safetensors
+scikit-image
+sentencepiece
+transformers==4.46.2

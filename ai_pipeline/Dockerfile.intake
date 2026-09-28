@@ -1,0 +1,7 @@
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
+WORKDIR /app/run_final_cloud_run_job
+COPY requirements-intake.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY __init__.py schemas.py precompute_schemas.py intake.py ./
+CMD ["python", "-m", "run_final_cloud_run_job.intake"]

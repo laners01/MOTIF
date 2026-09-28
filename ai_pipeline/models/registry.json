@@ -1,0 +1,114 @@
+[
+  {
+    "id": "edgetam",
+    "label": "[초경량] EdgeTAM",
+    "backend": "edgetam",
+    "checkpoint": "vendor/edgetam/checkpoints/edgetam.pt",
+    "config": "configs/edgetam.yaml"
+  },
+  {
+    "id": "efficienttam_ti_512",
+    "label": "[초경량] EfficientTAM-Ti 512",
+    "backend": "efficienttam",
+    "checkpoint": "models/efficienttam_ti_512x512.pt",
+    "config": "configs/efficienttam/efficienttam_ti_512x512.yaml"
+  },
+  {
+    "id": "efficienttam_s_512",
+    "label": "[경량] EfficientTAM-S 512",
+    "backend": "efficienttam",
+    "checkpoint": "models/efficienttam_s_512x512.pt",
+    "config": "configs/efficienttam/efficienttam_s_512x512.yaml"
+  },
+  {
+    "id": "efficienttam_ti",
+    "label": "[경량] EfficientTAM-Ti 1024",
+    "backend": "efficienttam",
+    "checkpoint": "models/efficienttam_ti.pt",
+    "config": "configs/efficienttam/efficienttam_ti.yaml"
+  },
+  {
+    "id": "sam2.1_tiny",
+    "label": "[경량] SAM 2.1 Tiny",
+    "backend": "sam2",
+    "checkpoint": "models/sam2.1_hiera_tiny.pt",
+    "config": "configs/sam2.1/sam2.1_hiera_t.yaml"
+  },
+  {
+    "id": "efficienttam_s",
+    "label": "[균형] EfficientTAM-S 1024",
+    "backend": "efficienttam",
+    "checkpoint": "models/efficienttam_s.pt",
+    "config": "configs/efficienttam/efficienttam_s.yaml"
+  },
+  {
+    "id": "sam2.1_small",
+    "label": "[균형] SAM 2.1 Small",
+    "backend": "sam2",
+    "checkpoint": "models/sam2.1_hiera_small.pt",
+    "config": "configs/sam2.1/sam2.1_hiera_s.yaml"
+  },
+  {
+    "id": "sam2.1_base_plus",
+    "label": "[고품질] SAM 2.1 Base+",
+    "backend": "sam2",
+    "checkpoint": "models/sam2.1_hiera_base_plus.pt",
+    "config": "configs/sam2.1/sam2.1_hiera_b+.yaml"
+  },
+  {
+    "id": "sam2.1_large",
+    "label": "[최고품질·무거움] SAM 2.1 Large",
+    "backend": "sam2",
+    "checkpoint": "models/sam2.1_hiera_large.pt",
+    "config": "configs/sam2.1/sam2.1_hiera_l.yaml"
+  },
+  {
+    "id": "rfdetr_s_sam2.1_large",
+    "label": "[자동 사람] RF-DETR-S TensorRT FP16 → SAM 2.1 Large",
+    "backend": "rfdetr_s_sam2",
+    "checkpoint": "models/sam2.1_hiera_large.pt",
+    "config": "configs/sam2.1/sam2.1_hiera_l.yaml"
+  },
+  {
+    "id": "sam2.1_large_hair",
+    "label": "[사람·머리카락] SAM 2.1 Large + HairSegmenter",
+    "backend": "sam2_hair",
+    "checkpoint": "models/sam2.1_hiera_large.pt",
+    "config": "configs/sam2.1/sam2.1_hiera_l.yaml"
+  },
+  {
+    "id": "matanyone2_person",
+    "label": "[사람 전용·최신] MatAnyone 2",
+    "backend": "matanyone2_person",
+    "checkpoint": "models/matanyone2.pth",
+    "config": "matanyone2/config/eval_matanyone_config.yaml"
+  },
+  {
+    "id": "efficienttam_matanyone2",
+    "label": "[사람 전용·최신] EfficientTAM-S → MatAnyone 2",
+    "backend": "efficienttam_matanyone2",
+    "checkpoint": "models/matanyone2.pth",
+    "config": "matanyone2/config/eval_matanyone_config.yaml"
+  },
+  {
+    "id": "matanyone_person",
+    "label": "[사람 전용] MatAnyone v1 (단독)",
+    "backend": "matanyone_person",
+    "checkpoint": "models/matanyone.pth",
+    "config": "matanyone/config/eval_matanyone_config.yaml"
+  },
+  {
+    "id": "efficienttam_matanyone",
+    "label": "[사람 전용] EfficientTAM-S → MatAnyone v1",
+    "backend": "efficienttam_matanyone",
+    "checkpoint": "models/matanyone.pth",
+    "config": "matanyone/config/eval_matanyone_config.yaml"
+  },
+  {
+    "id": "efficienttam_matanyone_continuous",
+    "label": "[사람 전용·교정] EfficientTAM-S → MatAnyone v1 (연속)",
+    "backend": "efficienttam_matanyone_continuous",
+    "checkpoint": "models/matanyone.pth",
+    "config": "matanyone/config/eval_matanyone_config.yaml"
+  }
+]

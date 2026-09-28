@@ -1,0 +1,13 @@
+boto3
+gdown
+huggingface-hub
+pydantic
+torch==2.7.0
+torchvision==0.22.0
+opencv-python-headless==4.10.0.84
+scipy==1.14.1
+imageio-ffmpeg==0.5.1
+Pillow==10.2.0
+yt-dlp
+rfdetr
+easydict

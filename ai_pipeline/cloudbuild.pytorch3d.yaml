@@ -1,0 +1,29 @@
+# pytorch3d wheel 1회 사전빌드 → GCS 저장.
+# gvhmr env와 동일 조건(python3.10 + torch2.7.0 cu128 + arch 9.0;12.0)으로 컴파일해야
+# 메인 빌드에서 그대로 설치 가능(ABI 일치). 이후 메인 빌드는 이 wheel을 설치만 하고 컴파일을 생략한다.
+steps:
+  - name: 'nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04'
+    entrypoint: bash
+    args:
+      - -euxc
+      - |
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y --no-install-recommends git build-essential ninja-build ca-certificates curl pkg-config
+        curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+        export PATH=/usr/local/bin:$$PATH
+        uv python install 3.10
+        uv venv /opt/build --python 3.10
+        uv pip install --python /opt/build/bin/python pip setuptools wheel ninja
+        uv pip install --python /opt/build/bin/python \
+          --index-url https://download.pytorch.org/whl/cu128 torch==2.7.0 torchvision==0.22.0
+        mkdir -p /workspace/wheels
+        TORCH_CUDA_ARCH_LIST="9.0;12.0" FORCE_CUDA=1 MAX_JOBS=8 \
+          /opt/build/bin/python -m pip wheel --no-build-isolation --no-deps \
+          "git+https://github.com/facebookresearch/pytorch3d.git@stable" -w /workspace/wheels
+        ls -la /workspace/wheels
+  - name: gcr.io/cloud-builders/gsutil
+    args: ['-m', 'cp', '/workspace/wheels/pytorch3d-*.whl', 'gs://ssafy-motif-models-us/wheels/']
+timeout: 3600s
+options:
+  machineType: 'E2_HIGHCPU_32'
