@@ -57,7 +57,8 @@ internal fun ArtistDetailScreen(
     onChallengeClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
     onCreateMotifClick: () -> Unit = {},
-    viewModel: ArtistDetailViewModel = hiltViewModel(),
+    viewModel: ArtistDetailViewModel =
+        hiltViewModel(),
 ) {
     val uiState by
     viewModel
@@ -68,12 +69,14 @@ internal fun ArtistDetailScreen(
         artistId,
     ) {
         viewModel.loadArtist(
-            artistId = artistId,
+            artistId =
+                artistId,
         )
     }
 
     ArtistDetailScreen(
-        uiState = uiState,
+        uiState =
+            uiState,
         onSubscribeClick =
             viewModel::toggleSubscribe,
         onAlarmClick =
@@ -94,13 +97,16 @@ internal fun ArtistDetailScreen(
             viewModel::onCommentBackClick,
         onCommentSendClick =
             viewModel::onCommentSendClick,
+        onCommentDismiss =
+            viewModel::dismissComments,
         onChallengeClick =
             onChallengeClick,
         onLoadMoreNotices =
             viewModel::loadMoreNotices,
         onCreateMotifClick =
             onCreateMotifClick,
-        modifier = modifier,
+        modifier =
+            modifier,
     )
 }
 
@@ -117,6 +123,7 @@ private fun ArtistDetailScreen(
     onReplyClick: (Long) -> Unit,
     onCommentBackClick: () -> Unit,
     onCommentSendClick: (String) -> Unit,
+    onCommentDismiss: () -> Unit,
     onChallengeClick: (Long) -> Unit,
     onLoadMoreNotices: () -> Unit,
     onCreateMotifClick: () -> Unit,
@@ -157,7 +164,9 @@ private fun ArtistDetailScreen(
         canLoadMoreNotices,
     ) {
         derivedStateOf {
-            if (!canLoadMoreNotices) {
+            if (
+                !canLoadMoreNotices
+            ) {
                 return@derivedStateOf false
             }
 
@@ -171,7 +180,8 @@ private fun ArtistDetailScreen(
                     ?.index
                     ?: return@derivedStateOf false
 
-            layoutInfo.totalItemsCount > 0 &&
+            layoutInfo.totalItemsCount >
+                    0 &&
                     lastVisibleIndex >=
                     layoutInfo.totalItemsCount -
                     LOAD_MORE_THRESHOLD
@@ -181,7 +191,9 @@ private fun ArtistDetailScreen(
     LaunchedEffect(
         shouldLoadMoreNotices,
     ) {
-        if (shouldLoadMoreNotices) {
+        if (
+            shouldLoadMoreNotices
+        ) {
             onLoadMoreNotices()
         }
     }
@@ -194,9 +206,11 @@ private fun ArtistDetailScreen(
     val selectedNotice =
         selectedNoticeId
             ?.let { noticeId ->
-                notices.firstOrNull { notice ->
-                    notice.id == noticeId
-                }
+                notices
+                    .firstOrNull { notice ->
+                        notice.id ==
+                                noticeId
+                    }
             }
 
     Surface(
@@ -221,7 +235,8 @@ private fun ArtistDetailScreen(
                     Modifier.fillMaxSize(),
                 contentPadding =
                     PaddingValues(
-                        bottom = 80.dp,
+                        bottom =
+                            80.dp,
                     ),
             ) {
                 when (
@@ -248,18 +263,23 @@ private fun ArtistDetailScreen(
                                     .myMotifVideos
                                     .firstOrNull()
 
-                            if (motif != null) {
+                            if (
+                                motif !=
+                                null
+                            ) {
                                 item {
                                     MotifVideoSection(
                                         videoId =
-                                            motif.id.toString(),
+                                            motif.id
+                                                .toString(),
                                         videoUrl =
                                             motif.videoUrl,
                                         thumbnailUrl =
                                             motif.thumbnailUrl,
                                         modifier =
                                             Modifier.padding(
-                                                bottom = 12.dp,
+                                                bottom =
+                                                    12.dp,
                                             ),
                                     )
                                 }
@@ -277,7 +297,8 @@ private fun ArtistDetailScreen(
                                             "",
                                         modifier =
                                             Modifier.padding(
-                                                bottom = 12.dp,
+                                                bottom =
+                                                    12.dp,
                                             ),
                                     )
                                 }
@@ -291,7 +312,8 @@ private fun ArtistDetailScreen(
                                 isAlarmOn =
                                     uiState.isAlarmOn,
                                 isSubscriptionUpdating =
-                                    uiState.isSubscriptionUpdating,
+                                    uiState
+                                        .isSubscriptionUpdating,
                                 onSubscribeClick =
                                     onSubscribeClick,
                                 onAlarmClick =
@@ -305,7 +327,8 @@ private fun ArtistDetailScreen(
                                         Modifier
                                     } else {
                                         Modifier.padding(
-                                            top = 12.dp,
+                                            top =
+                                                12.dp,
                                         )
                                     },
                             )
@@ -329,7 +352,8 @@ private fun ArtistDetailScreen(
                             MotifTheme
                                 .colors
                                 .background,
-                        divider = {},
+                        divider =
+                            {},
                         indicator = {
                                 tabPositions,
                             ->
@@ -395,8 +419,10 @@ private fun ArtistDetailScreen(
                                                 .bodyR16,
                                         modifier =
                                             Modifier.padding(
-                                                top = 24.dp,
-                                                bottom = 26.dp,
+                                                top =
+                                                    24.dp,
+                                                bottom =
+                                                    26.dp,
                                             ),
                                     )
                                 }
@@ -439,7 +465,8 @@ private fun ArtistDetailScreen(
                                                     3,
                                                 ),
                                         key = { row ->
-                                            row.first().id
+                                            row.first()
+                                                .id
                                         },
                                     ) { row ->
                                         Row(
@@ -447,39 +474,47 @@ private fun ArtistDetailScreen(
                                                 Modifier
                                                     .fillMaxWidth()
                                                     .padding(
-                                                        bottom = 2.dp,
+                                                        bottom =
+                                                            2.dp,
                                                     ),
                                             horizontalArrangement =
-                                                Arrangement.spacedBy(
-                                                    2.dp,
-                                                ),
+                                                Arrangement
+                                                    .spacedBy(
+                                                        2.dp,
+                                                    ),
                                         ) {
                                             row.forEach { challenge ->
                                                 ChallengeThumbnail(
                                                     thumbnailUrl =
-                                                        challenge.thumbnailUrl,
+                                                        challenge
+                                                            .thumbnailUrl,
                                                     viewCount =
-                                                        challenge.view,
+                                                        challenge
+                                                            .view,
                                                     onClick = {
                                                         onChallengeClick(
-                                                            challenge.id,
+                                                            challenge
+                                                                .id,
                                                         )
                                                     },
                                                     modifier =
-                                                        Modifier.weight(
-                                                            1f,
-                                                        ),
+                                                        Modifier
+                                                            .weight(
+                                                                1f,
+                                                            ),
                                                 )
                                             }
 
                                             repeat(
-                                                3 - row.size,
+                                                3 -
+                                                        row.size,
                                             ) {
                                                 Spacer(
                                                     modifier =
-                                                        Modifier.weight(
-                                                            1f,
-                                                        ),
+                                                        Modifier
+                                                            .weight(
+                                                                1f,
+                                                            ),
                                                 )
                                             }
                                         }
@@ -529,30 +564,35 @@ private fun ArtistDetailScreen(
                                         NoticeCard(
                                             notice =
                                                 notice,
-                                            onArtistClick = {},
+                                            onArtistClick =
+                                                {},
                                             onLikeClick =
                                                 onNoticeLikeClick,
                                             onCommentClick = {
                                                     noticeId,
                                                 ->
+                                                selectedNoticeId =
+                                                    noticeId
+
                                                 onNoticeCommentClick(
                                                     noticeId,
                                                 )
-
-                                                selectedNoticeId =
-                                                    noticeId
                                             },
                                             modifier =
                                                 Modifier.padding(
-                                                    start = 16.dp,
-                                                    end = 16.dp,
-                                                    bottom = 12.dp,
+                                                    start =
+                                                        16.dp,
+                                                    end =
+                                                        16.dp,
+                                                    bottom =
+                                                        12.dp,
                                                 ),
                                         )
                                     }
 
                                     if (
-                                        noticeState.appendState
+                                        noticeState
+                                            .appendState
                                                 is ArtistNoticeAppendUiState.Loading
                                     ) {
                                         item {
@@ -595,31 +635,36 @@ private fun ArtistDetailScreen(
                             Alignment.TopStart,
                         )
                         .offset(
-                            x = 24.dp,
-                            y = 24.dp,
+                            x =
+                                24.dp,
+                            y =
+                                24.dp,
                         ),
             )
 
-            selectedNotice?.let { notice ->
-                ModalCommentBottomSheet(
-                    commentCount =
-                        notice.commentCount,
-                    state =
-                        uiState.commentUiState,
-                    onDismissRequest = {
-                        selectedNoticeId =
-                            null
-                    },
-                    onLikeClick =
-                        onCommentLikeClick,
-                    onReplyClick =
-                        onReplyClick,
-                    onBackClick =
-                        onCommentBackClick,
-                    onCommentSendClick =
-                        onCommentSendClick,
-                )
-            }
+            selectedNotice
+                ?.let { notice ->
+                    ModalCommentBottomSheet(
+                        commentCount =
+                            notice.commentCount,
+                        state =
+                            uiState.commentUiState,
+                        onDismissRequest = {
+                            selectedNoticeId =
+                                null
+
+                            onCommentDismiss()
+                        },
+                        onLikeClick =
+                            onCommentLikeClick,
+                        onReplyClick =
+                            onReplyClick,
+                        onBackClick =
+                            onCommentBackClick,
+                        onCommentSendClick =
+                            onCommentSendClick,
+                    )
+                }
         }
     }
 }
@@ -633,7 +678,8 @@ private fun ContentLoading(
             modifier
                 .fillMaxWidth()
                 .padding(
-                    vertical = 80.dp,
+                    vertical =
+                        80.dp,
                 ),
         contentAlignment =
             Alignment.Center,
@@ -654,7 +700,8 @@ private fun LoadingMoreContent(
             modifier
                 .fillMaxWidth()
                 .padding(
-                    vertical = 24.dp,
+                    vertical =
+                        24.dp,
                 ),
         contentAlignment =
             Alignment.Center,
@@ -676,13 +723,15 @@ private fun EmptyContent(
             modifier
                 .fillMaxWidth()
                 .padding(
-                    vertical = 80.dp,
+                    vertical =
+                        80.dp,
                 ),
         contentAlignment =
             Alignment.Center,
     ) {
         Text(
-            text = text,
+            text =
+                text,
             style =
                 MotifTheme
                     .typography
@@ -704,7 +753,8 @@ private fun ErrorContent(
             modifier
                 .fillMaxWidth()
                 .padding(
-                    vertical = 80.dp,
+                    vertical =
+                        80.dp,
                 ),
         contentAlignment =
             Alignment.Center,
@@ -724,4 +774,5 @@ private fun ErrorContent(
     }
 }
 
-private const val LOAD_MORE_THRESHOLD = 3
+private const val LOAD_MORE_THRESHOLD =
+    3

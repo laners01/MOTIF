@@ -6,13 +6,18 @@ import androidx.lifecycle.viewModelScope
 import com.ssafy.motif.core.common.result.Result
 import com.ssafy.motif.core.common.result.asResult
 import com.ssafy.motif.core.data.repository.ArtistRepository
+import com.ssafy.motif.core.data.repository.CommentRepository
 import com.ssafy.motif.core.model.comment.Comment
+import com.ssafy.motif.core.model.comment.CommentType
 import com.ssafy.motif.core.ui.comment.CommentPage
 import com.ssafy.motif.core.ui.comment.CommentUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,6 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ArtistDetailViewModel @Inject constructor(
     private val artistRepository: ArtistRepository,
+    private val commentRepository: CommentRepository,
 ) : ViewModel() {
 
     private val _uiState =
@@ -30,7 +36,14 @@ class ArtistDetailViewModel @Inject constructor(
     internal val uiState: StateFlow<ArtistDetailUiState> =
         _uiState.asStateFlow()
 
-    private var loadedArtistId: Long? = null
+    private var loadedArtistId: Long? =
+        null
+
+    private var selectedNoticeId: Long? =
+        null
+
+    private var commentLoadJob: Job? =
+        null
 
     fun loadArtist(
         artistId: Long,
@@ -39,23 +52,33 @@ class ArtistDetailViewModel @Inject constructor(
             return
         }
 
-        loadedArtistId = artistId
+        loadedArtistId =
+            artistId
+
+        selectedNoticeId =
+            null
+
+        commentLoadJob?.cancel()
 
         _uiState.value =
             ArtistDetailUiState(
-                artistId = artistId,
+                artistId =
+                    artistId,
             )
 
         loadArtistDetail(
-            artistId = artistId,
+            artistId =
+                artistId,
         )
 
         loadArtistChallenges(
-            artistId = artistId,
+            artistId =
+                artistId,
         )
 
         loadArtistNotices(
-            artistId = artistId,
+            artistId =
+                artistId,
         )
     }
 
@@ -64,7 +87,8 @@ class ArtistDetailViewModel @Inject constructor(
     ) {
         _uiState.update { state ->
             state.copy(
-                selectedTab = tab,
+                selectedTab =
+                    tab,
             )
         }
     }
@@ -73,7 +97,10 @@ class ArtistDetailViewModel @Inject constructor(
         val currentState =
             _uiState.value
 
-        if (currentState.isSubscriptionUpdating) {
+        if (
+            currentState
+                .isSubscriptionUpdating
+        ) {
             return
         }
 
@@ -90,34 +117,47 @@ class ArtistDetailViewModel @Inject constructor(
 
         val optimisticDetail =
             previousDetail.copy(
-                isSubscribed = targetSubscribed,
+                isSubscribed =
+                    targetSubscribed,
                 subscriberCount =
                     (
                             previousDetail.subscriberCount +
-                                    if (targetSubscribed) 1L else -1L
-                            ).coerceAtLeast(0L),
+                                    if (targetSubscribed) {
+                                        1L
+                                    } else {
+                                        -1L
+                                    }
+                            )
+                        .coerceAtLeast(
+                            0L,
+                        ),
             )
 
         _uiState.update { state ->
             state.copy(
                 detailState =
                     ArtistDetailContentUiState.Success(
-                        artistDetail = optimisticDetail,
+                        artistDetail =
+                            optimisticDetail,
                     ),
-                isSubscriptionUpdating = true,
+                isSubscriptionUpdating =
+                    true,
             )
         }
 
         viewModelScope.launch {
             artistRepository
                 .updateArtistSubscription(
-                    id = previousDetail.artist.id,
-                    isSubscribed = targetSubscribed,
+                    id =
+                        previousDetail.artist.id,
+                    isSubscribed =
+                        targetSubscribed,
                 )
                 .asResult()
                 .collect { result ->
                     when (result) {
-                        Result.Loading -> Unit
+                        Result.Loading ->
+                            Unit
 
                         is Result.Success -> {
                             val subscription =
@@ -138,12 +178,15 @@ class ArtistDetailViewModel @Inject constructor(
                                             artistDetail =
                                                 currentDetail.copy(
                                                     isSubscribed =
-                                                        subscription.isSubscribed,
+                                                        subscription
+                                                            .isSubscribed,
                                                     subscriberCount =
-                                                        subscription.subscriberCount,
+                                                        subscription
+                                                            .subscriberCount,
                                                 ),
                                         ),
-                                    isSubscriptionUpdating = false,
+                                    isSubscriptionUpdating =
+                                        false,
                                 )
                             }
                         }
@@ -153,9 +196,11 @@ class ArtistDetailViewModel @Inject constructor(
                                 state.copy(
                                     detailState =
                                         ArtistDetailContentUiState.Success(
-                                            artistDetail = previousDetail,
+                                            artistDetail =
+                                                previousDetail,
                                         ),
-                                    isSubscriptionUpdating = false,
+                                    isSubscriptionUpdating =
+                                        false,
                                 )
                             }
                         }
@@ -168,7 +213,8 @@ class ArtistDetailViewModel @Inject constructor(
         // TODO 알림 설정 API 추가 시 실제 서버 상태로 변경
         _uiState.update { state ->
             state.copy(
-                isAlarmOn = !state.isAlarmOn,
+                isAlarmOn =
+                    !state.isAlarmOn,
             )
         }
     }
@@ -182,7 +228,9 @@ class ArtistDetailViewModel @Inject constructor(
                     ArtistNoticeUiState.Success
                 ?: return
 
-        if (!noticeState.hasNext) {
+        if (
+            !noticeState.hasNext
+        ) {
             return
         }
 
@@ -210,14 +258,18 @@ class ArtistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             artistRepository
                 .getArtistNotices(
-                    id = state.artistId,
-                    cursor = nextCursor,
-                    size = NOTICE_PAGE_SIZE,
+                    id =
+                        state.artistId,
+                    cursor =
+                        nextCursor,
+                    size =
+                        NOTICE_PAGE_SIZE,
                 )
                 .asResult()
                 .collect { result ->
                     when (result) {
-                        Result.Loading -> Unit
+                        Result.Loading ->
+                            Unit
 
                         is Result.Success -> {
                             val page =
@@ -275,8 +327,8 @@ class ArtistDetailViewModel @Inject constructor(
         /*
          * TODO NoticeRepository 좋아요 API 연동.
          *
-         * 아티스트 상세 API 연동 범위에서는 기존 UI 동작을 유지하기 위해
-         * optimistic local state만 변경한다.
+         * 현재 아티스트 상세 화면에서는
+         * 기존 동작을 유지하기 위해 local optimistic update만 수행.
          */
         _uiState.update { state ->
             val noticeState =
@@ -288,25 +340,34 @@ class ArtistDetailViewModel @Inject constructor(
                 noticeState =
                     noticeState.copy(
                         notices =
-                            noticeState.notices.map { notice ->
-                                if (notice.id != noticeId) {
-                                    notice
-                                } else {
-                                    notice.copy(
-                                        isLiked =
-                                            !notice.isLiked,
-                                        likeCount =
-                                            (
-                                                    notice.likeCount +
-                                                            if (notice.isLiked) {
-                                                                -1L
-                                                            } else {
-                                                                1L
-                                                            }
-                                                    ).coerceAtLeast(0L),
-                                    )
-                                }
-                            },
+                            noticeState.notices
+                                .map { notice ->
+                                    if (
+                                        notice.id !=
+                                        noticeId
+                                    ) {
+                                        notice
+                                    } else {
+                                        notice.copy(
+                                            isLiked =
+                                                !notice.isLiked,
+                                            likeCount =
+                                                (
+                                                        notice.likeCount +
+                                                                if (
+                                                                    notice.isLiked
+                                                                ) {
+                                                                    -1L
+                                                                } else {
+                                                                    1L
+                                                                }
+                                                        )
+                                                    .coerceAtLeast(
+                                                        0L,
+                                                    ),
+                                        )
+                                    }
+                                },
                     ),
             )
         }
@@ -316,50 +377,100 @@ class ArtistDetailViewModel @Inject constructor(
         noticeId: Long,
     ) {
         val noticeState =
-            _uiState.value.noticeState as?
+            _uiState.value
+                .noticeState as?
                     ArtistNoticeUiState.Success
                 ?: return
 
         val exists =
-            noticeState.notices.any { notice ->
-                notice.id == noticeId
-            }
+            noticeState.notices
+                .any { notice ->
+                    notice.id ==
+                            noticeId
+                }
 
         if (!exists) {
             return
         }
 
-        /*
-         * TODO CommentRepository 연동.
-         *
-         * 기존 ArtistDetailMockData는 제거하고
-         * 댓글 API가 연결되기 전까지 빈 댓글 상태를 사용한다.
-         */
-        _uiState.update { state ->
-            state.copy(
-                commentUiState =
-                    CommentUiState(
-                        page = CommentPage.Comments,
-                        comments = emptyList(),
-                        replies = emptyList(),
-                        isLoading = false,
-                    ),
-            )
-        }
+        selectedNoticeId =
+            noticeId
+
+        commentLoadJob?.cancel()
+
+        commentLoadJob =
+            commentRepository
+                .getNoticeComments(
+                    noticeId =
+                        noticeId,
+                )
+                .asResult()
+                .onEach { result ->
+                    _uiState.update { state ->
+                        state.copy(
+                            commentUiState =
+                                when (result) {
+                                    Result.Loading -> {
+                                        CommentUiState(
+                                            page =
+                                                CommentPage.Comments,
+                                            comments =
+                                                emptyList(),
+                                            replies =
+                                                emptyList(),
+                                            isLoading =
+                                                true,
+                                        )
+                                    }
+
+                                    is Result.Success -> {
+                                        CommentUiState(
+                                            page =
+                                                CommentPage.Comments,
+                                            comments =
+                                                result.data.items,
+                                            replies =
+                                                emptyList(),
+                                            isLoading =
+                                                false,
+                                        )
+                                    }
+
+                                    is Result.Error -> {
+                                        CommentUiState(
+                                            page =
+                                                CommentPage.Comments,
+                                            comments =
+                                                emptyList(),
+                                            replies =
+                                                emptyList(),
+                                            isLoading =
+                                                false,
+                                        )
+                                    }
+                                },
+                        )
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
     }
 
     fun onReplyClick(
         commentId: Long,
     ) {
-        val commentUiState =
-            _uiState.value.commentUiState
-
         val parentComment =
-            commentUiState.comments
+            _uiState.value
+                .commentUiState
+                .comments
                 .firstOrNull { comment ->
-                    comment.id == commentId
+                    comment.id ==
+                            commentId
                 }
                 ?: return
+
+        commentLoadJob?.cancel()
 
         _uiState.update { state ->
             state.copy(
@@ -367,24 +478,102 @@ class ArtistDetailViewModel @Inject constructor(
                     state.commentUiState.copy(
                         page =
                             CommentPage.Replies(
-                                parentComment = parentComment,
+                                parentComment =
+                                    parentComment,
                             ),
-                        replies = emptyList(),
-                        isLoading = false,
+                        replies =
+                            emptyList(),
+                        isLoading =
+                            true,
+                    ),
+            )
+        }
+
+        commentLoadJob =
+            commentRepository
+                .getReplies(
+                    type =
+                        CommentType.NOTICE,
+                    commentId =
+                        commentId,
+                )
+                .asResult()
+                .onEach { result ->
+                    when (result) {
+                        Result.Loading -> {
+                            _uiState.update { state ->
+                                state.copy(
+                                    commentUiState =
+                                        state.commentUiState.copy(
+                                            isLoading =
+                                                true,
+                                        ),
+                                )
+                            }
+                        }
+
+                        is Result.Success -> {
+                            _uiState.update { state ->
+                                state.copy(
+                                    commentUiState =
+                                        state.commentUiState.copy(
+                                            replies =
+                                                result.data.items,
+                                            isLoading =
+                                                false,
+                                        ),
+                                )
+                            }
+                        }
+
+                        is Result.Error -> {
+                            _uiState.update { state ->
+                                state.copy(
+                                    commentUiState =
+                                        state.commentUiState.copy(
+                                            replies =
+                                                emptyList(),
+                                            isLoading =
+                                                false,
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                }
+                .launchIn(
+                    viewModelScope,
+                )
+    }
+
+    fun onCommentBackClick() {
+        commentLoadJob?.cancel()
+
+        _uiState.update { state ->
+            state.copy(
+                commentUiState =
+                    state.commentUiState.copy(
+                        page =
+                            CommentPage.Comments,
+                        replies =
+                            emptyList(),
+                        isLoading =
+                            false,
                     ),
             )
         }
     }
 
-    fun onCommentBackClick() {
+    fun dismissComments() {
+        commentLoadJob?.cancel()
+
+        selectedNoticeId =
+            null
+
         _uiState.update { state ->
             state.copy(
                 commentUiState =
-                    state.commentUiState.copy(
-                        page = CommentPage.Comments,
-                        replies = emptyList(),
-                        isLoading = false,
-                    ),
+                    CommentUiState(),
             )
         }
     }
@@ -392,70 +581,142 @@ class ArtistDetailViewModel @Inject constructor(
     fun onCommentLikeClick(
         commentId: Long,
     ) {
-        _uiState.update { state ->
-            val commentUiState =
-                state.commentUiState
+        val comment =
+            findComment(
+                commentId =
+                    commentId,
+            ) ?: return
 
-            val comments =
-                commentUiState.comments.map { comment ->
-                    if (comment.id == commentId) {
-                        comment.toggleLike()
-                    } else {
-                        comment
-                    }
-                }
+        val previousLiked =
+            comment.isLiked
 
-            val replies =
-                commentUiState.replies.map { reply ->
-                    if (reply.id == commentId) {
-                        reply.toggleLike()
-                    } else {
-                        reply
-                    }
-                }
+        val previousLikeCount =
+            comment.likeCount
 
-            val page =
-                when (
-                    val page =
-                        commentUiState.page
-                ) {
-                    CommentPage.Comments ->
-                        page
+        val targetLiked =
+            !previousLiked
 
-                    is CommentPage.Replies -> {
-                        if (
-                            page.parentComment.id ==
-                            commentId
-                        ) {
-                            page.copy(
-                                parentComment =
-                                    page.parentComment.toggleLike(),
-                            )
-                        } else {
-                            page
-                        }
-                    }
-                }
+        val targetLikeCount =
+            if (targetLiked) {
+                previousLikeCount + 1L
+            } else {
+                (previousLikeCount - 1L)
+                    .coerceAtLeast(
+                        0L,
+                    )
+            }
 
-            state.copy(
-                commentUiState =
-                    commentUiState.copy(
-                        page = page,
-                        comments = comments,
-                        replies = replies,
-                    ),
+        updateCommentLikeState(
+            commentId =
+                commentId,
+            isLiked =
+                targetLiked,
+            likeCount =
+                targetLikeCount,
+        )
+
+        commentRepository
+            .updateCommentLike(
+                type =
+                    CommentType.NOTICE,
+                commentId =
+                    commentId,
+                isLiked =
+                    targetLiked,
             )
-        }
+            .asResult()
+            .onEach { result ->
+                if (
+                    result is Result.Error
+                ) {
+                    rollbackCommentLike(
+                        commentId =
+                            commentId,
+                        targetLiked =
+                            targetLiked,
+                        previousLiked =
+                            previousLiked,
+                        previousLikeCount =
+                            previousLikeCount,
+                    )
+                }
+            }
+            .launchIn(
+                viewModelScope,
+            )
     }
 
     fun onCommentSendClick(
         content: String,
     ) {
-        if (content.isBlank()) {
+        val noticeId =
+            selectedNoticeId
+                ?: return
+
+        val trimmedContent =
+            content.trim()
+
+        if (
+            trimmedContent.isEmpty()
+        ) {
             return
         }
 
-        // TODO CommentRepository 작성 API 연동
+        val parentCommentId =
+            (
+                    _uiState.value
+                        .commentUiState
+                        .page as?
+                            CommentPage.Replies
+                    )
+                ?.parentComment
+                ?.id
+
+        commentRepository
+            .createNoticeComment(
+                noticeId =
+                    noticeId,
+                content =
+                    trimmedContent,
+                parentCommentId =
+                    parentCommentId,
+            )
+            .asResult()
+            .onEach { result ->
+                if (
+                    result !is Result.Success
+                ) {
+                    return@onEach
+                }
+
+                incrementNoticeCommentCount(
+                    noticeId =
+                        noticeId,
+                )
+
+                if (
+                    parentCommentId ==
+                    null
+                ) {
+                    onNoticeCommentClick(
+                        noticeId =
+                            noticeId,
+                    )
+                } else {
+                    incrementReplyCount(
+                        commentId =
+                            parentCommentId,
+                    )
+
+                    onReplyClick(
+                        commentId =
+                            parentCommentId,
+                    )
+                }
+            }
+            .launchIn(
+                viewModelScope,
+            )
     }
 
     private fun loadArtistDetail(
@@ -464,7 +725,8 @@ class ArtistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             artistRepository
                 .getArtistDetail(
-                    id = artistId,
+                    id =
+                        artistId,
                 )
                 .asResult()
                 .collect { result ->
@@ -483,7 +745,8 @@ class ArtistDetailViewModel @Inject constructor(
                                 state.copy(
                                     detailState =
                                         ArtistDetailContentUiState.Success(
-                                            artistDetail = result.data,
+                                            artistDetail =
+                                                result.data,
                                         ),
                                 )
                             }
@@ -511,7 +774,8 @@ class ArtistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             artistRepository
                 .getArtistChallenges(
-                    id = artistId,
+                    id =
+                        artistId,
                 )
                 .asResult()
                 .collect { result ->
@@ -530,7 +794,8 @@ class ArtistDetailViewModel @Inject constructor(
                                 state.copy(
                                     challengeState =
                                         ArtistChallengeUiState.Success(
-                                            challenges = result.data,
+                                            challenges =
+                                                result.data,
                                         ),
                                 )
                             }
@@ -558,9 +823,12 @@ class ArtistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             artistRepository
                 .getArtistNotices(
-                    id = artistId,
-                    cursor = null,
-                    size = NOTICE_PAGE_SIZE,
+                    id =
+                        artistId,
+                    cursor =
+                        null,
+                    size =
+                        NOTICE_PAGE_SIZE,
                 )
                 .asResult()
                 .collect { result ->
@@ -573,13 +841,15 @@ class ArtistDetailViewModel @Inject constructor(
 
                             _uiState.update { state ->
                                 state.copy(
-                                    noticeState = ArtistNoticeUiState.Loading,
+                                    noticeState =
+                                        ArtistNoticeUiState.Loading,
                                 )
                             }
                         }
 
                         is Result.Success -> {
-                            val page = result.data
+                            val page =
+                                result.data
 
                             Log.d(
                                 "ArtistDetail",
@@ -588,11 +858,15 @@ class ArtistDetailViewModel @Inject constructor(
 
                             _uiState.update { state ->
                                 state.copy(
-                                    noticeState = ArtistNoticeUiState.Success(
-                                        notices = page.items,
-                                        nextCursor = page.nextCursor,
-                                        hasNext = page.hasNext,
-                                    ),
+                                    noticeState =
+                                        ArtistNoticeUiState.Success(
+                                            notices =
+                                                page.items,
+                                            nextCursor =
+                                                page.nextCursor,
+                                            hasNext =
+                                                page.hasNext,
+                                        ),
                                 )
                             }
                         }
@@ -606,9 +880,11 @@ class ArtistDetailViewModel @Inject constructor(
 
                             _uiState.update { state ->
                                 state.copy(
-                                    noticeState = ArtistNoticeUiState.Error(
-                                        exception = result.exception,
-                                    ),
+                                    noticeState =
+                                        ArtistNoticeUiState.Error(
+                                            exception =
+                                                result.exception,
+                                        ),
                                 )
                             }
                         }
@@ -617,21 +893,263 @@ class ArtistDetailViewModel @Inject constructor(
         }
     }
 
-    private fun Comment.toggleLike(): Comment =
-        copy(
-            isLiked = !isLiked,
+    private fun findComment(
+        commentId: Long,
+    ): Comment? {
+        val state =
+            _uiState.value
+                .commentUiState
+
+        val parentComment =
+            (
+                    state.page as?
+                            CommentPage.Replies
+                    )
+                ?.parentComment
+                ?.takeIf { comment ->
+                    comment.id ==
+                            commentId
+                }
+
+        return parentComment
+            ?: state.comments
+                .firstOrNull { comment ->
+                    comment.id ==
+                            commentId
+                }
+            ?: state.replies
+                .firstOrNull { comment ->
+                    comment.id ==
+                            commentId
+                }
+    }
+
+    private fun updateCommentLikeState(
+        commentId: Long,
+        isLiked: Boolean,
+        likeCount: Long,
+    ) {
+        _uiState.update { state ->
+            val commentUiState =
+                state.commentUiState
+
+            val comments =
+                commentUiState.comments
+                    .map { comment ->
+                        if (
+                            comment.id ==
+                            commentId
+                        ) {
+                            comment.copy(
+                                isLiked =
+                                    isLiked,
+                                likeCount =
+                                    likeCount,
+                            )
+                        } else {
+                            comment
+                        }
+                    }
+
+            val replies =
+                commentUiState.replies
+                    .map { comment ->
+                        if (
+                            comment.id ==
+                            commentId
+                        ) {
+                            comment.copy(
+                                isLiked =
+                                    isLiked,
+                                likeCount =
+                                    likeCount,
+                            )
+                        } else {
+                            comment
+                        }
+                    }
+
+            val page =
+                when (
+                    val currentPage =
+                        commentUiState.page
+                ) {
+                    CommentPage.Comments -> {
+                        currentPage
+                    }
+
+                    is CommentPage.Replies -> {
+                        if (
+                            currentPage
+                                .parentComment
+                                .id ==
+                            commentId
+                        ) {
+                            CommentPage.Replies(
+                                parentComment =
+                                    currentPage
+                                        .parentComment
+                                        .copy(
+                                            isLiked =
+                                                isLiked,
+                                            likeCount =
+                                                likeCount,
+                                        ),
+                            )
+                        } else {
+                            currentPage
+                        }
+                    }
+                }
+
+            state.copy(
+                commentUiState =
+                    commentUiState.copy(
+                        page =
+                            page,
+                        comments =
+                            comments,
+                        replies =
+                            replies,
+                    ),
+            )
+        }
+    }
+
+    private fun rollbackCommentLike(
+        commentId: Long,
+        targetLiked: Boolean,
+        previousLiked: Boolean,
+        previousLikeCount: Long,
+    ) {
+        val currentComment =
+            findComment(
+                commentId =
+                    commentId,
+            ) ?: return
+
+        if (
+            currentComment.isLiked !=
+            targetLiked
+        ) {
+            return
+        }
+
+        updateCommentLikeState(
+            commentId =
+                commentId,
+            isLiked =
+                previousLiked,
             likeCount =
-                (
-                        likeCount +
-                                if (isLiked) {
-                                    -1L
-                                } else {
-                                    1L
-                                }
-                        ).coerceAtLeast(0L),
+                previousLikeCount,
         )
+    }
+
+    private fun incrementNoticeCommentCount(
+        noticeId: Long,
+    ) {
+        _uiState.update { state ->
+            val noticeState =
+                state.noticeState as?
+                        ArtistNoticeUiState.Success
+                    ?: return@update state
+
+            state.copy(
+                noticeState =
+                    noticeState.copy(
+                        notices =
+                            noticeState.notices
+                                .map { notice ->
+                                    if (
+                                        notice.id ==
+                                        noticeId
+                                    ) {
+                                        notice.copy(
+                                            commentCount =
+                                                notice.commentCount +
+                                                        1L,
+                                        )
+                                    } else {
+                                        notice
+                                    }
+                                },
+                    ),
+            )
+        }
+    }
+
+    private fun incrementReplyCount(
+        commentId: Long,
+    ) {
+        _uiState.update { state ->
+            val commentUiState =
+                state.commentUiState
+
+            val comments =
+                commentUiState.comments
+                    .map { comment ->
+                        if (
+                            comment.id ==
+                            commentId
+                        ) {
+                            comment.copy(
+                                replyCount =
+                                    comment.replyCount +
+                                            1L,
+                            )
+                        } else {
+                            comment
+                        }
+                    }
+
+            val page =
+                when (
+                    val currentPage =
+                        commentUiState.page
+                ) {
+                    CommentPage.Comments -> {
+                        currentPage
+                    }
+
+                    is CommentPage.Replies -> {
+                        if (
+                            currentPage
+                                .parentComment
+                                .id ==
+                            commentId
+                        ) {
+                            CommentPage.Replies(
+                                parentComment =
+                                    currentPage
+                                        .parentComment
+                                        .copy(
+                                            replyCount =
+                                                currentPage
+                                                    .parentComment
+                                                    .replyCount +
+                                                        1L,
+                                        ),
+                            )
+                        } else {
+                            currentPage
+                        }
+                    }
+                }
+
+            state.copy(
+                commentUiState =
+                    commentUiState.copy(
+                        page =
+                            page,
+                        comments =
+                            comments,
+                    ),
+            )
+        }
+    }
 
     private companion object {
-        const val NOTICE_PAGE_SIZE = 20
+        const val NOTICE_PAGE_SIZE =
+            20
     }
 }
